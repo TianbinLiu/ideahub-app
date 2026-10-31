@@ -19,6 +19,7 @@ import UpgradeLink from "../UpgradeLink";
 import { GUIDED_GROUPS, GUIDED_MODES, clearsBlock, modeBlock, modeTierOfSpec, type GuidedGroup, type GuidedModeId, type ModeTier } from "../../data/guidedModes";
 import { GRID_DEFAULT_SEC } from "../../data/gridShots";
 import { LEAD_DEFAULT_SEC } from "../../data/sceneShots";
+import { SONG_DEFAULT_SEC } from "../../data/songShots";
 
 const GROUP_LABEL: Record<GuidedGroup, MessageDescriptor> = {
   basic: msg`基础`,
@@ -53,6 +54,13 @@ const MODE_TEXT: Record<GuidedModeId, { icon: IconName; title: MessageDescriptor
     title: msg`对话正反打`,
     tag: msg`你一句我一句`,
     desc: msg`两个人＋一个场景，写几句对白，AI 画出双人镜头和两个过肩镜头，一句一段、按卡上的声音说出来。影视对话戏的标准拍法`,
+  },
+  // L 唱一段（2026-10-31）：说「挂了声音样本的卡会一起带上」是事实（segmentGen.voiceRefsFor 按台词里的名字带），不说「用本人的声音唱」—— 探测只验了会不会唱，没验样本能不能让它照着唱
+  song: {
+    icon: "mic",
+    title: msg`唱一段`,
+    tag: msg`歌词让 AI 唱`,
+    desc: msg`选一个人，写几行歌词（或让 AI 写）、挑个曲风，AI 把它唱出来；挂了声音样本的卡会一起带上`,
   },
   cards: { icon: "cards", title: msg`AI 推演三套`, tag: msg`先看关键画面`, desc: msg`挑卡＋写要求，AI 出三套带关键画面的方案，挑一套再出片` },
   effect: {
@@ -228,6 +236,9 @@ export default function ModePicker({
                 // 特效同款 = 一张关键帧 + 一段视频（真人档没有关键帧、按发计价）；对话正反打 = 写对白一次对话 + 三张画面 + 三段
                 const fxSec = clampDuration(5, tier.id);
                 const fxVideo = fmtTokens(segTokens(fxSec, tier.id));
+                // 唱一段 = 写歌词一次对话（自己写不花钱）+ 默认 15 秒的视频（人物图直接给视频模型、不画帧）
+                const songSec = clampDuration(SONG_DEFAULT_SEC, tier.id);
+                const songVideo = fmtTokens(segTokens(songSec, tier.id));
                 const price =
                   m.id === "direct"
                     ? t`约 ${fmtTokens(segTokens(5, tier.id))} / 5 秒，只有视频`
@@ -237,6 +248,8 @@ export default function ModePicker({
                       ? t`写分镜 ${chatPrice}，画面每格 ${gridPanelPrice}（含 AI 看一遍），每格一段约 ${gridVideo} / ${gridSec} 秒`
                       : m.id === "dialogue"
                       ? t`写对白 ${chatPrice}，三个机位每张 ${gridPanelPrice}（含 AI 看一遍），每句一段约 ${gridVideo} / ${gridSec} 秒`
+                      : m.id === "song"
+                      ? t`AI 写歌词 ${chatPrice}（自己写不花钱），视频约 ${songVideo} / ${songSec} 秒`
                       : m.id === "effect"
                       ? caps.startOnly
                         ? t`照片起拍，视频约 ${fxVideo} / 一发`

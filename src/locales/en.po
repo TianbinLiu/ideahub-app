@@ -474,6 +474,7 @@ msgstr "· Questionnaire: 12 items (untouched ones use defaults)"
 #: src/components/flow/EffectWizard.tsx
 #: src/components/flow/GridShotsWizard.tsx
 #: src/components/flow/LeadShotsWizard.tsx
+#: src/components/flow/SongWizard.tsx
 #: src/studio/ui/projection.tsx
 msgid "‹ 上一步"
 msgstr "‹ Back"
@@ -506,6 +507,7 @@ msgstr "‹ Example video"
 #: src/components/flow/EffectWizard.tsx
 #: src/components/flow/GridShotsWizard.tsx
 #: src/components/flow/LeadShotsWizard.tsx
+#: src/components/flow/SongWizard.tsx
 msgid "‹ 选法"
 msgstr "‹ Methods"
 
@@ -1427,6 +1429,10 @@ msgstr "{lead}, so “{label}” has to switch to “{label}” on {via} to rend
 #: src/pages/DeckDetailPage.tsx
 msgid "{lead}：{reason}"
 msgstr "{lead}: {reason}"
+
+#: src/components/flow/SongWizard.tsx
+msgid "{lineN} 行，唱完至少要 {minSec} 秒。"
+msgstr "{lineN} lines; singing them takes at least {minSec} s."
 
 #. 铸卡师念的话。list 是前三张的名字（已用分隔符连好），count 是丢的总张数（大于 3），reason 是失败原因整句
 #: src/studio/studioStore.ts
@@ -2584,6 +2590,14 @@ msgstr "“{realLabel}” (member-only: available once you subscribe to a plan o
 msgid "「{realLabel}」档（在「工作流」或「简约模式」里直出）"
 msgstr "“{realLabel}” (generate directly in Workflow or Simple mode)"
 
+#: src/components/flow/SongWizard.tsx
+msgid "「{singerName}」卡上有声音样本，出片时会一起带上。"
+msgstr "“{singerName}” has a voice sample on the card; it will be sent along when generating."
+
+#: src/components/flow/SongWizard.tsx
+msgid "「{singerName}」卡上没有声音样本，声音由模型自己配；想带上自己的声音，去这张卡的页面录一段再来。"
+msgstr "“{singerName}” has no voice sample, so the model picks a voice; to use your own, record one on that card’s page first."
+
 #: src/studio/flowStore.ts
 msgid "「{slot}」是文字模板的图位，名字跟着模板走、不能改——想换图点「换图」"
 msgstr "“{slot}” is an image slot of the text template. Its name comes with the template and can't be changed — to use a different image, tap “Replace image”."
@@ -2890,6 +2904,10 @@ msgstr "↻ Forge again"
 #: src/studio/ui/NpcDialog.tsx
 msgid "↻ 再炼一炉（{0}）"
 msgstr "↻ Forge again ({0})"
+
+#: src/components/flow/SongWizard.tsx
+msgid "↻ 重写（{writePrice}）"
+msgstr "↻ Rewrite ({writePrice})"
 
 #: src/pages/CutPage.tsx
 msgid "↻ 重新配音"
@@ -3508,6 +3526,7 @@ msgstr "⚡ Generate this segment"
 #~ msgstr "⚡ Generate this segment's video ({0})"
 
 #: src/components/flow/EffectWizard.tsx
+#: src/components/flow/SongWizard.tsx
 msgid "⚡ 生成这一段"
 msgstr "⚡ Generate this segment"
 
@@ -3521,6 +3540,7 @@ msgid "⚡ 生成这一段（{genPrice}）"
 msgstr "⚡ Generate this segment ({genPrice})"
 
 #: src/components/flow/EffectWizard.tsx
+#: src/components/flow/SongWizard.tsx
 msgid "⚡ 生成这一段（{segPrice}）"
 msgstr "⚡ Generate this segment ({segPrice})"
 
@@ -3699,6 +3719,10 @@ msgstr "✦ Holographic 3D"
 #: src/pages/CardDetailPage.tsx
 msgid "✦ 全息实体 3D 建模"
 msgstr "✦ Holographic 3D model"
+
+#: src/components/flow/SongWizard.tsx
+msgid "✨ AI 写 4 行（{writePrice}）"
+msgstr "✨ AI writes 4 lines ({writePrice})"
 
 #: src/components/flow/DialogueWizard.tsx
 msgid "✨ AI 写对白（{writePrice}）"
@@ -3952,6 +3976,10 @@ msgstr "🎞 Adjust first/last frames / add middle frames"
 #: src/components/VideoCardAnnotator.tsx
 msgid "🎤 取一段他的声音（可选，{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒 · 出片时台词可用这个音色）"
 msgstr "🎤 Capture a clip of their voice (optional, {VOICE_MIN_SEC}–{VOICE_MAX_SEC}s · dialogue in videos can use this voice)"
+
+#: src/components/flow/SongWizard.tsx
+msgid "🎤 唱一段"
+msgstr "🎤 Sing a verse"
 
 #: src/components/flow/DialogueWizard.tsx
 msgid "🎥 画三个机位（最多 {anglesPrice}）"
@@ -4672,6 +4700,10 @@ msgstr "The AI <0>looks only at these frames</0> to find who is in the shot — 
 msgid "AI 写一段约 {textPrice} token"
 msgstr "AI writes one for about {textPrice} token"
 
+#: src/components/flow/ModePicker.tsx
+msgid "AI 写歌词 {chatPrice}（自己写不花钱），视频约 {songVideo} / {songSec} 秒"
+msgstr "AI lyrics {chatPrice} (free if you write them), video about {songVideo} / {songSec} s"
+
 #: src/studio/ui/projection.tsx
 msgid "AI 决定"
 msgstr "AI decides"
@@ -5055,6 +5087,10 @@ msgstr "Write a scene in a sentence or two; it’s split into 2–4 shots within
 msgid "一两句话就够：在哪、什么时候、谁做了什么、谁说了什么。AI 会拆成几个镜头，台词挂到说话的人身上。"
 msgstr "A sentence or two is enough: where, when, who does what, who says what. AI splits it into shots and gives each line to the person saying it."
 
+#: src/studio/structuredSkills.ts
+msgid "一个主题 → 歌词"
+msgstr "A theme → lyrics"
+
 #: src/components/flow/EffectWizard.tsx
 msgid "一个人"
 msgstr "One person"
@@ -5095,6 +5131,10 @@ msgstr "One line, one segment: each starts from its angle’s picture and is spo
 msgid "一句主体描述（选）：例「银白长发的星星发夹少女」"
 msgstr "One-line description (optional): e.g. “girl with long silver hair and a star hairpin”"
 
+#: src/components/flow/SongWizard.tsx
+msgid "一句主题：这首歌唱什么、什么心情"
+msgstr "One line: what the song is about and its mood"
+
 #: src/pages/tutor/TutorNewPage.tsx
 msgid "一句口头禅（可选）"
 msgstr "A catchphrase (optional)"
@@ -5114,6 +5154,10 @@ msgstr "One sentence: who, what, and the tone. If filled, after laying out you c
 #: src/components/flow/CastPicker.tsx
 msgid "一句话：长相、发型、服装、气质。例：橙色短发、绿眼睛的少女，暗红色短披肩配绿领结"
 msgstr "One sentence: looks, hair, clothes, vibe. E.g. a girl with short orange hair and green eyes, a dark-red short cape and a green bow tie"
+
+#: src/studio/structuredSkills.ts
+msgid "一句话（{LYRIC_THEME_MIN}~{LYRIC_THEME_MAX} 字）：这首歌唱什么、什么心情"
+msgstr "One line ({LYRIC_THEME_MIN}–{LYRIC_THEME_MAX} chars): what the song is about and its mood"
 
 #: src/studio/structuredSkills.ts
 msgid "一句话（{THEME_MIN}~{THEME_MAX} 字）：讲谁、讲什么、什么调子。已出片的段与白模段不会改"
@@ -5798,6 +5842,7 @@ msgstr "Next: write the scene ›"
 #: src/components/flow/EffectWizard.tsx
 #: src/components/flow/GridShotsWizard.tsx
 #: src/components/flow/LeadShotsWizard.tsx
+#: src/components/flow/SongWizard.tsx
 msgid "下一步：出片 ›"
 msgstr "Next: render ›"
 
@@ -5848,6 +5893,10 @@ msgstr "Next: local preview"
 #: src/components/VideoTemplateExtractor.tsx
 msgid "下一步：标切段刀"
 msgstr "Next: place the cuts"
+
+#: src/components/flow/SongWizard.tsx
+msgid "下一步：歌词 ›"
+msgstr "Next: lyrics ›"
 
 #: src/pages/tutor/TutorNewPage.tsx
 msgid "下一步：生成"
@@ -6395,6 +6444,10 @@ msgid "主角的形象图没画成（{why}），这张卡没收进卡片库。�
 msgstr "The lead’s images weren’t drawn ({why}), so the card wasn’t saved to your library. Images that were drawn but couldn’t be fetched are still charged — check your balance on the “Me” page. You can try again"
 
 #: src/studio/structuredSkills.ts
+msgid "主题写得太短（至少 {LYRIC_THEME_MIN} 个字）——写清这首歌唱什么、什么心情"
+msgstr "The theme is too short (at least {LYRIC_THEME_MIN} chars) — say what the song is about and its mood"
+
+#: src/studio/structuredSkills.ts
 msgid "主题太短（至少 {THEME_MIN} 字）"
 msgstr "The theme is too short (at least {THEME_MIN} chars)"
 
@@ -6701,6 +6754,14 @@ msgstr "Character card slots come from the <0>scheme</0>; other card types from 
 #: src/studio/structuredSkills.ts
 msgid "人物图直接给视频模型、不画帧，一条出"
 msgstr "Character images go straight to the video model, no frames drawn, one render"
+
+#: src/studio/structuredSkills.ts
+msgid "人物图直接给视频模型、不画帧，一条唱出来"
+msgstr "Character pictures go straight to the video model, no frames drawn; one take, sung"
+
+#: src/components/flow/SongWizard.tsx
+msgid "人物图直接给视频模型、不画帧，一镜到底把这几行唱出来；不接上一段的结尾（唱一段是一条独立的片子）。唱得准不准是软引导，歌词有被念出来或唱串的可能。"
+msgstr "Character pictures go straight to the video model with no frames drawn, and the lines are sung in one take; it does not continue from the previous segment (a sung verse is its own clip). Singing is a soft instruction: the lyrics may be spoken or garbled."
 
 #: src/pages/SupportCreatePage.tsx
 msgid "人物模型"
@@ -8485,6 +8546,10 @@ msgstr "The last chunk finished, but video storage didn't assemble the video —
 msgid "最多 {0} 组，已经满了"
 msgstr "Up to {0} groups; already full"
 
+#: src/components/flow/SongWizard.tsx
+msgid "最多 {linesMax} 行，多的分到下一段。"
+msgstr "At most {linesMax} lines; put the rest in the next segment."
+
 #: src/data/cardViews.ts
 msgid "最多 {MAX_CARD_VIEWS} 张：不建议堆满，素材太多模型反而判断不出该优先保哪些特征"
 msgstr "Up to {MAX_CARD_VIEWS}: filling every slot isn't recommended — with too many references, the model can't tell which features to prioritize"
@@ -8588,6 +8653,10 @@ msgid "写一句"
 msgstr "Write one"
 
 #: src/studio/structuredSkills.ts
+msgid "写一句主题，挑个曲风，AI 写 2~8 行原创歌词，逐行可改，让你的角色唱出来"
+msgstr "Write a theme, pick a style, and the AI writes 2–8 original lines you can edit; your character sings them"
+
+#: src/studio/structuredSkills.ts
 msgid "写一句你的主题，模型把每一段的剧情换成你的故事；段数、镜头字段、时长、卡位都不动，逐段对照再写回"
 msgstr "Write your theme in one sentence and the model turns every segment's plot into your story; segment count, shot fields, durations and card slots stay put, and you compare segment by segment before it is written back"
 
@@ -8652,6 +8721,10 @@ msgstr "None of the lines could be used (no dialogue, or the speakers aren’t t
 #: src/studio/structuredSkills.ts
 msgid "写出来的格子一个都没写画面，这一次已经计费——把这场戏写具体些再写"
 msgstr "None of the panels came back with a picture. This run has already been charged — make the scene more specific and write again"
+
+#: src/studio/structuredSkills.ts
+msgid "写出来的歌词一行都用不上，这一次已经计费——把主题写具体些再写"
+msgstr "None of the lyrics were usable; this call was charged — make the theme more specific and try again"
 
 #: src/studio/structuredSkills.ts
 msgid "写分镜"
@@ -8728,6 +8801,14 @@ msgstr "Write narration"
 #: src/components/cut/AutoEditSheet.tsx
 msgid "写旁白中…"
 msgstr "Writing narration…"
+
+#: src/studio/structuredSkills.ts
+msgid "写歌词"
+msgstr "Write lyrics"
+
+#: src/studio/structuredSkills.ts
+msgid "写歌词要 {price} token，余额不够——去「我的」页充值"
+msgstr "Writing lyrics costs {price} tokens and your balance is short — top up on the Me page"
 
 #: src/components/guide/tours.tsx
 msgid "写给 AI 的那段信息"
@@ -8854,6 +8935,7 @@ msgstr "Result"
 #: src/components/flow/EffectWizard.tsx
 #: src/components/flow/GridShotsWizard.tsx
 #: src/components/flow/LeadShotsWizard.tsx
+#: src/components/flow/SongWizard.tsx
 #: src/pages/SimpleModePage.tsx
 #: src/studio/structuredSkills.ts
 msgid "出片"
@@ -10056,6 +10138,10 @@ msgstr "No scene cards in your library — that’s fine, describe the place in 
 msgid "卡片库里没有场景卡 —— 不挑也行，地点写进这场戏里。"
 msgstr "No scene cards in your library — that’s fine, just describe the place in the scene."
 
+#: src/components/flow/SongWizard.tsx
+msgid "卡片库里没有场景卡 —— 不挑也行，就在小剧场的舞台上唱。"
+msgstr "No scene cards in your library — that’s fine, the song is sung on a small theater stage."
+
 #: src/components/flow/EffectWizard.tsx
 msgid "卡片库里没有道具卡 —— 传一张产品照片就行（只用来画关键帧，不会存进卡片库）。"
 msgstr "No prop cards in your library — just upload a product photo (it’s only used for the keyframe and isn’t saved to your library)."
@@ -11113,6 +11199,7 @@ msgstr "motion sync"
 msgid "口头禅"
 msgstr "Catchphrases"
 
+#: src/components/flow/SongWizard.tsx
 #: src/types.ts
 msgid "古风"
 msgstr "Ancient style"
@@ -11336,6 +11423,7 @@ msgstr "Just add these {segN} segments, don’t render yet"
 #: src/components/flow/EffectWizard.tsx
 #: src/components/flow/GridShotsWizard.tsx
 #: src/components/flow/LeadShotsWizard.tsx
+#: src/components/flow/SongWizard.tsx
 msgid "只铺成这一段，先不出片"
 msgstr "Just add the segment, don’t render yet"
 
@@ -11782,6 +11870,26 @@ msgstr "Open command phrases (or type /)"
 msgid "唯一收真人照片的档 · 供应商按发计价（6 秒或 10 秒整档）· 用真人卡出片选它"
 msgstr "The only tier that accepts photos of real people · the provider prices per clip (6s or 10s only) · choose it to render with real-person cards"
 
+#: src/components/flow/ModePicker.tsx
+msgid "唱一段"
+msgstr "Sing a verse"
+
+#: src/components/flow/SongWizard.tsx
+msgid "唱一段 · {singerName} · {styleName}"
+msgstr "Sing a verse · {singerName} · {styleName}"
+
+#: src/studio/songDraftStore.ts
+msgid "唱一段 · 写歌词"
+msgstr "Sing a verse · writing lyrics"
+
+#: src/studio/songDraftStore.ts
+msgid "唱一段的歌词没写成，回去看原因"
+msgstr "The lyrics for Sing a verse failed; go back to see why"
+
+#: src/studio/ui/projection.tsx
+msgid "唱的那一段铺好了——人物图直接给视频模型，歌词由它唱出来。"
+msgstr "The sung segment is laid out — the character pictures go straight to the video model, which sings the lyrics."
+
 #: src/pages/SupportCreatePage.tsx
 #: src/pages/SupportPersonasPage.tsx
 msgid "喂一段聊天记录或者答几道题，AI 帮你写出说话风格，试聊满意了再发布。"
@@ -12186,6 +12294,7 @@ msgstr "Scene card"
 
 #: src/components/flow/DialogueWizard.tsx
 #: src/components/flow/GridShotsWizard.tsx
+#: src/components/flow/SongWizard.tsx
 msgid "场景卡（选填，只挑一张）"
 msgstr "Scene card (optional, pick one)"
 
@@ -12313,6 +12422,12 @@ msgstr "Most likely you just changed direction or re-derived plans. Pick the ori
 #: src/components/flow/FlowCanvas.tsx
 msgid "多图+参考视频模式：上面的首/尾帧此时是<0>参考图</0>， 由提示词点名「图片1是第一帧画面…」——是引导不是硬约束。"
 msgstr "Multi-image + reference video mode: the first/last frames above are now <0>reference images</0>, named in the prompt (“image 1 is the first frame…”) — guidance, not a hard constraint."
+
+#: src/components/flow/SongWizard.tsx
+msgid "夜色落在窗台上\n"
+"风把灯火吹得轻轻晃"
+msgstr "Night settles on the windowsill\n"
+"The wind sets every lantern swaying"
 
 #: src/components/DownloadSheet.tsx
 msgid "大小未知"
@@ -14448,6 +14563,10 @@ msgid "形状不对整发不认；多出来的格子不收；不认识的人不�
 msgstr "Anything in the wrong shape is rejected; extra panels are dropped; unknown people aren’t counted in the picture"
 
 #: src/studio/structuredSkills.ts
+msgid "形状不对整发不认；多出来的行不收"
+msgstr "Wrong shape rejects the whole reply; extra lines are dropped"
+
+#: src/studio/structuredSkills.ts
 msgid "形状不对整发不认；多出来的镜头不收"
 msgstr "If the format is wrong the whole reply is rejected; extra shots are dropped"
 
@@ -14730,6 +14849,10 @@ msgstr "The situation changed, but the dialogue below was written for the old on
 #: src/types.ts
 msgid "情感互动"
 msgstr "Emotional"
+
+#: src/components/flow/SongWizard.tsx
+msgid "情绪"
+msgstr "Mood"
 
 #: src/pages/SimpleModePage.tsx
 msgid "想怎么开始？"
@@ -15345,6 +15468,10 @@ msgstr "Box the prop as tightly as you can. If it's too small in the picture to 
 #: src/pages/CustomCardPage.tsx
 msgid "把这张卡的样子写具体：造型、材质、配色、光线……"
 msgstr "Describe how this card looks in detail: shape, materials, colors, lighting…"
+
+#: src/components/flow/SongWizard.tsx
+msgid "抒情民谣"
+msgstr "Ballad"
 
 #: src/studio/ui/NpcDialog.tsx
 msgid "报不出价"
@@ -16568,6 +16695,14 @@ msgstr "Set positions and camera, then capture and fuse into this segment's open
 msgid "摇头 · 否定"
 msgstr "Shake head · disagree"
 
+#: src/components/flow/SongWizard.tsx
+msgid "摇滚"
+msgstr "Rock"
+
+#: src/components/flow/SongWizard.tsx
+msgid "摇篮曲"
+msgstr "Lullaby"
+
 #: src/studio/ui/projection.tsx
 msgid "摘掉"
 msgstr "Detach"
@@ -17375,6 +17510,7 @@ msgstr "No preview frame"
 #: src/components/flow/FlowCanvas.tsx
 #: src/components/flow/LeadShotsWizard.tsx
 #: src/components/flow/SegSettings.tsx
+#: src/components/flow/SongWizard.tsx
 #: src/components/TextTemplateSheet.tsx
 #: src/studio/ui/PlanBoard.tsx
 msgid "时长"
@@ -17503,6 +17639,10 @@ msgstr "Cannot reach the server right now ({0})"
 #: src/components/CoverPicker.tsx
 msgid "暗处在首页会被文字和按钮盖住（大致）"
 msgstr "Shaded areas are roughly where text and buttons cover the feed"
+
+#: src/components/flow/SongWizard.tsx
+msgid "曲风"
+msgstr "Style"
 
 #: src/components/CommentSheet.tsx
 #: src/components/FeedActionSheet.tsx
@@ -17767,6 +17907,7 @@ msgstr "A segment is generating — wait for it to finish before making the next
 #: src/components/flow/DialogueWizard.tsx
 #: src/components/flow/EffectWizard.tsx
 #: src/components/flow/GridShotsWizard.tsx
+#: src/components/flow/SongWizard.tsx
 msgid "有一段正在生成中，等它跑完再出。"
 msgstr "A segment is generating — wait for it to finish before rendering."
 
@@ -17890,6 +18031,10 @@ msgstr "Some panels mention “{names}” in the picture, so they were added to 
 #: src/studio/gridDraftStore.ts
 msgid "有几格还没写画面——写上，或者删掉那几格再画"
 msgstr "Some panels have no picture yet — fill them in, or delete those panels, then draw"
+
+#: src/components/flow/SongWizard.tsx
+msgid "有力"
+msgstr "Powerful"
 
 #: src/components/video/RemakeCard.tsx
 msgid "有声"
@@ -18841,6 +18986,10 @@ msgid "模型写到一半被截断了（片段太多、旁白太长）——删�
 msgstr "The model's answer was cut off partway (too many clips or lines that are too long) — remove a few clips that don't need narration and try again"
 
 #: src/studio/structuredSkills.ts
+msgid "模型写到一半被截断了（输出超过 {limit} token 的上限），这一次已经计费——少要几行再写"
+msgstr "The model was cut off mid-way (output over the {limit}-token limit); this call was charged — ask for fewer lines"
+
+#: src/studio/structuredSkills.ts
 msgid "模型写到一半被截断了（输出超过 {limit} token 的上限），这一次已经计费——把剧本删短一些或分两次拆再试"
 msgstr "The model's output was cut off midway (it went past the {limit}-token output limit). This run has already been charged — shorten the script or split it into two runs and try again."
 
@@ -18896,6 +19045,14 @@ msgstr "The model’s reply was malformed (several lines were squeezed into one)
 msgid "模型回的格式有问题（几格挤进了同一格），这一次已经计费——再写一次"
 msgstr "The model’s reply was malformed (several panels squeezed into one). This run has already been charged — write again"
 
+#: src/studio/structuredSkills.ts
+msgid "模型回的格式有问题（几段挤进了同一格），这一次已经计费——再写一次"
+msgstr "The reply had a format problem (several parts squeezed into one slot); this call was charged — try again"
+
+#: src/studio/structuredSkills.ts
+msgid "模型回的歌词读不出来，这一次已经计费——再写一次"
+msgstr "The lyrics reply could not be read; this call was charged — try again"
+
 #. placeholder {0}: segs.length
 #. placeholder {1}: list.length
 #: src/studio/structuredSkills.ts
@@ -18918,6 +19075,10 @@ msgstr "The model wrote {count, plural, one {# extra line} other {# extra lines}
 msgid "模型多写了 {count} 格，一组最多 {GRID_SHOTS_MAX} 格，多的没收"
 msgstr "The model wrote {count, plural, one {# extra panel} other {# extra panels}}; a set has at most {GRID_SHOTS_MAX}, so the extras were dropped"
 
+#: src/components/flow/SongWizard.tsx
+msgid "模型多写了 {dropped} 行，没收。"
+msgstr "The model wrote {dropped} extra line(s); they were dropped."
+
 #: src/studio/structuredSkills.ts
 msgid "模型按句写：谁说 / 台词 / 说的时候的动作或表情"
 msgstr "The model writes each line: who says it / the line / their action or expression"
@@ -18929,6 +19090,10 @@ msgstr "The model writes each panel: shot size / picture (one moment) / action (
 #: src/studio/structuredSkills.ts
 msgid "模型按段写：标题 / 剧情 / 时长 / 景别 · 运镜 · 情绪节拍"
 msgstr "The model writes each segment: title / story / duration / shot size · camera move · emotional beat"
+
+#: src/studio/structuredSkills.ts
+msgid "模型按行写：每句 6~14 个字，押韵、顺口、原创"
+msgstr "The model writes line by line: 6–14 characters each, rhymed, singable, original"
 
 #: src/studio/structuredSkills.ts
 msgid "模型按镜头写：景别 / 运镜 / 画面 / 台词（挂说话人）"
@@ -18962,6 +19127,10 @@ msgstr "The model didn’t return shots in the expected format. This run has alr
 #: src/studio/structuredSkills.ts
 msgid "模型没有按格式回对白，这一次已经计费——再写一次，或把情境写具体些"
 msgstr "The model didn’t return the dialogue in the expected format. This run has already been charged — write again, or make the situation more specific"
+
+#: src/studio/structuredSkills.ts
+msgid "模型没有按格式回歌词，这一次已经计费——再写一次，或把主题写具体些"
+msgstr "The model did not reply in the expected format; this call was charged — try again or make the theme more specific"
 
 #: src/studio/cutAgent.ts
 msgid "模型没有按约定的格式回话，这一句一件都没办——换个说法再试"
@@ -19145,10 +19314,47 @@ msgstr "orange"
 msgid "欠额 {owed}，已冻结"
 msgstr "{owed} owed — frozen"
 
+#: src/components/flow/SongWizard.tsx
+msgid "欢快"
+msgstr "Joyful"
+
 #. 铸卡师的开场白（会被念出来）。英文请把「逛逛市场」改成点对话框下方的「🛒 Browse market」气泡键；括号里的内容 TTS 不念
 #: src/studio/studioStore.ts
 msgid "欢迎来到卡片工坊。把你的素材（图片、文本）交给我，我为你炼成卡片；也可以逛逛市场，看看大家都在用什么。"
 msgstr "Welcome to the Studio. Hand me your materials (images or text) and I'll forge them into cards; or tap “🛒 Browse market” to see what everyone's using."
+
+#: src/components/flow/SongWizard.tsx
+msgid "歌词"
+msgstr "Lyrics"
+
+#: src/components/flow/SongWizard.tsx
+msgid "歌词（一行一句，{linesMin}~{linesMax} 行）"
+msgstr "Lyrics (one line per sentence, {linesMin}–{linesMax} lines)"
+
+#: src/components/flow/SongWizard.tsx
+msgid "歌词不许抄已有的歌：这一段会公开发布，只收原创。"
+msgstr "Don’t copy existing songs: this segment may be published, so only original lyrics."
+
+#: src/studio/songDraftStore.ts
+msgid "歌词写好了"
+msgstr "Lyrics are ready"
+
+#: src/components/flow/SongWizard.tsx
+msgid "歌词太长：发给模型的那段话有 {promptLen} 字，这一档最多 {promptMax} 字 —— 回上一步删几行或写短些。"
+msgstr "Lyrics too long: the prompt sent to the model is {promptLen} characters and this tier allows {promptMax} — go back and cut or shorten some lines."
+
+#: src/studio/songDraftStore.ts
+msgid "歌词没写成：{why}"
+msgstr "Lyrics failed: {why}"
+
+#. why 是失败原因整句；moneyLine 是一句完整的、自带句号的话，说钱扣没扣（ai/failCharge.chargeNote）；英文在它前后各留一个空格
+#: src/studio/songDraftStore.ts
+msgid "歌词没写成：{why}。{moneyLine}"
+msgstr "Lyrics failed: {why}. {moneyLine}"
+
+#: src/components/flow/ModePicker.tsx
+msgid "歌词让 AI 唱"
+msgstr "AI sings your lyrics"
 
 #. placeholder {0}: up.title
 #. placeholder {1}: up.done
@@ -19208,6 +19414,10 @@ msgstr "Stopping…"
 msgid "正在公开…"
 msgstr "Sharing…"
 
+#: src/studio/songDraftStore.ts
+msgid "正在写…"
+msgstr "Writing…"
+
 #: src/components/flow/GridShotsWizard.tsx
 msgid "正在写分镜…"
 msgstr "Writing the storyboard…"
@@ -19215,6 +19425,10 @@ msgstr "Writing the storyboard…"
 #: src/components/flow/DialogueWizard.tsx
 msgid "正在写对白…"
 msgstr "Writing the dialogue…"
+
+#: src/components/flow/SongWizard.tsx
+msgid "正在写歌词，十几秒（可以先离开，写好的会留在这里）"
+msgstr "Writing lyrics, about ten seconds (you can leave; the result stays here)"
 
 #: src/studio/personaWizardStore.ts
 msgid "正在写说话风格…"
@@ -20572,6 +20786,10 @@ msgstr "The end of the pipeline"
 msgid "流畅"
 msgstr "Smooth"
 
+#: src/components/flow/SongWizard.tsx
+msgid "流行"
+msgstr "Pop"
+
 #: src/components/SocialPanel.tsx
 msgid "浏览 / 点赞 / 收藏为社区计数；评论只存在这台设备上"
 msgstr "Views / likes / saves are community counts; comments are stored only on this device"
@@ -20592,6 +20810,10 @@ msgstr "Messages ({unread} unread)"
 #: src/api/admin.ts
 msgid "涉及未成年人"
 msgstr "Involves minors"
+
+#: src/components/flow/SongWizard.tsx
+msgid "深情"
+msgstr "Heartfelt"
 
 #: src/components/support/VoiceSheet.tsx
 #: src/pages/SupportPage.tsx
@@ -20674,6 +20896,10 @@ msgstr "Clear and restart"
 msgid "温和"
 msgstr "Gentle"
 
+#: src/components/flow/SongWizard.tsx
+msgid "温柔"
+msgstr "Tender"
+
 #: src/studio/genLog.ts
 msgid "渲染视频"
 msgstr "Rendering video"
@@ -20709,6 +20935,7 @@ msgstr "Playing…"
 #: src/components/flow/GridShotsWizard.tsx
 #: src/components/flow/LeadShotsWizard.tsx
 #: src/components/flow/ScriptSkillSheet.tsx
+#: src/components/flow/SongWizard.tsx
 #: src/components/flow/ThemeRewriteSheet.tsx
 #: src/pages/CutPage.tsx
 #: src/pages/tutor/TutorRunPage.tsx
@@ -20730,6 +20957,10 @@ msgstr "Demo: this was split locally at sentence breaks, not written by the mode
 #: src/ai/index.ts
 msgid "演示场景"
 msgstr "Demo scene"
+
+#: src/components/flow/SongWizard.tsx
+msgid "演示构建：这几行是本地按句读切的，不是模型写的。"
+msgstr "Demo build: these lines were split locally from the theme, not written by the model."
 
 #: src/pages/CustomCardPage.tsx
 msgid "演示档生成的占位文案（配好 Key 后按素材图撰写）"
@@ -21191,6 +21422,10 @@ msgstr "Drawn from the current two-shot: only the place, light and both outfits 
 msgid "照这条做的同款 · {remixCount}"
 msgstr "Remixes of this video · {remixCount}"
 
+#: src/components/flow/SongWizard.tsx
+msgid "爵士"
+msgstr "Jazz"
+
 #: src/components/cut/AutoEditSheet.tsx
 #: src/pages/CutPage.tsx
 msgid "片头标题"
@@ -21538,9 +21773,17 @@ msgstr "The server can't be reached right now, so only the data on this phone ca
 msgid "现在连不上服务器，模板暂时没登记——联网后在模板详情页点「重新登记」"
 msgstr "Can't reach the server right now, so the template isn't registered yet — once you're online, tap “Register with the server again” on the template's details page"
 
+#: src/components/flow/SongWizard.tsx
+msgid "现在选了 {castN} 个人，唱一段只要一个 —— 取消几个再往下。"
+msgstr "{castN} people are selected; Sing a verse needs one — deselect the others to continue."
+
 #: src/components/flow/EffectWizard.tsx
 msgid "现在选了 {castN} 个人（{castNames}），这个特效只要 {need} 个 —— 取消几个再往下。"
 msgstr "{castN, plural, one {# person is} other {# people are}} selected ({castNames}), but this effect needs {need} — deselect some to continue."
+
+#: src/components/flow/SongWizard.tsx
+msgid "现在选的 {dur} 秒唱不完这几行 —— 选长一点，或回上一步删几行。"
+msgstr "{dur} s is not enough to sing these lines — pick a longer duration or go back and cut some lines."
 
 #: src/components/flow/DialogueWizard.tsx
 msgid "现在选的不是两个人（或两个人同名）—— 回第一步重新选。"
@@ -22031,6 +22274,7 @@ msgstr "The canvas still contains local addresses, so it would be empty when ret
 #: src/components/flow/GridShotsWizard.tsx
 #: src/components/flow/LeadShotsWizard.tsx
 #: src/components/flow/SegSettings.tsx
+#: src/components/flow/SongWizard.tsx
 #: src/components/TextTemplateSheet.tsx
 #: src/studio/ui/projection.tsx
 msgid "画幅"
@@ -25347,6 +25591,10 @@ msgstr "Pick cards"
 msgid "至少一张图（第一张有图的格子就是卡面）"
 msgstr "at least one image (the first filled slot is the card face)"
 
+#: src/components/flow/SongWizard.tsx
+msgid "至少写 {linesMin} 行。"
+msgstr "Write at least {linesMin} lines."
+
 #: src/studio/personaWizardStore.ts
 msgid "至少填一样：名字、定位、简介，或者导入一点素材。"
 msgstr "Fill in at least one: name, role or intro — or import some materials."
@@ -25811,6 +26059,10 @@ msgstr "Found a {0}-beat timeline running to {1}s. Only Cinema follows timelines
 #: src/components/blockout/DetectRolesEntry.tsx
 msgid "认好了 ✓"
 msgstr "Detected ✓"
+
+#: src/components/flow/SongWizard.tsx
+msgid "让 AI 写（选填）"
+msgstr "Let the AI write (optional)"
 
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "让 AI 写一版"
@@ -26416,6 +26668,10 @@ msgstr "Couldn’t load courses: {0}"
 #: src/studio/ui/NpcDialog.tsx
 msgid "谁在故事里——长相与衣着（手里拿的、所在的地方另做道具卡、场景卡）"
 msgstr "Who's in the story — looks and clothing (things they hold and where they are go on prop and scene cards)"
+
+#: src/components/flow/SongWizard.tsx
+msgid "谁来唱"
+msgstr "Who sings"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "谁能用"
@@ -28809,6 +29065,18 @@ msgstr "These mix Chinese and English segment numbers, so I couldn't tell which 
 msgid "这几样装上之后不会演，别人用的时候也一样："
 msgstr "These won't play once installed, for anyone who uses it:"
 
+#: src/components/flow/SongWizard.tsx
+msgid "这几行歌词 {sec} 秒唱不完"
+msgstr "These lines can’t be sung in {sec} s"
+
+#: src/components/flow/SongWizard.tsx
+msgid "这几行歌词至少要 {minSec} 秒，这一档最长 {maxSec} 秒 —— 回上一步删几行。"
+msgstr "These lines need at least {minSec} s and this tier allows {maxSec} s at most — go back and cut some lines."
+
+#: src/components/flow/SongWizard.tsx
+msgid "这几行歌词至少要 {minSec} 秒（汉字一秒唱两个半），短于它的灰掉了。"
+msgstr "These lines need at least {minSec} s (about two and a half characters per second); shorter options are greyed out."
+
 #: src/components/guide/tours.tsx
 msgid "这句描述给<0>套用你模板的人</0>看，他只能靠<1>标记加这句话</1>决定挂哪张卡。写着「会进出片提示词」时描述<2>人偶现在的样子</2>，否则写原片里这个人的外形。"
 msgstr "This description is for <0>people using your template</0>; <1>the mark plus this line</1> is all they have to decide which card to attach. If it says “goes into the render prompt”, describe <2>how the mannequin looks now</2>; otherwise describe the person's look in the original."
@@ -30121,6 +30389,14 @@ msgstr "“Use generic parameters” means your exp3 isn't used; the expression 
 msgid "选一个 zip"
 msgstr "Choose a zip"
 
+#: src/components/flow/ModePicker.tsx
+msgid "选一个人，写几行歌词（或让 AI 写）、挑个曲风，AI 把它唱出来；挂了声音样本的卡会一起带上"
+msgstr "Pick one character, write a few lines (or let the AI write them), choose a style, and the AI sings it; a card with a voice sample sends it along"
+
+#: src/components/flow/SongWizard.tsx
+msgid "选一个人来唱（只挑一个）。可以再挑一张场景卡当地点；不挑就是小剧场的舞台。"
+msgstr "Pick one character to sing (just one). You may add a scene card as the place; otherwise it’s a small theater stage."
+
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "选一个大方向就行，后面 AI 会照着写。"
 msgstr "Just pick a general direction; the AI will write from it."
@@ -30316,6 +30592,10 @@ msgstr "Upload your own image for each slot · free"
 #: src/studio/structuredSkills.ts
 msgid "逐格可改、可删，点了才出画面"
 msgstr "Edit or delete any panel; nothing is drawn until you tap"
+
+#: src/studio/structuredSkills.ts
+msgid "逐行可改、可删，点了才出片"
+msgstr "Edit or delete lines; nothing is generated until you confirm"
 
 #: src/data/danmaku.ts
 msgid "递剑的那只手…"
