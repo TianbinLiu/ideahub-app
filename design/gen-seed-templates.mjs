@@ -30,7 +30,7 @@ const ARK = "https://ark.cn-beijing.volces.com/api/v3";
 const AH = { "Content-Type": "application/json", Authorization: `Bearer ${KEY}` };
 
 /** 官方首批两条。id 兼作文件名与登记状态的键 */
-const TEMPLATES = [
+const ALL_TEMPLATES = [
   {
     id: "rainy-umbrella",
     title: "雨夜递伞",
@@ -100,7 +100,38 @@ const TEMPLATES = [
       "简洁的米白色展示间，画面中央一张浅色圆形展示台，台上放着一只磨砂玻璃小瓶。画面里只有一个纯白色人偶模特——没有头发、没有五官、没有服装，全身光滑的哑光白色塑料，关节处可见球形关节。它站在展示台后，双手拿起那只小瓶，递向镜头方向展示，瓶身闪过一道柔和的光斑。人偶始终在画面中央。镜头缓缓向前推近，竖屏构图，柔和棚光。",
     descs: ["展示台后·拿起产品递向镜头的"],
   },
+  // ── 第三批（2026-10-31）：11 月节日档 —— docs/decisions-2026-10-30.md §五「热点模板节奏」定的「每月一拍节日档」第一拍（中秋那条算第零拍） ──
+  //   两条都按同一套编舞纪律：一镜到底、两个人偶一左一右绝不交换、道具与环境留给画面、白模只管人。
+  //   挑节的依据：立冬（11-7）是国内用户的当月节气、感恩节（11-26）给海外用户，两条都是「两人团聚」的通用位，节后也能当普通的饭桌 / 围炉模板用。
+  {
+    id: "lidong-stove",
+    title: "立冬围炉",
+    category: "festival",
+    intro: "冬夜小屋围着炭火炉：左边的角色端起一碗饺子递过去，右边的角色双手接过——立冬的两人暖位，换上你们两个。",
+    roles: 2,
+    // PROMPT 迭代记录：v1 直接成稿（火炉 / 锅 / 饺子碗 / 窗外的雪都是道具与环境；「递 → 接」是单向动作，无位置交换）。
+    prompt:
+      "冬天夜晚的木屋里，中间一只燃着炭火的小火炉，炉上一口冒着热气的锅，窗外飘着雪。画面里只有两个完全相同的纯白色人偶模特——没有头发、没有五官、没有服装，全身光滑的哑光白色塑料，关节处可见球形关节。两个人偶隔着火炉相对而坐，左边的人偶端起一碗热气腾腾的饺子递向右边，右边的人偶双手接过碗、低头看了看。两个人偶始终一左一右，位置不交换。固定机位中景，竖屏构图，炉火暖光与窗外雪夜冷光对比。",
+    descs: ["左边·端饺子递过去的", "右边·双手接碗的"],
+  },
+  {
+    id: "thanksgiving-toast",
+    title: "感恩餐桌",
+    category: "festival",
+    intro: "长桌前举杯相碰：左边的角色先举杯，右边的角色抬杯碰上——感恩节的两人团聚位，也适合任何一顿值得纪念的晚饭。",
+    roles: 2,
+    // PROMPT 迭代记录：v1 直接成稿（火鸡 / 南瓜派 / 蜡烛 / 玻璃杯都是道具；「先举 → 后碰」分出先后，两只杯子在画面中央相碰是这条的记忆点）。
+    prompt:
+      "温暖的餐厅里，一张铺着米色桌布的长桌，桌上摆着烤火鸡、南瓜派和几根点燃的蜡烛，背景是暖黄色的壁灯。画面里只有两个完全相同的纯白色人偶模特——没有头发、没有五官、没有服装，全身光滑的哑光白色塑料，关节处可见球形关节。两个人偶并肩站在桌子同一侧面向镜头，左边的人偶先举起一只玻璃杯，右边的人偶随后抬杯与它轻轻相碰，两只杯子在画面中央碰到一起。两个人偶始终一左一右，位置不交换。固定机位中景，竖屏构图，烛光暖调。",
+    descs: ["左边·先举杯的", "右边·抬杯碰上的"],
+  },
 ];
+
+// ★ 只跑表里的某几条（2026-10-31 起：表越来越长，每一拍只出新加的那几条；不传 = 全表，与原来一样）：
+//   TEMPLATES_ONLY=lidong-stove,thanksgiving-toast node design/gen-seed-templates.mjs gen <OUT>
+const ONLY = String(process.env.TEMPLATES_ONLY || "").split(",").map((x) => x.trim()).filter(Boolean);
+const TEMPLATES = ONLY.length ? ALL_TEMPLATES.filter((t) => ONLY.includes(t.id)) : ALL_TEMPLATES;
+if (ONLY.length && TEMPLATES.length !== ONLY.length) throw new Error(`TEMPLATES_ONLY 里有认不出的 id：${ONLY.filter((id) => !ALL_TEMPLATES.some((t) => t.id === id)).join(",")}`);
 
 async function jfetch(base, path, opts = {}) {
   const r = await fetch(`${base}${path}`, {
@@ -140,7 +171,7 @@ const STATE_FILE = join(OUT, "state.json");
 const state = existsSync(STATE_FILE) ? JSON.parse(readFileSync(STATE_FILE, "utf8")) : {};
 const save = () => writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
 
-// ── gen：t2v 出两条白模人偶源视频（直连方舟，¥1/条）─────────────────────
+// ── gen：t2v 出白模人偶源视频（直连方舟，2.0 mini 720p 5 秒 ≈ ¥2.5/条，刊例 ¥23/M；10-31 之前这里写 ¥1 是 1.0 时代的数）─────────
 if (PHASE === "gen") {
   for (const t of TEMPLATES) {
     // 复跑守卫：已出过的源片不重烧（换构思就删掉对应 mp4 再跑）
@@ -244,7 +275,8 @@ if (PHASE === "castrefs") {
   for (const c of urls.length ? [] : CAST_CHARS) {
     const mk = async (kind, prompt) => {
       const j = await jfetch(ARK, "/images/generations", {
-        body: { model: "doubao-seedream-5-0-260128", prompt, size: "1764x2352", response_format: "url", watermark: false },
+        // ★ 2026-10-31：5.0 lite（doubao-seedream-5-0-260128）2026-11-24 下线，换成 4.0 的继任型号（App 的默认出图档，10-10 付费验过卡面 1728×2304）
+        body: { model: "doubao-seedream-4-0-20260415", prompt, size: "1728x2304", response_format: "url", watermark: false },
         headers: AH,
       });
       const u = j.data[0].url;
