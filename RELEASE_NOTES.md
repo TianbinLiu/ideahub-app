@@ -1,3 +1,13 @@
+启梦 2.81
+
+· 新增「唱一段」：在「跟着做」里选一个人、写几句歌词（也可以让 AI 按主题写原创歌词）、挑一个曲风，AI 会把它唱出来——是唱，不是念白；每一句拖长尾音，带伴奏。
+· 这个入口只在能出声的那一档出现；落下来就是一段普通的段，之后照样能改、能接着往下拍。
+
+QiMeng 2.81
+
+· New “Sing a verse” in Guided: pick a character, write a few lyric lines (or let the AI write original lyrics from a theme), choose a style, and the AI sings it — actually sings, not recites; each line holds its last note, with accompaniment.
+· The entry only shows on tiers that produce audio; it lands as an ordinary segment you can still edit and build on.
+
 启梦 2.80
 
 · 创意工坊的「热门」改成按周轮换：热度按上架时间打折（一周减半），新分享的卡片、卡组每周都有机会排到前面，不再被老条目长期占着；热度数字本身不变。
