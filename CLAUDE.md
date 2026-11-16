@@ -1176,6 +1176,7 @@ shihui/        ★ 新产品「诗绘」（诗词视频教育）的独立骨架�
   含「一张图里画多个角色一律被拒」那条老约束的真实出处（精灵图的文本敏感，不是场景里的两个人）
 - [`docs/app-distribution.md`](docs/app-distribution.md) — 发包给别人装、应用内更新怎么走
 - [`docs/signing-keystore.md`](docs/signing-keystore.md) — 签名 keystore 换机 / 新 worktree 怎么恢复
+- [`docs/research-huangguo-2026-11.md`](docs/research-huangguo-2026-11.md) — 「黄果开源」传闻核查：为什么不能照搬、短剧留存结构里哪几件值得对照
 - [`public/perch/README.md`](public/perch/README.md) — 角色动画资源怎么生成、踩过什么坑
 - [`public/createbtn/README.md`](public/createbtn/README.md) — 底栏 ➕ 上那只常驻宠物（含并排版式的取值）
 - [`public/avatars/README.md`](public/avatars/README.md) — 官方 Q 版看板娘头像怎么裁、选了之后存的是什么
