@@ -29229,6 +29229,10 @@ msgstr "This teacher can speak (published as a QiMeng persona)"
 msgid "这几个参数没对上：{names}。用到它们的那部分演出不会动；参数这一栏 App 里还改不了，要改得回 Cubism 把参数 id 改成标准名再导出。"
 msgstr "These parameters aren't mapped: {names}. The parts of the performance that use them won't move. The parameter column can't be edited in the app yet; to fix it, rename the parameter IDs to the standard names in Cubism and re-export."
 
+#: src/pages/QuickModePage.tsx
+msgid "这几个角色还没有声音样本：出片时台词不会用「他们的声音」说。样本要从视频里取（创意工坊「我的仓库」提卡时顺手取一段）。"
+msgstr "These characters have no voice sample yet, so their lines won't be spoken in their own voice. Samples come from video — grab one while extracting cards in Workshop › My library."
+
 #: src/studio/cutAgent.ts
 msgid "这几句没听懂：{list}"
 msgstr "Didn't understand: {list}"

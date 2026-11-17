@@ -16,6 +16,7 @@ import type { MessageDescriptor } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
 import { useNavigate } from "react-router";
 import PageHeader from "../components/PageHeader";
+import Warn from "../components/Warn";
 import StepDots from "../components/StepDots";
 import CastPicker from "../components/flow/CastPicker";
 import DiscardFlowDialog from "../components/flow/DiscardFlowDialog";
@@ -25,6 +26,7 @@ import { CHAT_TURN_TOKENS, fmtTokens, priceTag } from "../data/economy";
 import { useFlow, flowDirty, nodeCost, nodeDone, chosenOf } from "../studio/flowStore";
 import { shotPlanNodes } from "../studio/structuredSkills";
 import { useLeadDraft } from "../studio/leadDraftStore";
+import { voiceOf } from "../data/cardVoice";
 import { QUICK_STEPS, resetQuick, runIdea, setQuick, useQuickDraft, type QuickStep } from "../studio/quickDraftStore";
 import { useFlowActions } from "../hooks/useFlowActions";
 import { useStudio } from "../studio/studioStore";
@@ -246,6 +248,27 @@ export default function QuickModePage() {
           <div className="mt-3">
             <CastPicker />
           </div>
+          {/* 声音样本：出片时模型靠它认音色。没有样本的角色照样出片，但不会「用自己的声音」说话 —— 照实说 */}
+          {cast.filter((c) => !voiceOf(c.id)).length > 0 && (
+            <div className="mt-3 rounded-xl border border-warn-500/40 bg-warn-500/10 px-3 py-2">
+              <Warn compact>
+                <Trans>这几个角色还没有声音样本：出片时台词不会用「他们的声音」说。样本要从视频里取（创意工坊「我的仓库」提卡时顺手取一段）。</Trans>
+              </Warn>
+              <div className="mt-1 flex flex-wrap gap-1.5">
+                {cast
+                  .filter((c) => !voiceOf(c.id))
+                  .map((c) => (
+                    <button
+                      key={c.id}
+                      onClick={() => navigate(`/card/${c.id}`)}
+                      className="rounded-full bg-black/30 px-2.5 py-1 text-[10px] text-slate-200"
+                    >
+                      {c.name} ›
+                    </button>
+                  ))}
+              </div>
+            </div>
+          )}
           <span className="flex-1" />
           <button
             onClick={() => setQuick({ step: "scene" })}
