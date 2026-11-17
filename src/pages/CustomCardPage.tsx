@@ -30,7 +30,7 @@ import Spinner from "../components/Spinner";
 import PageHeader from "../components/PageHeader";
 import StepDots from "../components/StepDots";
 import { createPortal } from "react-dom";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { useBackOr } from "../hooks/useBackOr";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { msg } from "@lingui/core/macro";
@@ -140,6 +140,7 @@ function parseTags(raw: string): string[] {
 
 export default function CustomCardPage() {
   const nav = useNavigate();
+  const loc = useLocation();
   // 顶栏返回：从工坊「自己传图做卡片」进来；深链冷启动没有上一页时退回工坊
   const back = useBackOr("/workshop/mine");
   const [resetAsk, setResetAsk] = useState(false);
@@ -1245,7 +1246,12 @@ export default function CustomCardPage() {
       if (here()) {
         job.done({ silent: true });
         resetCardDraft();
-        nav(`/card/${id}`, { replace: true });
+        // 从快速模式过来的：做完这张卡直接回快速模式，并把新卡 id 带回去（那一步会自动选中）
+        if ((loc.state as { returnTo?: string } | null)?.returnTo === "quick") {
+          nav("/quick", { replace: true, state: { createdCardId: id } });
+        } else {
+          nav(`/card/${id}`, { replace: true });
+        }
       } else {
         // 人不在这一页（正在别处做别的事）：不替他跳转，发一条通知，点了直达这张卡
         resetCardDraft();

@@ -10,11 +10,11 @@
 //   （与 B / C / L 同一批人）。
 // ★ 铺节点是「整表换掉 nodes」的入口：脏了先摆 DiscardFlowDialog（与套模板同一张卡），
 //   成了再断旧草稿（newWorkDraft）—— 三件事缺一不可，见 CLAUDE.md 那条。
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import type { MessageDescriptor } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import PageHeader from "../components/PageHeader";
 import Warn from "../components/Warn";
 import StepDots from "../components/StepDots";
@@ -25,8 +25,10 @@ import { listSharedCards, type ApiSharedCard } from "../api/branch";
 import { CHAT_TURN_TOKENS, fmtTokens, priceTag } from "../data/economy";
 import { useFlow, flowDirty, nodeCost, nodeDone, chosenOf } from "../studio/flowStore";
 import { shotPlanNodes } from "../studio/structuredSkills";
-import { useLeadDraft } from "../studio/leadDraftStore";
-import { voiceOf } from "../data/cardVoice";
+import { useLeadDraft, toggleCast } from "../studio/leadDraftStore";
+import { saveVoice, subscribeVoices, voiceOf, voicesVersion, VOICE_MAX_SEC, VOICE_MIN_SEC } from "../data/cardVoice";
+import { audioFileToVoice } from "../utils/wav";
+import { LEAD_CAST_MAX } from "../data/sceneShots";
 import { QUICK_STEPS, resetQuick, runIdea, setQuick, useQuickDraft, type QuickStep } from "../studio/quickDraftStore";
 import { useFlowActions } from "../hooks/useFlowActions";
 import { useStudio } from "../studio/studioStore";
@@ -47,8 +49,14 @@ const STEP_LABEL: Record<QuickStep, MessageDescriptor> = {
 export default function QuickModePage() {
   const { t } = useLingui();
   const navigate = useNavigate();
+  const location = useLocation();
   const d = useQuickDraft();
   const lead = useLeadDraft();
+  // 声音样本是本机侧库：订阅一下，上传完立刻重画
+  useSyncExternalStore(subscribeVoices, voicesVersion, () => 0);
+  const voiceFileRef = useRef<HTMLInputElement>(null);
+  const [voiceTarget, setVoiceTarget] = useState<string | null>(null);
+  const [voiceErr, setVoiceErr] = useState("");
   const nodes = useFlow((s) => s.nodes);
   const mode = useFlow((s) => s.mode);
   const busy = useFlow((s) => s.busy);
@@ -162,6 +170,38 @@ export default function QuickModePage() {
     }
   }
 
+  // 从「自己传图做卡片」回来：做完的那张卡自动选中，并跳回对应的那一步
+  useEffect(() => {
+    const st = (location.state ?? null) as { createdCardId?: string } | null;
+    if (!st?.createdCardId) return;
+    const mine = myCards();
+    const card = mine.find((c) => c.id === st.createdCardId);
+    if (card?.type === "scene") {
+      setQuick({ placeId: card.id, step: "scene" });
+    } else if (card?.type === "character") {
+      const live = new Set(mine.filter((c) => c.type === "character").map((c) => c.id));
+      if (!useLeadDraft.getState().castIds.includes(card.id)) toggleCast(card.id, LEAD_CAST_MAX, live);
+      setQuick({ step: "cast" });
+    }
+    navigate("/quick", { replace: true, state: null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 只在从做卡页回来的那一拍认一次
+  }, []);
+
+  /** 本地上传一段音频当声音样本（audioFileToVoice 是「上传本地音频」那条路的唯一实现） */
+  async function onVoiceFile(file: File | null | undefined) {
+    if (!file || !voiceTarget) return;
+    setVoiceErr("");
+    try {
+      const r = await audioFileToVoice(file, VOICE_MIN_SEC, VOICE_MAX_SEC);
+      await saveVoice(voiceTarget, { dataUrl: r.dataUrl, durationSec: r.durationSec, note: t`本地上传` });
+    } catch (e) {
+      setVoiceErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setVoiceTarget(null);
+      if (voiceFileRef.current) voiceFileRef.current.value = "";
+    }
+  }
+
   const err = d.err || flowErr;
   const allDone = nodes.length > 0 && nodes.every(nodeDone);
   const priceOf = (i: number, tierOverride?: string) => nodeCost(nodes, i, mode, tierOverride);
@@ -246,13 +286,45 @@ export default function QuickModePage() {
             <Trans>挑已有的角色卡；没有的话在下面现做一个，或去「自己传图做卡片」用照片做（真人要先认证）。</Trans>
           </p>
           <div className="mt-3">
-            <CastPicker />
+            <CastPicker returnTo="quick" />
           </div>
+          {/* 声音样本：卡里已有的直接用；没有就本地上传一段（audioFileToVoice，窗口 [2,15]s） */}
+          {cast.length > 0 && (
+            <div className="mt-3 space-y-1.5">
+              {cast.map((c) => (
+                <div key={c.id} className="flex items-center gap-2 rounded-lg bg-black/20 px-2.5 py-1.5">
+                  <span className="min-w-0 flex-1 truncate text-[11px] text-slate-200">{c.name}</span>
+                  <span className="flex-none text-[10px] text-slate-500">{voiceOf(c.id) ? t`有声音样本` : t`没有样本`}</span>
+                  <button
+                    onClick={() => {
+                      setVoiceTarget(c.id);
+                      voiceFileRef.current?.click();
+                    }}
+                    className="flex-none rounded-full bg-panel px-2.5 py-1 text-[10px] text-slate-200 ring-1 ring-slate-700"
+                  >
+                    {voiceOf(c.id) ? t`换一段音频` : t`上传音频`}
+                  </button>
+                </div>
+              ))}
+              {voiceErr && (
+                <Warn compact tone="danger">
+                  {voiceErr}
+                </Warn>
+              )}
+              <input
+                ref={voiceFileRef}
+                type="file"
+                accept="audio/*"
+                className="hidden"
+                onChange={(e) => void onVoiceFile(e.target.files?.[0])}
+              />
+            </div>
+          )}
           {/* 声音样本：出片时模型靠它认音色。没有样本的角色照样出片，但不会「用自己的声音」说话 —— 照实说 */}
           {cast.filter((c) => !voiceOf(c.id)).length > 0 && (
             <div className="mt-3 rounded-xl border border-warn-500/40 bg-warn-500/10 px-3 py-2">
               <Warn compact>
-                <Trans>这几个角色还没有声音样本：出片时台词不会用「他们的声音」说。样本要从视频里取（创意工坊「我的仓库」提卡时顺手取一段）。</Trans>
+                <Trans>这几个角色还没有声音样本：出片时台词不会用「他们的声音」说。可以上传一段（2~15 秒），或从视频里提卡时顺手取一段。</Trans>
               </Warn>
               <div className="mt-1 flex flex-wrap gap-1.5">
                 {cast
@@ -311,7 +383,7 @@ export default function QuickModePage() {
             </p>
           )}
           <button
-            onClick={() => navigate("/custom-card")}
+            onClick={() => navigate("/custom-card", { state: { returnTo: "quick" } })}
             className="mt-2 self-start rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-300 ring-1 ring-slate-700"
           >
             <Trans>＋ 用文字 / 图片做一张场景卡</Trans>

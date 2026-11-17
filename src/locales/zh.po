@@ -5712,6 +5712,7 @@ msgid "上传途中登录失效了，这一条先不发——重新登录这个�
 msgstr "上传途中登录失效了，这一条先不发——重新登录这个账号后会自动补发"
 
 #: src/components/VoiceUploadButton.tsx
+#: src/pages/QuickModePage.tsx
 msgid "上传音频"
 msgstr "上传音频"
 
@@ -16245,6 +16246,10 @@ msgstr "换一张"
 msgid "换一张照片"
 msgstr "换一张照片"
 
+#: src/pages/QuickModePage.tsx
+msgid "换一段音频"
+msgstr "换一段音频"
+
 #: src/components/cut/AutoEditSheet.tsx
 msgid "换一版（{price}）"
 msgstr "换一版（{price}）"
@@ -18169,6 +18174,10 @@ msgstr "有力"
 msgid "有声"
 msgstr "有声"
 
+#: src/pages/QuickModePage.tsx
+msgid "有声音样本"
+msgstr "有声音样本"
+
 #: src/pages/SupportPage.tsx
 msgid "有害或不安全"
 msgstr "有害或不安全"
@@ -18561,6 +18570,10 @@ msgstr "本人扫码"
 #: src/components/VoiceRecorder.tsx
 msgid "本人跟读录制"
 msgstr "本人跟读录制"
+
+#: src/pages/QuickModePage.tsx
+msgid "本地上传"
+msgstr "本地上传"
 
 #: src/studio/live2dUploadStore.ts
 msgid "本地预览"
@@ -20522,6 +20535,10 @@ msgstr "没有新对话，不用整理。"
 #: src/components/WorkflowShelf.tsx
 msgid "没有标题或作者里带「{word}」的工作流"
 msgstr "没有标题或作者里带「{word}」的工作流"
+
+#: src/pages/QuickModePage.tsx
+msgid "没有样本"
+msgstr "没有样本"
 
 #: src/studio/cutAgent.ts
 msgid "没有片段 {ref}（时间轴上一共 {count} 个）"
@@ -29238,8 +29255,12 @@ msgid "这几个参数没对上：{names}。用到它们的那部分演出不会
 msgstr "这几个参数没对上：{names}。用到它们的那部分演出不会动；参数这一栏 App 里还改不了，要改得回 Cubism 把参数 id 改成标准名再导出。"
 
 #: src/pages/QuickModePage.tsx
-msgid "这几个角色还没有声音样本：出片时台词不会用「他们的声音」说。样本要从视频里取（创意工坊「我的仓库」提卡时顺手取一段）。"
-msgstr "这几个角色还没有声音样本：出片时台词不会用「他们的声音」说。样本要从视频里取（创意工坊「我的仓库」提卡时顺手取一段）。"
+msgid "这几个角色还没有声音样本：出片时台词不会用「他们的声音」说。可以上传一段（2~15 秒），或从视频里提卡时顺手取一段。"
+msgstr "这几个角色还没有声音样本：出片时台词不会用「他们的声音」说。可以上传一段（2~15 秒），或从视频里提卡时顺手取一段。"
+
+#: src/pages/QuickModePage.tsx
+#~ msgid "这几个角色还没有声音样本：出片时台词不会用「他们的声音」说。样本要从视频里取（创意工坊「我的仓库」提卡时顺手取一段）。"
+#~ msgstr "这几个角色还没有声音样本：出片时台词不会用「他们的声音」说。样本要从视频里取（创意工坊「我的仓库」提卡时顺手取一段）。"
 
 #: src/studio/cutAgent.ts
 msgid "这几句没听懂：{list}"

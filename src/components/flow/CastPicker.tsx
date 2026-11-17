@@ -24,7 +24,7 @@ const STYLE_IDS: readonly StyleId[] = ["anime", "toon3d", "picture", "ink"];
 const STYLE_PROMPT: Record<StyleId, string> = { anime: "二次元动漫", toon3d: "3D 动画", picture: "绘本插画", ink: "国风水墨" };
 const STYLE_LABEL: Record<StyleId, MessageDescriptor> = { anime: msg`二次元`, toon3d: msg`3D 动画`, picture: msg`绘本`, ink: msg`国风` };
 
-export default function CastPicker({ leadBadge = true, children }: { leadBadge?: boolean; children?: ReactNode }) {
+export default function CastPicker({ leadBadge = true, returnTo, children }: { leadBadge?: boolean; returnTo?: string; children?: ReactNode }) {
   const { t } = useLingui();
   const navigate = useNavigate();
   useAccountVersion();
@@ -150,7 +150,10 @@ export default function CastPicker({ leadBadge = true, children }: { leadBadge?:
             )}
           </button>
           {d.forgeErr && <p className="text-[11px] leading-relaxed text-danger-300">{d.forgeErr}</p>}
-          <button onClick={() => navigate("/custom-card")} className="text-[10px] text-slate-500 underline underline-offset-2">
+          <button
+            onClick={() => navigate("/custom-card", { state: returnTo ? { returnTo } : undefined })}
+            className="text-[10px] text-slate-500 underline underline-offset-2"
+          >
             <Trans>用照片做（真人要先认证）→ 自己传图做卡片</Trans>
           </button>
         </div>

@@ -5708,6 +5708,7 @@ msgid "上传途中登录失效了，这一条先不发——重新登录这个�
 msgstr "Your login expired during the upload, so this one wasn't published yet — it will be published automatically when you log in to this account again"
 
 #: src/components/VoiceUploadButton.tsx
+#: src/pages/QuickModePage.tsx
 msgid "上传音频"
 msgstr "Uploaded audio"
 
@@ -16237,6 +16238,10 @@ msgstr "Change"
 msgid "换一张照片"
 msgstr "Change photo"
 
+#: src/pages/QuickModePage.tsx
+msgid "换一段音频"
+msgstr "Replace audio"
+
 #: src/components/cut/AutoEditSheet.tsx
 msgid "换一版（{price}）"
 msgstr "Another draft ({price})"
@@ -18161,6 +18166,10 @@ msgstr "Powerful"
 msgid "有声"
 msgstr "Sound on"
 
+#: src/pages/QuickModePage.tsx
+msgid "有声音样本"
+msgstr "Has a voice sample"
+
 #: src/pages/SupportPage.tsx
 msgid "有害或不安全"
 msgstr "Harmful or unsafe"
@@ -18553,6 +18562,10 @@ msgstr "Scan on their phone"
 #: src/components/VoiceRecorder.tsx
 msgid "本人跟读录制"
 msgstr "Recorded by me reading along"
+
+#: src/pages/QuickModePage.tsx
+msgid "本地上传"
+msgstr "Uploaded from this device"
 
 #: src/studio/live2dUploadStore.ts
 msgid "本地预览"
@@ -20514,6 +20527,10 @@ msgstr "No new conversation, nothing to tidy."
 #: src/components/WorkflowShelf.tsx
 msgid "没有标题或作者里带「{word}」的工作流"
 msgstr "No workflows with “{word}” in the title or author"
+
+#: src/pages/QuickModePage.tsx
+msgid "没有样本"
+msgstr "No sample yet"
 
 #: src/studio/cutAgent.ts
 msgid "没有片段 {ref}（时间轴上一共 {count} 个）"
@@ -29230,8 +29247,12 @@ msgid "这几个参数没对上：{names}。用到它们的那部分演出不会
 msgstr "These parameters aren't mapped: {names}. The parts of the performance that use them won't move. The parameter column can't be edited in the app yet; to fix it, rename the parameter IDs to the standard names in Cubism and re-export."
 
 #: src/pages/QuickModePage.tsx
-msgid "这几个角色还没有声音样本：出片时台词不会用「他们的声音」说。样本要从视频里取（创意工坊「我的仓库」提卡时顺手取一段）。"
-msgstr "These characters have no voice sample yet, so their lines won't be spoken in their own voice. Samples come from video — grab one while extracting cards in Workshop › My library."
+msgid "这几个角色还没有声音样本：出片时台词不会用「他们的声音」说。可以上传一段（2~15 秒），或从视频里提卡时顺手取一段。"
+msgstr "These characters have no voice sample yet, so their lines won't be spoken in their own voice. Upload a clip (2–15s), or grab one while extracting cards from a video."
+
+#: src/pages/QuickModePage.tsx
+#~ msgid "这几个角色还没有声音样本：出片时台词不会用「他们的声音」说。样本要从视频里取（创意工坊「我的仓库」提卡时顺手取一段）。"
+#~ msgstr "These characters have no voice sample yet, so their lines won't be spoken in their own voice. Samples come from video — grab one while extracting cards in Workshop › My library."
 
 #: src/studio/cutAgent.ts
 msgid "这几句没听懂：{list}"
