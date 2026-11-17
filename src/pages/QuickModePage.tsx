@@ -19,7 +19,8 @@ import PageHeader from "../components/PageHeader";
 import StepDots from "../components/StepDots";
 import CastPicker from "../components/flow/CastPicker";
 import DiscardFlowDialog from "../components/flow/DiscardFlowDialog";
-import { myCards } from "../data/account";
+import { installSharedCard, myCards } from "../data/account";
+import { listSharedCards, type ApiSharedCard } from "../api/branch";
 import { CHAT_TURN_TOKENS, fmtTokens, priceTag } from "../data/economy";
 import { useFlow, flowDirty, nodeCost, nodeDone, chosenOf } from "../studio/flowStore";
 import { shotPlanNodes } from "../studio/structuredSkills";
@@ -56,6 +57,10 @@ export default function QuickModePage() {
   /** 正在确认重抽的那一段（重抽会覆盖已经出过的那条样片，先问一句） */
   const [confirming, setConfirming] = useState<string | null>(null);
   const [askDiscard, setAskDiscard] = useState(false);
+  /** 市场里的公开场景卡（点一下装进自己的库并选中） */
+  const [market, setMarket] = useState<ApiSharedCard[] | null>(null);
+  const [marketBusy, setMarketBusy] = useState(false);
+  const [marketErr, setMarketErr] = useState("");
 
   // 挂载标记：剧本那一发十几秒，人走了不弹通知（与 songDraftStore 同一条）
   useEffect(() => {
@@ -111,6 +116,35 @@ export default function QuickModePage() {
       }
     } finally {
       setDrawing(false);
+    }
+  }
+
+  /** 从创意工坊的公开卡里挑场景卡（只取 type=scene；装上就选中） */
+  async function openMarket() {
+    setMarketBusy(true);
+    setMarketErr("");
+    try {
+      const all = await listSharedCards("", 40);
+      setMarket(all.filter((c) => c.type === "scene"));
+    } catch (e) {
+      setMarketErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setMarketBusy(false);
+    }
+  }
+  async function takeMarketCard(id: string) {
+    setMarketErr("");
+    try {
+      const mine = myCards().find((c) => c.id === id);
+      if (mine) {
+        setQuick({ placeId: mine.id });
+        return;
+      }
+      const got = await installSharedCard(id);
+      if (got) setQuick({ placeId: got.id });
+      else setMarketErr(t`这张卡没装成，再试一次`);
+    } catch (e) {
+      setMarketErr(e instanceof Error ? e.message : String(e));
     }
   }
 
@@ -253,6 +287,40 @@ export default function QuickModePage() {
           >
             <Trans>去创意工坊逛公开场景卡</Trans>
           </button>
+          {/* 市场里的公开场景卡：点一下装进自己的库并选中（listSharedCards + installSharedCard，都是既有实现） */}
+          <button
+            onClick={() => (market ? setMarket(null) : void openMarket())}
+            disabled={marketBusy}
+            className="mt-1.5 self-start rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-300 ring-1 ring-slate-700 disabled:opacity-40"
+          >
+            {marketBusy ? t`正在取市场里的场景卡…` : market ? t`收起市场` : t`从市场挑一张公开场景卡`}
+          </button>
+          {marketErr && (
+            <p className="mt-2 rounded-lg border border-danger-500/40 bg-danger-500/10 px-2.5 py-1.5 text-[10px] leading-relaxed text-danger-300">
+              {marketErr}
+            </p>
+          )}
+          {market &&
+            (market.length ? (
+              <div className="mt-2 grid grid-cols-3 gap-2">
+                {market.map((c) => (
+                  <button
+                    key={c._id ?? c.name}
+                    onClick={() => c._id && void takeMarketCard(c._id)}
+                    className={`overflow-hidden rounded-lg border text-left ${d.placeId === c._id ? "border-brand ring-1 ring-brand" : "border-slate-700 opacity-85"}`}
+                  >
+                    <div className="aspect-square bg-black/40">
+                      {c.cover && <img src={c.cover} alt="" className="h-full w-full object-cover" draggable={false} />}
+                    </div>
+                    <div className="truncate px-1 py-0.5 text-[9px] text-slate-200">{c.name}</div>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-2 text-[10px] text-slate-500">
+                <Trans>市场里还没有公开的场景卡</Trans>
+              </p>
+            ))}
           <span className="flex-1" />
           <button
             onClick={seedFlow}

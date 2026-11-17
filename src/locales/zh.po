@@ -6879,6 +6879,10 @@ msgstr "从左到右是作品、草稿、卡片、卡组、收藏，点一下换
 msgid "从市场开的课 · 老师 v{0}"
 msgstr "从市场开的课 · 老师 v{0}"
 
+#: src/pages/QuickModePage.tsx
+msgid "从市场挑一张公开场景卡"
+msgstr "从市场挑一张公开场景卡"
+
 #: src/pages/WorkshopPage.tsx
 #~ msgid "从市场添加"
 #~ msgstr "从市场添加"
@@ -14242,6 +14246,10 @@ msgstr "市场里还没有公开的人格。"
 msgid "市场里还没有公开的人格和声音可选，跳过就行。"
 msgstr "市场里还没有公开的人格和声音可选，跳过就行。"
 
+#: src/pages/QuickModePage.tsx
+msgid "市场里还没有公开的场景卡"
+msgstr "市场里还没有公开的场景卡"
+
 #: src/components/support/VoiceMarket.tsx
 msgid "市场里还没有公开的声音模板，去「混音」发布第一条。"
 msgstr "市场里还没有公开的声音模板，去「混音」发布第一条。"
@@ -17010,6 +17018,7 @@ msgstr "收起卡组"
 msgid "收起对话"
 msgstr "收起对话"
 
+#: src/pages/QuickModePage.tsx
 #: src/studio/studioStore.ts
 msgid "收起市场"
 msgstr "收起市场"
@@ -19655,6 +19664,10 @@ msgstr "正在取回结果…"
 #: src/components/VideoCardAnnotator.tsx
 msgid "正在取声音：找到<0>只有这个人在说话</0>的一段，先定起点再定终点（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）。录制会实际播一遍。"
 msgstr "正在取声音：找到<0>只有这个人在说话</0>的一段，先定起点再定终点（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）。录制会实际播一遍。"
+
+#: src/pages/QuickModePage.tsx
+msgid "正在取市场里的场景卡…"
+msgstr "正在取市场里的场景卡…"
 
 #: src/pages/SettingsPage.tsx
 msgid "正在取更新记录…"
@@ -29739,6 +29752,10 @@ msgstr "这张卡没能存到服务器"
 #: src/components/recipe/RecipeView.tsx
 msgid "这张卡没能随配方带上"
 msgstr "这张卡没能随配方带上"
+
+#: src/pages/QuickModePage.tsx
+msgid "这张卡没装成，再试一次"
+msgstr "这张卡没装成，再试一次"
 
 #: src/studio/canvasAgent.ts
 msgid "这张卡说的那一段已经不在第 {seg} 位了（流水线被改过）——重说一句，我按现在的样子再摆一张"

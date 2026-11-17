@@ -6875,6 +6875,10 @@ msgstr "From left to right: Videos, Drafts, Cards, Decks and Saved. Tap one to s
 msgid "从市场开的课 · 老师 v{0}"
 msgstr "Started from the market · teacher v{0}"
 
+#: src/pages/QuickModePage.tsx
+msgid "从市场挑一张公开场景卡"
+msgstr "Pick a public scene card from the Workshop"
+
 #: src/pages/WorkshopPage.tsx
 #~ msgid "从市场添加"
 #~ msgstr "Add from the market"
@@ -14234,6 +14238,10 @@ msgstr "No public personas in the market yet."
 msgid "市场里还没有公开的人格和声音可选，跳过就行。"
 msgstr "There are no public personas or voices in the market yet, so just skip this."
 
+#: src/pages/QuickModePage.tsx
+msgid "市场里还没有公开的场景卡"
+msgstr "No public scene cards in the Workshop yet"
+
 #: src/components/support/VoiceMarket.tsx
 msgid "市场里还没有公开的声音模板，去「混音」发布第一条。"
 msgstr "No public voice templates yet. Publish the first one from “Mix”."
@@ -17002,6 +17010,7 @@ msgstr "Collapse deck"
 msgid "收起对话"
 msgstr "Hide conversation"
 
+#: src/pages/QuickModePage.tsx
 #: src/studio/studioStore.ts
 msgid "收起市场"
 msgstr "Close market"
@@ -19647,6 +19656,10 @@ msgstr "Recovering the result…"
 #: src/components/VideoCardAnnotator.tsx
 msgid "正在取声音：找到<0>只有这个人在说话</0>的一段，先定起点再定终点（{VOICE_MIN_SEC}~{VOICE_MAX_SEC} 秒）。录制会实际播一遍。"
 msgstr "Capturing voice: find a stretch where <0>only this person is speaking</0>, set the start and then the end ({VOICE_MIN_SEC}–{VOICE_MAX_SEC}s). Recording plays the clip through once."
+
+#: src/pages/QuickModePage.tsx
+msgid "正在取市场里的场景卡…"
+msgstr "Fetching scene cards from the Workshop…"
 
 #: src/pages/SettingsPage.tsx
 msgid "正在取更新记录…"
@@ -29731,6 +29744,10 @@ msgstr "This card couldn't be saved to the server"
 #: src/components/recipe/RecipeView.tsx
 msgid "这张卡没能随配方带上"
 msgstr "This card could not be included"
+
+#: src/pages/QuickModePage.tsx
+msgid "这张卡没装成，再试一次"
+msgstr "Couldn't add that card — try again"
 
 #: src/studio/canvasAgent.ts
 msgid "这张卡说的那一段已经不在第 {seg} 位了（流水线被改过）——重说一句，我按现在的样子再摆一张"
