@@ -72,24 +72,36 @@ export default function QuickModePage() {
   const chars = myCards().filter((c) => c.type === "character");
   const scenes = myCards().filter((c) => c.type === "scene");
   const cast = lead.castIds.map((id) => chars.find((c) => c.id === id)).filter((c): c is Card => !!c);
-  const place = scenes.find((c) => c.id === d.placeId) ?? null;
   const plan = d.plan;
 
-  /** 把分镜铺成流水线（整表换 nodes）。脏了先问。 */
-  function seedFlow() {
+  /** 真铺：用**调用那一刻**的 store（不读渲染时的闭包 —— 「不用场景卡」是先清 placeId 再铺的）。 */
+  function doSeed(placeId: string | null) {
+    const planNow = useQuickDraft.getState().plan;
+    if (!planNow) return;
+    const mine = myCards();
+    const castNow = useLeadDraft
+      .getState()
+      .castIds.map((id) => mine.find((c) => c.id === id))
+      .filter((c): c is Card => !!c);
+    const scene = placeId ? (mine.find((c) => c.type === "scene" && c.id === placeId) ?? null) : null;
+    const list = shotPlanNodes(planNow, {
+      tierId: PREVIEW_TIER,
+      aspect: "portrait",
+      materials: [...castNow, ...(scene ? [scene] : [])],
+    });
+    if (!useFlow.getState().seed(list, { mode: "workflow", origin: "studio" })) {
+      setQuick({ err: useFlow.getState().err || t`没铺成：流水线还是那条，先处理掉上面那条错误` });
+      return;
+    }
+    useStudio.getState().newWorkDraft(); // 整表换过 = 与旧草稿脱钩（成了才断）
+    setQuick({ step: "preview", err: "" });
+  }
+
+  /** 铺节点是「整表换 nodes」的入口：脏了先摆 DiscardFlowDialog（与套模板同一道闸） */
+  function seedFlow(placeId: string | null = d.placeId) {
     if (!plan) return;
-    const run = () => {
-      const materials = [...cast, ...(place ? [place] : [])];
-      const list = shotPlanNodes(plan, { tierId: PREVIEW_TIER, aspect: "portrait", materials });
-      if (!useFlow.getState().seed(list, { mode: "workflow", origin: "studio" })) {
-        setQuick({ err: useFlow.getState().err || t`没铺成：流水线还是那条，先处理掉上面那条错误` });
-        return;
-      }
-      useStudio.getState().newWorkDraft(); // 整表换过 = 与旧草稿脱钩（成了才断）
-      setQuick({ step: "preview", err: "" });
-    };
     if (flowDirty()) setAskDiscard(true);
-    else run();
+    else doSeed(placeId);
   }
 
   /** 逐段出片（同一时刻只能炼一段，所以排队跑）。 */
@@ -323,12 +335,18 @@ export default function QuickModePage() {
             ))}
           <span className="flex-1" />
           <button
-            onClick={seedFlow}
+            onClick={() => seedFlow()}
             className="mt-4 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink"
           >
             <Trans>铺好流水线，开始出预览 ›</Trans>
           </button>
-          <button onClick={() => setQuick({ placeId: null, step: "preview" })} className="mt-2 text-[11px] text-slate-500">
+          <button
+            onClick={() => {
+              setQuick({ placeId: null });
+              seedFlow(null);
+            }}
+            className="mt-2 text-[11px] text-slate-500"
+          >
             <Trans>不用场景卡</Trans>
           </button>
         </div>
@@ -461,17 +479,7 @@ export default function QuickModePage() {
           onCancel={() => setAskDiscard(false)}
           onDiscard={() => {
             setAskDiscard(false);
-            const run = () => {
-              const materials = [...cast, ...(place ? [place] : [])];
-              const list = shotPlanNodes(plan!, { tierId: PREVIEW_TIER, aspect: "portrait", materials });
-              if (!useFlow.getState().seed(list, { mode: "workflow", origin: "studio" })) {
-                setQuick({ err: useFlow.getState().err || t`没铺成：先处理掉上面那条错误` });
-                return;
-              }
-              useStudio.getState().newWorkDraft();
-              setQuick({ step: "preview", err: "" });
-            };
-            run();
+            doSeed(useQuickDraft.getState().placeId);
           }}
         />
       )}

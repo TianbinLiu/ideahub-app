@@ -20871,8 +20871,8 @@ msgid "没量到"
 msgstr "没量到"
 
 #: src/pages/QuickModePage.tsx
-msgid "没铺成：先处理掉上面那条错误"
-msgstr "没铺成：先处理掉上面那条错误"
+#~ msgid "没铺成：先处理掉上面那条错误"
+#~ msgstr "没铺成：先处理掉上面那条错误"
 
 #: src/pages/QuickModePage.tsx
 msgid "没铺成：流水线还是那条，先处理掉上面那条错误"

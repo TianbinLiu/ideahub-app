@@ -20863,8 +20863,8 @@ msgid "没量到"
 msgstr "Couldn't measure"
 
 #: src/pages/QuickModePage.tsx
-msgid "没铺成：先处理掉上面那条错误"
-msgstr "Couldn't lay it out: clear the error above first"
+#~ msgid "没铺成：先处理掉上面那条错误"
+#~ msgstr "Couldn't lay it out: clear the error above first"
 
 #: src/pages/QuickModePage.tsx
 msgid "没铺成：流水线还是那条，先处理掉上面那条错误"
