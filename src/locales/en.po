@@ -3498,6 +3498,10 @@ msgstr "⚡ Token wallet"
 #~ msgid "⚡ 出片（{0}）"
 #~ msgstr "⚡ Generate video ({0})"
 
+#: src/pages/SimpleModePage.tsx
+msgid "⚡ 快速模式：做一条多段的"
+msgstr "⚡ Quick mode: build a multi-segment one"
+
 #: src/pages/RecipePage.tsx
 #~ msgid "⚡ 按这个流程做同款"
 #~ msgstr "⚡ Remake with this process"
@@ -3699,6 +3703,10 @@ msgstr "✓ Real footage"
 #: src/pages/CutPage.tsx
 msgid "✓ 能配的句子都配好了"
 msgstr "✓ Every line that can be voiced is voiced"
+
+#: src/pages/QuickModePage.tsx
+msgid "✓ 要升级"
+msgstr "✓ Upgrade"
 
 #: src/pages/TemplateDetailPage.tsx
 #~ msgid "✓ 试炼通过——你已经用这个模板真实出过片，可以发布了。"
@@ -5858,6 +5866,10 @@ msgstr "Next: name and make the card ›"
 #~ msgid "下一步：定名与铸卡 ›"
 #~ msgstr "Next: name and mint ›"
 
+#: src/pages/QuickModePage.tsx
+msgid "下一步：定场景 ›"
+msgstr "Next: set the scene ›"
+
 #: src/pages/tutor/TutorNewPage.tsx
 msgid "下一步：定老师"
 msgstr "Next: define the teacher"
@@ -5865,6 +5877,10 @@ msgstr "Next: define the teacher"
 #: src/studio/ui/projection.tsx
 msgid "下一步：定规格 ›"
 msgstr "Next: specs ›"
+
+#: src/pages/QuickModePage.tsx
+msgid "下一步：定角色 ›"
+msgstr "Next: cast it ›"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "下一步：对映射"
@@ -6198,6 +6214,10 @@ msgstr "Skip AI, write the panels myself"
 msgid "不用 AI，自己写镜头"
 msgstr "Write the shots myself, no AI"
 
+#: src/pages/QuickModePage.tsx
+msgid "不用场景卡"
+msgstr "No scene card"
+
 #: src/components/guide/tours.tsx
 msgid "不用挂满：挂几个换几个，剩下的通常照旧是人偶。<0>点中那一格再点另一张卡</0>就换掉，右端有<1>「取下」</1>；都弄好点底部<2>「完成挂卡」</2>回去炼视频。"
 msgstr "No need to fill every slot: only attached ones get swapped, the rest usually stay mannequins. <0>Tap the tile, then another card</0> to replace it, or <1>“Remove”</1> at the right; when done, tap <2>“Done casting”</2> to go back and render."
@@ -6290,6 +6310,10 @@ msgstr "Same resolution as the footage; fastest"
 #: src/data/economy.ts
 msgid "专业套餐"
 msgstr "Pro plan"
+
+#: src/pages/QuickModePage.tsx
+msgid "丢掉上面的流水线，铺这一条"
+msgstr "Discard the pipeline above and lay this one"
 
 #: src/components/flow/DialogueWizard.tsx
 #: src/components/flow/EffectWizard.tsx
@@ -7421,6 +7445,10 @@ msgstr "The rules for using this app"
 msgid "使用说明"
 msgstr "How to use"
 
+#: src/pages/QuickModePage.tsx
+msgid "例：一个女孩在老城区的雨天里找一只走丢的猫，最后在天台找到，天刚好放晴"
+msgstr "e.g. A girl searches for her lost cat through the old town in the rain and finally finds it on the rooftop just as the sky clears"
+
 #: src/studio/ui/projection.tsx
 msgid "例：主角在雨里发现了那封信的真正收件人……"
 msgstr "e.g. In the rain, the lead discovers who the letter was really meant for…"
@@ -7836,6 +7864,10 @@ msgstr "Write what to change first (e.g. make the background a rainy night / rem
 msgid "先写一句这个人长什么样（至少 {LEAD_DESC_MIN} 个字）"
 msgstr "First write a sentence about how this person looks (at least {LEAD_DESC_MIN} characters)"
 
+#: src/studio/quickDraftStore.ts
+msgid "先写一段想法：讲谁、讲什么、什么调子"
+msgstr "Write an idea first: who, what happens, and what it feels like"
+
 #: src/studio/flowStore.ts
 msgid "先写清楚这一段要拍什么"
 msgstr "Write what this segment should show first"
@@ -8009,6 +8041,10 @@ msgstr "Tap a slot below, then tap a card — or drag a card straight onto a slo
 msgid "先生成当前段的视频"
 msgstr "Generate the current segment's video first"
 
+#: src/pages/QuickModePage.tsx
+msgid "先用便宜档（480p）出样片；勾中的段之后会按 1080p 重出，画面会有变化。"
+msgstr "Sample each segment on the cheap tier (480p) first; ticked segments are later re-rendered at 1080p, so the picture will change."
+
 #: src/components/flow/EffectWizard.tsx
 msgid "先画关键帧：看着对了再出片，不对就重画一张（只花一张图的钱）。"
 msgstr "Draw the keyframe first: render once it looks right, or redraw it (costs one image)."
@@ -8064,6 +8100,10 @@ msgstr "Give this skill a name first"
 #: src/pages/SupportPage.tsx
 msgid "先说一句你遇到了什么，客服才知道从哪儿开始。"
 msgstr "Tell us what happened first, so support knows where to start."
+
+#: src/pages/QuickModePage.tsx
+msgid "先说说你想拍什么"
+msgstr "Tell me what you want to make"
 
 #: src/components/ReportButton.tsx
 msgid "先选一个理由"
@@ -8206,6 +8246,10 @@ msgstr "All {0}"
 #: src/pages/ProfilePage.tsx
 msgid "全部上传成功"
 msgstr "All uploaded"
+
+#: src/pages/QuickModePage.tsx
+msgid "全部出样片"
+msgstr "Make all samples"
 
 #: src/studio/ui/projection.tsx
 msgid "全部卡片"
@@ -8463,6 +8507,7 @@ msgstr "Built-in schemes can't be edited directly — saving creates <0>your own
 msgid "再传一个"
 msgstr "Upload another"
 
+#: src/pages/QuickModePage.tsx
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "再做一个"
 msgstr "Make another"
@@ -8949,7 +8994,9 @@ msgstr "Videos, images, card forging and paid unlocks all draw from it. <0>Plan 
 #~ msgid "出片、出图、铸卡、解锁付费作品，扣的都是它。点开看余额、买套餐或直充 ——<0>套餐额度先扣（付费套餐按月给，免费版每天补一点），直充和新人额度不过期</0>。"
 #~ msgstr "Rendering videos, generating images, minting cards and unlocking paid videos all spend these. Tap to see your balance, buy a plan or top up — <0>plan tokens are used first (paid plans refill monthly, the free plan adds a little each day); top-ups and welcome tokens don't expire</0>."
 
+#. placeholder {0}: fmtTokens(priceOf(i))
 #. placeholder {0}: priceTag(cost)
+#: src/pages/QuickModePage.tsx
 #: src/pages/SimpleModePage.tsx
 msgid "出片（{0}）"
 msgstr "Generate video ({0})"
@@ -10008,6 +10055,10 @@ msgstr "Anonymous"
 msgid "十年前那一战"
 msgstr "that battle ten years ago"
 
+#: src/pages/QuickModePage.tsx
+msgid "升级 1080p"
+msgstr "Upgrade to 1080p"
+
 #: src/pages/SettingsPage.tsx
 msgid "协议与须知"
 msgstr "Agreements & notices"
@@ -10149,6 +10200,10 @@ msgstr "No prop cards in your library — just upload a product photo (it’s on
 #: src/components/flow/CastPicker.tsx
 msgid "卡片库里还没有人物卡 —— 在下面现做一个；想用照片做（真人要先认证），去「自己传图做卡片」。"
 msgstr "No character cards in your library yet — make one below. To make one from a photo (real people need verification first), go to “Make a card from your own images”."
+
+#: src/pages/QuickModePage.tsx
+msgid "卡片库里还没有场景卡 —— 去创意工坊做一张，或直接跳过。"
+msgstr "No scene cards yet — make one in the Workshop, or just skip."
 
 #: src/studio/segmentGen.ts
 msgid "卡片形象图一张都没能用上，改画了设定帧；样片这一发没有发出去（这一次帧没法当参考图发，退回首尾帧的话画幅只能按「自适应」结算，会比报价贵）——刚画好的设定帧已经留在这一段上，再点一次生成会把它们当参考图发出去，不会重画"
@@ -10426,6 +10481,10 @@ msgstr "Add a few from the Workshop market, or make your own in My library"
 msgid "去制作"
 msgstr "Create"
 
+#: src/pages/QuickModePage.tsx
+msgid "去剪辑 ›"
+msgstr "Open the editor ›"
+
 #: src/components/UpgradeLink.tsx
 msgid "去升级"
 msgstr "Upgrade"
@@ -10445,6 +10504,10 @@ msgstr "Go recover this segment"
 #: src/pages/SupportModelNewPage.tsx
 msgid "去对"
 msgstr "Fix"
+
+#: src/pages/QuickModePage.tsx
+msgid "去工坊挑 / 做场景卡"
+msgstr "Pick or make a scene card in the Workshop"
 
 #: src/components/flow/FlowCanvas.tsx
 #: src/pages/WorkshopMinePage.tsx
@@ -12269,6 +12332,7 @@ msgstr "mentioned you in a comment"
 msgid "在详情页里选"
 msgstr "On the details page"
 
+#: src/pages/QuickModePage.tsx
 #: src/types.ts
 msgid "场景"
 msgstr "Scene"
@@ -13509,6 +13573,10 @@ msgstr "Following"
 #: src/api/support.ts
 msgid "已关闭"
 msgstr "Closed"
+
+#: src/pages/QuickModePage.tsx
+msgid "已出样片"
+msgstr "Sample ready"
 
 #: src/studio/ui/PlanBoard.tsx
 msgid "已出片"
@@ -14770,6 +14838,10 @@ msgstr "Required · {0}"
 msgid "忘记密码？"
 msgstr "Forgot password?"
 
+#: src/pages/QuickModePage.tsx
+msgid "快速模式"
+msgstr "Quick mode"
+
 #: src/utils/oauth.ts
 msgid "忽略了一条不是本机发起的登录链接"
 msgstr "Ignored a sign-in link this device did not start"
@@ -14874,6 +14946,10 @@ msgstr "What do you want to film? e.g. a rainy Tokyo street at night, a black ca
 msgid "想换成片内容，用下面的「🛠 回炉重做」把这条片的工坊工程取回工坊接着改 —— 链接、播放量、评论都留着。想做一条全新的，<0>去工坊再创作</0>。"
 msgstr "To change the video's content, use “🛠 Remake” below to bring its Studio project back into the Studio and keep editing — the link, plays and comments all stay. To make a brand-new one, <0>create again in the Studio</0>."
 
+#: src/pages/QuickModePage.tsx
+msgid "想法"
+msgstr "Idea"
+
 #: src/components/blockout/BoxFramePicker.tsx
 msgid "慢放 0.25 倍"
 msgstr "Slow motion 0.25×"
@@ -14887,6 +14963,7 @@ msgid "懒得一格格点？说一句，或者一键"
 msgstr "Rather not tap through it all? Say it, or one tap"
 
 #: src/pages/CutPage.tsx
+#: src/pages/QuickModePage.tsx
 msgid "成片"
 msgstr "Finished video"
 
@@ -15253,6 +15330,10 @@ msgstr "As you type, <0>people</0> appear on top and works below; works match on
 msgid "打开中…"
 msgstr "Opening…"
 
+#: src/pages/QuickModePage.tsx
+msgid "打开剪辑页 ›"
+msgstr "Open the editor ›"
+
 #: src/pages/tutor/TutorRunPage.tsx
 msgid "打开声音"
 msgstr "Unmute"
@@ -15386,6 +15467,11 @@ msgstr "Attach “<0>{0}</0>” to <1>{1}</1>?"
 #: src/studio/ui/FuseFrameSheet.tsx
 msgid "把几张图合成一张画面。把上一段的<0>结尾帧</0>融成下一段的<1>开头帧</1>，两段接起来就没有跳变——这是做长片\"看不出接缝\"的常用手法。"
 msgstr "Combine several images into one frame. Fuse the previous segment's <0>ending frame</0> into the next segment's <1>opening frame</1> and the two segments join without a jump — a common way to make long videos look seamless."
+
+#. placeholder {0}: picked.size
+#: src/pages/QuickModePage.tsx
+msgid "把勾中的 {0} 段升到 1080p"
+msgstr "Upgrade the {0} ticked segments to 1080p"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "把包交给服务器看一眼"
@@ -15530,6 +15616,11 @@ msgstr "Splitting into shots costs {price} tokens and your balance is too low �
 #: src/components/flow/ScriptSkillSheet.tsx
 msgid "拆成 {0} 段"
 msgstr "Split into {0, plural, one {# segment} other {# segments}}"
+
+#. placeholder {0}: plan.segments.length
+#: src/pages/QuickModePage.tsx
+msgid "拆成 {0} 段 · 可以再改想法重新拆"
+msgstr "Split into {0} segments · edit the idea and split again if you like"
 
 #: src/components/flow/LeadShotsWizard.tsx
 msgid "拆成 2~{SHOT_MAX} 个镜头：每个镜头写景别、运镜、画面，台词挂说话人；不写每个镜头几秒（官方说模型按剧情自己分配节奏更稳）。拆完逐格可改。"
@@ -16011,6 +16102,10 @@ msgstr "Pick a plan → swap first/last frames or edit the plot → generate thi
 msgid "挑一套方案（{0} 套已推演好）"
 msgstr "Pick a plan ({0, plural, one {# plan ready} other {# plans ready}})"
 
+#: src/pages/QuickModePage.tsx
+msgid "挑一张场景卡（只挑一张）；没有合适的可以跳过，画面按分镜里的文字来。"
+msgstr "Pick one scene card (just one); skip it if nothing fits — shots follow the text."
+
 #: src/components/flow/ModePicker.tsx
 msgid "挑一条模板片，把画面里的人换成你的角色，场景与运镜照它走（模板按这个模型筛）"
 msgstr "Pick a template clip and swap the people in it for your characters; scene and camera moves follow the template (templates are filtered by this model)"
@@ -16067,6 +16162,10 @@ msgstr "Two more knobs to turn"
 #: src/components/guide/tours.tsx
 msgid "挑定了就进去"
 msgstr "Picked one? Go in"
+
+#: src/pages/QuickModePage.tsx
+msgid "挑已有的角色卡；没有的话在下面现做一个，或去「自己传图做卡片」用照片做（真人要先认证）。"
+msgstr "Pick an existing character card; if you have none, make one below, or use your own photo under “Make a card from your own images” (real people need verification first)."
 
 #: src/components/flow/GridShotsWizard.tsx
 msgid "挑格子"
@@ -17099,6 +17198,10 @@ msgstr "Policy text (optional)"
 #: src/studio/ui/NpcDialog.tsx
 msgid "故事发生在哪——地点与空间"
 msgstr "Where the story happens — place and space"
+
+#: src/pages/QuickModePage.tsx
+msgid "故事发生在哪儿？"
+msgstr "Where does it happen?"
 
 #: src/types.ts
 msgid "故事的时代、地点与氛围"
@@ -18331,6 +18434,10 @@ msgstr "Outfit detail"
 msgid "朝向"
 msgstr "Facing"
 
+#: src/pages/QuickModePage.tsx
+msgid "未出"
+msgstr "Not made"
+
 #: src/studio/canvasAgent.ts
 msgid "未出片的段直接删，已出片的段不代删"
 msgstr "Deletes segments without video; won't delete ones that have video"
@@ -18815,6 +18922,10 @@ msgstr "Finalize preview draft (upgrade to 1080p)"
 #: src/components/flow/DraftModeBox.tsx
 msgid "样片已经过了定稿期限（样片只留 7 天，我们在到期前 1 小时停止定稿），不能再定稿了——要成片就重新生成（会重新计费）。"
 msgstr "This preview has passed its finalize deadline (previews are kept for 7 days; we stop finalizing 1 hour before expiry), so it can no longer be finalized — regenerate to get a final video (charged again)."
+
+#: src/pages/QuickModePage.tsx
+msgid "样片都出好了"
+msgstr "All samples are ready"
 
 #: src/components/flow/SegmentRecoverCards.tsx
 #: src/pages/tutor/TutorNewPage.tsx
@@ -19422,6 +19533,10 @@ msgstr "Writing…"
 msgid "正在写分镜…"
 msgstr "Writing the storyboard…"
 
+#: src/pages/QuickModePage.tsx
+msgid "正在写剧本、拆镜头…"
+msgstr "Writing the script and breaking it into shots…"
+
 #: src/components/flow/DialogueWizard.tsx
 msgid "正在写对白…"
 msgstr "Writing the dialogue…"
@@ -19819,6 +19934,10 @@ msgstr "Reading image…"
 #: src/components/UpdateSheet.tsx
 msgid "正在连接…"
 msgstr "Connecting…"
+
+#: src/pages/QuickModePage.tsx
+msgid "正在逐段出片…"
+msgstr "Rendering segment by segment…"
 
 #: src/pages/CutPage.tsx
 msgid "正在配音…"
@@ -20721,6 +20840,14 @@ msgstr "Without cloud voice, the system's built-in speech synthesizer is used in
 msgid "没量到"
 msgstr "Couldn't measure"
 
+#: src/pages/QuickModePage.tsx
+msgid "没铺成：先处理掉上面那条错误"
+msgstr "Couldn't lay it out: clear the error above first"
+
+#: src/pages/QuickModePage.tsx
+msgid "没铺成：流水线还是那条，先处理掉上面那条错误"
+msgstr "Couldn't lay it out: the pipeline is unchanged, clear the error above first"
+
 #: src/studio/gridDraftStore.ts
 msgid "没问到服务端收没收到上一组（网络断了一下）—— 为了不让同一组画面付两次钱，这一次先不开新的一组；过一会儿再点一次（问一下不花钱）"
 msgstr "Couldn't check whether the server received the previous set (the connection dropped) — so you don't pay twice for the same set, no new set was started; tap again in a moment (checking is free)"
@@ -20773,6 +20900,10 @@ msgstr "Deactivate this account"
 #: src/ai/real.ts
 msgid "派生卡面全部失败"
 msgstr "All the card faces failed to draw"
+
+#: src/pages/QuickModePage.tsx
+msgid "流水线已经铺好，去剪辑页合成、发布或存到本地。"
+msgstr "Your pipeline is ready — open the editor to merge, publish, or save it locally."
 
 #: src/components/guide/tours.tsx
 msgid "流水线画布"
@@ -21834,11 +21965,17 @@ msgstr "Generating"
 #: src/components/ForgeOverlay.tsx
 #: src/components/VolcCompatToggle.tsx
 #: src/pages/FlowPage.tsx
+#: src/pages/QuickModePage.tsx
 #: src/pages/SimpleModePage.tsx
 #: src/pages/tutor/TutorNewPage.tsx
 #: src/studio/ui/projection.tsx
 msgid "生成中…"
 msgstr "Generating…"
+
+#. placeholder {0}: priceTag(CHAT_TURN_TOKENS)
+#: src/pages/QuickModePage.tsx
+msgid "生成剧本与分镜（{0}）"
+msgstr "Write the script and shots ({0})"
 
 #: src/pages/NotificationsPage.tsx
 msgid "生成失败，token 已退回"
@@ -23770,6 +23907,7 @@ msgstr "Voice {0}"
 #: src/data/videoDownload.ts
 #: src/pages/FlowPage.tsx
 #: src/pages/PublishPage.tsx
+#: src/pages/QuickModePage.tsx
 #: src/studio/flowStore.ts
 #: src/studio/structuredSkills.ts
 #: src/studio/studioStore.ts
@@ -25953,6 +26091,10 @@ msgstr "Specs"
 #~ msgid "角标写着这个模板能干什么。<0>白模</0>：出片时整段复刻它的场景、道具与运镜，只把人换掉，旁边报的是这条模板视频有多长——成片长度和画幅都跟着它走；<1>几个角色位可换人</1>：画面里那几个白色人偶，各能挂一张你的角色卡。没有这两枚角标的是经典配方模板，按分镜骨架重新画，旁边报的是分几段。标题下面那行小字的头一枚是<2>出片模型</2>：写着「仅」哪一档的，套用后出片模型固定、不能换；「模型不限」的可以自己选。"
 #~ msgstr "The badges say what a template can do. <0>Blockout</0>: rendering copies its whole scene, props and camera work and only swaps the people, and the number shown with it is how long the template video is — the finished video's length and aspect ratio follow it. <1>Recastable slots</1>: each of the white mannequins in the picture can take one of your character cards. Templates without either of those badges are classic recipe templates, redrawn from the shot outline, and the number shown is how many segments they have. The first chip in the small line under the title is the <2>video model</2>: one that says “… only” means the model is fixed once you use the template and can't be changed; “Any model” means you choose."
 
+#: src/pages/QuickModePage.tsx
+msgid "角色"
+msgstr "Cast"
+
 #: src/ai/real.ts
 msgid "角色卡上没有可用的形象图"
 msgstr "The character cards have no usable reference image"
@@ -26119,6 +26261,10 @@ msgstr "Handout page {0} · this passage"
 #: src/pages/tutor/TutorRunPage.tsx
 msgid "讲义第 {0} 页：「{1}」"
 msgstr "Handout page {0}: “{1}”"
+
+#: src/pages/QuickModePage.tsx
+msgid "讲清谁、在哪儿、发生了什么、什么调子。AI 会把它拆成几段分镜，每段之后单独出片。"
+msgstr "Say who, where, what happens and the mood. The AI splits it into a few shots, and each one is rendered separately."
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "讲解"
@@ -28513,6 +28659,10 @@ msgstr "This segment has no video to revise yet — generate it first, or wait f
 msgid "这一段还没有选定的方案，导演台的截图没处放"
 msgstr "This segment has no chosen plan yet, so there's nowhere to put the stage capture"
 
+#: src/pages/QuickModePage.tsx
+msgid "这一段里有谁？"
+msgstr "Who's in it?"
+
 #: src/studio/flowStore.ts
 #~ msgid "这一炉一个方案都没有，铸不成段"
 #~ msgstr "This run has no plans, so no segment can be forged"
@@ -30593,6 +30743,10 @@ msgstr "Upload your own image for each slot · free"
 msgid "逐格可改、可删，点了才出画面"
 msgstr "Edit or delete any panel; nothing is drawn until you tap"
 
+#: src/pages/QuickModePage.tsx
+msgid "逐段看样片，不满意的重抽"
+msgstr "Check each sample and re-roll the ones you don't like"
+
 #: src/studio/structuredSkills.ts
 msgid "逐行可改、可删，点了才出片"
 msgstr "Edit or delete lines; nothing is generated until you confirm"
@@ -30823,6 +30977,11 @@ msgstr "For heavy use, about {n} five-second “{hd}” segments · every tier u
 #: src/components/flow/FlowCanvas.tsx
 msgid "重截预览"
 msgstr "Recapture preview"
+
+#. placeholder {0}: fmtTokens(priceOf(i))
+#: src/pages/QuickModePage.tsx
+msgid "重抽（{0}）"
+msgstr "Re-roll ({0})"
 
 #: src/components/PhotoSubjectPicker.tsx
 msgid "重描"
@@ -31172,6 +31331,15 @@ msgctxt "丢弃确认卡里「…再回来X」的那个动作（英文用小写�
 msgid "铺分镜"
 msgstr "lay out the storyboard"
 
+#: src/pages/QuickModePage.tsx
+msgid "铺好流水线，开始出预览 ›"
+msgstr "Lay out the pipeline and preview ›"
+
+#: src/pages/QuickModePage.tsx
+msgctxt "丢弃确认卡里「…再回来X」的那个动作"
+msgid "铺快速模式"
+msgstr "Lay out quick mode"
+
 #. placeholder {0}: plan.segments.length
 #: src/components/flow/ScriptSkillSheet.tsx
 msgid "铺成 {0} 段"
@@ -31411,6 +31579,10 @@ msgstr "Estimated cost"
 #: src/components/VideoTemplateExtractor.tsx
 msgid "预估需 {price} token，余额不足——去「我的」页充值"
 msgstr "This needs an estimated {price} tokens and your balance isn't enough — top up on the Me page"
+
+#: src/pages/QuickModePage.tsx
+msgid "预览"
+msgstr "Preview"
 
 #: src/studio/live2dUploadStore.ts
 msgid "预览准备失败。"

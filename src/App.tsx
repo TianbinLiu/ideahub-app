@@ -42,6 +42,7 @@ import VideoEditorPage from "./pages/VideoEditorPage";
 import CreatePage from "./pages/CreatePage";
 import FlowPage from "./pages/FlowPage";
 import SimpleModePage from "./pages/SimpleModePage";
+import QuickModePage from "./pages/QuickModePage";
 import SupportPage from "./pages/SupportPage";
 import SupportModelsPage from "./pages/SupportModelsPage";
 import SupportPersonasPage from "./pages/SupportPersonasPage";
@@ -412,6 +413,15 @@ export default function App() {
         element={
           <RequireAuth>
             <SimpleModePage />
+          </RequireAuth>
+        }
+      />
+      {/* 快速模式：从一句想法到成片的流水线向导（2026-11-16，docs/quick-mode-design.md） */}
+      <Route
+        path="/quick"
+        element={
+          <RequireAuth>
+            <QuickModePage />
           </RequireAuth>
         }
       />
