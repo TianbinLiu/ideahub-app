@@ -3037,6 +3037,10 @@ msgstr "+ Add local audio as background music"
 msgid "＋ 现做一个人物（一句话）"
 msgstr "＋ Make a character now (one sentence)"
 
+#: src/pages/QuickModePage.tsx
+msgid "＋ 用文字 / 图片做一张场景卡"
+msgstr "＋ Make a scene card from text or a picture"
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "＋ 自建一套"
 msgstr "+ Create your own"
@@ -10473,6 +10477,10 @@ msgstr "Create one in the Workshop"
 msgid "去创意工坊的市场添加几张，或者在「我的仓库」里自己做"
 msgstr "Add a few from the Workshop market, or make your own in My library"
 
+#: src/pages/QuickModePage.tsx
+msgid "去创意工坊逛公开场景卡"
+msgstr "Browse public scene cards in the Workshop"
+
 #: src/components/MaterialSheet.tsx
 #~ msgid "去创意工坊铸几张"
 #~ msgstr "Mint some in the Workshop"
@@ -10506,8 +10514,8 @@ msgid "去对"
 msgstr "Fix"
 
 #: src/pages/QuickModePage.tsx
-msgid "去工坊挑 / 做场景卡"
-msgstr "Pick or make a scene card in the Workshop"
+#~ msgid "去工坊挑 / 做场景卡"
+#~ msgstr "Pick or make a scene card in the Workshop"
 
 #: src/components/flow/FlowCanvas.tsx
 #: src/pages/WorkshopMinePage.tsx
@@ -11132,6 +11140,7 @@ msgstr "Uses the whole frame"
 #: src/pages/DiscoverPage.tsx
 #: src/pages/EditPage.tsx
 #: src/pages/ProfilePage.tsx
+#: src/pages/QuickModePage.tsx
 #: src/pages/RecipePage.tsx
 #: src/pages/SupportModelNewPage.tsx
 #: src/pages/SupportPage.tsx
@@ -23475,6 +23484,11 @@ msgstr "To confirm deactivation, type your username <0>{username}</0> exactly (c
 #: src/pages/CardDetailPage.tsx
 msgid "确认移除"
 msgstr "Confirm removal"
+
+#. placeholder {0}: fmtTokens(priceOf(i))
+#: src/pages/QuickModePage.tsx
+msgid "确认重抽（{0}，覆盖这一条）"
+msgstr "Re-roll ({0}, replaces this one)"
 
 #: src/studio/ui/projection.tsx
 msgid "示例"

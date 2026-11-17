@@ -3037,6 +3037,10 @@ msgstr "＋ 添加本地音频作为 BGM"
 msgid "＋ 现做一个人物（一句话）"
 msgstr "＋ 现做一个人物（一句话）"
 
+#: src/pages/QuickModePage.tsx
+msgid "＋ 用文字 / 图片做一张场景卡"
+msgstr "＋ 用文字 / 图片做一张场景卡"
+
 #: src/components/VideoCardAnnotator.tsx
 msgid "＋ 自建一套"
 msgstr "＋ 自建一套"
@@ -10481,6 +10485,10 @@ msgstr "去创意工坊建一组"
 msgid "去创意工坊的市场添加几张，或者在「我的仓库」里自己做"
 msgstr "去创意工坊的市场添加几张，或者在「我的仓库」里自己做"
 
+#: src/pages/QuickModePage.tsx
+msgid "去创意工坊逛公开场景卡"
+msgstr "去创意工坊逛公开场景卡"
+
 #: src/components/MaterialSheet.tsx
 #~ msgid "去创意工坊铸几张"
 #~ msgstr "去创意工坊铸几张"
@@ -10514,8 +10522,8 @@ msgid "去对"
 msgstr "去对"
 
 #: src/pages/QuickModePage.tsx
-msgid "去工坊挑 / 做场景卡"
-msgstr "去工坊挑 / 做场景卡"
+#~ msgid "去工坊挑 / 做场景卡"
+#~ msgstr "去工坊挑 / 做场景卡"
 
 #: src/components/flow/FlowCanvas.tsx
 #: src/pages/WorkshopMinePage.tsx
@@ -11140,6 +11148,7 @@ msgstr "取整个画面"
 #: src/pages/DiscoverPage.tsx
 #: src/pages/EditPage.tsx
 #: src/pages/ProfilePage.tsx
+#: src/pages/QuickModePage.tsx
 #: src/pages/RecipePage.tsx
 #: src/pages/SupportModelNewPage.tsx
 #: src/pages/SupportPage.tsx
@@ -23483,6 +23492,11 @@ msgstr "确认注销，请原样输入你的用户名 <0>{username}</0>（区分
 #: src/pages/CardDetailPage.tsx
 msgid "确认移除"
 msgstr "确认移除"
+
+#. placeholder {0}: fmtTokens(priceOf(i))
+#: src/pages/QuickModePage.tsx
+msgid "确认重抽（{0}，覆盖这一条）"
+msgstr "确认重抽（{0}，覆盖这一条）"
 
 #: src/studio/ui/projection.tsx
 msgid "示例"

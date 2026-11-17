@@ -53,6 +53,8 @@ export default function QuickModePage() {
   const { toCut } = useFlowActions();
   const [drawing, setDrawing] = useState(false);
   const [picked, setPicked] = useState<Set<string>>(new Set());
+  /** 正在确认重抽的那一段（重抽会覆盖已经出过的那条样片，先问一句） */
+  const [confirming, setConfirming] = useState<string | null>(null);
   const [askDiscard, setAskDiscard] = useState(false);
 
   // 挂载标记：剧本那一发十几秒，人走了不弹通知（与 songDraftStore 同一条）
@@ -240,10 +242,16 @@ export default function QuickModePage() {
             </p>
           )}
           <button
-            onClick={() => navigate("/workshop")}
+            onClick={() => navigate("/custom-card")}
             className="mt-2 self-start rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-300 ring-1 ring-slate-700"
           >
-            <Trans>去工坊挑 / 做场景卡</Trans>
+            <Trans>＋ 用文字 / 图片做一张场景卡</Trans>
+          </button>
+          <button
+            onClick={() => navigate("/workshop")}
+            className="mt-1.5 self-start rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-300 ring-1 ring-slate-700"
+          >
+            <Trans>去创意工坊逛公开场景卡</Trans>
           </button>
           <span className="flex-1" />
           <button
@@ -270,6 +278,9 @@ export default function QuickModePage() {
               const p = chosenOf(n);
               const done = nodeDone(n);
               const on = picked.has(n.id);
+              // 首帧 / 样片：首帧是画出来的那一张，样片是便宜档出的视频（mock: 开头的是占位，不能播）
+              const poster = p?.firstFrame || "";
+              const clip = p?.videoUrl && !p.videoUrl.startsWith("mock:") ? p.videoUrl : "";
               return (
                 <li key={n.id} className="rounded-xl border border-slate-700/70 bg-panel px-3 py-2">
                   <div className="flex items-center gap-2">
@@ -279,14 +290,51 @@ export default function QuickModePage() {
                       {n.status === "generating" ? t`生成中…` : done ? t`已出样片` : t`未出`}
                     </span>
                   </div>
+                  {(poster || clip) && (
+                    <div className="mt-1.5 overflow-hidden rounded-lg bg-black/40">
+                      {clip ? (
+                        <video src={clip} poster={poster || undefined} controls playsInline className="w-full" />
+                      ) : (
+                        <img src={poster} alt="" className="w-full" draggable={false} />
+                      )}
+                    </div>
+                  )}
                   <div className="mt-1.5 flex items-center gap-2">
-                    <button
-                      onClick={() => void useFlow.getState().genNode(n.id)}
-                      disabled={busy || drawing}
-                      className="rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-200 ring-1 ring-slate-700 disabled:opacity-40"
-                    >
-                      {done ? t`重抽（${fmtTokens(priceOf(i))}）` : t`出片（${fmtTokens(priceOf(i))}）`}
-                    </button>
+                    {done && confirming !== n.id && (
+                      <button
+                        onClick={() => setConfirming(n.id)}
+                        disabled={busy || drawing}
+                        className="rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-200 ring-1 ring-slate-700 disabled:opacity-40"
+                      >
+                        {t`重抽（${fmtTokens(priceOf(i))}）`}
+                      </button>
+                    )}
+                    {done && confirming === n.id && (
+                      <>
+                        <button
+                          onClick={() => {
+                            setConfirming(null);
+                            void useFlow.getState().genNode(n.id);
+                          }}
+                          disabled={busy || drawing}
+                          className="rounded-full bg-brand px-3 py-1.5 text-[11px] font-semibold text-ink disabled:opacity-40"
+                        >
+                          {t`确认重抽（${fmtTokens(priceOf(i))}，覆盖这一条）`}
+                        </button>
+                        <button onClick={() => setConfirming(null)} className="px-1 text-[11px] text-slate-500">
+                          <Trans>取消</Trans>
+                        </button>
+                      </>
+                    )}
+                    {!done && (
+                      <button
+                        onClick={() => void useFlow.getState().genNode(n.id)}
+                        disabled={busy || drawing}
+                        className="rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-200 ring-1 ring-slate-700 disabled:opacity-40"
+                      >
+                        {t`出片（${fmtTokens(priceOf(i))}）`}
+                      </button>
+                    )}
                     {done && (
                       <button
                         onClick={() =>
