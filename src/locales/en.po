@@ -3502,6 +3502,10 @@ msgstr "⚡ Token wallet"
 #~ msgid "⚡ 出片（{0}）"
 #~ msgstr "⚡ Generate video ({0})"
 
+#: src/pages/CutPage.tsx
+msgid "⚡ 快速模式 ›"
+msgstr "⚡ Quick mode ›"
+
 #: src/pages/SimpleModePage.tsx
 msgid "⚡ 快速模式：做一条多段的"
 msgstr "⚡ Quick mode: build a multi-segment one"
@@ -6578,6 +6582,10 @@ msgstr "The storyboard panels haven’t been picked up yet — go back to that p
 #: src/studio/gridDraftStore.ts
 msgid "九宫格分镜的画面还没确认——回到那一页接着问"
 msgstr "The storyboard panels aren’t confirmed yet — go back to that page to check again"
+
+#: src/pages/QuickModePage.tsx
+msgid "也可以先不定人物：画面按分镜里的文字来，之后想挂卡再去工坊。"
+msgstr "You can also skip casting: shots follow the text, and you can attach cards in the Workshop later."
 
 #: src/studio/ui/NpcDialog.tsx
 msgid "也可以按左上角的返回"
@@ -30090,6 +30098,10 @@ msgstr "This video hasn't synced to the server yet. Come back and comment later"
 #: src/data/videos.ts
 msgid "这条作品还没同步到服务器，稍后再试"
 msgstr "This video hasn't synced to the server yet. Try again later"
+
+#: src/pages/CutPage.tsx
+msgid "这条只有一段 · 想做成多段的？"
+msgstr "Just one segment — want to make it multi-part?"
 
 #: src/pages/PublishPage.tsx
 msgid "这条合成好的成片和填好的标题、简介会被丢掉，回到工坊。"

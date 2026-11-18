@@ -3502,6 +3502,10 @@ msgstr "⚡ Token 钱包"
 #~ msgid "⚡ 出片（{0}）"
 #~ msgstr "⚡ 出片（{0}）"
 
+#: src/pages/CutPage.tsx
+msgid "⚡ 快速模式 ›"
+msgstr "⚡ 快速模式 ›"
+
 #: src/pages/SimpleModePage.tsx
 msgid "⚡ 快速模式：做一条多段的"
 msgstr "⚡ 快速模式：做一条多段的"
@@ -6582,6 +6586,10 @@ msgstr "九宫格分镜的画面还没取回来——回到那一页接着取"
 #: src/studio/gridDraftStore.ts
 msgid "九宫格分镜的画面还没确认——回到那一页接着问"
 msgstr "九宫格分镜的画面还没确认——回到那一页接着问"
+
+#: src/pages/QuickModePage.tsx
+msgid "也可以先不定人物：画面按分镜里的文字来，之后想挂卡再去工坊。"
+msgstr "也可以先不定人物：画面按分镜里的文字来，之后想挂卡再去工坊。"
 
 #: src/studio/ui/NpcDialog.tsx
 msgid "也可以按左上角的返回"
@@ -30098,6 +30106,10 @@ msgstr "这条作品还没同步到服务器，稍后再来评论"
 #: src/data/videos.ts
 msgid "这条作品还没同步到服务器，稍后再试"
 msgstr "这条作品还没同步到服务器，稍后再试"
+
+#: src/pages/CutPage.tsx
+msgid "这条只有一段 · 想做成多段的？"
+msgstr "这条只有一段 · 想做成多段的？"
 
 #: src/pages/PublishPage.tsx
 msgid "这条合成好的成片和填好的标题、简介会被丢掉，回到工坊。"

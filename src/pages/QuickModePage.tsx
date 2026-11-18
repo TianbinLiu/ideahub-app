@@ -202,7 +202,9 @@ export default function QuickModePage() {
     }
   }
 
-  const err = d.err || flowErr;
+  // 向导自己的拒绝一直在；flowStore 的整句拒绝只在**要用它**的那一步（预览）画 ——
+  // 摆在写想法这一屏与当下的事无关，真机上看起来像"脚本生成失败了"
+  const err = d.err || (d.step === "preview" ? flowErr : "");
   const allDone = nodes.length > 0 && nodes.every(nodeDone);
   const priceOf = (i: number, tierOverride?: string) => nodeCost(nodes, i, mode, tierOverride);
 
@@ -342,10 +344,15 @@ export default function QuickModePage() {
             </div>
           )}
           <span className="flex-1" />
+          {/* 没有人物卡也能往下走（2026-11-18 真机：新账号卡片库是空的，这里原来是一颗永远灰着的键 = 强制先花 80k 铸卡） */}
+          {cast.length === 0 && (
+            <p className="mt-3 text-[10px] leading-relaxed text-slate-500">
+              <Trans>也可以先不定人物：画面按分镜里的文字来，之后想挂卡再去工坊。</Trans>
+            </p>
+          )}
           <button
             onClick={() => setQuick({ step: "scene" })}
-            disabled={cast.length === 0}
-            className="mt-4 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-500"
+            className="mt-2 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink"
           >
             <Trans>下一步：定场景 ›</Trans>
           </button>
