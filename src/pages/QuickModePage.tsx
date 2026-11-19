@@ -133,6 +133,10 @@ export default function QuickModePage() {
         if (nodeDone(n) || n.status === "generating") continue;
         await useFlow.getState().genNode(n.id);
       }
+    } catch (e) {
+      // ★ 原来没有 catch：genNode 抛出来就直接冒到 unhandled，界面只看见按钮弹回原样（2026-11-19 真机：
+      //   点了半天"没有反应"）。把原话摆出来，至少知道是被谁拒的。
+      setQuick({ err: e instanceof Error ? e.message : String(e) });
     } finally {
       setDrawing(false);
     }
@@ -147,6 +151,9 @@ export default function QuickModePage() {
         useFlow.getState().updateNode(n.id, { videoTier: FINAL_TIER });
         await useFlow.getState().genNode(n.id);
       }
+    } catch (e) {
+      // ★ 同 drawAll：不 catch 的话失败只表现为"按钮弹回去"，一句话都没有（真机踩过）
+      setQuick({ err: e instanceof Error ? e.message : String(e) });
     } finally {
       setDrawing(false);
     }
