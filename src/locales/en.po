@@ -28151,6 +28151,10 @@ msgstr "This tier renders without sound, so the lines can’t be spoken — swit
 #~ msgid "这一档出片不出声，台词说不出来 —— 换到高清或电影级。"
 #~ msgstr "This tier renders without sound, so the lines can’t be spoken — switch to HD or Cinematic."
 
+#: src/components/flow/TierRow.tsx
+msgid "这一档另一家没有对应档位——先换个有对应档位的画质（草稿 / 高清 / 电影级）"
+msgstr "The other provider has no matching tier here — switch to a tier that has one (Draft / HD / Cinematic) first."
+
 #: src/data/templates.ts
 msgid "这一档只认一张起拍照片，没有参考图"
 msgstr "this tier takes only one starting photo, no reference images"

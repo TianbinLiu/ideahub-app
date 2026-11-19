@@ -20,9 +20,9 @@ import Warn from "../components/Warn";
 import StepDots from "../components/StepDots";
 import CastPicker from "../components/flow/CastPicker";
 import DiscardFlowDialog from "../components/flow/DiscardFlowDialog";
-import { installSharedCard, myCards } from "../data/account";
+import { installSharedCard, myCards, tierOffered, tierOfPreferred } from "../data/account";
 import { listSharedCards, type ApiSharedCard } from "../api/branch";
-import { CHAT_TURN_TOKENS, fmtTokens, priceTag } from "../data/economy";
+import { CHAT_TURN_TOKENS, fmtTokens, priceTag, tierOf } from "../data/economy";
 import { useFlow, flowDirty, nodeCost, nodeDone, chosenOf } from "../studio/flowStore";
 import { shotPlanNodes } from "../studio/structuredSkills";
 import { useLeadDraft, toggleCast } from "../studio/leadDraftStore";
@@ -34,8 +34,19 @@ import { useFlowActions } from "../hooks/useFlowActions";
 import { useStudio } from "../studio/studioStore";
 import type { Card } from "../types";
 
-/** 预览用便宜档（480p「草稿」）；定稿用哪一档见页内 FINAL_TIER。 */
-const PREVIEW_TIER = "draft";
+/**
+ * 预览用便宜档（480p「草稿」）。
+ * ★ 2026-11-19 真机实测：同一张**自动画出来的写实人像首帧**，Seedance 视频侧按
+ *   `reference_image` 判「真人照片」整发拒；MiniMax H3 Lite 同一条走通了，而且更便宜
+ *   （5s 竖屏 82.7k vs 103.7k）。所以预览**优先走 MiniMax 草稿**，这台机器没有
+ *   MiniMax 那几档时回落 Seedance 草稿。
+ */
+const PREVIEW_TIER_BASE = "draft";
+function previewTierId(): string {
+  const base = tierOf(PREVIEW_TIER_BASE);
+  const mm = tierOfPreferred(base, "minimax");
+  return tierOffered(mm) ? mm.id : base.id;
+}
 /** 1080p 那一档（价目表里 1080p 只有电影级 ultra；高清是 720p）。 */
 const FINAL_TIER = "ultra";
 const STEP_LABEL: Record<QuickStep, MessageDescriptor> = {
@@ -95,7 +106,7 @@ export default function QuickModePage() {
       .filter((c): c is Card => !!c);
     const scene = placeId ? (mine.find((c) => c.type === "scene" && c.id === placeId) ?? null) : null;
     const list = shotPlanNodes(planNow, {
-      tierId: PREVIEW_TIER,
+      tierId: previewTierId(),
       aspect: "portrait",
       materials: [...castNow, ...(scene ? [scene] : [])],
     });
@@ -246,7 +257,7 @@ export default function QuickModePage() {
             className="mt-3 w-full resize-none rounded-xl border border-slate-700 bg-panel px-3.5 py-2.5 text-sm leading-relaxed text-slate-100 outline-none placeholder:text-slate-500 focus:border-brand"
           />
           <button
-            onClick={() => void runIdea(PREVIEW_TIER)}
+            onClick={() => void runIdea(previewTierId())}
             disabled={d.writing || !d.idea.trim()}
             className="mt-3 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-500"
           >
