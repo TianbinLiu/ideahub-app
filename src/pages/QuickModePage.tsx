@@ -233,7 +233,7 @@ export default function QuickModePage() {
 
   // 向导自己的拒绝一直在；flowStore 的整句拒绝只在**要用它**的那一步（预览）画 ——
   // 摆在写想法这一屏与当下的事无关，真机上看起来像"脚本生成失败了"
-  const err = d.err || (d.step === "preview" ? flowErr : "");
+  const err = d.err || (d.step === "preview" || d.step === "cut" ? flowErr : "");
   const allDone = nodes.length > 0 && nodes.every(nodeDone);
   const priceOf = (i: number, tierOverride?: string) => nodeCost(nodes, i, mode, tierOverride);
   /** 定稿档在这一刻是什么（跟着预览那一家走，见文件头的 finalTierId） */
