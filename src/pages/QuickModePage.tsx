@@ -22,7 +22,7 @@ import CastPicker from "../components/flow/CastPicker";
 import DiscardFlowDialog from "../components/flow/DiscardFlowDialog";
 import { installSharedCard, myCards, tierOffered, tierOfPreferred } from "../data/account";
 import { listSharedCards, type ApiSharedCard } from "../api/branch";
-import { CHAT_TURN_TOKENS, fmtTokens, priceTag, tierOf } from "../data/economy";
+import { CHAT_TURN_TOKENS, fmtTokens, priceTag, providerOf, tierOf } from "../data/economy";
 import { useFlow, flowDirty, nodeCost, nodeDone, chosenOf } from "../studio/flowStore";
 import { shotPlanNodes } from "../studio/structuredSkills";
 import { useLeadDraft, toggleCast } from "../studio/leadDraftStore";
@@ -47,8 +47,19 @@ function previewTierId(): string {
   const mm = tierOfPreferred(base, "minimax");
   return tierOffered(mm) ? mm.id : base.id;
 }
-/** 1080p 那一档（价目表里 1080p 只有电影级 ultra；高清是 720p）。 */
-const FINAL_TIER = "ultra";
+/**
+ * 定稿档（原来写死 1080p 的「电影级」）。
+ * ★ 2026-11-19 真机：预览走 MiniMax 时样片好好的，升级回 Seedance `ultra` 又被同一条
+ *   「参考图没过内容审核（常见是真人照片）」整段拒——预览绕开了、定稿又撞回去。
+ *   所以定稿**跟着预览同一家**：预览选到 MiniMax 就用它的电影级（上游 768P，界面照实写档位名，
+ *   不写 1080p），预览回落 Seedance 时才是 1080p 那一档。
+ */
+const FINAL_TIER_BASE = "ultra";
+function finalTierId(): string {
+  const provider = providerOf(previewTierId());
+  const t = tierOfPreferred(tierOf(FINAL_TIER_BASE), provider);
+  return tierOffered(t) ? t.id : FINAL_TIER_BASE;
+}
 const STEP_LABEL: Record<QuickStep, MessageDescriptor> = {
   idea: msg`想法`,
   cast: msg`角色`,
@@ -148,7 +159,7 @@ export default function QuickModePage() {
     try {
       for (const n of useFlow.getState().nodes) {
         if (!picked.has(n.id)) continue;
-        useFlow.getState().updateNode(n.id, { videoTier: FINAL_TIER });
+        useFlow.getState().updateNode(n.id, { videoTier: finalTierId() });
         await useFlow.getState().genNode(n.id);
       }
     } catch (e) {
@@ -225,6 +236,9 @@ export default function QuickModePage() {
   const err = d.err || (d.step === "preview" ? flowErr : "");
   const allDone = nodes.length > 0 && nodes.every(nodeDone);
   const priceOf = (i: number, tierOverride?: string) => nodeCost(nodes, i, mode, tierOverride);
+  /** 定稿档在这一刻是什么（跟着预览那一家走，见文件头的 finalTierId） */
+  const fin = finalTierId();
+  const finLabel = tierOf(fin).label;
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-md flex-col px-4 pb-8">
@@ -477,7 +491,7 @@ export default function QuickModePage() {
         <div className="flex flex-1 flex-col">
           <p className="text-sm text-slate-300"><Trans>逐段看样片，不满意的重抽</Trans></p>
           <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
-            <Trans>先用便宜档（480p）出样片；勾中的段之后会按 1080p 重出，画面会有变化。</Trans>
+            <Trans>先用便宜档（480p）出样片；勾中的段之后会按 {finLabel} 重出，画面会有变化。</Trans>
           </p>
           <ol className="mt-3 space-y-2">
             {nodes.map((n, i) => {
@@ -553,8 +567,8 @@ export default function QuickModePage() {
                         }
                         className={`rounded-full px-3 py-1.5 text-[11px] ring-1 ${on ? "bg-brand text-ink ring-brand" : "bg-panel text-slate-300 ring-slate-700"}`}
                       >
-                        {on ? t`✓ 要升级` : t`升级 1080p`}
-                        <span className="ml-1 text-[9px] opacity-70">{fmtTokens(priceOf(i, FINAL_TIER))}</span>
+                        {on ? t`✓ 要升级` : t`升级 ${finLabel}`}
+                        <span className="ml-1 text-[9px] opacity-70">{fmtTokens(priceOf(i, fin))}</span>
                       </button>
                     )}
                   </div>
@@ -575,7 +589,7 @@ export default function QuickModePage() {
               disabled={busy || drawing}
               className="mt-2 w-full rounded-xl bg-panel py-2.5 text-sm font-bold text-slate-200 ring-1 ring-slate-700 disabled:opacity-40"
             >
-              {t`把勾中的 ${picked.size} 段升到 1080p`}
+              {t`把勾中的 ${picked.size} 段升到 ${finLabel}`}
             </button>
           )}
           <button

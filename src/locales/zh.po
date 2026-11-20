@@ -8063,8 +8063,12 @@ msgid "先生成当前段的视频"
 msgstr "先生成当前段的视频"
 
 #: src/pages/QuickModePage.tsx
-msgid "先用便宜档（480p）出样片；勾中的段之后会按 1080p 重出，画面会有变化。"
-msgstr "先用便宜档（480p）出样片；勾中的段之后会按 1080p 重出，画面会有变化。"
+msgid "先用便宜档（480p）出样片；勾中的段之后会按 {finLabel} 重出，画面会有变化。"
+msgstr "先用便宜档（480p）出样片；勾中的段之后会按 {finLabel} 重出，画面会有变化。"
+
+#: src/pages/QuickModePage.tsx
+#~ msgid "先用便宜档（480p）出样片；勾中的段之后会按 1080p 重出，画面会有变化。"
+#~ msgstr "先用便宜档（480p）出样片；勾中的段之后会按 1080p 重出，画面会有变化。"
 
 #: src/components/flow/EffectWizard.tsx
 msgid "先画关键帧：看着对了再出片，不对就重画一张（只花一张图的钱）。"
@@ -10081,8 +10085,12 @@ msgid "十年前那一战"
 msgstr "十年前那一战"
 
 #: src/pages/QuickModePage.tsx
-msgid "升级 1080p"
-msgstr "升级 1080p"
+msgid "升级 {finLabel}"
+msgstr "升级 {finLabel}"
+
+#: src/pages/QuickModePage.tsx
+#~ msgid "升级 1080p"
+#~ msgstr "升级 1080p"
 
 #: src/pages/SettingsPage.tsx
 msgid "协议与须知"
@@ -15504,8 +15512,13 @@ msgstr "把几张图合成一张画面。把上一段的<0>结尾帧</0>融成�
 
 #. placeholder {0}: picked.size
 #: src/pages/QuickModePage.tsx
-msgid "把勾中的 {0} 段升到 1080p"
-msgstr "把勾中的 {0} 段升到 1080p"
+msgid "把勾中的 {0} 段升到 {finLabel}"
+msgstr "把勾中的 {0} 段升到 {finLabel}"
+
+#. placeholder {0}: picked.size
+#: src/pages/QuickModePage.tsx
+#~ msgid "把勾中的 {0} 段升到 1080p"
+#~ msgstr "把勾中的 {0} 段升到 1080p"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "把包交给服务器看一眼"

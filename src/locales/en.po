@@ -8059,8 +8059,12 @@ msgid "先生成当前段的视频"
 msgstr "Generate the current segment's video first"
 
 #: src/pages/QuickModePage.tsx
-msgid "先用便宜档（480p）出样片；勾中的段之后会按 1080p 重出，画面会有变化。"
-msgstr "Sample each segment on the cheap tier (480p) first; ticked segments are later re-rendered at 1080p, so the picture will change."
+msgid "先用便宜档（480p）出样片；勾中的段之后会按 {finLabel} 重出，画面会有变化。"
+msgstr "Samples render on the cheap tier (480p); checked segments are re-rendered at {finLabel} — the picture will change."
+
+#: src/pages/QuickModePage.tsx
+#~ msgid "先用便宜档（480p）出样片；勾中的段之后会按 1080p 重出，画面会有变化。"
+#~ msgstr "Sample each segment on the cheap tier (480p) first; ticked segments are later re-rendered at 1080p, so the picture will change."
 
 #: src/components/flow/EffectWizard.tsx
 msgid "先画关键帧：看着对了再出片，不对就重画一张（只花一张图的钱）。"
@@ -10073,8 +10077,12 @@ msgid "十年前那一战"
 msgstr "that battle ten years ago"
 
 #: src/pages/QuickModePage.tsx
-msgid "升级 1080p"
-msgstr "Upgrade to 1080p"
+msgid "升级 {finLabel}"
+msgstr "Upgrade to {finLabel}"
+
+#: src/pages/QuickModePage.tsx
+#~ msgid "升级 1080p"
+#~ msgstr "Upgrade to 1080p"
 
 #: src/pages/SettingsPage.tsx
 msgid "协议与须知"
@@ -15496,8 +15504,13 @@ msgstr "Combine several images into one frame. Fuse the previous segment's <0>en
 
 #. placeholder {0}: picked.size
 #: src/pages/QuickModePage.tsx
-msgid "把勾中的 {0} 段升到 1080p"
-msgstr "Upgrade the {0} ticked segments to 1080p"
+msgid "把勾中的 {0} 段升到 {finLabel}"
+msgstr "Upgrade the {0} checked segment(s) to {finLabel}"
+
+#. placeholder {0}: picked.size
+#: src/pages/QuickModePage.tsx
+#~ msgid "把勾中的 {0} 段升到 1080p"
+#~ msgstr "Upgrade the {0} ticked segments to 1080p"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "把包交给服务器看一眼"
