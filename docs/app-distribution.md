@@ -181,6 +181,39 @@ CI 是绿的、仓库看着也正常，只有所有已安装用户的「检查�
 并写进检查摘要。**只提醒不阻断** —— 源码领先是开发期的正常状态，阻断的话每个 PR 都红，
 人会立刻学会无视它。
 
+## GitHub 不可用时的直发（`--local`，2026-11-16 起）
+
+GitHub 账号被停用期间（`git fetch` 403、服务器上 `git ls-remote` 也是 `Repository not found`），
+`gh` 那几步全走不通 —— 建 Release、打 tag 都做不了，而「已装的用户能不能收到更新」只取决于
+**清单与包到没到位**。这一条通道把清单改成**直接放镜像机**，服务端 `APP_MANIFEST_LOCAL=1` 时读它
+（与「鲸鲸启动！」本机清单同一条路，server `src/routes/appRelease.routes.js` 的 `manifestFile`）。
+
+```bash
+npm run apk:release            # 出包（照旧）
+npm run aab                    # 上架包（照旧）
+npm run release -- --local     # 直发：传包 + 传清单；不建 Release、不打 tag
+npm run release -- --local --dry   # 只检查，不发布
+```
+
+**它绕过的只有 GitHub 那几步。** 与「这次更新能不能到老用户手里」有关的检查一条不少：
+版本号与源码一致、签名是同一把、开包核入口 js / 受保护模型 / 权限表、镜像上那份的 sha256（远端核）、
+经 Cloudflare 整包下一遍再核 sha256、App 实际打的那个清单地址、`apkUrl` 必须指向本机镜像。
+清单的上传与包同一套原子做法（`.part` → 远端核 sha → 改名），服务端不会读到半份。
+
+**代价（别忘）：**
+
+- 这一版**没有 GitHub Release、也没有 tag**：按 tag 回溯源码的路暂时断着。第 0 步只能核
+  「工作区干净 + HEAD 是最后一次 fetch 到的 `origin/main` 的后代」，**它不等于**「包是从某个 tag 出的」。
+- `--withdraw` 用不了（它要把 Release 标成 pre-release）：发错了只能**涨版本号重发**。
+- 服务器那处改动是在 GitHub 停用期间**直接改在生产上**的（备份 `src/routes/appRelease.routes.js.bak-20261116`，
+  对应的本地 commit 在 server 仓、还没推）。GitHub 恢复后：先把 server 那条改动合进 `main` 并部署，
+  再照旧走不带 `--local` 的路径。`deploy.sh` 的 `git reset --hard origin/main` 会把这处直接改的补丁冲掉 ——
+  冲掉之后清单回到 GitHub 上游，那时 GitHub 已经能用，不会 503。
+
+★ 为什么要有它（2026-11-10 ~ 11-16 的真事）：GitHub 被停用后服务端拉不到上游，进程一重启内存缓存就空了，
+`/api/app/latest.json` 一直 503 —— 而 App 的检查更新失败是**静默**的，所有老用户几天里一个更新提示都没收到，
+屏幕上没有任何症状。清单改成本机文件之后这条路不再依赖 GitHub。
+
 ## 别人装了之后怎么收到更新
 
 1. App 启动 3 秒后（避开开屏抢带宽）由**原生层**拉一次 `latest.json`；

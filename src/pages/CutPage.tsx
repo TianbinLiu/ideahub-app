@@ -2102,6 +2102,22 @@ export default function CutPage() {
         }
       />
 
+      {/* 一句话出片会**直接落进这一页**（简单模式那屏的「快速模式」键根本回不到，2026-11-18 真机）：
+          只有一段时给它一个门，做成多段流水线 */}
+      {!alreadyMerged && view.length === 1 && (
+        <button
+          onClick={() => navigate("/quick")}
+          className="mx-4 mb-2 flex flex-none items-center justify-between gap-2 rounded-xl border border-brand/40 bg-brand/10 px-3 py-2 text-left"
+        >
+          <span className="min-w-0 truncate text-[11px] text-slate-300">
+            <Trans>这条只有一段 · 想做成多段的？</Trans>
+          </span>
+          <span className="flex-none text-[11px] font-semibold text-brand">
+            <Trans>⚡ 快速模式 ›</Trans>
+          </span>
+        </button>
+      )}
+
       {/* ── 预览区 ── */}
       <div className="relative flex min-h-0 flex-1 flex-col">
         {/* relative：字幕 / 闪黑那一层（CutPreviewLayer）按播放器在这个容器里的位置贴上去 */}

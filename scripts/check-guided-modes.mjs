@@ -63,9 +63,9 @@ const ids = (tier) => M.modesOn(tier).map((m) => m.id);
 
 eq("极速档：自定义 / 九宫格分镜 / 推演三套 / 特效同款 / 套模板", ids(TIERS.fast), ["custom", "grid", "cards", "effect", "template"]);
 eq("标准档：同极速", ids(TIERS.std), ["custom", "grid", "cards", "effect", "template"]);
-eq("高清档：八个都能用，参考图直出排第一、跟着高手做那几个排在推演三套之前、特效同款排在套模板之前", ids(TIERS.hd), ["direct", "custom", "lead", "grid", "dialogue", "cards", "effect", "template"]);
-eq("电影级：八个都能用", ids(TIERS.ultra), ["direct", "custom", "lead", "grid", "dialogue", "cards", "effect", "template"]);
-eq("草稿：八个都能用（与高清同一个模型、同样的能力 —— 免费用户唯一收参考图、能出声的档）", ids(TIERS.draft), ["direct", "custom", "lead", "grid", "dialogue", "cards", "effect", "template"]);
+eq("高清档：九个都能用，参考图直出排第一、跟着高手做那几个排在推演三套之前、特效同款排在套模板之前", ids(TIERS.hd), ["direct", "custom", "lead", "grid", "dialogue", "song", "cards", "effect", "template"]);
+eq("电影级：九个都能用", ids(TIERS.ultra), ["direct", "custom", "lead", "grid", "dialogue", "song", "cards", "effect", "template"]);
+eq("草稿：九个都能用（与高清同一个模型、同样的能力 —— 免费用户唯一收参考图、能出声的档）", ids(TIERS.draft), ["direct", "custom", "lead", "grid", "dialogue", "song", "cards", "effect", "template"]);
 eq("真人档：参考图直出（真人照片起拍）/ 特效同款（照片起拍的那几条）/ 套模板", ids(TIERS.real), ["direct", "effect", "template"]);
 eq("为什么：1.0 档上的参考图直出", M.modeBlock("direct", TIERS.std), "refImg");
 eq("为什么：真人档上的推演三套", M.modeBlock("cards", TIERS.real), "startOnly");
@@ -81,17 +81,20 @@ eq("为什么：真人档上的对话正反打（同样按无声报）", M.modeB
 eq("特效同款在真人档上能用（照片起拍的那几条，判据在 effectPresets.effectsOn）", M.modeBlock("effect", TIERS.real), null);
 // 只能纯文字出片（textOnly）：要带图的做法一律不摆，只剩「自定义」（写一句话、不画帧）—— 不然免费用户先付了图钱，视频那一发服务端回 403 freeTextOnly
 eq("只能纯文字出片：只剩「自定义」", ids(TIERS.draftTextOnly), ["custom"]);
-for (const id of ["direct", "lead", "grid", "dialogue", "cards", "effect", "template"]) {
+for (const id of ["direct", "lead", "grid", "dialogue", "song", "cards", "effect", "template"]) {
   eq(`为什么：只能纯文字出片时的「${id}」`, M.modeBlock(id, TIERS.draftTextOnly), "textOnly");
 }
 eq("能力本身不够的原因排在 textOnly 前面（1.0 档 + 只能纯文字：参考图直出照旧说收不了参考图）", M.modeBlock("direct", { ...TIERS.std, textOnly: true }), "refImg");
 eq("能力本身不够的原因排在 textOnly 前面（无声 + 只能纯文字：对话正反打照旧说出不了声）", M.modeBlock("dialogue", { ...TIERS.std, textOnly: true }), "audio");
 eq("对话正反打是第二组（跟着高手做）、四步", M.GUIDED_MODES.find((m) => m.id === "dialogue"), { id: "dialogue", letter: "I", group: "pro", steps: 4 });
 eq("特效同款是第三组（复刻 · 同款）、三步", M.GUIDED_MODES.find((m) => m.id === "effect"), { id: "effect", letter: "G", group: "replica", steps: 3 });
+eq("唱一段是第二组（跟着高手做）、三步，排在对话正反打之后", M.GUIDED_MODES.find((m) => m.id === "song"), { id: "song", letter: "L", group: "pro", steps: 3 });
+eq("为什么：1.0 档上的唱一段（出不了声，歌词唱不出来）", M.modeBlock("song", TIERS.std), "audio");
+eq("为什么：真人档上的唱一段（同样按无声报）", M.modeBlock("song", TIERS.real), "audio");
 
 // 真表的每一行：经 modeTierOfSpec 取能力、摆哪几个模式（新加一行要在这里写下它的答案）
 {
-  const ALL = ["direct", "custom", "lead", "grid", "dialogue", "cards", "effect", "template"];
+  const ALL = ["direct", "custom", "lead", "grid", "dialogue", "song", "cards", "effect", "template"];
   const NO_REF = ["custom", "grid", "cards", "effect", "template"];
   const ROW_MODES = {
     fast: NO_REF, // 极速（1.0 pro fast）：收不了参考图、出不了声

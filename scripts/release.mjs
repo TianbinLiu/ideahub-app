@@ -30,6 +30,9 @@
 // 用法（仓库根目录）：
 //   npm run release            出包 + 发布
 //   npm run release -- --dry   只检查不发布（改完 versionCode 想先看一眼时用）
+//   npm run release -- --local GitHub 账号被停用期间的直发通道：不建 Release、不打 tag，
+//                              安装包与清单直接 scp 到镜像机（服务端 APP_MANIFEST_LOCAL=1 读它）。
+//                              代价：这一版没有 GitHub 归档，按 tag 回溯源码的路暂时断着。
 //   npm run release -- --min-version-code=75
 //                              这一版起**强制更新**：versionCode < 75 的包一打开就只能更新（清单的 minVersionCode，见 parseMinFlag 的 ★★）。
 //                              不传 = 沿用上一版清单里的值（没有就是不强制）。也可以用环境变量 RELEASE_MIN_VERSION_CODE=75。
@@ -68,9 +71,12 @@ function parseArgs() {
   let minFrom = "";
   /** @type {string | undefined} */
   let withdraw;
+  /** --local：GitHub 不可用时的直发通道（清单直接放镜像机，见文件头与 docs/app-distribution.md） */
+  let local = false;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--dry") dry = true;
+    else if (a === "--local") local = true;
     else if (a.startsWith("--min-version-code=")) {
       minRaw = a.slice("--min-version-code=".length);
       minFrom = a;
@@ -88,7 +94,7 @@ function parseArgs() {
       withdraw = v;
       i++;
     } else {
-      die(`不认识的参数「${a}」。只认：--dry、--min-version-code=N（或 --min-version-code N）、--withdraw <tag>。\n` +
+      die(`不认识的参数「${a}」。只认：--dry、--local、--min-version-code=N（或 --min-version-code N）、--withdraw <tag>。\n` +
           `写错的参数不会被悄悄忽略 —— 那正是强制更新没发出去、却一路显示成功的那种错。`);
     }
   }
@@ -100,6 +106,12 @@ function parseArgs() {
     console.log("⚠ 看到 npm 吞掉的 --dry（写成了 npm run release --dry，少了 `--`）—— 按「只检查不发布」跑。下次写 npm run release -- --dry");
     dry = true;
   }
+  // `npm run release --local`（少了 `--`）同样会被 npm 当成自己的配置吞掉；吞掉的后果比 --dry 更坏：
+  // 它照常走 GitHub，而 GitHub 现在被停用 —— 会在建 Release 那一步炸，或者更糟：把包发到了线上却没有归档。
+  if (truthy(process.env.npm_config_local)) {
+    console.log("⚠ 看到 npm 吞掉的 --local（少了 `--`）—— 按「不发 GitHub、直发服务器」跑。下次写 npm run release -- --local");
+    local = true;
+  }
   const npmWithdraw = process.env.npm_config_withdraw;
   if (truthy(npmWithdraw)) {
     // `npm run release --withdraw=v2.63` → 值在这里；`--withdraw v2.63`（空格）→ 这里是 "true"、v2.63 成了位置参数（上面已经停在它上面）
@@ -109,6 +121,7 @@ function parseArgs() {
     withdraw = npmWithdraw;
   }
   if (withdraw !== undefined && (dry || minRaw !== undefined)) die("--withdraw 单独用：撤回不出包、不发布，与 --dry / --min-version-code 不搭。");
+  if (withdraw !== undefined && local) die("--withdraw 走的是 GitHub（把 Release 标成 pre-release），与 --local 不搭：GitHub 不可用的时候撤回不了，只能涨版本号重发。");
   const npmMin = process.env.npm_config_min_version_code;
   if (npmMin !== undefined && npmMin !== "") {
     if (minRaw !== undefined && minRaw.trim() !== npmMin.trim()) {
@@ -130,11 +143,24 @@ function parseArgs() {
       minFrom = `RELEASE_MIN_VERSION_CODE=${envMin}`;
     }
   }
-  return { dry, minRaw, withdraw };
+  return { dry, minRaw, withdraw, local };
 }
 
 const ARGS = parseArgs();
 const DRY = ARGS.dry;
+/**
+ * `--local`：GitHub 账号被停用（2026-11-16 起）时的**直发通道**。
+ *
+ * ★★ 它绕过的只有 GitHub 那几步（建 Release、tag、GitHub 上那份 /latest），**不绕过**任何一道
+ *   与「这次更新能不能到老用户手里」有关的检查：版本号、签名、开包内容、镜像 sha256、
+ *   经 Cloudflare 真下一遍、App 实际打的那个清单地址 —— 一条不少。
+ * ★ 清单改成直接放进镜像目录（`qimeng-latest.json`），服务端 `APP_MANIFEST_LOCAL=1` 时读它
+ *   （server `src/routes/appRelease.routes.js`，与 whale / whalestart 同一条路）。
+ * ⚠ 代价：这一版**没有 GitHub 归档**，也没有 tag —— 按 tag 回溯源码这条路暂时断着，
+ *   所以第 0 步改成只核「工作区干净 + HEAD 是 origin/main 的后代」，清单 notes 里那一版就是唯一的对照。
+ * ⚠ GitHub 恢复后要做的两件：把 server 侧那条改动合进 main 并部署；之后照旧走不带 --local 的路径。
+ */
+const LOCAL = ARGS.local;
 
 /**
  * 这一次**显式**要的 minVersionCode（命令行 / npm 吞掉的那一个 / 环境变量 RELEASE_MIN_VERSION_CODE，收集在 parseArgs）；
@@ -195,6 +221,11 @@ const APK_MIRROR_DIR = process.env.APK_MIRROR_DIR || APK_MIRROR_DIR_DEFAULT;
  * 发完之后从这里把**整个包**拉一遍比 sha256 —— 用户下的就是这条路。
  */
 const APK_MIRROR_PUBLIC = "https://api.ideahubs.org/api/app/file";
+/**
+ * `--local` 把清单放到镜像目录时用的文件名（服务端 `APP_MANIFEST_FILE` 的默认值就是它）。
+ * ★ 只收纯文件名：它要原样拼进远端 shell 与 scp 的目标路径。
+ */
+const LOCAL_MANIFEST_NAME = process.env.APP_MANIFEST_FILE || "qimeng-latest.json";
 
 const APK = path.join(root, "android/app/build/outputs/apk/sideload/release/app-sideload-release.apk");
 const AAB = path.join(root, "android/app/build/outputs/bundle/playRelease/app-play-release.aab");
@@ -367,6 +398,28 @@ function aapt2Bin(bt) {
  */
 function assertSourceState(tag, exists) {
   const soft = (msg) => (DRY ? console.log(`⚠ ${msg}\n  正式跑会停在这一步。`) : die(msg));
+  if (LOCAL) {
+    // ★ --local 的那一道：GitHub 被停用，fetch / ls-remote 一定失败，远端 tag 也看不到。
+    //   还能守住两件：① HEAD 得是从最后一次 fetch 到的 origin/main 长出来的（不是一条不知道从哪儿分叉的分支）；
+    //   ② 工作区干净（与正式跑同一把尺：按内容判，不按 git status）。
+    let head = "";
+    try {
+      head = git("rev-parse", "--short", "HEAD").trim();
+      git("merge-base", "--is-ancestor", "origin/main", "HEAD");
+    } catch {
+      die(`--local：本地 HEAD（${head || "?"}）不是最后一次 fetch 到的 origin/main 的后代 —— ` +
+          `这条分支与它分叉了，说不清这份源码是从 main 上长出来的。\n` +
+          `  先 git log --oneline origin/main..HEAD 看一眼；真要发就先把它合进 main。`);
+    }
+    console.log(`⚠ --local：跳过「源码 == origin/main」（GitHub 不可用），按本地 HEAD ${head} 出包`);
+    const { real, stale } = changesOf(root);
+    if (real.length) {
+      die(`工作区还有没提交的改动（按内容判，不是 .po 行尾那种假阳性）：\n${listOf(real)}\n` +
+          `  → 先提交，站在那个提交上重新出包。发出去的包要能按提交找回同一份源码。`);
+    }
+    console.log(`✓ 工作区干净${stale.length ? `（${stale.length} 个文件只差索引里的 stat、内容没变）` : ""}`);
+    return;
+  }
   let fetched = false;
   try {
     git("fetch", "--quiet", "origin", "main");
@@ -446,6 +499,10 @@ function distEntryJs() {
  *   列不出 / 清单拉不到只提醒不拦（与第 4 步拉不到线上清单同一个口径），但要当面说。
  */
 async function withdrawnVersions() {
+  if (LOCAL) {
+    console.log("⚠ --local：列不出 GitHub 上撤回过的版本 —— 这一版没跟它们比 versionCode（涨版本号时自己确认比最近发过的那一版大）");
+    return [];
+  }
   let list;
   try {
     list = JSON.parse(runShell("gh", ["release", "list", "--repo", REPO, "--limit", "30", "--json", "tagName,isPrerelease,isDraft"]));
@@ -611,6 +668,9 @@ function checkMirrorDir() {
   if (!/^\/[\w./-]+$/.test(d)) {
     die(`APK_MIRROR_DIR 只接受不带空格、引号的绝对路径（它要原样拼进远端 shell）：${d}`);
   }
+  if (!/^[\w.-]+\.json$/.test(LOCAL_MANIFEST_NAME)) {
+    die(`APP_MANIFEST_FILE 只接受一个 .json 文件名（不带目录）：${LOCAL_MANIFEST_NAME}`);
+  }
 }
 
 /** 远端 shell 里的单引号字面量。调用方保证串里没有单引号（checkMirrorDir 与文件名校验） */
@@ -736,12 +796,23 @@ async function main() {
   const notesPack = releaseNotesFor(fs.existsSync(notesFile) ? fs.readFileSync(notesFile, "utf8") : "", versionName, versionCode);
 
   // ── 0. 这个 tag 发过没有（好几步都按它分叉：重跑 = 把上次那一版验证完，不是发新版）──
+  //    ★ --local：GitHub 上没有 Release 可问，改问**线上清单** —— 它说的就是用户手里那一版。
   let exists = false;
-  try {
-    runShell("gh", ["release", "view", tag, "--repo", REPO]);
-    exists = true;
-  } catch {
-    /* 不存在 */
+  /** --local 用：开头这一次读到的线上清单，第 4 步接着用（服务端 60 秒缓存，别读两遍） */
+  let liveEarly = null;
+  if (LOCAL) {
+    liveEarly = await readManifest(APP_MANIFEST_URL);
+    exists = !!liveEarly && liveEarly.versionCode === versionCode;
+    if (exists) {
+      console.log(`✓ 线上清单已经是 ${liveEarly.versionName}(${liveEarly.versionCode}) —— --local 按它判「发过没有」，本次只做验证`);
+    }
+  } else {
+    try {
+      runShell("gh", ["release", "view", tag, "--repo", REPO]);
+      exists = true;
+    } catch {
+      /* 不存在 */
+    }
   }
 
   // ── 0b. 出包的源码就是 origin/main 上那一份、工作区干净（见 assertSourceState 的 ★★）──
@@ -834,7 +905,7 @@ async function main() {
   // ── 4. versionCode 必须比线上那版大 ─────────────────────
   //    ★ 例外：这个 tag 已经发过了（上次跑到一半失败，这次是原地重跑；第 0 步查的）——
   //      那就不是"要发一个新版"，而是"把上次那一版验证完"，不该被递增检查挡住。
-  const live = await publishedManifest();
+  const live = LOCAL ? (liveEarly ?? (await readManifest(APP_MANIFEST_URL))) : await publishedManifest();
   if (exists) {
     console.log(`✓ ${tag} 已经发过了 —— 本次是重跑，只做验证`);
   } else if (live) {
@@ -910,7 +981,9 @@ async function main() {
   const manifest = {
     versionCode,
     versionName,
-    apkUrl: `https://github.com/${REPO}/releases/download/${tag}/${apkAsset}`,
+    // ★ --local：只写文件名 —— 服务端的 APP_APK_BASE 会把它补成这台机器镜像的地址（whale 那套同一形状）。
+    //   不写 GitHub 地址是因为这一版根本没有 Release，写上去就是一条下不动的死链。
+    apkUrl: LOCAL ? apkAsset : `https://github.com/${REPO}/releases/download/${tag}/${apkAsset}`,
     sizeBytes: apkBuf.length,
     sha256: sha256(apkBuf),
     notes,
@@ -1009,9 +1082,31 @@ async function main() {
     console.log(`✓ 已传到 ${APK_MIRROR_HOST}:${mirrorFile}（sha256 已在远端核对）`);
   }
 
+  // ── 6b. --local：把清单也放到镜像机（服务端 APP_MANIFEST_LOCAL=1 时读它）──
+  //    ★ 顺序：包先（上一段）、清单后 —— 清单一旦翻页，用户就会按它去下包。
+  //    ★ 与包同一套原子做法：先传 .part、远端 sha256 对上再改名。服务端在请求里**同步读**这个文件，
+  //      传了一半被读到就是一次清单 503（对用户是"检查更新失败"，而且是静默的）。
+  if (LOCAL) {
+    const remoteManifest = `${APK_MIRROR_DIR}/${LOCAL_MANIFEST_NAME}`;
+    const manifestPath = path.join(out, "latest.json");
+    const wantSha = sha256(fs.readFileSync(manifestPath));
+    const part = `${remoteManifest}.part`;
+    console.log(`\n上传更新清单（--local 的直发通道）…`);
+    execFileSync("scp", [manifestPath, `${APK_MIRROR_HOST}:${part}`], { stdio: "inherit", timeout: 120_000 });
+    const gotSha = mirrorSha(part);
+    if (gotSha !== wantSha) {
+      try { ssh(`rm -f -- ${rq(part)}`); } catch { /* 删不掉也无妨：.part 不在服务端认的文件名里 */ }
+      die(`清单传上去之后 sha256 不对（远端 ${gotSha ? gotSha.slice(0, 12) + "…" : "没有这个文件"} / 本地 ${wantSha.slice(0, 12)}…），已删掉 .part，正名没有动。`);
+    }
+    ssh(`mv -f -- ${rq(part)} ${rq(remoteManifest)}`);
+    console.log(`✓ 已传到 ${APK_MIRROR_HOST}:${remoteManifest}（sha256 已在远端核对）`);
+  }
+
   // ── 7. 发布 ──────────────────────────────────────────────
   //    tag 已存在就跳过创建直接去验证（第 4 步算过了）
-  if (exists) {
+  if (LOCAL) {
+    console.log(`\n--local：跳过 GitHub Release（账号被停用），清单已直接放到镜像机上`);
+  } else if (exists) {
     console.log(`\n${tag} 已存在，跳过创建，直接验证`);
   } else {
     console.log(`\n正在发布 ${tag}…`);
@@ -1033,7 +1128,8 @@ async function main() {
   }
 
   // ── 7b. GitHub 上那份 APK 与清单逐字节相同（见 assertGithubAsset 的 ★★）——重跑也核：发过的那份就该是对的 ──
-  await assertGithubAsset(tag, apkAsset, manifest);
+  //    --local 没有 Release，这一步无从核起（镜像那份已经在第 6 步按 sha256 核过了）
+  if (!LOCAL) await assertGithubAsset(tag, apkAsset, manifest);
 
   // ── 8. ★ 回头验证：从公网真的拉一遍，确认老用户能看到、能下 ──
   //    这一步才是这个脚本存在的意义 —— 前面每一条都可能"看着对但线上是错的"。
@@ -1042,18 +1138,22 @@ async function main() {
   //   一次就判失败的话，每次发版都会"自检失败但其实是好的" —— 人很快会开始无视
   //   这个检查，那它就白写了。最多等 60 秒，仍不对才是真出事。
   let check = null;
-  for (let i = 0; i < 12; i++) {
-    await new Promise((r) => setTimeout(r, 5000));
-    check = await publishedManifest();
-    if (check?.versionCode === versionCode) break;
-    process.stdout.write(`  等 /latest 指过来…（${(i + 1) * 5}s）\r`);
-  }
-  console.log("");
-  if (!check) die("发完了，但 /releases/latest/download/latest.json 拉不到 —— 老用户收不到这次更新");
-  if (check.versionCode !== versionCode) {
-    die(`等了 60 秒，固定地址返回的还是 ${check.versionName}(${check.versionCode})。\n` +
-        `多半是这个 Release 被标成了 draft 或 pre-release（/latest 会跳过它们），\n` +
-        `或者漏传了 latest.json 这个资产。`);
+  if (!LOCAL) {
+    for (let i = 0; i < 12; i++) {
+      await new Promise((r) => setTimeout(r, 5000));
+      check = await publishedManifest();
+      if (check?.versionCode === versionCode) break;
+      process.stdout.write(`  等 /latest 指过来…（${(i + 1) * 5}s）\r`);
+    }
+    console.log("");
+    if (!check) die("发完了，但 /releases/latest/download/latest.json 拉不到 —— 老用户收不到这次更新");
+    if (check.versionCode !== versionCode) {
+      die(`等了 60 秒，固定地址返回的还是 ${check.versionName}(${check.versionCode})。\n` +
+          `多半是这个 Release 被标成了 draft 或 pre-release（/latest 会跳过它们），\n` +
+          `或者漏传了 latest.json 这个资产。`);
+    }
+  } else {
+    console.log("\n--local：跳过 GitHub /latest 的核对（这一版没有 Release，清单只从镜像走）");
   }
   // ★★ 再验一遍**用户实际会打的那个地址**（服务端转发的那份，缓存 60 秒）。
   //    只验上游等于验了一条没人走的路。
@@ -1087,11 +1187,11 @@ async function main() {
     );
   }
 
-  if (check.sha256 !== manifest.sha256) die("线上清单里的 sha256 和刚发的包对不上");
+  if (check && check.sha256 !== manifest.sha256) die("线上清单里的 sha256 和刚发的包对不上");
   // App 拿来校验下载结果的是**服务端转的那份**里的 sha256，所以它也得对
   if (app.sha256 !== manifest.sha256) die(`App 用的清单（${APP_MANIFEST_URL}）里的 sha256 和刚发的包对不上`);
   // ★ 强制更新的门槛也得原样到了 App 手里：服务端那一跳是 `{ ...body, apkUrl }` 透传，哪天改成逐字段重建就会把它丢掉 —— 零报错，强制更新悄悄失效
-  if (minOf(check) !== minVersionCode) die(`线上清单里的 minVersionCode 是 ${minOf(check)}，本次要的是 ${minVersionCode}`);
+  if (check && minOf(check) !== minVersionCode) die(`线上清单里的 minVersionCode 是 ${minOf(check)}，本次要的是 ${minVersionCode}`);
   if (minOf(app) !== minVersionCode) {
     die(`App 用的清单（${APP_MANIFEST_URL}）里的 minVersionCode 是 ${minOf(app)}，本次要的是 ${minVersionCode} —— ` +
         `服务端转清单时把这一格丢了（server src/routes/appRelease.routes.js），强制更新不会生效`);
@@ -1149,12 +1249,15 @@ async function main() {
   console.log(`\n✅ ${tag} 发布完成，更新链已验证：`);
   console.log(`   清单 ${APP_MANIFEST_URL} → ${app.versionName}(${app.versionCode})`);
   console.log(`   安装包 ${mirrorUrl}（整包 sha256 已核对，cf-cache-status ${dl.cache}）`);
-  console.log(`   GitHub 归档 / 备用下载 ${check.apkUrl}（第 7b 步已核对与清单一致）`);
+  if (check) console.log(`   GitHub 归档 / 备用下载 ${check.apkUrl}（第 7b 步已核对与清单一致）`);
+  else console.log(`   GitHub 归档：没有（--local）—— 镜像就是唯一来源，别把它删了`);
   console.log(`   已装 ${live ? live.versionName : "旧版"} 的用户下次打开 App 就会收到提示。`);
   console.log(minVersionCode > 0
     ? `   强制更新：versionCode < ${minVersionCode} 的包打开后只能更新（2.63 之前的包不认这一格，照旧是可以跳过的提示）。`
     : "   不强制更新。");
-  console.log(`   发错了：npm run release -- --withdraw ${tag}（止血，见 docs/app-distribution.md「发错了」）。\n`);
+  console.log(LOCAL
+    ? `   发错了：涨版本号重发（--local 发不了 pre-release；撤回只能在 GitHub 上做）。\n`
+    : `   发错了：npm run release -- --withdraw ${tag}（止血，见 docs/app-distribution.md「发错了」）。\n`);
 }
 
 (ARGS.withdraw !== undefined ? withdraw(ARGS.withdraw) : main()).catch((e) => die(e?.message || String(e)));

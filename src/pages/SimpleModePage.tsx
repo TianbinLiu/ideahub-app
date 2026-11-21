@@ -178,6 +178,7 @@ export default function SimpleModePage() {
             cutFired.current = true;
             toCutRef.current();
           }}
+          onQuick={() => navigate("/quick")}
         />
       )}
     </div>
@@ -373,6 +374,7 @@ function StepGo({
   done,
   onGo,
   onCut,
+  onQuick,
 }: {
   nodeId: string;
   tplTitle?: string;
@@ -387,6 +389,8 @@ function StepGo({
   done: boolean;
   onGo: () => void;
   onCut: () => void;
+  /** 简易一句话出片之后：进「快速模式」把它做成多段成片（2026-11-16） */
+  onQuick: () => void;
 }) {
   // ── 自定义首尾帧（选填，主人点名的第三条路·简约面）──
   // 帧就写在这一段的方案上（flowStore.setFrame 唯一实现），给了就走首尾帧直出、
@@ -501,6 +505,13 @@ function StepGo({
             className="mt-2 w-full rounded-xl bg-panel py-2.5 text-sm font-bold text-slate-200 ring-1 ring-slate-700 disabled:opacity-40"
           >
             {t`♻ 重新生成（再花 ${fmtTokens(cost)} token）`}
+          </button>
+          {/* ★ 第三颗：已经出来的这一条可以当起点，进快速模式铺成多段成片（2026-11-16 主人点名） */}
+          <button
+            onClick={onQuick}
+            className="mt-2 w-full rounded-xl bg-panel py-2.5 text-sm font-bold text-slate-200 ring-1 ring-slate-700"
+          >
+            <Trans>⚡ 快速模式：做一条多段的</Trans>
           </button>
         </>
       ) : (

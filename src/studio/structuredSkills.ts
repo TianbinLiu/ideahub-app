@@ -51,6 +51,19 @@ import {
   type DialogueLine,
   type DialoguePlan,
 } from "../data/dialogueShots";
+import {
+  LYRICS_SYS,
+  LYRIC_LINES_MAX,
+  LYRIC_LINES_MIN,
+  LyricsError,
+  THEME_MAX as LYRIC_THEME_MAX,
+  THEME_MIN as LYRIC_THEME_MIN,
+  lyricsBrief,
+  parseLyricsReply,
+  songLang,
+  type LyricsErrorCode,
+  type SongLang,
+} from "../data/songShots";
 import { cleanShot, shotLineOf, uid, type Card, type Proposal, type ShotSpec, type VideoAspect } from "../types";
 import { newFlowNode, nodeDone, tplOfNode, type FlowNode } from "./flowStore";
 import { zhPrompt } from "../ai/prompts/zhPrompt";
@@ -778,6 +791,102 @@ export async function runDialogue(o: { situation: string; names: readonly [strin
     return { plan: parseDialogue(raw, o.names, DIALOGUE_LINES_MAX), lang, demo: false };
   } catch (e) {
     if (e instanceof DialogueError) throw new Error(dialogueErrorText(e.code));
+    throw e;
+  }
+}
+
+// ── 官方技能六：「一个主题 → 歌词」（2026-10-31，跟着做 L「唱一段」第②步，方案 docs/canvas-platforms-ecosystem-research.md §五 L）──
+//
+// 一句主题 + 曲风 + 行数 → 几行原创歌词，逐行可改；之后拼进唱段的提示词（data/songShots.songPrompt）一条出。
+// ★ 与前五条同一副骨架（步骤 / 形状检查 / 确认点 / 价签），同一条钱的规矩：请求成功那一拍扣一次，截断 / 形状检查失败不退也不再扣。
+// ★ 输入输出的规则在 data/songShots（纯函数，构建里 check-song-shots.mjs 实跑）；用哪种语言写由 songShots.songLang 判（与 B 的 sceneLang 同一个判据）。
+// ★ 不收用户上传的歌、歌词要求原创（LYRICS_SYS 明说不抄、不改写已有歌曲）—— 版权那条线在 decisions §五。
+
+export const THEME_TO_LYRICS = {
+  id: "official.theme-to-lyrics",
+  title: msg`一个主题 → 歌词`,
+  intro: msg`写一句主题，挑个曲风，AI 写 2~8 行原创歌词，逐行可改，让你的角色唱出来`,
+  steps: [
+    { kind: "input", title: msg`写主题`, hint: msg`一句话（${LYRIC_THEME_MIN}~${LYRIC_THEME_MAX} 字）：这首歌唱什么、什么心情` },
+    { kind: "model", title: msg`写歌词`, hint: msg`模型按行写：每句 6~14 个字，押韵、顺口、原创` },
+    { kind: "check", title: msg`形状检查`, hint: msg`形状不对整发不认；多出来的行不收` },
+    { kind: "confirm", title: msg`你来点头`, hint: msg`逐行可改、可删，点了才出片` },
+    { kind: "apply", title: msg`出片`, hint: msg`人物图直接给视频模型、不画帧，一条唱出来` },
+  ] satisfies readonly SkillStep[],
+  confirmAt: ["confirm"] satisfies readonly SkillStepKind[],
+  /** 一次 chat 的定额（服务端按调用收） */
+  cost: CHAT_TURN_TOKENS,
+} as const;
+
+/**
+ * 写歌词那一发的输出上限（token）。按形状估：8 行 × 14 字 ≈ 112 字，包上 JSON 不到 300 token；取 800 封顶。
+ * ★ 还没量过真模型：付费验证时量几发（含 8 行 + 英文）再收口；截断时如实说「被截断、已计费」，不去解析半截 JSON。
+ */
+const LYRICS_MAX_TOKENS = 800;
+
+export interface LyricsResult {
+  lines: string[];
+  /** 模型多写了几行（没收） */
+  dropped: number;
+  /** 歌词是哪种语言（唱段提示词按它拼） */
+  lang: SongLang;
+  /** 演示构建：本地按句号切的，不是模型写的（面板标「演示」） */
+  demo: boolean;
+}
+
+/** 形状不对的那几种（data/songShots 抛 code）→ 人话。这一次都已经计费（请求成功那一拍扣过） */
+function lyricsErrorText(code: LyricsErrorCode): string {
+  switch (code) {
+    case "noJson":
+      return t`模型没有按格式回歌词，这一次已经计费——再写一次，或把主题写具体些`;
+    case "badJson":
+      return t`模型回的歌词读不出来，这一次已经计费——再写一次`;
+    case "noLines":
+      return t`写出来的歌词一行都用不上，这一次已经计费——把主题写具体些再写`;
+    case "dupKeys":
+      return t`模型回的格式有问题（几段挤进了同一格），这一次已经计费——再写一次`;
+  }
+}
+
+/** 演示构建（没配 ARK_API_KEY）的本地降级：主题按句读切成几行、不够就重复，只为让流程走通看形状，**不冒充模型**（面板标「演示」） */
+function localLyrics(theme: string, n: number): string[] {
+  const parts = theme
+    .split(/[，,。；;！？!?\n]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const base = parts.length ? parts : [theme];
+  return Array.from({ length: n }, (_, i) => base[i % base.length].slice(0, 14));
+}
+
+/**
+ * 跑「一个主题 → 歌词」到确认之前：门禁（长度 / 行数 / 余额）→ 模型 → 扣一次钱 → 形状检查。
+ * 失败整句 throw（铁律八）；网络那一档的错原样抛，钱上的话由调用方经 ai/failCharge 说。
+ * @param o.lines 要几行（LYRIC_LINES_MIN ~ LYRIC_LINES_MAX）
+ */
+export async function runLyrics(o: { theme: string; singer: string; styleId: string; lines: number }): Promise<LyricsResult> {
+  const theme = o.theme.trim().slice(0, LYRIC_THEME_MAX);
+  if (theme.length < LYRIC_THEME_MIN) throw new Error(t`主题写得太短（至少 ${LYRIC_THEME_MIN} 个字）——写清这首歌唱什么、什么心情`);
+  const n = Math.max(LYRIC_LINES_MIN, Math.min(LYRIC_LINES_MAX, Math.round(o.lines)));
+  if (AI_REAL && !canAfford(CHAT_TURN_TOKENS)) {
+    const price = fmtTokens(CHAT_TURN_TOKENS);
+    throw new Error(frozenNote() ?? t`写歌词要 ${price} token，余额不够——去「我的」页充值`);
+  }
+  const lang = songLang(theme);
+  if (!AI_REAL) return { lines: localLyrics(theme, n), dropped: 0, lang, demo: true };
+  const { text: raw, truncated } = await skillChat(LYRICS_SYS, lyricsBrief({ theme, singer: o.singer, styleId: o.styleId, lines: n, lang }), {
+    maxTokens: LYRICS_MAX_TOKENS,
+    timeoutMs: SCRIPT_SHOTS_TIMEOUT_MS,
+  });
+  spendTokens(CHAT_TURN_TOKENS); // 请求成功才扣（与另五条技能同口径）；截断 / 形状检查失败都不退也不再扣
+  if (truncated) {
+    const limit = LYRICS_MAX_TOKENS;
+    throw new Error(t`模型写到一半被截断了（输出超过 ${limit} token 的上限），这一次已经计费——少要几行再写`);
+  }
+  try {
+    const r = parseLyricsReply(raw, n);
+    return { ...r, lang, demo: false };
+  } catch (e) {
+    if (e instanceof LyricsError) throw new Error(lyricsErrorText(e.code));
     throw e;
   }
 }

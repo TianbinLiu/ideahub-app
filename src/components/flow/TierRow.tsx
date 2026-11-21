@@ -176,7 +176,12 @@ export default function TierRow({
   /** 换家：换成同一颗芯片的另一家那一行，走与点芯片同一条路（同一个 blockOf、换档代价先说完）。那一行这一段用不了就不换，把原因交回开关 */
   function switchProvider(p: VideoProvider): string | null {
     const twin = tierOfPreferred(tierOf(node!.videoTier), p);
-    if (twin.id === node!.videoTier) return null;
+    if (twin.id === node!.videoTier) {
+      // ★ 这一档另一家没有孪生档（1.0 的「标准」就没有 MiniMax 那一行）：原来悄悄 return null，
+      //   开关点下去像坏了一样（2026-11-19 真机：连点两次都在 Seedance，一句话都没有）。
+      //   把原因交回开关，它画在那颗开关下面。
+      return t`这一档另一家没有对应档位——先换个有对应档位的画质（草稿 / 高清 / 电影级）`;
+    }
     const why = blockOf(twin);
     if (why) return why;
     const loss = tierSwitchLoss(node!.id, twin.id);

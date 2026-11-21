@@ -395,6 +395,11 @@ App 一个 PR（G 特效同款 + I 对话正反打 + 修这一段），服务端
 1. 唱出来了 → 按第五节 L 做向导：人物 → 歌词（自己写 / AI 写，第六条官方结构化技能）+ 曲风 → 电影级 15~30 秒；提示词按 s2 的写法（明说「唱歌，不是念白」+ 曲风 + 旋律 + 官方台词格式 + 歌词分行 + 「成年」），先在电影级 720p 15 秒上再验一发（刊例约 ¥22.7）再上。
 2. 念出来了 → 「歌词让模型唱」这条路不通，L 改成「给音频参考」：要么用本人声音样本 + 歌词让模型照着音色唱（仍是没验过的事），要么收一段演唱音频（撞「不收第三方歌曲」，要另定）。
 
+**落地（2026-10-31，主人听过五条成片：「唱出来了」）**：L 按 s2 的写法做成了跟着做向导「唱一段」（app PR，随 2.81 发版）：
+规则 `data/songShots` + `check-song-shots.mjs`、技能 `structuredSkills.runLyrics`、状态 `studio/songDraftStore`、向导 `components/flow/SongWizard`、
+模式 `guidedModes` 的 `song`（要出声的档）。细节在 docs/guided-modes-design.md「L 唱一段」。还没做的：电影级 720p 15 秒在 App 的真实请求路径上再验一发（≈ ¥22.7，等「花」）；
+MiniMax H3 会不会唱没验。
+
 ## 附：出处
 - TapNow 首页与 Apps 页（app.tapnow.ai/home、/home/app-store，公开接口 `/api/bff/app-store/items/skill/<名字>`、`/api/canvas/v1/official-templates`，2026-10-05 读）
 - RunningHub 首页、ComfyUI 工作流、AI 应用、模型库、rhTV 社区与技能广场、创作者激励规则（runninghub.cn/creator-reward）、Seedance 2.5 接口说明（runninghub.cn/call-api/api-detail/2133100000000700022）、RHSTORY（story.runninghub.cn）
