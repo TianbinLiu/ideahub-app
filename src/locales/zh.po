@@ -6328,6 +6328,10 @@ msgstr "专业套餐"
 msgid "丢掉上面的流水线，铺这一条"
 msgstr "丢掉上面的流水线，铺这一条"
 
+#: src/pages/QuickModePage.tsx
+msgid "丢掉旧稿，用这一条 ›"
+msgstr "丢掉旧稿，用这一条 ›"
+
 #: src/components/flow/DialogueWizard.tsx
 #: src/components/flow/EffectWizard.tsx
 msgid "两个人"

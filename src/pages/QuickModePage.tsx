@@ -31,6 +31,7 @@ import { audioFileToVoice } from "../utils/wav";
 import { LEAD_CAST_MAX } from "../data/sceneShots";
 import { QUICK_STEPS, resetQuick, runIdea, setQuick, useQuickDraft, type QuickStep } from "../studio/quickDraftStore";
 import { useFlowActions } from "../hooks/useFlowActions";
+import { dropCutSession } from "../data/cutSession";
 import { useStudio } from "../studio/studioStore";
 import type { Card } from "../types";
 
@@ -624,6 +625,23 @@ export default function QuickModePage() {
           <button onClick={() => toCut()} className="w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink">
             <Trans>打开剪辑页 ›</Trans>
           </button>
+          {/* ★ 2026-11-22 真机：toCut 被上一份没剪完的稿子整句拒时，这里只有一句"先去我的丢掉"——
+              而人正站在这条新流水线上，回「我的」再回来这条路不顺。给一个当场可办的出路：
+              丢掉旧稿、用眼前这条（旧稿是花过钱的，所以按钮上把代价说清楚，不藏在弹层里）。 */}
+          {flowErr && (
+            <button
+              onClick={() => {
+                void (async () => {
+                  await dropCutSession();
+                  useFlow.setState({ err: "" });
+                  toCut();
+                })();
+              }}
+              className="w-full rounded-xl bg-panel py-2.5 text-sm font-bold text-slate-200 ring-1 ring-slate-700"
+            >
+              <Trans>丢掉旧稿，用这一条 ›</Trans>
+            </button>
+          )}
           <button onClick={() => resetQuick()} className="text-[11px] text-slate-500">
             <Trans>再做一个</Trans>
           </button>
