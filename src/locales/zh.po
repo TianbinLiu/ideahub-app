@@ -8026,6 +8026,10 @@ msgstr "先把这一段生成出来，再做下一段"
 msgid "先把这一段生成出来，再加下一段"
 msgstr "先把这一段生成出来，再加下一段"
 
+#: src/pages/SimpleModePage.tsx
+msgid "先拆剧本分镜、逐段出片（可以挂角色卡），最后去剪辑页拼成一条"
+msgstr "先拆剧本分镜、逐段出片（可以挂角色卡），最后去剪辑页拼成一条"
+
 #: src/studio/ui/FuseFrameSheet.tsx
 msgid "先挂一张素材卡，或让 AI 先推演出首尾帧"
 msgstr "先挂一张素材卡，或让 AI 先推演出首尾帧"

@@ -143,7 +143,11 @@ export default function QuickModePage() {
     try {
       for (const n of useFlow.getState().nodes) {
         if (nodeDone(n) || n.status === "generating") continue;
-        await useFlow.getState().genNode(n.id);
+        // ★ 2026-11-22 真机：一段没出成（比如方舟的 output new_sensitive）之后，循环还接着跑下一段，
+        //   下一段撞上「前面还有没生成完的段」把**真实原因盖掉** —— 人只看到一句顺序提示，
+        //   而那是第 2 段的报错。前一段没成就在这里停，让真正的失败原因留在屏幕上。
+        const ok = await useFlow.getState().genNode(n.id);
+        if (!ok) break;
       }
     } catch (e) {
       // ★ 原来没有 catch：genNode 抛出来就直接冒到 unhandled，界面只看见按钮弹回原样（2026-11-19 真机：
