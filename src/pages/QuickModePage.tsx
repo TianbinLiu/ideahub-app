@@ -598,11 +598,19 @@ export default function QuickModePage() {
               setQuick({ step: "cut" });
               toCut();
             }}
-            disabled={!nodes.some(nodeDone) || busy || drawing}
+            disabled={!allDone || busy || drawing}
             className="mt-4 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink disabled:bg-slate-700 disabled:text-slate-500"
           >
             <Trans>去剪辑 ›</Trans>
           </button>
+          {/* ★ 2026-11-22 真机：门槛原来是「至少一段出片」，而组稿会把**没出片的段**也放进时间轴 ——
+              刚才那条就是段1 有片子、段2 是黑的 4.0s，合成到那一截必失败。改成全部出片才放行，
+              剩下几段当场说清楚（别让人对着灰键猜）。 */}
+          {nodes.length > 0 && !allDone && (
+            <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
+              {t`还有 ${nodes.filter((n) => !nodeDone(n)).length} 段没出片——逐段出完才能去剪辑（剪辑页会把没出片的段当作一段黑片）`}
+            </p>
+          )}
         </div>
       )}
 
