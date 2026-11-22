@@ -303,9 +303,25 @@ export default function QuickModePage() {
                       <span className="flex-none text-[10px] text-slate-500">{Math.round(sg.durationSec)}s</span>
                     </div>
                     <p className="mt-1 line-clamp-2 text-[11px] leading-relaxed text-slate-400">{sg.plot}</p>
+                    {/* ★ 2026-11-22：台词单列出来 —— 这类片子（MJ 宇宙那种）的灵魂是台词，
+                        以前它只活在模型脑子里，人看不见、剪辑页还得手敲 */}
+                    {!!sg.lines?.length && (
+                      <p className="mt-1 rounded-md bg-black/30 px-2 py-1 text-[10.5px] leading-relaxed text-slate-300">
+                        {sg.lines.map((ln, k) => (
+                          <span key={k} className="block">
+                            「{ln}」
+                          </span>
+                        ))}
+                      </p>
+                    )}
                   </li>
                 ))}
               </ol>
+              {plan.segments.some((sg) => sg.videoPrompt) && (
+                <p className="mt-2 text-[10px] leading-relaxed text-slate-500">
+                  <Trans>出片会用一段更中性的画面句（只写镜头能看见的东西），剧情照旧显示在这里、台词会带进剪辑页。</Trans>
+                </p>
+              )}
               <button
                 onClick={() => setQuick({ step: "cast" })}
                 className="mt-4 w-full rounded-xl bg-brand py-2.5 text-sm font-bold text-ink"

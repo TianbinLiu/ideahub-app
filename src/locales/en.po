@@ -9034,6 +9034,10 @@ msgstr "Generate video ({0})"
 msgid "出片中…"
 msgstr "Rendering…"
 
+#: src/pages/QuickModePage.tsx
+msgid "出片会用一段更中性的画面句（只写镜头能看见的东西），剧情照旧显示在这里、台词会带进剪辑页。"
+msgstr "Rendering uses a more neutral visual prompt (only what the camera sees); the story stays here and the lines carry into the cut page."
+
 #: src/components/flow/RefStrip.tsx
 msgid "出片前 AI 画"
 msgstr "AI draws it before rendering"

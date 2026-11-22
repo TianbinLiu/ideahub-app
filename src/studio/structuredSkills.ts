@@ -84,6 +84,14 @@ export interface ShotPlanSeg {
   plot: string;
   durationSec: number;
   shot?: ShotSpec;
+  /**
+   * 出片用的**中性画面句**（2026-11-22 真机）：只写镜头能看见的东西（谁在哪、动作幅度、光、镜头怎么动），
+   * 不写暴力/血腥/撕咬这类词 —— 「尸潮嘶吼着扑来」那句被方舟输出审核整发拒（output new_sensitive），
+   * 同一批里只写"四人在昏暗走廊并肩前行"的两段一条没被拒。plot 留给人看（更抓人），这里给模型。
+   */
+  videoPrompt?: string;
+  /** 这一段的台词（0~4 条，形如「灭霸：别抢我的药」）—— 进剪辑页做字幕用 */
+  lines?: string[];
 }
 export interface ShotPlan {
   segments: ShotPlanSeg[];
@@ -132,7 +140,7 @@ export const SCRIPT_TO_SHOTS = {
 const SYS =
   `你是分镜师。把用户给的剧本拆成 2~${SCRIPT_SEGMENTS_MAX} 段首尾相接的视频镜头，按时间顺序、不跳时间线。` +
   `输出 JSON：{"segments":[{"title":"12字内标题","plot":"60-120字这一段的画面与动作，小说式，画面感强，写清人物在做什么","durationSec":3到10的整数,` +
-  `"shot":{"size":"景别（远景/全景/中景/近景/特写）","camera":"运镜（固定/推/拉/摇/移/跟/环绕/手持，可带方向，6字内）","beat":"情绪节拍，6字内，如 压抑→爆发"}}]}。` +
+  `"shot":{"size":"景别（远景/全景/中景/近景/特写）","camera":"运镜（固定/推/拉/摇/移/跟/环绕/手持，可带方向，6字内）","beat":"情绪节拍，6字内，如 压抑→爆发"},"videoPrompt":"60-120字给视频模型的画面句：只写镜头能看见的东西（谁在哪、朝向、动作幅度、光线、镜头怎么动），**不写暴力/血腥/撕咬/死亡**，也别写台词和内心活动","lines":["这一段的台词，0~4 条，每条「名字：台词」，口语、短；没有台词就给空数组"]}]}。` +
   `只输出 JSON，不要解释。`;
 
 /** 模型输出 → 形状检查（不可信输入：JSON 里什么都可能出现）。不合形状的段整段丢；一段不剩就 throw */
@@ -163,7 +171,19 @@ export function parseShotPlan(raw: string, tierId: string): ShotPlan {
     // 时长按档位夹（与报价 / 出片同一把尺 clampDuration）；给不出数的按 5 秒
     const durationSec = clampDuration(Number.isFinite(durRaw) && durRaw > 0 ? durRaw : 5, tierId);
     const shot = cleanShot(o.shot);
-    segments.push({ title, plot, durationSec, ...(shot ? { shot } : {}) });
+    // ★ 2026-11-22：中性画面句与台词（模型输出同样不可信，逐条夹长度；台词最多 4 条、每条 40 字）
+    const videoPrompt = typeof o.videoPrompt === "string" ? o.videoPrompt.trim().slice(0, VIDEO_PROMPT_MAX) : "";
+    const lines = Array.isArray(o.lines)
+      ? (o.lines as unknown[]).map((x) => (typeof x === "string" ? x.trim() : "")).filter((x) => x.length > 0).slice(0, 4).map((x) => x.slice(0, 40))
+      : [];
+    segments.push({
+      title,
+      plot,
+      durationSec,
+      ...(shot ? { shot } : {}),
+      ...(videoPrompt ? { videoPrompt } : {}),
+      ...(lines.length ? { lines } : {}),
+    });
   }
   if (!segments.length) throw new Error(t`拆出来的段一段都不合形状（剧情太短或缺字段）——把剧本写具体些再试`);
   return { segments };
@@ -466,7 +486,8 @@ export function shotPlanNodes(plan: ShotPlan, o: { tierId: string; aspect: Video
     const p: Proposal = {
       id: uid("prop"),
       title: sg.title,
-      plot: sg.plot,
+      // ★ 出片用中性画面句（有就用它），人看的那份抓人描述留在 requirement 上（画布/方案台读的是它）
+      plot: sg.videoPrompt?.length ? sg.videoPrompt : sg.plot,
       firstFrame: "",
       lastFrame: "",
       durationSec: sg.durationSec,
