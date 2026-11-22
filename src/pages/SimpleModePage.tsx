@@ -140,6 +140,7 @@ export default function SimpleModePage() {
             setRoute(r);
             setStep("fill");
           }}
+          onQuick={() => navigate("/quick")}
         />
       )}
 
@@ -187,7 +188,7 @@ export default function SimpleModePage() {
 
 /** 第 1 步：**整屏只有两个选项**。用户点名——第一步别摆别的东西。
  *  两块砖右端带 ›、按下有反馈（2026-10-14 UX 课的惯例：会跳走的砖要有「去哪儿」的记号；铸段窗的选法屏早就这么画） */
-function StepStart({ onPick }: { onPick: (r: "template" | "custom") => void }) {
+function StepStart({ onPick, onQuick }: { onPick: (r: "template" | "custom") => void; onQuick: () => void }) {
   return (
     <div className="flex flex-1 flex-col justify-center gap-3">
       <p className="mb-1 text-center text-sm text-slate-400"><Trans>想怎么开始？</Trans></p>
@@ -208,6 +209,20 @@ function StepStart({ onPick }: { onPick: (r: "template" | "custom") => void }) {
         <span className="min-w-0 flex-1">
           <span className="block text-base font-bold text-slate-100"><Trans>✍️ 自己写一句</Trans></span>
           <span className="mt-1 block text-xs leading-relaxed text-slate-400"><Trans>说一句想拍什么，AI 直接出一条短片</Trans></span>
+        </span>
+        <span className="flex-none text-lg text-slate-500">›</span>
+      </button>
+      {/* ★ 2026-11-22 主人点名加的第三扇门：快速模式的两个入口原来都藏在「已经出过一条片」之后
+          （出片完成那屏、剪辑页横幅）—— 第一次进这一页的人根本看不见它。这里直接进 /quick。 */}
+      <button
+        onClick={onQuick}
+        className="flex items-center gap-3 rounded-2xl border border-slate-700 bg-panel px-4 py-6 text-left transition active:opacity-60"
+      >
+        <span className="min-w-0 flex-1">
+          <span className="block text-base font-bold text-slate-100"><Trans>⚡ 快速模式：做一条多段的</Trans></span>
+          <span className="mt-1 block text-xs leading-relaxed text-slate-400">
+            <Trans>先拆剧本分镜、逐段出片（可以挂角色卡），最后去剪辑页拼成一条</Trans>
+          </span>
         </span>
         <span className="flex-none text-lg text-slate-500">›</span>
       </button>

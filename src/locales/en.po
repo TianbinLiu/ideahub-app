@@ -8022,6 +8022,10 @@ msgstr "Generate this segment first, then make the next one"
 msgid "先把这一段生成出来，再加下一段"
 msgstr "Generate this segment first, then add the next one"
 
+#: src/pages/SimpleModePage.tsx
+msgid "先拆剧本分镜、逐段出片（可以挂角色卡），最后去剪辑页拼成一条"
+msgstr "Split the script into shots, render each segment (character cards supported), then stitch them on the cut page."
+
 #: src/studio/ui/FuseFrameSheet.tsx
 msgid "先挂一张素材卡，或让 AI 先推演出首尾帧"
 msgstr "Add a material card first, or let the AI draft first and last frames"
