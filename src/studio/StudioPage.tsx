@@ -18,6 +18,10 @@ import { CardDetailModal } from "./ui/modals";
 import AvatarPicker from "./ui/AvatarPicker";
 import AvatarSwapButton from "./ui/AvatarSwapButton";
 import { DeckRail, MarketRail } from "./ui/SceneRails";
+// 对局态（G2 第二块）：HUD / 商店 / 背包 / 风格卡那一层 2D 覆盖层。只在横屏且真的开了一局时挂载，
+// 竖屏与没开局时这一行等于不存在（施工单"竖屏沿用现有布局"）。
+import GameLayer from "./game/ui/GameLayer";
+import { useGame } from "./game/store";
 import { cancelPendingStop, stopSpeakingSoon } from "./speech";
 import { useStudioBack } from "./useStudioBack";
 import { useCastReturn } from "../hooks/useCastReturn";
@@ -305,6 +309,11 @@ export default function StudioPage() {
    */
   const isLand = useIsLandscape();
   /**
+   * 有没有开着一局（G2 第二块）：只决定两件事 —— 底部那句工坊提示条让位给对局 UI、
+   * 以及 GameLayer 挂不挂。对局状态本身在 game/store 里，切页 / 转屏都不会丢。
+   */
+  const inGame = useGame((s) => s.state !== null);
+  /**
    * 横屏/竖屏两套桌面卡位（layout.sceneLayout）：市场一页几张、摊开排摆几张。
    * 判据与 isLand 同一个 —— 别再在这里判一次 `orientation`。
    */
@@ -469,17 +478,21 @@ export default function StudioPage() {
 
 
       {/* 提示条（NPC 气泡栏上方）。横屏：屏幕矮（462 CSS px）、这句话在窄舞台里折成两行，
-          bottom-16 会正好压在摊开排那三张卡上（真机 3C15CJ00C8V00000 实测）—— 落到贴底 8px。 */}
-      <div className={`pointer-events-none absolute inset-x-0 flex justify-center ${isLand ? "bottom-2 px-3" : "bottom-16 px-4"}`}>
-        <div
-          data-guide="studio-hint"
-          className={`rounded-full bg-panel/75 text-center text-slate-300 backdrop-blur ${
-            isLand ? "px-3 py-1 text-[11px]" : "px-4 py-1.5 text-xs"
-          }`}
-        >
-          {hint}
+          bottom-16 会正好压在摊开排那三张卡上（真机 3C15CJ00C8V00000 实测）—— 落到贴底 8px。
+          ★ 开了一局时撤掉：对局态的底部是背包条与商店（GameLayer），这句话会被压在底下面。
+          没开局时逐字不动（竖屏也一样）。 */}
+      {!inGame && (
+        <div className={`pointer-events-none absolute inset-x-0 flex justify-center ${isLand ? "bottom-2 px-3" : "bottom-16 px-4"}`}>
+          <div
+            data-guide="studio-hint"
+            className={`rounded-full bg-panel/75 text-center text-slate-300 backdrop-blur ${
+              isLand ? "px-3 py-1 text-[11px]" : "px-4 py-1.5 text-xs"
+            }`}
+          >
+            {hint}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* 市场翻页箭头：市场种子有 19 张，一页摆 6 张 → 4 页。放在屏幕两侧竖直居中，
           与卡组展开排那对箭头（左下角）错开位置，不会打架 */}
@@ -523,6 +536,9 @@ export default function StudioPage() {
       <CardDetailModal />
       <AvatarPicker />
       <AvatarSwapButton />
+      {/* 对局覆盖层（G2 第二块）：只在横屏挂 —— 竖屏时它一个像素都不出现（施工单要求）。
+          没有开局时组件自己 return null，所以这里不需要再判一次对局状态。 */}
+      {isLand && <GameLayer />}
       <StudioLoader />
       {/* ── 工作流画布：同一条流水线的另一个面，就地铺满这一屏（2026-08-30 合并）──
           ★ 它自带 z-40 全屏 portal，所以挂在这里不影响上面那些浮层的层级关系。
