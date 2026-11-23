@@ -480,19 +480,22 @@ tierId 的翻译在 `genTier`，写法与快速模式同源（`account.preferred
 
 - 档位翻译：`genTier.genTierIdOf(player)`（`rules.MODEL_LEVEL_TIERS` 给语义）；"优先另一家 + 给不出就回落"收进 `account.preferredTierIdOf`，
   快速模式 `previewTierId` / `finalTierId` 也改成读它（原来两处各一份）。
-- 券的规则：`data/gameTicketRules`（零依赖，`scripts/check-game-tickets.mjs` 45 条断言实跑：回包解析 / 三态真值表 /
-  `left >= perGeneration` / 请求头 / 刷新日 / "档位落点只此一处"的源文件棘轮）。
+- 券的规则：`data/gameTicketRules`（零依赖，`scripts/check-game-tickets.mjs` 57 条断言实跑：回包解析 / 三态真值表 /
+  `left >= perGeneration` / 请求头 / 刷新日 / "档位落点只此一处"的源文件棘轮 / **券头从生成小窗到底层请求的整条接线**）。
+  最后那一段是替代真机验券的：真验一次就烧一张券，所以 `GenSheet → genNode → segmentGen → composeSegments → arkClient/minimaxVideo`
+  每一环的调用点都按源码钉住（改拼法会红，提醒重新数一遍）。
 - 构建：`check-game-tickets.mjs` 已接进 `npm run build`（`check:all` 也会跑它，漏接会红）；`gameTicketRules.ts` 进了
   `check-import-direction` 的零依赖表。
 
 ### 7. 验证（这一块）
 
-- `npm run build` 绿（tsc + 全部 check 脚本 + vite build），`check-game-tickets` 45 条断言；
-  造违规试红四条（`caps === null` 当有券 / `left > 0` / `resetDayOf` 写死 / `genTier` 的 `cinema` 改成 `1080p`）各自变红。
+- `npm run build` 绿（tsc + 全部 check 脚本 + vite build），`check-game-tickets` 57 条断言；
+  造违规试红五条（`caps === null` 当有券 / `left > 0` / `resetDayOf` 写死 / `genTier` 的 `cinema` 改成 `1080p` /
+  带券那发改回 `spendTokens`）各自变红。
 - **线上服务端真连**（只读，不出片、不烧券）：`GET https://api.ideahubs.org/api/ark/health` 回
   `gameTickets: true`、`gameTicketMonthly: 6`、`gameTicketPerGeneration: 1`、`gameTicketUnlocksMedia: true` ——
   App 的能力位与"一月 6 张、一发 1 张"今天就是从这里读的。
 - 真机没连上（`adb devices` 空），浏览器（`npm run dev`）里 **dev 没有券那一路**（`serverCaps.ALL.gameTickets = false`，
   见 §2 第一条），所以界面走的是「这台服务器没有开通游戏券」那一支：背包条不摆 🎟、生成小窗写「这一发按 token 结算」。
-  有券 / 用完那两句话的判定由 `check-game-tickets` 的真值表钉住（45 条），**没有**在真机上走到真实扣券那一发。
+  有券 / 用完那两句话的判定由 `check-game-tickets` 的真值表与券头接线钉住（57 条），**没有**在真机上走到真实扣券那一发。
 

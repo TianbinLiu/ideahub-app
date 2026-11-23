@@ -14,12 +14,16 @@
 // ★ 第二段（源文件棘轮）：L1 / L2 / L3 落在哪个 tierId 只有 studio/game/genTier.ts 一处翻译，
 //   「优先同一颗芯片的另一家、给不出就回落」的两行式只有 data/account.preferredTierIdOf 一处实现。
 //   散出去的症状：一处的写实卡能出片、另一处又被方舟整发拒（2026-11-19 真机那次），零报错。
+// ★ 第三段（源文件棘轮）：`X-Game-Ticket` 从生成小窗一路带到底层请求的那条线，按调用点逐个钉住。
+//   ★★ 这一段是**替代真机验券**的：真验一次就烧掉一张券（本次任务明确不许），而断在任意一环的症状都是零报错的 ——
+//   界面写着「这一发用游戏券」、服务端扣的其实是 token。改了拼法这里会红，提醒把那几环重新数一遍。
 //
 // ★ 仓内门禁纪律：写完先造真违规试红（--module= 指向改坏的副本 / 临时改源文件）。逐条试过，下面各自变红：
 //   ① parseGameTickets 不查 left 就回 facts；② gameTicketModeOf 在 caps === null 时回 "ticket"；
 //   ③ gameTicketModeOf 用 `left > 0` 代替 `left >= perGeneration`；④ gameTicketHeaders 恒回头；
 //   ⑤ resetDayOf 写死回 1（不读回包）；⑥ 把 genTier.ts 的 `cinema: "ultra"` 改成 `"1080p"`；
-//   ⑦ 把 QuickModePage 那两行改回自己拼 tierOfPreferred + tierOffered。
+//   ⑦ 把 QuickModePage 那两行改回自己拼 tierOfPreferred + tierOffered；
+//   ⑧ 把 flowStore 里带券那一发改回 `if (res.url && AI_REAL) spendTokens(cost)`（第三段那条接线）。
 //
 // 用法：node scripts/check-game-tickets.mjs [--module=<另一份 gameTicketRules.ts 的路径，造违规试红用>] [--src=<另一个 src 目录>]
 import fs from "node:fs";
@@ -143,6 +147,25 @@ const quick = read("pages/QuickModePage.tsx");
 ok("account.ts 定义 preferredTierIdOf（唯一实现）", /export function preferredTierIdOf\(/.test(accountSrc));
 ok("对局 genTier.ts 读 preferredTierIdOf", /preferredTierIdOf\(/.test(genTier));
 ok("快速模式 QuickModePage 也读 preferredTierIdOf（不再自己拼）", /preferredTierIdOf\(/.test(quick) && !/tierOfPreferred\(/.test(quick));
+
+// ── 源文件棘轮③：券头从生成小窗一路带到底层请求（这一整条**没法用真券验**：验一次就烧掉一张）──
+// 断在任意一环的症状都是零报错的：界面写着「这一发用游戏券」、服务端扣的却是 token。
+// 所以按调用点逐个钉住（改拼法时这里会红，提醒重新数一遍）。
+const wires = [
+  ["flowStore.ts 这一发用不用券只问 canPayWithTicket", /const ticketOn = opts\?\.payWithTicket === true && canPayWithTicket\(\);/.test(read("studio/flowStore.ts"))],
+  ["flowStore.ts 余额门禁认券（canAfford 的 ticket 位）", /canAfford\(cost, \{ ticket: ticketOn \}\)/.test(read("studio/flowStore.ts"))],
+  ["flowStore.ts 带券那一发不再 spendTokens", /if \(res\.url && AI_REAL && !ticketOn\) spendTokens\(cost\);/.test(read("studio/flowStore.ts"))],
+  ["flowStore.ts 带券那一发把标记递给 segmentGen", /payWithTicket: ticketOn,/.test(read("studio/flowStore.ts"))],
+  ["flowStore.ts 失败原因经宿主的 rejectText（那四句话在 reasons 一处）", /ticketOn \? opts\?\.rejectText\?\.\(inner\) : null/.test(read("studio/flowStore.ts"))],
+  ["flowStore.ts 券在服务端扣 / 退：收尾重读一次余额", /if \(ticketOn\) void refreshGameTickets\(true\);/.test(read("studio/flowStore.ts"))],
+  ["segmentGen.ts 把标记递给 composeSegments 的五个调用点", (read("studio/segmentGen.ts").match(/\{ payWithTicket: input\.payWithTicket \}/g) ?? []).length === 5],
+  ["real.ts 四条视频支路都带上标记（方舟 / 真人档 / H3 / 定稿）", (read("ai/real.ts").match(/payWithTicket: opts\?\.payWithTicket/g) ?? []).length === 4],
+  ["arkClient.ts 创建任务那一发拼券头", /gameTicketHeaders\(opts\?\.payWithTicket\)/.test(read("ai/arkClient.ts"))],
+  ["minimaxVideo.ts 两版接口（V1 / V2）创建那一发都拼券头", (read("ai/minimaxVideo.ts").match(/gameTicketHeaders\(o\.payWithTicket\)/g) ?? []).length === 2],
+  ["GenSheet.tsx 出片那一发把 payWithTicket 与 rejectText 交给 genNode", /genNode\(id, \{ payWithTicket: ticket\.canPay, rejectText: gameRejectText \}\)/.test(read("studio/game/ui/GenSheet.tsx"))],
+  ["BagBar.tsx 摆的是 🎟 券数（金币旁）", /🎟 \{ticket\.tickets\?\.left \?\? 0\}/.test(read("studio/game/ui/BagBar.tsx"))],
+];
+for (const [what, cond] of wires) ok(what, cond);
 
 // ── 汇总 ──
 if (problems.length) {
