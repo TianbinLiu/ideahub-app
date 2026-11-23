@@ -4,7 +4,8 @@ import { Trans, useLingui } from "@lingui/react/macro";
 import { formatHeat, heatOf } from "../../data/social";
 import { useSocialVersion } from "../../components/SocialPanel";
 import { useStudio } from "../studioStore";
-import { MARKET, marketSlot } from "../scene/layout";
+import { marketSlot, sceneLayout } from "../scene/layout";
+import { useIsLandscape } from "../../hooks/useIsLandscape";
 import CardHologram, { CARD_MODELS, useHologramModel } from "./CardHologram";
 
 // ── 市场卡详情：底部滑出单，左预览图右信息 + 加入卡组 ──────────
@@ -13,6 +14,9 @@ export function CardDetailModal() {
   const items = useStudio((s) => s.market.items);
   const page = useStudio((s) => s.market.page);
   const deck = useStudio((s) => s.deck);
+  // ★ hook 必须排在 early return 之前：横屏一页 8 张 / 竖屏 6 张，飞卡起点必须与 MarketFan 同一套卡位
+  const land = useIsLandscape();
+  const M = sceneLayout(land).market;
   useSocialVersion(); // 服务端热度是懒加载的，到货后要重渲染
   // ★ hook 必须在 early return 之前跑完，否则开关详情单时 hook 数量变化会直接崩
   const heat = heatOf("card", card?.id ?? "");
@@ -27,9 +31,9 @@ export function CardDetailModal() {
   let from: [number, number, number] = [-0.5, 1.1, -3.3];
   // 桌面是**分页**摆的，所以要把全局下标换算成页内下标——直接拿全局下标算位置，
   // 第二页点任何一张卡都会从第一页那个坑里飞出来
-  if (gi >= 0 && Math.floor(gi / MARKET.perPage) === page) {
-    const start = page * MARKET.perPage;
-    const { x, z } = marketSlot(gi - start, Math.min(MARKET.perPage, items.length - start));
+  if (gi >= 0 && Math.floor(gi / M.perPage) === page) {
+    const start = page * M.perPage;
+    const { x, z } = marketSlot(land, gi - start, Math.min(M.perPage, items.length - start));
     from = [x, 0.1, z];
   }
   const inDeck = deck.some((c) => c.id === card.id);

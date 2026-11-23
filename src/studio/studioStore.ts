@@ -581,7 +581,8 @@ interface StudioState {
   openMarket: () => Promise<void>;
   marketSearch: (q: string) => Promise<void>;
   /** 市场翻页（照卡组展开排的 shiftSpread 那套；d=±1）。夹在合法页内，不循环 */
-  shiftMarket: (d: number) => void;
+  /** 翻市场页；`perPage` 由调用点给（横屏 8 / 竖屏 6，见 layout.sceneLayout） */
+  shiftMarket: (d: number, perPage?: number) => void;
   closeMarket: () => void;
   viewMarketCard: (card: Card, camPos: [number, number, number], look: [number, number, number]) => void;
   closeMarketDetail: () => void;
@@ -1130,9 +1131,11 @@ export const useStudio = create<StudioState>()((set, get) => ({
     const count = items.length;
     get().npcSay(q ? (count ? t`按「${q}」翻出 ${count} 张。` : t`「${q}」没有。换个词。`) : t`当下最热的 ${count} 张。`, "act");
   },
-  shiftMarket: (d) =>
+  shiftMarket: (d, perPage = MARKET.perPage) =>
     set((s) => {
-      const last = Math.max(0, Math.ceil(s.market.items.length / MARKET.perPage) - 1);
+      // 一页几张由调用点给（横屏 8 / 竖屏 6，layout.MARKET[_LAND].perPage）：store 没有朝向，
+      // 这里只做"夹在首末页之间"这一件事，别在 store 里再判一次 landscape
+      const last = Math.max(0, Math.ceil(s.market.items.length / perPage) - 1);
       return { market: { ...s.market, page: Math.min(last, Math.max(0, s.market.page + d)) } };
     }),
 

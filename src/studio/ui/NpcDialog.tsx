@@ -30,6 +30,8 @@ import TarotCard from "../../components/TarotCard";
 import TokenCost from "../../components/TokenCost";
 import StepDots from "../../components/StepDots";
 import { NPC_SCREEN } from "../scene/cameraOrbit";
+import { MarketSearchField } from "./MarketSearch";
+import { useIsLandscape } from "../../hooks/useIsLandscape";
 import { setVoiceEnabled, voiceEnabled, voiceStatus, voiceSupported } from "../speech";
 import { useBackGuard } from "../backGuards";
 import { routeIntent, searchKeyword } from "../npcIntent";
@@ -79,6 +81,13 @@ export default function NpcDialog() {
   useBackGuard(historyOpen, () => setHistoryOpen(false));
   useBackGuard(forgeOpen, () => setForgeOpen(false));
   const { t } = useLingui();
+  /**
+   * ★ 横屏（G1 第 3 步）：市场搜索条搬到右侧常驻条里（SceneRails 的 MarketRail）。
+   *   宽布局里市场本来就在右栏，搜索还钉在屏幕上沿的话，手机上要在"右栏点开的市场"和
+   *   "屏幕顶上那条搜索"之间来回看；窄条也更适合横屏那点高度。
+   *   判据只读 useIsLandscape（与宽布局壳同一个），本页不另判。
+   */
+  const land = useIsLandscape();
 
   // 投影窗打开时隐藏对话层，避免遮挡
   if (projection) return null;
@@ -181,8 +190,8 @@ export default function NpcDialog() {
         </div>
       </div>
 
-      {/* ── 市场搜索条：钉在屏幕上方，桌面的卡全程可见 ── */}
-      {marketOpen && <MarketTopBar />}
+      {/* ── 市场搜索条：钉在屏幕上方，桌面的卡全程可见；横屏那一份在右栏（见上面 land 的 ★） ── */}
+      {marketOpen && !land && <MarketTopBar />}
 
       {historyOpen && (
         <HistorySheet
@@ -209,34 +218,12 @@ export default function NpcDialog() {
   );
 }
 
-// ── 市场搜索条（屏幕上方） ─────────────────────────────────────
+// ── 市场搜索条（屏幕上方；横屏改用右侧常驻条里的那一份，见 ui/MarketSearch 与 SceneRails） ──
 function MarketTopBar() {
-  const loading = useStudio((s) => s.market.loading);
-  const [q, setQ] = useState("");
-  const { t } = useLingui();
-  function search() {
-    void useStudio.getState().marketSearch(q.trim());
-  }
   return (
     <div className="safe-top absolute inset-x-0 top-12 z-10 px-3">
       <div className="mx-auto flex max-w-md items-center gap-2 rounded-2xl bg-raised/95 px-3 py-2 shadow-lg ring-1 ring-white/10 backdrop-blur">
-        <span className="flex-none text-xs font-semibold text-slate-200"><Trans>🛒 市场</Trans></span>
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.nativeEvent.isComposing) search();
-          }}
-          placeholder={t`搜索：古风 / 侦探 / 场景…`}
-          className="min-w-0 flex-1 bg-transparent text-sm text-slate-100 outline-none placeholder:text-slate-500"
-        />
-        <button
-          onClick={search}
-          disabled={loading}
-          className="flex-none rounded-full bg-brand/85 px-3 py-1 text-xs font-semibold text-ink disabled:opacity-40"
-        >
-          {loading ? "…" : t`搜索`}
-        </button>
+        <MarketSearchField />
       </div>
       <div className="mt-1 text-center text-[10px] text-slate-500"><Trans>点桌上的卡放大查看 · 喜欢就收进卡组</Trans></div>
     </div>

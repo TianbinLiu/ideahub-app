@@ -8,23 +8,19 @@ import { FlowNode, useFlow } from "../flowStore";
 import { chosenProposal, composable, placeholderVisible, useStudio, Flight } from "../studioStore";
 import {
   CARD,
-  CHAIN,
-  COMPOSE_POS,
   DECK_CAM,
-  DECK_POS,
   LAND_CAM,
   FLOAT_Y,
-  LEFT_STACK,
-  MARKET,
-  marketSlot,
-  RIGHT_STACK,
   SHOW_PLAYER_BODY,
-  SPREAD,
-  TABLE,
   chainX,
   defaultCamFor,
   focusCam,
+  marketSlot,
+  sceneLayout,
 } from "./layout";
+// ★ 朝向判据只有一份（hooks/useIsLandscape）：桌子与卡位在横屏下换另一套（layout.sceneLayout），
+//   与 StudioPage 的宽布局壳、defaultCamFor 的机位选择读的是同一个 `(orientation: landscape)`。
+import { useIsLandscape } from "../../hooks/useIsLandscape";
 import { npcModelUrl } from "../quality";
 import {
   NPC_HEAD,
@@ -197,27 +193,31 @@ function camOk(c: unknown): c is { pos: number[]; look: number[] } {
   return ok3(v?.pos) && ok3(v?.look);
 }
 
-export function computeChain(path: FlowNode[], focusId?: string | null): ChainLayout {
+/** 节点链的窗口化布局。`land` 选横屏/竖屏两套卡位（layout.sceneLayout）——横屏一屏 7 张、竖屏 5 张，
+ *  窗口平移、两侧收起堆、占位卡位都跟着同一套常量走；调用点必须传**同一个判据**（useIsLandscape），
+ *  否则横屏上算出来的卡位会落在竖屏的 x 上（3D 里看不出来，投影窗的 ‹› 切段却会飞错位置）。 */
+export function computeChain(path: FlowNode[], focusId: string | null | undefined, land: boolean): ChainLayout {
+  const C = sceneLayout(land).chain;
   const ph = placeholderVisible(path);
   const total = path.length + (ph ? 1 : 0);
-  let start = Math.max(0, total - CHAIN.maxVisible);
+  let start = Math.max(0, total - C.maxVisible);
   if (focusId) {
     const fi = path.findIndex((n) => n.id === focusId);
-    if (fi >= 0 && (fi < start || fi >= start + CHAIN.maxVisible)) {
+    if (fi >= 0 && (fi < start || fi >= start + C.maxVisible)) {
       // 以聚焦节点为中心平移窗口（夹在链两端之间）
-      start = Math.min(Math.max(0, fi - Math.floor((CHAIN.maxVisible - 1) / 2)), Math.max(0, total - CHAIN.maxVisible));
+      start = Math.min(Math.max(0, fi - Math.floor((C.maxVisible - 1) / 2)), Math.max(0, total - C.maxVisible));
     }
   }
-  const end = start + CHAIN.maxVisible;
+  const end = start + C.maxVisible;
   return {
     items: path.map((node, i) => ({
       node,
-      x: i >= start && i < end ? chainX(i - start) : null,
+      x: i >= start && i < end ? chainX(land, i - start) : null,
       stack: i < start ? ("left" as const) : i >= end ? ("right" as const) : null,
       stackIndex: i,
     })),
     // 空白占位卡永远排在链尾：窗口没覆盖到链尾时它随尾段一起收进右堆（不渲染）
-    placeholderX: ph && path.length >= start && path.length < end ? chainX(path.length - start) : null,
+    placeholderX: ph && path.length >= start && path.length < end ? chainX(land, path.length - start) : null,
   };
 }
 
@@ -464,9 +464,11 @@ function CameraRig() {
 
 // ── 桌子与环境 ───────────────────────────────────────────────
 // ── 赌桌绒呢桌布：深绿毡面 + 噪点 + 金色印花（边框/庄家弧线/中央法阵/角花） ──
-function makeFeltCloth(): THREE.CanvasTexture {
+// 画布高度按桌面宽深比算：竖屏 16×7 → 2048×896，与第 3 步之前的写死值逐像素相同；
+// 横屏 22×9 → 2048×838，边框/庄家弧线/法阵/角花仍按画布比例画，换桌子时"中线两侧的比例"不用再手调。
+function makeFeltCloth(T: { w: number; d: number }): THREE.CanvasTexture {
   const W = 2048;
-  const H = 896;
+  const H = Math.round((W * T.d) / T.w);
   const canvas = document.createElement("canvas");
   canvas.width = W;
   canvas.height = H;
@@ -562,8 +564,8 @@ function makeFeltCloth(): THREE.CanvasTexture {
   return tex;
 }
 
-function TableCloth() {
-  const cloth = useMemo(() => makeFeltCloth(), []);
+function TableCloth({ T }: { T: { w: number; d: number } }) {
+  const cloth = useMemo(() => makeFeltCloth(T), [T]);
   const [nor, rough] = useLoader(THREE.TextureLoader, [
     "/models/study/tex/velour_velvet_nor.jpg",
     "/models/study/tex/velour_velvet_rough.jpg",
@@ -572,12 +574,13 @@ function TableCloth() {
     const mk = (t: THREE.Texture) => {
       const c = t.clone();
       c.wrapS = c.wrapT = THREE.RepeatWrapping;
-      c.repeat.set(7, 3);
+      // 贴图密度按桌面尺寸摊：竖屏 16×7 时是原来的 7×3（一个重复≈2.29×2.33 世界单位）
+      c.repeat.set((7 * T.w) / 16, (3 * T.d) / 7);
       c.needsUpdate = true;
       return c;
     };
     return { n: mk(nor), r: mk(rough) };
-  }, [nor, rough]);
+  }, [nor, rough, T]);
   useEffect(
     () => () => {
       cloth.dispose();
@@ -588,14 +591,15 @@ function TableCloth() {
   );
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.004, 0]}>
-      <planeGeometry args={[15.8, 6.85]} />
+      {/* 毡面比桌面小一圈（竖屏 15.8×6.85 = 16-0.2 / 7-0.15），四周露出木框 */}
+      <planeGeometry args={[T.w - 0.2, T.d - 0.15]} />
       <meshStandardMaterial map={cloth} normalMap={maps.n} roughnessMap={maps.r} />
     </mesh>
   );
 }
 
 // ── 皮革软包护栏（赌桌围边）：四边圆柱 + 四角圆球 ──────────────
-function TableRail() {
+function TableRail({ T }: { T: { w: number; d: number } }) {
   const [diff, nor, rough] = useLoader(THREE.TextureLoader, [
     "/models/study/tex/brown_leather_diff.jpg",
     "/models/study/tex/brown_leather_nor.jpg",
@@ -633,21 +637,21 @@ function TableRail() {
       {/* 只保留 NPC 侧长边护栏：玩家侧那根（z=+3.55）顶面高出桌毡 0.25，是玩家伏桌时
           胸部够不到桌面的物理屏障（blender-mcp 网格检测实证：胸部 356 顶点无一越过它，
           胸底正好压在护栏顶）。移除后近边只剩高 0.06 的木框，胸可真正落到桌面 */}
-      {[-TABLE.d / 2 - 0.05].map((z, i) => (
+      {[-T.d / 2 - 0.05].map((z, i) => (
         <mesh key={i} material={mat} position={[0, y, z]} rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[R, R, TABLE.w + 0.5, 14]} />
+          <cylinderGeometry args={[R, R, T.w + 0.5, 14]} />
         </mesh>
       ))}
-      {[-TABLE.w / 2 - 0.25, TABLE.w / 2 + 0.25].map((x, i) => (
+      {[-T.w / 2 - 0.25, T.w / 2 + 0.25].map((x, i) => (
         <mesh key={i} material={mat} position={[x, y, 0]} rotation={[Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[R, R, TABLE.d + 0.1, 14]} />
+          <cylinderGeometry args={[R, R, T.d + 0.1, 14]} />
         </mesh>
       ))}
       {[
-        [-TABLE.w / 2 - 0.25, -TABLE.d / 2 - 0.05],
-        [TABLE.w / 2 + 0.25, -TABLE.d / 2 - 0.05],
-        [-TABLE.w / 2 - 0.25, TABLE.d / 2 + 0.05],
-        [TABLE.w / 2 + 0.25, TABLE.d / 2 + 0.05],
+        [-T.w / 2 - 0.25, -T.d / 2 - 0.05],
+        [T.w / 2 + 0.25, -T.d / 2 - 0.05],
+        [-T.w / 2 - 0.25, T.d / 2 + 0.05],
+        [T.w / 2 + 0.25, T.d / 2 + 0.05],
       ].map(([x, z], i) => (
         <mesh key={i} material={mat} position={[x, y, z]}>
           <sphereGeometry args={[R, 12, 12]} />
@@ -658,56 +662,58 @@ function TableRail() {
 }
 
 function Table() {
+  // ★ 横屏/竖屏两套桌面尺寸（layout.sceneLayout）：横屏的 22×9 见 TABLE_LAND，竖屏的 16×7 一个数不动。
+  const T = sceneLayout(useIsLandscape()).table;
   return (
     <group>
       {/* 桌体（深胡桃木） */}
-      <mesh position={[0, -TABLE.thick / 2, 0]}>
-        <boxGeometry args={[TABLE.w, TABLE.thick, TABLE.d]} />
+      <mesh position={[0, -T.thick / 2, 0]}>
+        <boxGeometry args={[T.w, T.thick, T.d]} />
         <meshStandardMaterial color="#241a10" roughness={0.8} />
       </mesh>
-      <TableCloth />
-      <TableRail />
+      <TableCloth T={T} />
+      <TableRail T={T} />
       {/* 桌沿（木质外框） */}
       {[
-        [0, -TABLE.d / 2 - 0.14],
-        [0, TABLE.d / 2 + 0.14],
+        [0, -T.d / 2 - 0.14],
+        [0, T.d / 2 + 0.14],
       ].map(([x, z], i) => (
         <mesh key={i} position={[x, -0.06, z]}>
-          <boxGeometry args={[TABLE.w + 0.6, 0.24, 0.3]} />
+          <boxGeometry args={[T.w + 0.6, 0.24, 0.3]} />
           <meshStandardMaterial color="#2a1d10" roughness={0.65} />
         </mesh>
       ))}
-      {[-TABLE.w / 2 - 0.14, TABLE.w / 2 + 0.14].map((x, i) => (
+      {[-T.w / 2 - 0.14, T.w / 2 + 0.14].map((x, i) => (
         <mesh key={i} position={[x, -0.06, 0]}>
-          <boxGeometry args={[0.3, 0.24, TABLE.d + 0.6]} />
+          <boxGeometry args={[0.3, 0.24, T.d + 0.6]} />
           <meshStandardMaterial color="#2a1d10" roughness={0.65} />
         </mesh>
       ))}
       {/* 桌腿 */}
       {[
-        [-TABLE.w / 2 + 0.6, -TABLE.d / 2 + 0.5],
-        [TABLE.w / 2 - 0.6, -TABLE.d / 2 + 0.5],
-        [-TABLE.w / 2 + 0.6, TABLE.d / 2 - 0.5],
-        [TABLE.w / 2 - 0.6, TABLE.d / 2 - 0.5],
+        [-T.w / 2 + 0.6, -T.d / 2 + 0.5],
+        [T.w / 2 - 0.6, -T.d / 2 + 0.5],
+        [-T.w / 2 + 0.6, T.d / 2 - 0.5],
+        [T.w / 2 - 0.6, T.d / 2 - 0.5],
       ].map(([x, z], i) => (
         <mesh key={i} position={[x, -1.35, z]}>
           <boxGeometry args={[0.4, 2.1, 0.4]} />
           <meshStandardMaterial color="#20160c" />
         </mesh>
       ))}
-      <CenterLine />
+      <CenterLine w={T.w} />
     </group>
   );
 }
 
-function CenterLine() {
+function CenterLine({ w }: { w: number }) {
   const mat = useRef<THREE.MeshBasicMaterial>(null);
   useFrame(() => {
     if (mat.current) mat.current.opacity = 0.32 + 0.16 * Math.sin(performance.now() / 700);
   });
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.006, 0]}>
-      <planeGeometry args={[TABLE.w - 0.4, 0.07]} />
+      <planeGeometry args={[w - 0.4, 0.07]} />
       <meshBasicMaterial ref={mat} color="#67e8f9" transparent blending={THREE.AdditiveBlending} depthWrite={false} />
     </mesh>
   );
@@ -723,6 +729,8 @@ function CenterLine() {
 // 用户只能瞎试；现在铭牌副题随状态换文案，把前置条件说出来。
 function ComposePad() {
   const { t } = useLingui();
+  // 法阵摆在中线右端：横屏链尾卡在 2.34，法阵跟着挪到 3.0（layout.COMPOSE_POS_LAND 的注释）
+  const composePos = sceneLayout(useIsLandscape()).composePos;
   const nodes = useFlow((s) => s.nodes);
   const enabled = composable(nodes);
   // 亮不起来时要说清缺什么：末段还没挑方案，还是挑了没炼。以前一律写"先为当前段选定一个
@@ -788,7 +796,7 @@ function ComposePad() {
 
   return (
     <group
-      position={COMPOSE_POS}
+      position={composePos}
       onClick={(e) => {
         e.stopPropagation();
         // 不再一把梭合成整片：铺成工作流，去 /flow 逐段生成逐段确认
@@ -1044,6 +1052,10 @@ function DeckStack() {
   const { t } = useLingui();
   const deck = useStudio((s) => s.deck);
   const activeDeck = useStudio((s) => s.activeDeck);
+  // 横屏卡组堆往左让、离镜头更近（layout.DECK_POS_LAND 的注释）；卡面缩放跟节点链同一档
+  const L = sceneLayout(useIsLandscape());
+  const deckPos = L.deckPos;
+  const chainScale = L.chain.scale;
   const backMat = useMemo(
     () => new THREE.MeshBasicMaterial({ map: cardBackTexture(), transparent: true, side: THREE.DoubleSide }),
     []
@@ -1077,8 +1089,8 @@ function DeckStack() {
       {/* 卡组虚位标记（与节点链同一缩放档，桌面尺度统一） */}
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
-        position={[DECK_POS[0], 0.009, DECK_POS[2]]}
-        scale={CHAIN.scale}
+        position={[deckPos[0], 0.009, deckPos[2]]}
+        scale={chainScale}
         material={markerMat}
       >
         <planeGeometry args={[CARD.w * 1.1, CARD.h * 1.08]} />
@@ -1087,17 +1099,17 @@ function DeckStack() {
         <mesh
           key={i}
           rotation={[-Math.PI / 2, 0, ((i * 37) % 11) * 0.012 - 0.06]}
-          position={[DECK_POS[0], 0.012 + i * 0.014, DECK_POS[2]]}
-          scale={CHAIN.scale}
+          position={[deckPos[0], 0.012 + i * 0.014, deckPos[2]]}
+          scale={chainScale}
           material={backMat}
         >
           <planeGeometry args={[CARD.w, CARD.h]} />
         </mesh>
       ))}
       <mesh
-        position={[DECK_POS[0], 0.12, DECK_POS[2] - 0.62 * CHAIN.scale]}
+        position={[deckPos[0], 0.12, deckPos[2] - 0.62 * chainScale]}
         rotation={[-Math.PI / 2, 0, 0]}
-        scale={CHAIN.scale}
+        scale={chainScale}
         material={countMat}
       >
         <planeGeometry args={[1.1, 0.3]} />
@@ -1113,21 +1125,23 @@ function DeckSpread() {
   const deck = useStudio((s) => s.deck);
   const open = useStudio((s) => s.spreadOpen);
   const center = useStudio((s) => s.spreadCenter);
+  const L = sceneLayout(useIsLandscape());
+  const S = L.spread;
   if (!open || deck.length === 0) return null;
-  const start = Math.min(Math.max(0, center - 2), Math.max(0, deck.length - SPREAD.maxVisible));
-  const visible = deck.slice(start, start + SPREAD.maxVisible);
+  const start = Math.min(Math.max(0, center - 2), Math.max(0, deck.length - S.maxVisible));
+  const visible = deck.slice(start, start + S.maxVisible);
   return (
     <group>
       {visible.map((card, i) => {
         const idx = start + i;
         const isCenter = idx === center;
-        const x = SPREAD.centerX + (i - (visible.length - 1) / 2) * SPREAD.dx;
+        const x = S.centerX + (i - (visible.length - 1) / 2) * S.dx;
         return (
           <CardMesh
             key={card.id}
             tex={cardFaceTexture(card)}
-            from={DECK_POS}
-            target={[x, isCenter ? 0.16 : 0.04 + i * 0.012, SPREAD.z + (isCenter ? 0.1 : 0)]}
+            from={L.deckPos}
+            target={[x, isCenter ? 0.16 : 0.04 + i * 0.012, S.z + (isCenter ? 0.1 : 0)]}
             scale={isCenter ? 1.07 : 0.98}
             hoverLift
             onPointerDown={(e) => {
@@ -1153,8 +1167,11 @@ function DragLayer() {
   const nodes = useFlow((s) => s.nodes);
   const card = deck.find((c) => c.id === dragCardId) ?? null;
   const ghost = useRef<THREE.Group>(null);
+  // 拖拽落点/捕获平面都跟桌面与链走（横屏 22×9 / 7 张链）
+  const land = useIsLandscape();
+  const L = sceneLayout(land);
 
-  const phX = computeChain(nodes).placeholderX;
+  const phX = computeChain(nodes, null, land).placeholderX;
 
   useEffect(() => {
     if (!dragCardId) return;
@@ -1163,9 +1180,9 @@ function DragLayer() {
       const id = st.dragCardId;
       if (!id) return;
       const nearPlaceholder =
-        phX != null && Math.abs(dragState.x - phX) < 1.0 && Math.abs(dragState.z - CHAIN.rowZ) < 1.2;
+        phX != null && Math.abs(dragState.x - phX) < 1.0 && Math.abs(dragState.z - L.chain.rowZ) < 1.2;
       if (dragState.moved && nearPlaceholder && phX != null) {
-        const cam = focusCam(phX, CHAIN.rowZ);
+        const cam = focusCam(phX, L.chain.rowZ);
         st.dropOnPlaceholder(id, cam.pos, cam.look);
       } else if (!dragState.moved) {
         // 单击（没拖动）：编辑器开着=选入素材槽；否则打开卡片详情
@@ -1180,7 +1197,7 @@ function DragLayer() {
     };
     window.addEventListener("pointerup", onUp);
     return () => window.removeEventListener("pointerup", onUp);
-  }, [dragCardId, phX]);
+  }, [dragCardId, phX, L.chain.rowZ]);
 
   useFrame(() => {
     if (ghost.current) {
@@ -1202,7 +1219,7 @@ function DragLayer() {
           if (Math.hypot(e.point.x - dragState.startX, e.point.z - dragState.startZ) > 0.25) dragState.moved = true;
         }}
       >
-        <planeGeometry args={[TABLE.w + 6, TABLE.d + 6]} />
+        <planeGeometry args={[L.table.w + 6, L.table.d + 6]} />
         <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
       <group ref={ghost}>
@@ -1219,26 +1236,29 @@ function DragLayer() {
 function MarketFan() {
   const market = useStudio((s) => s.market);
   const detail = useStudio((s) => s.marketDetail);
+  // 横屏一页 8 张（2 排 × 4），竖屏 6 张（2 × 3）—— 摆位与分页必须是同一套常量
+  const land = useIsLandscape();
+  const M = sceneLayout(land).market;
   if (!market.open) return null;
-  // 只摆本页那 6 张。以前是把 searchMarket 返回的 8 张全铺出去——那 8 是
+  // 只摆本页那几张。以前是把 searchMarket 返回的 8 张全铺出去——那 8 是
   // "一屏摆得下几张"的旧口径，既切了卡又把另外 11 张种子卡藏了起来
-  const start = market.page * MARKET.perPage;
-  const page = market.items.slice(start, start + MARKET.perPage);
+  const start = market.page * M.perPage;
+  const page = market.items.slice(start, start + M.perPage);
   return (
     <group>
       {page.map((card, i) => {
-        const { x, z } = marketSlot(i, page.length);
-        const col = i % MARKET.perRow;
-        const rowCount = Math.min(MARKET.perRow, page.length - Math.floor(i / MARKET.perRow) * MARKET.perRow);
+        const { x, z } = marketSlot(land, i, page.length);
+        const col = i % M.perRow;
+        const rowCount = Math.min(M.perRow, page.length - Math.floor(i / M.perRow) * M.perRow);
         const cam = focusCam(x, z);
         return (
           <CardMesh
             key={card.id}
             tex={cardFaceTexture(card)}
             from={[0.9, 0.9, -3.2]}
-            target={[x, MARKET.lift + i * 0.004, z]}
+            target={[x, M.lift + i * 0.004, z]}
             rotZ={(col - (rowCount - 1) / 2) * -0.04}
-            scale={MARKET.scale}
+            scale={M.scale}
             hoverLift
             ring={detail?.id === card.id ? "#fbbf24" : null}
             onClick={(e) => {
@@ -1267,7 +1287,7 @@ function Beam({ x1, x2, z }: { x1: number; x2: number; z: number }) {
   );
 }
 
-function Placeholder({ x }: { x: number }) {
+function Placeholder({ x, rowZ, scale }: { x: number; rowZ: number; scale: number }) {
   const mat = useMemo(
     () => new THREE.MeshBasicMaterial({ map: placeholderTexture(), transparent: true, side: THREE.DoubleSide }),
     []
@@ -1289,12 +1309,12 @@ function Placeholder({ x }: { x: number }) {
     <mesh
       ref={ref}
       rotation={[-Math.PI / 2, 0, 0]}
-      position={[x, CARD.lift, CHAIN.rowZ]}
-      scale={CHAIN.scale}
+      position={[x, CARD.lift, rowZ]}
+      scale={scale}
       material={mat}
       onClick={(e) => {
         e.stopPropagation();
-        const cam = focusCam(x, CHAIN.rowZ);
+        const cam = focusCam(x, rowZ);
         useStudio.getState().focusPlaceholder(cam.pos, cam.look);
       }}
     >
@@ -1307,8 +1327,11 @@ function NodeChainView() {
   const nodes = useFlow((s) => s.nodes);
   const focus = useStudio((s) => s.focus);
   const projection = useStudio((s) => s.projection);
+  // 横屏 7 张 / 竖屏 5 张（layout.CHAIN_LAND）：窗口化、焦点跟随、左右收起堆都用同一套卡位
+  const land = useIsLandscape();
+  const L = sceneLayout(land);
   // 焦点跟随：聚焦节点保证平摊在窗口内（点堆中的卡时窗口平移过去）
-  const layout = computeChain(nodes, focus?.nodeId ?? null);
+  const layout = computeChain(nodes, focus?.nodeId ?? null, land);
   if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__chainDbg = layout;
   const visibleXs: number[] = [];
 
@@ -1322,21 +1345,21 @@ function NodeChainView() {
       // 左右收起堆：可点击——窗口平移让该节点平摊到桌面中区，镜头跟随聚焦
       const isLeft = stack === "left";
       const idx = isLeft ? leftCount++ : rightCount++;
-      const base = isLeft ? LEFT_STACK : RIGHT_STACK;
+      const base = isLeft ? L.leftStack : L.rightStack;
       cards.push(
         <CardMesh
           key={node.id}
           tex={tex}
           target={[base[0], 0.012 + idx * 0.02, base[2]]}
           rotZ={idx * 0.05 - 0.04}
-          scale={CHAIN.scale * 0.94}
+          scale={L.chain.scale * 0.94}
           onClick={(e) => {
             e.stopPropagation();
             const st = useStudio.getState();
             if (st.projection) return; // 投影开着时与平摊卡一致：不抢焦
-            const nx = computeChain(useFlow.getState().nodes, node.id).items.find((it) => it.node.id === node.id)?.x;
+            const nx = computeChain(useFlow.getState().nodes, node.id, land).items.find((it) => it.node.id === node.id)?.x;
             if (nx == null) return;
-            const cam = focusCam(nx, CHAIN.rowZ);
+            const cam = focusCam(nx, L.chain.rowZ);
             st.focusNode(node.id, cam.pos, cam.look);
           }}
         />
@@ -1351,14 +1374,14 @@ function NodeChainView() {
       <CardMesh
         key={node.id}
         tex={tex}
-        target={[x, y, CHAIN.rowZ]}
-        scale={CHAIN.scale}
+        target={[x, y, L.chain.rowZ]}
+        scale={L.chain.scale}
         hoverLift={!floating}
         ring={floating ? "#67e8f9" : null}
         onClick={(e) => {
           e.stopPropagation();
           const st = useStudio.getState();
-          const cam = focusCam(x, CHAIN.rowZ);
+          const cam = focusCam(x, L.chain.rowZ);
           st.focusNode(node.id, cam.pos, cam.look);
         }}
       />
@@ -1371,14 +1394,16 @@ function NodeChainView() {
       {visibleXs.map((x, i) => {
         const next = i + 1 < visibleXs.length ? visibleXs[i + 1] : layout.placeholderX;
         if (next == null) return null;
-        return <Beam key={i} x1={x} x2={next} z={CHAIN.rowZ} />;
+        return <Beam key={i} x1={x} x2={next} z={L.chain.rowZ} />;
       })}
-      {leftCount > 0 && visibleXs.length > 0 && <Beam x1={LEFT_STACK[0]} x2={visibleXs[0]} z={CHAIN.rowZ} />}
+      {leftCount > 0 && visibleXs.length > 0 && <Beam x1={L.leftStack[0]} x2={visibleXs[0]} z={L.chain.rowZ} />}
       {rightCount > 0 && visibleXs.length > 0 && (
-        <Beam x1={visibleXs[visibleXs.length - 1]} x2={RIGHT_STACK[0]} z={CHAIN.rowZ} />
+        <Beam x1={visibleXs[visibleXs.length - 1]} x2={L.rightStack[0]} z={L.chain.rowZ} />
       )}
       {cards}
-      {layout.placeholderX != null && <Placeholder x={layout.placeholderX} />}
+      {layout.placeholderX != null && (
+        <Placeholder x={layout.placeholderX} rowZ={L.chain.rowZ} scale={L.chain.scale} />
+      )}
     </group>
   );
 }
@@ -1389,10 +1414,11 @@ function FlightCard({ f }: { f: Flight }) {
   const landed = useRef(false);
   const start = useRef<number | null>(null);
   const fromV = useMemo(() => new THREE.Vector3(...f.from), [f]);
+  const deckPos = sceneLayout(useIsLandscape()).deckPos;
   const toV = useMemo(() => {
     const len = useStudio.getState().deck.length;
-    return new THREE.Vector3(DECK_POS[0], 0.06 + len * 0.014, DECK_POS[2]);
-  }, []);
+    return new THREE.Vector3(deckPos[0], 0.06 + len * 0.014, deckPos[2]);
+  }, [deckPos]);
   useFrame(({ clock }) => {
     if (!group.current || landed.current) return;
     if (start.current == null) start.current = clock.elapsedTime + f.delay;
@@ -1501,6 +1527,8 @@ function DialogTableCards() {
 // ── 空白桌面点击捕获：聚焦且无投影时，点卡片之外拉远回默认机位 ──
 function TableCatcher() {
   const { camera, gl } = useThree();
+  // 空白桌面的点击平面跟桌子大小走：横屏 22×9，竖屏 16×7（点击捕获范围别比桌面小）
+  const T = sceneLayout(useIsLandscape()).table;
   // 自由视角手势状态：首指必须落在空白桌面（r3f 命中本 mesh 才回调=天然的"非互动点"闸门），
   // 第二指从任意位置计入（捏合缩放）；move/up 用 window 监听避免指针滑出平面丢事件
   // moved = 本次手势的累计位移（像素）。**click 护栏必须自己记**：R3F 的 onClick 判据是
@@ -1642,7 +1670,7 @@ function TableCatcher() {
         useStudio.getState().unfocus();
       }}
     >
-      <planeGeometry args={[TABLE.w, TABLE.d]} />
+      <planeGeometry args={[T.w, T.d]} />
       <meshBasicMaterial transparent opacity={0} depthWrite={false} />
     </mesh>
   );

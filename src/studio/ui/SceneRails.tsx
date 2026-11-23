@@ -10,8 +10,9 @@
 //   本仓那条「永远点不动的选项」规矩同样适用于灰着的假面板。市场是真能点开的，所以先摆它。
 import type { ReactNode } from "react";
 import { Trans } from "@lingui/react/macro";
-import { MARKET } from "../scene/layout";
+import { sceneLayout } from "../scene/layout";
 import { useStudio } from "../studioStore";
+import { MarketSearchField } from "./MarketSearch";
 
 /** 两条常驻条的共用外框：宽度按窗口比例给（竖过来就没它了），窄屏也不低于 8.5rem 免得字折成两行 */
 function Rail({ side, children }: { side: "left" | "right"; children: ReactNode }) {
@@ -94,6 +95,8 @@ export function MarketRail() {
   const marketOpen = useStudio((s) => s.market.open);
   const count = useStudio((s) => s.market.items.length);
   const page = useStudio((s) => s.market.page);
+  // 右栏只在横屏挂，所以这里读到的就是横屏那套分页（一页 8 张）
+  const M = sceneLayout(true).market;
   return (
     <Rail side="right">
       <RailTitle count={marketOpen ? count : undefined}>
@@ -101,13 +104,18 @@ export function MarketRail() {
       </RailTitle>
       {marketOpen ? (
         <>
+          {/* ★ 市场搜索条在这里而不是屏幕上沿（G1 第 3 步）：宽布局里市场就在右栏，
+              搜索跟着进来；竖屏那一份仍在 NpcDialog 的屏幕上方（同一份 MarketSearchField） */}
+          <div className="flex items-center gap-1.5 rounded-lg bg-raised/90 px-2 py-1.5 ring-1 ring-white/10">
+            <MarketSearchField compact />
+          </div>
           <RailBtn onClick={() => useStudio.getState().closeMarket()}>
             <Trans>‹ 收起市场</Trans>
           </RailBtn>
           <p className="px-1 text-[10px] leading-relaxed text-slate-400">
-            {count > MARKET.perPage ? (
+            {count > M.perPage ? (
               <Trans>
-                第 {page + 1} / {Math.ceil(count / MARKET.perPage)} 页 · 翻页用桌面两侧的箭头
+                第 {page + 1} / {Math.ceil(count / M.perPage)} 页 · 翻页用桌面两侧的箭头
               </Trans>
             ) : (
               <Trans>点桌上的市场卡放大查看，喜欢就收进卡组</Trans>
