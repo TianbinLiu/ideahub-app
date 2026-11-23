@@ -18,8 +18,11 @@ import { MarketSearchField } from "./MarketSearch";
 function Rail({ side, children }: { side: "left" | "right"; children: ReactNode }) {
   return (
     <aside
-      // safe-area：横屏时刘海/挖孔跑到**左右两侧**，这两条正好压在边上
-      className={`flex h-full w-[15vw] min-w-[8.5rem] max-w-[13rem] flex-none flex-col gap-2 overflow-y-auto rounded-xl bg-panel/55 px-2 py-2.5 ring-1 ring-white/10 backdrop-blur ${
+      // safe-area：横屏时刘海/挖孔跑到**左右两侧**，这两条正好压在边上；顶部要躲状态栏
+      // （真机 3C15CJ00C8V00000 实测：没这道 padding 时「卡组 / 市场」两个标题正好压在
+      //  状态栏的时间与电量图标底下）。`safe-top` = env(safe-area-inset-top) + 10px，
+      //  桌面浏览器 inset 为 0 → 与原来的 py-2.5 一个数。
+      className={`safe-top flex h-full w-[15vw] min-w-[8.5rem] max-w-[13rem] flex-none flex-col gap-2 overflow-y-auto rounded-xl bg-panel/55 px-2 pb-2.5 ring-1 ring-white/10 backdrop-blur ${
         side === "left" ? "pl-[env(safe-area-inset-left,0px)]" : "pr-[env(safe-area-inset-right,0px)]"
       }`}
     >
