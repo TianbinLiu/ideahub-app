@@ -31,8 +31,8 @@
  *   而回落得在规则层 / 翻译层 / 界面三处各写一份 —— 正是铁律六要治的形状。
  * ★ 这一层**不读** pad 价目 / 不收钱：报价与真扣都从 `node.videoTier` 这一个 id 出发（flowStore.nodeCost / genNode 同一把尺）。
  */
-import { preferredTierIdOf } from "../../data/account";
-import { MODEL_LEVEL_TIERS } from "./rules";
+import { payingNow, preferredTierIdOf } from "../../data/account";
+import { MODEL_LEVEL_TIERS, type ModelGate } from "./rules";
 import type { GameGenerationTier, GamePlayer, ModelLevel } from "./types";
 
 /**
@@ -64,10 +64,38 @@ export function genTierIdOfLevel(level: ModelLevel): string {
 }
 
 /**
+ * 「这台设备上的这个账号能不能升档」——**唯一判据**（任务 A，2026-11-23 主人拍板：免费账号只能停在 L1）。
+ *
+ * ★ 只问 `account.payingNow()`（套餐价 > 0 **或**钱包回包顶层的 `paid`；管理员在里面豁免），
+ *   与 `tierBlockReason` 共用同一个"付没付过钱"的判据 —— 但**不能**直接拿 `tierBlockReason(hd)` 当会员判据：
+ *   它把"模型停用 / 这个地区给不出这一档 / 服务端不支持"也一并算进返回值里，而那些与套餐无关。
+ *   只给 MiniMax 的地区里 `hd`（Seedance）本来就不摆，靠它会**把付过钱的人锁死在 L1**。
+ * ★ 「还不知道」（`payingNow()` 回 null：远端钱包镜像没回来 / 未登录）**按能升放行**，
+ *   与 `tierBlockReason` / `canAfford` 同一个乐观口径（不能因为镜像慢半拍就把付费用户的升级线摘掉）；
+ *   真是免费用户的话服务端在出片那一发之前就拒（403 `PLAN_REQUIRED`，不扣视频的钱）。
+ * ★ 这个函数被三处读、都读同一份：`view.eventViewOf`（摆哪些选项）、`store.chooseEvent`（真扣钱）、
+ *   `genTierIdOf`（这一发真发出去的档位）。三处各写一遍就会出现"界面上摆着 15 金的 L3、
+ *   点了才说不行"，或者"界面写着 L2、发出去是 L1"——两个方向都是钱上的假话。
+ */
+export function modelUpgradeGate(): ModelGate {
+  return { upgrade: payingNow() !== false };
+}
+
+/**
+ * 这一局**真正生效**的等级（免费账号停在 L1）。
+ * ★ 为什么还要夹一道：玩家可能"付费时升到 L3、这局之前套餐过期了"（或者开发夹具直接塞了个 L3）——
+ *   界面上写 L3、发出去 L1 一样是假话，所以出片读的档位与 rules.generationTierOf 同一个 gate。
+ */
+export function effectiveModelLevel(level: ModelLevel): ModelLevel {
+  return modelUpgradeGate().upgrade ? level : MODEL_LEVEL_TIERS[1].level;
+}
+
+/**
  * 这个玩家这一局出片落在哪个 tierId（L1 → `draft-mm` / L2 → `hd-mm` / L3 → `ultra-mm`，给不出时各自回落）。
  * ★ 语义从 rules 来 —— 这里**不另判一次等级**（原来 gen.gameTierOf 抄了一份
  *   `modelLevel === 3 ? … : …`，规则层改口径时那份不会跟着变）。
+ * ★ 免费账号在这里落到 L1（`draft-mm`）：见 modelUpgradeGate。
  */
 export function genTierIdOf(player: Pick<GamePlayer, "modelLevel">): string {
-  return genTierIdOfLevel(player.modelLevel);
+  return genTierIdOfLevel(effectiveModelLevel(player.modelLevel));
 }

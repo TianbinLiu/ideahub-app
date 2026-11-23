@@ -1,13 +1,16 @@
-/**
+﻿/**
  * 对局界面读的那一份视图模型（G2 第二块：把规则引擎接到工坊界面上）。
  *
  * ★ 这里**一条规则都不算**：利息、档位、背包占用、类型上限、连胜口径全部问 ./rules
  *   （铁律六：同一件事只有一处实现）。这个文件存在的理由是"三个面板要读同一份数" ——
  *   HUD、商店、背包各自在组件里 find player + incomeFor 一遍，就是三份会各自漂的派生逻辑。
  * ★ 纯函数、不碰 store / React：G3 的回合循环、G4 的出片翻译层也要读同一份视图时直接复用。
+ *   （唯一的例外是"这个账号能不能升档"——那是 `genTier.modelUpgradeGate()` 问 data/account 的一句话，
+ *    不是规则；在这里问一次，界面就不必各自去问，也不会有"摆着能升、点了才拒"的两份真相。）
  * ★ 规则层只回事实、不回"L1 草稿"这类中文（见 rules.CARD_LIBRARY 的 ★），名字与档位说法在
  *   labels.ts，失败原因的人话在 reasons.ts —— 三个文件各管一段，别混。
  */
+import { modelUpgradeGate } from "./genTier";
 import {
   bagUsage,
   entryById,
@@ -253,7 +256,8 @@ export function eventViewOf(state: GameState, playerId: string): EventView | nul
   const player = state.players.find((candidate) => candidate.id === playerId);
   if (!event || !player) return null;
   // eventOptionsFor 会在"已经选过"时拒 —— 这时选项就是空的，界面照样能把事件摆出来（只是不能再点）
-  const options = eventOptionsFor(state, playerId);
+  // ★ gate 与 store.chooseEvent / 出片档位是同一个（免费账号看不到 L2 / L3 的升级项，见 rules.ModelGate）
+  const options = eventOptionsFor(state, playerId, modelUpgradeGate());
   return {
     event,
     options: options.ok ? options.options : [],

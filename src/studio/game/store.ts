@@ -44,6 +44,7 @@ import {
 } from "./rules";
 import { aiEventChoices, openRound, playOutAiOnly, startMatch, toCreation, toScreening, toVoting } from "./phases";
 import { aiPromptPool } from "./labels";
+import { modelUpgradeGate } from "./genTier";
 import type { GameCard, GameState, RoundSettlement, RoundTally, Rng, TableSlot } from "./types";
 
 /** 本地玩家的座位 id（单机版的"我"；G5 联机时换成服务端下发的 playerId） */
@@ -611,7 +612,9 @@ export const useGame = create<GameStore>((set, get) => {
     chooseEvent: (optionId) => {
       const { state, meId } = get();
       if (!state) return;
-      const chosen = applyEventChoice(state, meId, optionId, rng);
+      // gate 与 view.eventViewOf（摆哪些选项）/ genTier.genTierIdOf（发哪一档）同一个：
+      // 免费账号的 L2 / L3 升级项既摆不出来、也扣不动钱（见 rules.ModelGate）
+      const chosen = applyEventChoice(state, meId, optionId, rng, modelUpgradeGate());
       if (!chosen.ok) {
         fail(chosen);
         return;
