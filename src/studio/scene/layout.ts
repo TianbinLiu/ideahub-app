@@ -1,5 +1,7 @@
 // 桌面世界坐标约定：桌面顶面 y=0；用户侧 z>0，NPC 侧 z<0；中线沿 x 轴。
-// 竖屏优先：俯视机位，画面内只有双方的手与桌面（NPC 躯干在画外）。
+// ★ G1 起**横屏优先**（docs/g1-scene-plan.md §2）：进工坊自动横屏，默认机位是能看全 NPC 的落点机位
+//   （LAND_CAM）；竖屏窗口（浏览器 dev / ROM 拒绝转屏）退回俯视的 DEFAULT_CAM，见 defaultCamFor。
+//   下面那组卡位常量仍是**竖屏时代量出来的**，横屏那套等 G1 第 3 步（桌子加宽）一起重算。
 export const TABLE = { w: 16, d: 7, thick: 0.35 };
 
 /** ★ 工坊 3D 场景里挂不挂「玩家自己」那具人偶（`PlayerArms`：手臂/上身）。
@@ -14,13 +16,48 @@ export const SHOW_PLAYER_BODY = false;
 
 export const CARD = { w: 1.1, h: 1.65, lift: 0.02 };
 
-/** 旧的俯视机位。**2026-11-22 起它重新成为工坊的默认机位**：G1 施工单第 1 步摘掉玩家人偶，
- *  相机不再按玩家头骨求值，默认机位退回这一台（见 TableScene 的 FIXED_DEFAULT_CAM）。
- *  页面别处还拿它当 Canvas 的初始 camera 与 RIG_LOOK 的初值。 */
+/** 俯视机位：**竖屏窗口的兜底默认机位**。
+ *  它是竖屏时代的默认相机（俯视整张桌子），G1 施工单第 1 步摘掉玩家人偶后曾短暂独占默认机位，
+ *  第 2 步起让位给 `LAND_CAM` —— 但在竖屏窗口里它仍是唯一能一屏看全的机位（原因见 `defaultCamFor`）。 */
 export const DEFAULT_CAM: { pos: [number, number, number]; look: [number, number, number] } = {
   pos: [0, 9.8, 3.0],
   look: [0, 0, 0.25],
 };
+
+/** ★ 横屏的**落点机位**（G1 施工单 docs/g1-scene-plan.md §4 的终点机位，第 2 步先拿它当默认机位用）。
+ *
+ *  为什么是这一台（数值是把这个场景的坐标按 fov 50 投影到屏幕算出来的，不是估的）：
+ *  · **能看全铸卡师**：DEFAULT_CAM 那台俯视把她的头顶压到画面 **y=1.4%** —— 顶栏一盖就"只露胸以下"
+ *    （第 1 步报告里那个坑就是它）。这一台：头顶 y=26%、下巴 30%、搭在桌沿的手 36%，
+ *    头离上缘还有四分之一屏，横屏 3:2 / 16:9 / 20:9 几乎不变（y 只与垂直 fov 有关）。
+ *  · **卡组堆还在画面里、点得到**：卡组堆（DECK_POS，z=2.75）落 x 20~38% / y 67~80%（横屏各比例都量过），
+ *    既不贴屏幕底边（系统手势条那一带），也没有跑到相机背后 —— 上一轮试 `NPC_CAM`（z=2.45）就栽在这里。
+ *  · **市场和节点链一起在框里**：市场两排（z=-1.05 / -2.2）x 41~59% / y 40~49%，
+ *    节点链 5 张 + 左右收起堆 x 24~76% / y 53~61%，法阵（COMPOSE_POS）在 (60,51)% 附近。
+ *  · 比施工单写的 `pos [0,4.2,6.2] / look [0,0.2,-1.2]` **往后 1.2、压低 0.8**：那一组算下来卡组堆正好落在
+ *    y 84~104% —— 近侧一半在画外，手机上还压在系统手势条上。往前推也试过（z 6.4~6.8、y 3.8~4.2），
+ *    卡组堆会跟着顶到 y≈90% 以上，所以退这一档。第 4 步的入场动画就落在这一台上。 */
+export const LAND_CAM: { pos: [number, number, number]; look: [number, number, number] } = {
+  pos: [0, 3.4, 7.4],
+  look: [0, -0.2, -0.8],
+};
+
+/** 工坊的默认机位：**横屏用落点机位，竖屏退回俯视兜底**。
+ *
+ *  ★ 竖屏为什么不能直接用 `LAND_CAM`：竖屏（aspect 0.46）水平视野只有 ±12°，而卡组堆在水平 23.5° 处
+ *    （x=-1.5 / z=2.75，相机在 z=6.2 那一带）—— 它会被甩出画面左侧。卡组堆是 `openDeckView` 的
+ *    **唯一入口**（TableScene 里那颗 onClick），点不到就再也打不开卡组窗、摆不上卡。
+ *    竖屏窗口什么时候会出现：浏览器 `npm run dev`（原生锁只装在手机上）、以及个别 ROM 拒绝
+ *    `setRequestedOrientation` 的情况。这条退路保证那两种情况下桌面还是能用的。
+ *  ★ 判据**只在这里**（TableScene 每帧、StudioPage 首帧都调它）：两处各写一遍 aspect 判断，
+ *    迟早一处改成 1.0 一处改成 0.62，表现就是"转屏之后镜头对不上"。
+ *  ★ 用画布宽高比而不是 `innerWidth > innerHeight`：宽高比就是相机自己那个 aspect，
+ *    横屏布局两侧的常驻条把画布挤窄之后，这里跟着变窄的也还是它。 */
+export function defaultCamFor(aspect: number): { pos: [number, number, number]; look: [number, number, number] } {
+  // 1.0 起算横屏：正方形（aspect=1）时卡组堆仍在 x≈22%、市场也在框里，两种机位都站得住，
+  // 这里取"正方形算横屏"——毕竟此时横屏那台给的构图更接近玩家真正看到的桌子。
+  return aspect >= 1 ? LAND_CAM : DEFAULT_CAM;
+}
 
 /** 聚焦某张桌面卡时的拉近机位：卡片落在画面下部 1/3（上方留给投影窗与光束） */
 export function focusCam(x: number, z: number): { pos: [number, number, number]; look: [number, number, number] } {

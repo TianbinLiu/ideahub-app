@@ -492,6 +492,7 @@ msgid "‹ 换一种做法"
 msgstr "‹ Pick a different route"
 
 #: src/studio/ui/NpcDialog.tsx
+#: src/studio/ui/SceneRails.tsx
 msgid "‹ 收起市场"
 msgstr "‹ Close market"
 
@@ -4538,6 +4539,7 @@ msgid "🛒 方案市场"
 msgstr "🛒 Scheme market"
 
 #: src/studio/ui/NpcDialog.tsx
+#: src/studio/ui/SceneRails.tsx
 msgid "🛒 逛市场"
 msgstr "🛒 Browse market"
 
@@ -10280,6 +10282,7 @@ msgstr "Type"
 #: src/pages/WorkshopMinePage.tsx
 #: src/pages/WorkshopPage.tsx
 #: src/studio/ui/projection.tsx
+#: src/studio/ui/SceneRails.tsx
 msgid "卡组"
 msgstr "Decks"
 
@@ -10345,6 +10348,10 @@ msgstr "Deck details"
 #: src/data/account.ts
 msgid "卡组还没同步到服务器，请稍后再试"
 msgstr "This deck hasn't synced to the server yet. Try again later"
+
+#: src/studio/ui/SceneRails.tsx
+msgid "卡组还空着——把素材交给铸卡师，或者去右边逛市场。"
+msgstr "The deck is empty — hand your material to the card smith, or browse the market on the right"
 
 #: src/components/VideoCardAnnotator.tsx
 #~ msgid "卡铸好了，但「火山引擎适用」没存住（本机存储写入失败）——去卡片详情页再勾一次。"
@@ -14248,6 +14255,7 @@ msgid "已驳回"
 msgstr "Dismissed"
 
 #: src/pages/SupportModelsPage.tsx
+#: src/studio/ui/SceneRails.tsx
 msgid "市场"
 msgstr "Market"
 
@@ -15594,6 +15602,10 @@ msgstr "Fusing the composition into the opening frame…"
 msgid "把样片升成 1080p 成片（{finSec} 秒，画面、动作、声音都照样片）…"
 msgstr "Upgrading the preview draft to a 1080p video ({finSec} s; the frames, motion and sound all follow the draft)…"
 
+#: src/studio/ui/SceneRails.tsx
+#~ msgid "把现成的卡摊到桌上"
+#~ msgstr "Lay ready-made cards out on the table"
+
 #: src/pages/SupportCreatePage.tsx
 msgid "把自己的课件交给 AI，做一位按你的材料讲课的老师，在 App 里上课；勾了「同时发布为启梦人格」的老师还会开口说话。"
 msgstr "Hand your course material to the AI to make a teacher who teaches from it, and take classes in the app; teachers with “Also publish as a Qimeng persona” ticked can speak too."
@@ -16869,6 +16881,10 @@ msgstr "Rock"
 msgid "摇篮曲"
 msgstr "Lullaby"
 
+#: src/studio/ui/SceneRails.tsx
+msgid "摊开在桌上"
+msgstr "Spread them out"
+
 #: src/studio/ui/projection.tsx
 msgid "摘掉"
 msgstr "Detach"
@@ -17068,6 +17084,10 @@ msgstr "Close market"
 #: src/components/FeedActionSheet.tsx
 msgid "收起按钮和文字"
 msgstr "Hide buttons and text"
+
+#: src/studio/ui/SceneRails.tsx
+msgid "收起摊开排"
+msgstr "Tuck the spread away"
 
 #: src/studio/studioStore.ts
 msgid "收起方案"
@@ -21505,8 +21525,13 @@ msgid "点桌上的卡放大查看 · 喜欢就收进卡组"
 msgstr "Tap a card on the table to enlarge it · add the ones you like to your deck"
 
 #: src/studio/StudioPage.tsx
+#: src/studio/ui/SceneRails.tsx
 msgid "点桌上的市场卡放大查看，喜欢就收进卡组"
 msgstr "Tap a market card on the table to enlarge it; add the ones you like to your deck"
+
+#: src/studio/ui/SceneRails.tsx
+#~ msgid "点桌面的卡组堆也可以"
+#~ msgstr "You can also tap the deck stack on the table"
 
 #: src/studio/StudioPage.tsx
 msgid "点虚线卡位延展下一段 · 点亮法阵去剪辑成片"
@@ -23967,6 +23992,12 @@ msgstr "Step {0} / {1}"
 #~ msgid "第 {0} / {1} 步 · {stepLabel}"
 #~ msgstr "Step {0} of {1} · {stepLabel}"
 
+#. placeholder {0}: page + 1
+#. placeholder {1}: Math.ceil(count / MARKET.perPage)
+#: src/studio/ui/SceneRails.tsx
+msgid "第 {0} / {1} 页 · 翻页用桌面两侧的箭头"
+msgstr "Page {0} / {1} · turn pages with the arrows on either side of the table"
+
 #. placeholder {0}: i + 1
 #: src/data/promptSchemes.ts
 msgid "第 {0} 个图位还没起名字（这个名字会显示在卡片详情页上）"
@@ -25515,6 +25546,10 @@ msgstr "The website has more"
 #: src/pages/CreatePage.tsx
 msgid "翻到{otherTitle}"
 msgstr "Flip to {otherTitle}"
+
+#: src/studio/ui/SceneRails.tsx
+msgid "翻开卡组"
+msgstr "Open decks"
 
 #: src/pages/tutor/TutorNewPage.tsx
 #: src/pages/tutor/TutorRunPage.tsx

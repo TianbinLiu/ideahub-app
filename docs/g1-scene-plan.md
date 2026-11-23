@@ -43,6 +43,26 @@
 - **B. 伪横屏**（CSS 旋转 90°）：不推荐 —— 手势、拖拽层、WebView 的触摸坐标全要对齐旋转，
   坑比 A 多得多。
 
+> **落地记录（2026-11-22，第 2 步）**：走的是 **A（真横屏，原生锁）** ——
+> `@capacitor/screen-orientation@8.0.1` **本来就在 package.json 里**，且 `android/` 的
+> `capacitor.plugins.json` / `capacitor.settings.gradle` / `app/capacitor.build.gradle` 三处都已注册
+> （2026-11-22 查实），所以**不需要新装插件、不需要 `cap sync`**，只改了 Web 侧的那一个主人：
+> `hooks/useOrientationLock` 把 `/studio` 从"放开方向（`unlock()`）"换成"锁 `landscape`"，
+> 出工坊照旧锁回 `portrait`。浏览器（`Capacitor.isNativePlatform()` 为假）不碰方向 ——
+> `npm run dev` 里把窗口拖成横的，宽布局自己按 `(orientation: landscape)`（`hooks/useIsLandscape`）切。
+>
+> · **aspect**：画布尺寸/aspect 本来就跟着**容器**走（r3f 9.6.1 用 react-use-measure 量容器 →
+>   `updateCamera` 里 `camera.aspect = w/h` + `updateProjectionMatrix`），所以这一环不用写代码；
+>   第 2 步只把画布与浮层收进中间那一层「舞台」div，让两条常驻条**占宽**而不是盖在画布上。
+> · **默认机位**：横屏用 `layout.LAND_CAM`（§4 的落点，微调过：卡组堆不能贴底），竖屏窗口退回
+>   `DEFAULT_CAM` —— 判据在 `layout.defaultCamFor(aspect)` 一处，取景数据写在那条常量的注释里。
+> · **宽布局壳**：`studio/ui/SceneRails.tsx`，左"卡组"（翻开 / 摊开）、右"市场"（逛 / 收起）。
+>   两个键都只是在调桌上已有的 action（`openDeckView` / `toggleSpread` / `openMarket` / `closeMarket`），
+>   不新增玩法；道具栏留给 G2（那时才有买卡/装备），**不摆点不动的假面板**。
+> · ⚠ 已知：工作流画布的「⟳ 转横屏 / ↩ 回竖屏」键走同一个主人，工坊里已是横屏，「回竖屏」那一半
+>   在工坊里没有效果（`/flow` 那一页照旧有效）。要给它真正的竖屏权得把 `requestLandscape` 做成三态，
+>   留给后面一并处理。
+
 ## 3. 桌子重做（宽度按横屏比例）
 
 - `layout.ts` 加一组**横屏常量**（不要改竖屏那套，竖屏还在用）：
