@@ -582,6 +582,69 @@ const source = fs.readFileSync(modPath, "utf8");
   eq("模型等级整局保留（§2.3b）", find(nextRound, "p1").modelLevel, 3);
 }
 
+// ────────────────────────────── 6b. 免费账号只能停在 L1（任务 A，2026-11-23 主人拍板） ──────────────────────────────
+//
+// 判据在 data/account.payingNow（谁付过钱），规则层只收一个 `ModelGate`（见 rules.ModelGate 的 ★）。
+// ★ 反例为什么必须是反例：免费账号升到 L2/L3 之后，出片那一发在服务端是 403 PLAN_REQUIRED
+//   （L2/L3 在档位表里都是会员档），而**出片前补画的设定帧已经各自结算过了** —— 玩家花 8 / 15 金
+//   买到一个点了必失败的档位，界面上还写着"高清"。所以升级项必须整条不出现，真发出去的档位也必须夹回 L1。
+{
+  const FREE = { upgrade: false };
+  const PAID = { upgrade: true };
+  const event = R.gameEventById("model-arms-race");
+  const p1 = basePlayer();
+  const ids = (list) => list.map((o) => o.id);
+  /** 事件阶段的夹具（与上面第 6 节那个 at 同一形状，不跨块共用变量） */
+  const at = (playerPatch = {}, seed = 61) => {
+    const match = newMatch(seed);
+    const state = withPlayer(
+      { ...match.state, phase: "event", currentEventId: "model-arms-race", eventPicks: {} },
+      "p1",
+      playerPatch,
+    );
+    return { state, rng: match.rng };
+  };
+
+  // 付费账号（= 今天的形状）：两条升级线照旧按等级与连胜出现
+  eq("付费账号 L1 能看到 8 金的 L2", ids(R.optionsForPlayer(p1, event, PAID)), ["upgrade-draft", "half-next", "free-gold"]);
+  eq("付费账号能拿到 L2 的报价", R.modelUpgradeOffer(p1, PAID), { level: 2, cost: 8 });
+  // ★ 反面：免费账号看到 L2 选项 = 他花 8 金买一个到出片才 403 的档位。
+  eq("免费账号看不到 L2 升级项（只剩后两条）", ids(R.optionsForPlayer(p1, event, FREE)), ["half-next", "free-gold"]);
+  eq("免费账号的 modelUpgradeOffer 是 null", R.modelUpgradeOffer(p1, FREE), null);
+  eq("免费账号 L2+3 连胜也看不到 L3", ids(R.optionsForPlayer({ ...p1, modelLevel: 2, winStreak: 3 }, event, FREE)), ["half-next", "free-gold"]);
+  eq("免费账号 modelUpgradeOffer 连 L3 也不给", R.modelUpgradeOffer({ ...p1, modelLevel: 2, winStreak: 3 }, FREE), null);
+
+  // 形态：免费账号点不着（与"界面摆不摆"两条独立的闸，别只靠界面）
+  const free = at({ gold: 20 });
+  const before = show(free.state);
+  rejects("免费账号直接买 L2（绕过界面）", R.applyEventChoice(free.state, "p1", "upgrade-draft", free.rng, FREE), "option-unavailable");
+  unchanged("被拦下的升级不改状态", free.state, JSON.parse(before));
+  const paidTry = at({ gold: 20 });
+  const paidUp = must("付费账号同一发能买 L2", R.applyEventChoice(paidTry.state, "p1", "upgrade-draft", paidTry.rng, PAID));
+  eq("付费账号升完是 L2", find(paidUp.state, "p1").modelLevel, 2);
+
+  // 出片档位：同一个 gate 夹回 L1（UI 写什么、发出去就是什么）
+  eq("免费账号的有效档位是 L1 草稿 480p", R.generationTierOf({ ...p1, modelLevel: 3 }, FREE), { level: 1, tier: "draft", resolution: "480p" });
+  eq("付费账号的档位照等级走（L3 电影级 1080p）", R.generationTierOf({ ...p1, modelLevel: 3 }, PAID), { level: 3, tier: "cinema", resolution: "1080p" });
+  eq("不传 gate = 能升（规则层缺省，AI 陪玩与单机演练走这一支）", R.generationTierOf({ ...p1, modelLevel: 2 }).resolution, "720p");
+  eq("不传 gate 时 L2 升级项照旧摆出来", ids(R.optionsForPlayer(p1, event)), ["upgrade-draft", "half-next", "free-gold"]);
+
+  // ★ 源码棘轮：App 那三个调用点必须显式带 gate（漏传不会红在类型上 —— 有缺省值）。
+  //   漏传的症状是"免费用户升上去、出片 403"，而那一条只在真机真出片时才看得见。
+  const gateCallers = {
+    "view.ts": path.join(root, "src/studio/game/view.ts"),
+    "store.ts": path.join(root, "src/studio/game/store.ts"),
+    "genTier.ts": path.join(root, "src/studio/game/genTier.ts"),
+  };
+  const viewSrc = fs.readFileSync(gateCallers["view.ts"], "utf8");
+  ok("view.ts 的 eventOptionsFor 带了 gate（摆选项那一处）", /eventOptionsFor\([^)]*modelUpgradeGate\(\)\)/.test(viewSrc));
+  const storeSrc = fs.readFileSync(gateCallers["store.ts"], "utf8");
+  ok("store.ts 的 applyEventChoice 带了 gate（扣钱那一处）", /applyEventChoice\([^)]*modelUpgradeGate\(\)\)/.test(storeSrc));
+  const genTierSrc = fs.readFileSync(gateCallers["genTier.ts"], "utf8");
+  ok("genTier.ts 的出片档位过 modelUpgradeGate（发出去那一处）", /modelUpgradeGate\(\)\.upgrade/.test(genTierSrc));
+  ok("「付没付过钱」只问 account.payingNow（不在对局层另拼 plan.monthly / paid）", /payingNow\(\) !== false/.test(genTierSrc) && !/plan\s*\.\s*monthly/.test(genTierSrc));
+}
+
 // ────────────────────────────── 7. 事件：每 2 回合三选一 / 池子不重样 / 收益落账（§2.3b） ──────────────────────────────
 
 {

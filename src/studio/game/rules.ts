@@ -115,6 +115,27 @@ export const MODEL_LEVEL_TIERS: Readonly<Record<ModelLevel, GameGenerationTier>>
   3: { level: 3, tier: "cinema", resolution: "1080p" },
 };
 
+/**
+ * 「这个账号能不能升档」——**免费账号在游戏内只能停在 L1**（主人 2026-11-23 拍板 A）。
+ *
+ * ★ 为什么规则层只收一个布尔、不自己判：付没付过钱的判据在 `data/account.payingNow`
+ *   （套餐价 > 0 或钱包回包顶层的 `paid`），而这个文件**零运行时依赖**——`scripts/check-game-rules.mjs`
+ *   用 Node 直接 import 它跑（见文件头的 import 纪律），引不了 data/ 那一层。
+ * ★ 为什么必须是**显式入参**而不是"在界面里藏起来"：L2 / L3 在档位表里都是会员档，
+ *   免费账号升上去之后第一发真出片就是 403 `PLAN_REQUIRED`（出片前补画的设定帧还各自结算过了）。
+ *   界面藏、规则放 = 玩家花了 15 金买到一个点了必失败的档位；所以选项**根本不出现**，
+ *   而真发出去的那一档也由同一个 gate 夹回 L1（genTier.genTierIdOf）。
+ * ★ 缺省 `MODEL_GATE_OPEN` = 能升：规则层既有的用例、**AI 陪玩**（bots/phases 拿不到人类账号）、
+ *   单机演练都不必改。App 那条路**必须显式传**（`genTier.modelUpgradeGate()`），
+ *   `scripts/check-game-rules.mjs` 里有一条源码棘轮钉着这件事（漏传就红）。
+ */
+export interface ModelGate {
+  /** 这个账号能升到 L2 / L3 吗（免费账号 = false，只能停在 L1 `draft-mm`） */
+  readonly upgrade: boolean;
+}
+/** 能升（规则层缺省 / AI 陪玩 / 单机演练）：不给 gate 时用它的唯一理由见上面那段 ★。 */
+export const MODEL_GATE_OPEN: ModelGate = { upgrade: true };
+
 /** §2.2：开局从池子里抽 3 张风格卡。 */
 export const STYLE_PICK_COUNT = 3;
 
@@ -995,8 +1016,13 @@ export function unequipAll(state: GameState, playerId: string, roleCardId: strin
 
 // ────────────────────────────── 模型等级（§2.3 / §2.3b） ──────────────────────────────
 
-/** §2.3b：等级只影响「游戏内生成档位」的返回值（草稿 480p / 高清 720p / 电影级 1080p）。 */
-export function generationTierOf(player: GamePlayer): GameGenerationTier {
+/** §2.3b：等级只影响「游戏内生成档位」的返回值（草稿 480p / 高清 720p / 电影级 1080p）。
+ *  ★ `gate` 不是摆设（任务 A，2026-11-23 主人拍板）：免费账号的等级**在规则层就夹回 L1** ——
+ *    "界面上写 L2、发出去是 L1" 与 "界面上写 L3、发出去 403" 都不可接受，而 store 里那份
+ *    `player.modelLevel` 不归这里管（它可能是一个付费时升过、后来套餐过期的人留下来的）。
+ *    三处读同一个 gate：选项（modelUpgradeOffer）、真扣钱（applyEventChoice）、出片档位（这里）。 */
+export function generationTierOf(player: GamePlayer, gate: ModelGate = MODEL_GATE_OPEN): GameGenerationTier {
+  if (!gate.upgrade) return MODEL_LEVEL_TIERS[1];
   return MODEL_LEVEL_TIERS[player.modelLevel];
 }
 
@@ -1004,8 +1030,11 @@ export function generationTierOf(player: GamePlayer): GameGenerationTier {
  * 现在这条升级线开不开、多少钱。**L3 的 3 连胜门槛只有这一处判断**：
  *   L1 → L2（8 金）随时；L2 → L3（15 金）要 winStreak ≥ 3；L3 封顶（§5-8 默认不放开）。
  * ★ 事件选项「出不出现在屏幕上」由 optionsForPlayer 调这里决定（不满足就整条不摆，见 §2.3b）。
+ * ★ 免费账号整条线都不开（`gate.upgrade === false`，见 ModelGate 那段 ★）：模型军备那一屏只剩
+ *   后两条（半价 / 免费 +4 金），玩家不会看到一个"点了必失败、还会白花 8 金"的升级项。
  */
-export function modelUpgradeOffer(player: GamePlayer): { level: 2 | 3; cost: number } | null {
+export function modelUpgradeOffer(player: GamePlayer, gate: ModelGate = MODEL_GATE_OPEN): { level: 2 | 3; cost: number } | null {
+  if (!gate.upgrade) return null;
   if (player.modelLevel === 1) return { level: 2, cost: MODEL_LEVEL_UP_COST[2] };
   if (player.modelLevel === 2 && player.winStreak >= 3) return { level: 3, cost: MODEL_LEVEL_UP_COST[3] };
   return null;
@@ -1023,10 +1052,10 @@ export function gameEventById(id: string): GameEvent | null {
  *   L1 的玩家看不到 15 金的 L3 选项（要先升 L2），L2 没到 3 连胜也看不到，L3 顶了两条都不再出现。
  * ★ 钱够不够**不在**这里判：选项要摆出来（界面可以灰着说差多少），真正扣钱在 applyEventChoice。
  */
-export function optionAvailable(player: GamePlayer, option: GameEventOption): boolean {
+export function optionAvailable(player: GamePlayer, option: GameEventOption, gate: ModelGate = MODEL_GATE_OPEN): boolean {
   for (const effect of option.effects) {
     if (effect.kind === "model-level") {
-      const offer = modelUpgradeOffer(player);
+      const offer = modelUpgradeOffer(player, gate);
       if (!offer || offer.level !== effect.to) return false;
     }
   }
@@ -1034,12 +1063,12 @@ export function optionAvailable(player: GamePlayer, option: GameEventOption): bo
 }
 
 /** 这个玩家在这个事件里能看到的选项（顺序按事件数据；模型军备最多 3 条）。 */
-export function optionsForPlayer(player: GamePlayer, event: GameEvent): GameEventOption[] {
-  return event.options.filter((option) => optionAvailable(player, option));
+export function optionsForPlayer(player: GamePlayer, event: GameEvent, gate: ModelGate = MODEL_GATE_OPEN): GameEventOption[] {
+  return event.options.filter((option) => optionAvailable(player, option, gate));
 }
 
 /** 本期事件 + 该玩家可选的选项；没抽事件 / 阶段不对都回原因（界面据此说「本期没有事件」）。 */
-export function eventOptionsFor(state: GameState, playerId: string): EventOptionsResult {
+export function eventOptionsFor(state: GameState, playerId: string, gate: ModelGate = MODEL_GATE_OPEN): EventOptionsResult {
   if (state.phase !== "event") return reject("wrong-phase");
   if (state.currentEventId === null) return reject("event-not-drawn");
   const event = gameEventById(state.currentEventId);
@@ -1048,15 +1077,24 @@ export function eventOptionsFor(state: GameState, playerId: string): EventOption
   if (!found) return reject("unknown-player");
   if (found.player.eliminated) return reject("player-eliminated");
   if (state.eventPicks[playerId] !== undefined) return reject("event-already-picked");
-  return { ok: true, options: optionsForPlayer(found.player, event) };
+  return { ok: true, options: optionsForPlayer(found.player, event, gate) };
 }
 
 /**
  * 选一个事件选项：扣钱 → 结算收益 → 记下谁选过。
  * ★ 全体存活玩家各选一次（同一事件、各自选自己的），全员选完 phase 才进 round-end。
  * ★ 原子：钱不够 / 选项不可用 / 随机卡把背包撑破，都整项失败、state 原样（不许「先扣钱再发现装不下」）。
+ * ★ `gate` 必须和摆选项的那一次是同一个（`view.eventViewOf` / `store.chooseEvent` 两处都传
+ *   `genTier.modelUpgradeGate()`）：只在摆的时候挡住、在这里放行的话，一个手快（或旧版界面）就能把
+ *   免费账号升上去，而钱扣的是"8 金"，失败的是后面那一发出片（403）。
  */
-export function applyEventChoice(state: GameState, playerId: string, optionId: string, rng: Rng): EventApplyResult {
+export function applyEventChoice(
+  state: GameState,
+  playerId: string,
+  optionId: string,
+  rng: Rng,
+  gate: ModelGate = MODEL_GATE_OPEN,
+): EventApplyResult {
   if (state.phase !== "event") return reject("wrong-phase");
   if (state.currentEventId === null) return reject("event-not-drawn");
   const event = gameEventById(state.currentEventId);
@@ -1067,7 +1105,7 @@ export function applyEventChoice(state: GameState, playerId: string, optionId: s
   if (state.eventPicks[playerId] !== undefined) return reject("event-already-picked");
 
   const option = event.options.find((o) => o.id === optionId);
-  if (!option || !optionAvailable(found.player, option)) return reject("option-unavailable");
+  if (!option || !optionAvailable(found.player, option, gate)) return reject("option-unavailable");
   if (found.player.gold < option.cost) {
     return reject("not-enough-gold", { need: option.cost, have: found.player.gold });
   }

@@ -224,6 +224,9 @@ export function aiEventChoices(
     const player = playerOf(next, id);
     if (!player || player.eliminated) continue;
     if (next.eventPicks[id] !== undefined) continue;
+    // ★ 这里**故意不传 gate**（= MODEL_GATE_OPEN，AI 陪玩照旧能升到 L2/L3）：
+    //   「免费账号只能停在 L1」是**人类账号**的套餐限制（见 rules.ModelGate），AI 的等级只影响它那几行
+    //   文字，从不真出片；把人类的 gate 用在 AI 身上反而会让人以为"全桌都不许升"。
     const options = eventOptionsFor(next, id);
     if (!options.ok) return options;
     const candidates = bots.aiEventOptions(next, id, rng);
