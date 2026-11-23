@@ -506,7 +506,6 @@ msgid "‹ 换一种做法"
 msgstr "‹ 换一种做法"
 
 #: src/studio/ui/NpcDialog.tsx
-#: src/studio/ui/SceneRails.tsx
 msgid "‹ 收起市场"
 msgstr "‹ 收起市场"
 
@@ -1000,13 +999,13 @@ msgstr "{0} 粉丝"
 
 #. placeholder {0}: hud.winStreak
 #: src/studio/game/ui/GameHud.tsx
-msgid "{0} 连胜"
-msgstr "{0} 连胜"
+#~ msgid "{0} 连胜"
+#~ msgstr "{0} 连胜"
 
 #. placeholder {0}: hud.loseStreak
 #: src/studio/game/ui/GameHud.tsx
-msgid "{0} 连败"
-msgstr "{0} 连败"
+#~ msgid "{0} 连败"
+#~ msgstr "{0} 连败"
 
 #. placeholder {0}: option.cost
 #: src/studio/game/ui/EventPanel.tsx
@@ -1852,8 +1851,8 @@ msgid "{speaker}：{text}"
 msgstr "{speaker}：{text}"
 
 #: src/studio/game/ui/GameHud.tsx
-msgid "{START_HP} 血起跑，扣到 0 淘汰"
-msgstr "{START_HP} 血起跑，扣到 0 淘汰"
+#~ msgid "{START_HP} 血起跑，扣到 0 淘汰"
+#~ msgstr "{START_HP} 血起跑，扣到 0 淘汰"
 
 #: src/pages/DeckDetailPage.tsx
 msgid "{startNames}一段只用一张起拍画面。哪张没适配，点进那张卡的「按模型适配」里补。"
@@ -3223,8 +3222,8 @@ msgid "<0>点标题进详情页</0>——本片卡组、多 P 选集、完整简
 msgstr "<0>点标题进详情页</0>——本片卡组、多 P 选集、完整简介、「互动 · 你来选」的分支，都<1>只在那儿</1>。点作者名或头像，去的是他的主页。"
 
 #: src/components/guide/tours.tsx
-msgid "<0>炼出本段视频，下一段的卡位才会亮</0>：段与段靠上一段的真实尾帧承接。每段都出片后，桌子右端的<1>法阵</1>会亮起，点它去画布点「🎬 完成视频」剪辑成片。"
-msgstr "<0>炼出本段视频，下一段的卡位才会亮</0>：段与段靠上一段的真实尾帧承接。每段都出片后，桌子右端的<1>法阵</1>会亮起，点它去画布点「🎬 完成视频」剪辑成片。"
+#~ msgid "<0>炼出本段视频，下一段的卡位才会亮</0>：段与段靠上一段的真实尾帧承接。每段都出片后，桌子右端的<1>法阵</1>会亮起，点它去画布点「🎬 完成视频」剪辑成片。"
+#~ msgstr "<0>炼出本段视频，下一段的卡位才会亮</0>：段与段靠上一段的真实尾帧承接。每段都出片后，桌子右端的<1>法阵</1>会亮起，点它去画布点「🎬 完成视频」剪辑成片。"
 
 #: src/components/guide/tours.tsx
 #~ msgid "<0>炼出本段视频，下一段的卡位才会亮</0>：段与段靠上一段的真实尾帧承接起拍，攒着最后一起炼会接不上，第一段人物不对也要铺完才发现。每段都出片后，桌子右端的<1>法阵</1>会亮起，点它打开这条流水线的工作流画布，在那儿点「🎬 完成视频」去剪辑成片。"
@@ -3319,7 +3318,7 @@ msgstr "▶ 开始展映"
 msgid "▶ 开始试跑"
 msgstr "▶ 开始试跑"
 
-#: src/studio/ui/SceneRails.tsx
+#: src/studio/StudioPage.tsx
 msgid "▶ 开局"
 msgstr "▶ 开局"
 
@@ -3836,7 +3835,7 @@ msgstr "✓ 这段满意，再加一段"
 msgid "✓ 这段满意，去下一段"
 msgstr "✓ 这段满意，去下一段"
 
-#: src/studio/ui/SceneRails.tsx
+#: src/studio/StudioPage.tsx
 msgid "✕ 结束对局"
 msgstr "✕ 结束对局"
 
@@ -4715,15 +4714,14 @@ msgid "🛒 市场"
 msgstr "🛒 市场"
 
 #: src/studio/game/ui/BagBar.tsx
-msgid "🛒 打开商店"
-msgstr "🛒 打开商店"
+#~ msgid "🛒 打开商店"
+#~ msgstr "🛒 打开商店"
 
 #: src/studio/ui/SchemeMarketSheet.tsx
 msgid "🛒 方案市场"
 msgstr "🛒 方案市场"
 
 #: src/studio/ui/NpcDialog.tsx
-#: src/studio/ui/SceneRails.tsx
 msgid "🛒 逛市场"
 msgstr "🛒 逛市场"
 
@@ -4789,8 +4787,8 @@ msgid "1.20× 快"
 msgstr "1.20× 快"
 
 #: src/studio/ui/SceneRails.tsx
-msgid "100 血 · 4 人单机 · 先选风格卡，再买卡"
-msgstr "100 血 · 4 人单机 · 先选风格卡，再买卡"
+#~ msgid "100 血 · 4 人单机 · 先选风格卡，再买卡"
+#~ msgstr "100 血 · 4 人单机 · 先选风格卡，再买卡"
 
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "12 道题都有默认值，一道不动也能直接生成 —— 想调哪一项就调哪一项。已调整 {touched} 项。"
@@ -5544,8 +5542,8 @@ msgid "一段一句，字数按这一段的时长封顶。有配音时，配乐�
 msgstr "一段一句，字数按这一段的时长封顶。有配音时，配乐会自动压到 {0}%、这一段的原声压到 {1}%（配音为主）。"
 
 #: src/components/guide/tours.tsx
-msgid "一段一段来"
-msgstr "一段一段来"
+#~ msgid "一段一段来"
+#~ msgstr "一段一段来"
 
 #: src/components/flow/RefStrip.tsx
 #~ msgid "一段最多 {EXTRA_REF_MAX} 张临时参考图"
@@ -6853,8 +6851,8 @@ msgid "也可以先不定人物：画面按分镜里的文字来，之后想挂�
 msgstr "也可以先不定人物：画面按分镜里的文字来，之后想挂卡再去工坊。"
 
 #: src/studio/ui/NpcDialog.tsx
-msgid "也可以按左上角的返回"
-msgstr "也可以按左上角的返回"
+#~ msgid "也可以按左上角的返回"
+#~ msgstr "也可以按左上角的返回"
 
 #: src/components/guide/tours.tsx
 msgid "也能拖到画面上"
@@ -7899,7 +7897,6 @@ msgstr "保存"
 #: src/pages/EditPage.tsx
 #: src/pages/FlowPage.tsx
 #: src/pages/SettingsProfilePage.tsx
-#: src/studio/StudioPage.tsx
 msgid "保存中…"
 msgstr "保存中…"
 
@@ -7937,7 +7934,6 @@ msgid "保存到本地是怎么走的"
 msgstr "保存到本地是怎么走的"
 
 #: src/pages/FlowPage.tsx
-#: src/studio/StudioPage.tsx
 msgid "保存失败"
 msgstr "保存失败"
 
@@ -8023,8 +8019,8 @@ msgid "做你自己的版本"
 msgstr "做你自己的版本"
 
 #: src/studio/StudioPage.tsx
-msgid "做出第一段之后就能给这条工程起名"
-msgstr "做出第一段之后就能给这条工程起名"
+#~ msgid "做出第一段之后就能给这条工程起名"
+#~ msgstr "做出第一段之后就能给这条工程起名"
 
 #: src/pages/CustomCardPage.tsx
 msgid "做卡上传"
@@ -8128,8 +8124,8 @@ msgid "充值 / 套餐"
 msgstr "充值 / 套餐"
 
 #: src/components/guide/tours.tsx
-msgid "先<0>点桌对面的铸卡师</0>：「📎 添加素材」交图或文本给她炼，「🛒 逛市场」拿现成的卡。递素材时先报这一炉花多少 token，点「收下这批卡」才进卡组。"
-msgstr "先<0>点桌对面的铸卡师</0>：「📎 添加素材」交图或文本给她炼，「🛒 逛市场」拿现成的卡。递素材时先报这一炉花多少 token，点「收下这批卡」才进卡组。"
+#~ msgid "先<0>点桌对面的铸卡师</0>：「📎 添加素材」交图或文本给她炼，「🛒 逛市场」拿现成的卡。递素材时先报这一炉花多少 token，点「收下这批卡」才进卡组。"
+#~ msgstr "先<0>点桌对面的铸卡师</0>：「📎 添加素材」交图或文本给她炼，「🛒 逛市场」拿现成的卡。递素材时先报这一炉花多少 token，点「收下这批卡」才进卡组。"
 
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "先下架，再改位置"
@@ -8919,6 +8915,10 @@ msgstr "再想想"
 #: src/components/PhotoSubjectPicker.tsx
 msgid "再描完整一点：沿着这件东西的边描一整圈"
 msgstr "再描完整一点：沿着这件东西的边描一整圈"
+
+#: src/studio/ui/NpcDialog.tsx
+#~ msgid "再点一下铸卡师可以收起对话"
+#~ msgstr "再点一下铸卡师可以收起对话"
 
 #: src/components/support/VoiceMarket.tsx
 msgid "再点一次就删。正在用它的人嗓子不变，只是不再显示「使用中」。"
@@ -10517,8 +10517,8 @@ msgid "卡与空位"
 msgstr "卡与空位"
 
 #: src/components/guide/tours.tsx
-msgid "卡从哪来"
-msgstr "卡从哪来"
+#~ msgid "卡从哪来"
+#~ msgstr "卡从哪来"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "卡做好了，但「火山引擎适用」没存住（本机存储写入失败）——去卡片详情页再勾一次。"
@@ -10602,8 +10602,8 @@ msgid "卡片存上了，卡组本身没建成"
 msgstr "卡片存上了，卡组本身没建成"
 
 #: src/components/guide/tours.tsx
-msgid "卡片工坊"
-msgstr "卡片工坊"
+#~ msgid "卡片工坊"
+#~ msgstr "卡片工坊"
 
 #: src/pages/WorkshopPage.tsx
 msgid "卡片广场在服务器上，离线库里没有「别人」"
@@ -10659,7 +10659,6 @@ msgstr "卡种"
 #: src/pages/WorkshopMinePage.tsx
 #: src/pages/WorkshopPage.tsx
 #: src/studio/ui/projection.tsx
-#: src/studio/ui/SceneRails.tsx
 msgid "卡组"
 msgstr "卡组"
 
@@ -10727,8 +10726,8 @@ msgid "卡组还没同步到服务器，请稍后再试"
 msgstr "卡组还没同步到服务器，请稍后再试"
 
 #: src/studio/ui/SceneRails.tsx
-msgid "卡组还空着——把素材交给铸卡师，或者去右边逛市场。"
-msgstr "卡组还空着——把素材交给铸卡师，或者去右边逛市场。"
+#~ msgid "卡组还空着——把素材交给铸卡师，或者去右边逛市场。"
+#~ msgstr "卡组还空着——把素材交给铸卡师，或者去右边逛市场。"
 
 #: src/components/VideoCardAnnotator.tsx
 #~ msgid "卡铸好了，但「火山引擎适用」没存住（本机存储写入失败）——去卡片详情页再勾一次。"
@@ -12413,9 +12412,14 @@ msgid "唱的那一段铺好了——人物图直接给视频模型，歌词由�
 msgstr "唱的那一段铺好了——人物图直接给视频模型，歌词由它唱出来。"
 
 #: src/studio/game/labels.ts
-#: src/studio/game/ui/ShopPanel.tsx
+#: src/studio/game/ui/BagBar.tsx
 msgid "商店"
 msgstr "商店"
+
+#. placeholder {0}: view.hud.income.interest
+#: src/studio/game/ui/BagBar.tsx
+msgid "商店 · 本回合利息 +{0}"
+msgstr "商店 · 本回合利息 +{0}"
 
 #: src/studio/game/ui/GameLayer.tsx
 msgid "商店刷新了"
@@ -13352,8 +13356,8 @@ msgstr "存成我的方案（用它生成一次约 {0}）"
 
 #. placeholder {0}: hud.alive
 #: src/studio/game/ui/GameHud.tsx
-msgid "存活 {0} 人"
-msgstr "存活 {0} 人"
+#~ msgid "存活 {0} 人"
+#~ msgstr "存活 {0} 人"
 
 #: src/components/guide/tours.tsx
 #~ msgid "存着的半成品都在这儿，那支笔的意思是「<0>还没发布</0>」； 作品墙上带锁的才是只有自己看得见的。点一张要先挑用工坊还是工作流打开 —— 同一份内容，两边都进得去。 草稿最多留 {MAX_DRAFTS} 条，<1>超了会从最旧的清起</1>。"
@@ -13373,7 +13377,6 @@ msgstr "存示例图…"
 
 #: src/components/flow/FlowCanvas.tsx
 #: src/pages/FlowPage.tsx
-#: src/studio/StudioPage.tsx
 msgid "存草稿"
 msgstr "存草稿"
 
@@ -13580,12 +13583,16 @@ msgstr "对不上就地改：改标记、「删掉」多出的位子、用清单
 #~ msgstr "对不上是可以就地改的：<0>标记写错了直接改成画面上那个</0>；清单里多出画面上找不到的位子就「删掉」；AI 漏认的人偶还能用清单下面那颗带加号的键<1>加回清单</1>。这些都<2>不会再花一次钱</2>。按位置指认的模板删掉一位后，记得把它右边各位往左挪一位——面板在待删行和提交前都会提醒。各种对不上的细节，展开视频<3>下面</3>那个「对不上怎么办？」看。"
 
 #: src/studio/ui/SceneRails.tsx
-msgid "对局"
-msgstr "对局"
+#~ msgid "对局"
+#~ msgstr "对局"
 
 #: src/studio/game/labels.ts
 msgid "对局结束"
 msgstr "对局结束"
+
+#: src/studio/game/ui/GameHud.tsx
+msgid "对局进度"
+msgstr "对局进度"
 
 #: src/studio/game/labels.ts
 msgid "对手 A"
@@ -13933,8 +13940,8 @@ msgid "工坊工程没能留在这台设备上（存储空间不足或浏览器�
 msgstr "工坊工程没能留在这台设备上（存储空间不足或浏览器隐私模式）——这条片发出去之后不能回炉"
 
 #: src/components/guide/tours.tsx
-msgid "工坊是什么"
-msgstr "工坊是什么"
+#~ msgid "工坊是什么"
+#~ msgstr "工坊是什么"
 
 #: src/components/DraftSheet.tsx
 #: src/pages/CreatePage.tsx
@@ -13998,16 +14005,16 @@ msgid "左上角疑似有水印或台标：白模出片会把它逐帧复刻进�
 msgstr "左上角疑似有水印或台标：白模出片会把它逐帧复刻进每一条成片，建议用裁剪框把这块框到画面外。（只是提醒，看错了直接忽略——照样可以继续。）"
 
 #: src/studio/ui/NpcDialog.tsx
-msgid "左上角的返回按钮可逐层退出"
-msgstr "左上角的返回按钮可逐层退出"
+#~ msgid "左上角的返回按钮可逐层退出"
+#~ msgstr "左上角的返回按钮可逐层退出"
 
 #: src/components/guide/tours.tsx
 #~ msgid "左上角这颗按钮是<0>唯一的出口</0>，一层一层往外退：先关浮层、再退市场或对话，最后才回首页。<1>卡片收下就入账</1>，刷新还在；但桌上的流水线只在内存里，要存成草稿才留得住——每炼出一段会自动存一次；改了别的、想过会儿接着做，就先点顶栏右侧那颗<2>💾 存草稿</2>（桌上铸出第一段之前它是灰的）。"
 #~ msgstr "左上角这颗按钮是<0>唯一的出口</0>，一层一层往外退：先关浮层、再退市场或对话，最后才回首页。<1>卡片收下就入账</1>，刷新还在；但桌上的流水线只在内存里，要存成草稿才留得住——每炼出一段会自动存一次；改了别的、想过会儿接着做，就先点顶栏右侧那颗<2>💾 存草稿</2>（桌上铸出第一段之前它是灰的）。"
 
 #: src/components/guide/tours.tsx
-msgid "左上角这颗是<0>唯一的出口</0>，一层一层往外退。<1>卡片收下就入账</1>；桌上的流水线每炼出一段自动存一次草稿，想过会儿接着做就点顶栏右侧<2>💾 存草稿</2>。"
-msgstr "左上角这颗是<0>唯一的出口</0>，一层一层往外退。<1>卡片收下就入账</1>；桌上的流水线每炼出一段自动存一次草稿，想过会儿接着做就点顶栏右侧<2>💾 存草稿</2>。"
+#~ msgid "左上角这颗是<0>唯一的出口</0>，一层一层往外退。<1>卡片收下就入账</1>；桌上的流水线每炼出一段自动存一次草稿，想过会儿接着做就点顶栏右侧<2>💾 存草稿</2>。"
+#~ msgstr "左上角这颗是<0>唯一的出口</0>，一层一层往外退。<1>卡片收下就入账</1>；桌上的流水线每炼出一段自动存一次草稿，想过会儿接着做就点顶栏右侧<2>💾 存草稿</2>。"
 
 #: src/components/VideoTemplateExtractor.tsx
 msgid "左下角疑似有水印或台标：白模出片会把它逐帧复刻进每一条成片，建议用裁剪框把这块框到画面外。（只是提醒，看错了直接忽略——照样可以继续。）"
@@ -14086,8 +14093,8 @@ msgid "已从模板市场下架（制作过程照样公开着）"
 msgstr "已从模板市场下架（制作过程照样公开着）"
 
 #: src/studio/StudioPage.tsx
-msgid "已保存"
-msgstr "已保存"
+#~ msgid "已保存"
+#~ msgstr "已保存"
 
 #: src/pages/FlowPage.tsx
 #: src/pages/SettingsProfilePage.tsx
@@ -14795,7 +14802,6 @@ msgid "已驳回"
 msgstr "已驳回"
 
 #: src/pages/SupportModelsPage.tsx
-#: src/studio/ui/SceneRails.tsx
 msgid "市场"
 msgstr "市场"
 
@@ -15063,6 +15069,10 @@ msgstr "开始识别"
 msgid "开始识别（{price}）"
 msgstr "开始识别（{price}）"
 
+#: src/studio/StudioPage.tsx
+msgid "开局后，背包里的角色卡与场景卡会摊到桌面的 5 个卡位上"
+msgstr "开局后，背包里的角色卡与场景卡会摊到桌面的 5 个卡位上"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "开心"
 msgstr "开心"
@@ -15199,6 +15209,10 @@ msgstr "当前未连接服务器，暂时无法充值，请联网后重试"
 #: src/pages/ProfilePage.tsx
 msgid "当前未连接服务器，暂时无法订阅，请联网后重试"
 msgstr "当前未连接服务器，暂时无法订阅，请联网后重试"
+
+#: src/studio/game/ui/GameHud.tsx
+msgid "当前生命值"
+msgstr "当前生命值"
 
 #: src/components/DanmakuInput.tsx
 msgid "当前离线，这条弹幕只存在这台设备上"
@@ -16400,8 +16414,8 @@ msgid "拖动移动位置，双指或滑杆缩放"
 msgstr "拖动移动位置，双指或滑杆缩放"
 
 #: src/studio/StudioPage.tsx
-msgid "拖卡片到虚线卡位做一段 · 单点看详情"
-msgstr "拖卡片到虚线卡位做一段 · 单点看详情"
+#~ msgid "拖卡片到虚线卡位做一段 · 单点看详情"
+#~ msgstr "拖卡片到虚线卡位做一段 · 单点看详情"
 
 #: src/studio/StudioPage.tsx
 #~ msgid "拖卡片到虚线卡位铸段 · 单点看详情"
@@ -17503,8 +17517,8 @@ msgid "摇篮曲"
 msgstr "摇篮曲"
 
 #: src/studio/ui/SceneRails.tsx
-msgid "摊开在桌上"
-msgstr "摊开在桌上"
+#~ msgid "摊开在桌上"
+#~ msgstr "摊开在桌上"
 
 #: src/studio/ui/projection.tsx
 msgid "摘掉"
@@ -17702,6 +17716,7 @@ msgid "收起卡组"
 msgstr "收起卡组"
 
 #: src/components/support/AdminTicketsView.tsx
+#: src/studio/ui/NpcDialog.tsx
 msgid "收起对话"
 msgstr "收起对话"
 
@@ -17715,8 +17730,8 @@ msgid "收起按钮和文字"
 msgstr "收起按钮和文字"
 
 #: src/studio/ui/SceneRails.tsx
-msgid "收起摊开排"
-msgstr "收起摊开排"
+#~ msgid "收起摊开排"
+#~ msgstr "收起摊开排"
 
 #: src/studio/studioStore.ts
 msgid "收起方案"
@@ -18441,8 +18456,8 @@ msgid "暂停"
 msgstr "暂停"
 
 #: src/studio/game/ui/GameHud.tsx
-msgid "暂无连胜"
-msgstr "暂无连胜"
+#~ msgid "暂无连胜"
+#~ msgstr "暂无连胜"
 
 #: src/components/TemplateShelf.tsx
 msgid "暂时不可用"
@@ -19292,8 +19307,8 @@ msgstr "本人跟读录制"
 
 #. placeholder {0}: hud.income.interest
 #: src/studio/game/ui/GameHud.tsx
-msgid "本回合利息 +{0}"
-msgstr "本回合利息 +{0}"
+#~ msgid "本回合利息 +{0}"
+#~ msgstr "本回合利息 +{0}"
 
 #: src/pages/QuickModePage.tsx
 msgid "本地上传"
@@ -19309,8 +19324,8 @@ msgid "本局出片档位升到 {0}"
 msgstr "本局出片档位升到 {0}"
 
 #: src/studio/ui/SceneRails.tsx
-msgid "本局打完了（共 {round} 回合）· 底部按「再来一局」重开"
-msgstr "本局打完了（共 {round} 回合）· 底部按「再来一局」重开"
+#~ msgid "本局打完了（共 {round} 回合）· 底部按「再来一局」重开"
+#~ msgstr "本局打完了（共 {round} 回合）· 底部按「再来一局」重开"
 
 #: src/pages/ProfilePage.tsx
 msgid "本服务尚未接入支付渠道，下单后无法完成付款"
@@ -19765,16 +19780,16 @@ msgid "桌面图标上的名字跟随手机系统语言，这里切换不会改�
 msgstr "桌面图标上的名字跟随手机系统语言，这里切换不会改它；多语言手机上两者可能不一致。"
 
 #: src/studio/StudioPage.tsx
-msgid "桌面还空着——先点虚线卡位做一段"
-msgstr "桌面还空着——先点虚线卡位做一段"
+#~ msgid "桌面还空着——先点虚线卡位做一段"
+#~ msgstr "桌面还空着——先点虚线卡位做一段"
 
 #: src/studio/StudioPage.tsx
 #~ msgid "桌面还空着——先点虚线卡位铸一段"
 #~ msgstr "桌面还空着——先点虚线卡位铸一段"
 
 #: src/studio/StudioPage.tsx
-msgid "桌面还空着，没什么可存"
-msgstr "桌面还空着，没什么可存"
+#~ msgid "桌面还空着，没什么可存"
+#~ msgstr "桌面还空着，没什么可存"
 
 #: src/components/DownloadSheet.tsx
 msgid "检查中"
@@ -20809,8 +20824,8 @@ msgid "段间承接"
 msgstr "段间承接"
 
 #: src/studio/game/ui/GameHud.tsx
-msgid "每 10 金 +1，上限 5；下一回合发钱时结算"
-msgstr "每 10 金 +1，上限 5；下一回合发钱时结算"
+#~ msgid "每 10 金 +1，上限 5；下一回合发钱时结算"
+#~ msgstr "每 10 金 +1，上限 5；下一回合发钱时结算"
 
 #: src/components/guide/tours.tsx
 msgid "每一条是一把嗓子，<0>点一下立刻念一句样本、同时选定它</0>。 标着「调和」的是几把嗓子混出来的。"
@@ -21852,8 +21867,8 @@ msgid "渲染视频"
 msgstr "渲染视频"
 
 #: src/studio/game/ui/GameHud.tsx
-msgid "游戏内的出片档位（G4 才真的按它出片）"
-msgstr "游戏内的出片档位（G4 才真的按它出片）"
+#~ msgid "游戏内的出片档位（G4 才真的按它出片）"
+#~ msgstr "游戏内的出片档位（G4 才真的按它出片）"
 
 #: src/components/flow/EffectWizard.tsx
 msgid "游戏英雄登场"
@@ -22113,6 +22128,10 @@ msgstr "点一张卡，挂给「{0}」"
 msgid "点一张卡放进虚框："
 msgstr "点一张卡放进虚框："
 
+#: src/studio/StudioPage.tsx
+msgid "点一张卡看详情"
+msgstr "点一张卡看详情"
+
 #: src/components/flow/RefStrip.tsx
 msgid "点一张图，把它写进句子（@名字）。"
 msgstr "点一张图，把它写进句子（@名字）。"
@@ -22134,8 +22153,8 @@ msgid "点任意处关闭"
 msgstr "点任意处关闭"
 
 #: src/components/guide/tours.tsx
-msgid "点你这一侧的<0>虚线卡位</0>，先挑这一段怎么拍：套模板给人偶挂卡换人、自选卡片让 AI 推演几套走向、自定义按你给的示例视频或首尾帧。挑定了再<1>炼出本段视频</1>。"
-msgstr "点你这一侧的<0>虚线卡位</0>，先挑这一段怎么拍：套模板给人偶挂卡换人、自选卡片让 AI 推演几套走向、自定义按你给的示例视频或首尾帧。挑定了再<1>炼出本段视频</1>。"
+#~ msgid "点你这一侧的<0>虚线卡位</0>，先挑这一段怎么拍：套模板给人偶挂卡换人、自选卡片让 AI 推演几套走向、自定义按你给的示例视频或首尾帧。挑定了再<1>炼出本段视频</1>。"
+#~ msgstr "点你这一侧的<0>虚线卡位</0>，先挑这一段怎么拍：套模板给人偶挂卡换人、自选卡片让 AI 推演几套走向、自定义按你给的示例视频或首尾帧。挑定了再<1>炼出本段视频</1>。"
 
 #: src/components/guide/tours.tsx
 #~ msgid "点你这一侧那排上的<0>虚线卡位</0>，先挑这一段怎么拍：「套模板」给白模视频里的人偶挂卡换人；「自选卡片」挑几张素材卡、写清这一段要发生什么，AI 推演出几套走向，每套都带首尾帧预览，挑定一套后还能换帧、改剧情、按修改重画；「自定义」全按你给的示例视频或首尾帧来。满意了再<1>炼出本段视频</1>。底下这条提示会跟着你当前这一步换措辞。"
@@ -22154,12 +22173,12 @@ msgstr "点击卡片加入/移出 · 组内卡片左上角可设为封面"
 #~ msgstr "点击节点卡：挑定方案并炼出本段视频，才能延展下一段"
 
 #: src/studio/StudioPage.tsx
-msgid "点击节点卡：挑定方案并生成本段视频，才能延展下一段"
-msgstr "点击节点卡：挑定方案并生成本段视频，才能延展下一段"
+#~ msgid "点击节点卡：挑定方案并生成本段视频，才能延展下一段"
+#~ msgstr "点击节点卡：挑定方案并生成本段视频，才能延展下一段"
 
 #: src/studio/StudioPage.tsx
-msgid "点击虚线卡位，做第一段视频"
-msgstr "点击虚线卡位，做第一段视频"
+#~ msgid "点击虚线卡位，做第一段视频"
+#~ msgstr "点击虚线卡位，做第一段视频"
 
 #: src/studio/StudioPage.tsx
 #~ msgid "点击虚线卡位，铸造第一段视频节点"
@@ -22270,7 +22289,6 @@ msgid "点桌上的卡放大查看 · 喜欢就收进卡组"
 msgstr "点桌上的卡放大查看 · 喜欢就收进卡组"
 
 #: src/studio/StudioPage.tsx
-#: src/studio/ui/SceneRails.tsx
 msgid "点桌上的市场卡放大查看，喜欢就收进卡组"
 msgstr "点桌上的市场卡放大查看，喜欢就收进卡组"
 
@@ -22279,8 +22297,8 @@ msgstr "点桌上的市场卡放大查看，喜欢就收进卡组"
 #~ msgstr "点桌面的卡组堆也可以"
 
 #: src/studio/StudioPage.tsx
-msgid "点虚线卡位延展下一段 · 点亮法阵去剪辑成片"
-msgstr "点虚线卡位延展下一段 · 点亮法阵去剪辑成片"
+#~ msgid "点虚线卡位延展下一段 · 点亮法阵去剪辑成片"
+#~ msgstr "点虚线卡位延展下一段 · 点亮法阵去剪辑成片"
 
 #: src/components/guide/tours.tsx
 msgid "点货架顶上<0>做模板的入口卡</0>：传一段视频让 AI 把人换成白色人偶，或直接用你做好的白模片。要花多少钱都在按下开始键之前整句报出，确认了才扣。"
@@ -24825,8 +24843,8 @@ msgstr "第 {0} / {1} 步"
 #. placeholder {0}: page + 1
 #. placeholder {1}: Math.ceil(count / M.perPage)
 #: src/studio/ui/SceneRails.tsx
-msgid "第 {0} / {1} 页 · 翻页用桌面两侧的箭头"
-msgstr "第 {0} / {1} 页 · 翻页用桌面两侧的箭头"
+#~ msgid "第 {0} / {1} 页 · 翻页用桌面两侧的箭头"
+#~ msgstr "第 {0} / {1} 页 · 翻页用桌面两侧的箭头"
 
 #. placeholder {0}: i + 1
 #: src/data/promptSchemes.ts
@@ -24848,12 +24866,10 @@ msgstr "第 {0} 味权重"
 msgid "第 {0} 味音色"
 msgstr "第 {0} 味音色"
 
-#. placeholder {0}: hud.round
 #. placeholder {0}: view.hud.round
-#: src/studio/game/ui/GameHud.tsx
 #: src/studio/game/ui/ShopPanel.tsx
-msgid "第 {0} 回合"
-msgstr "第 {0} 回合"
+#~ msgid "第 {0} 回合"
+#~ msgstr "第 {0} 回合"
 
 #. placeholder {0}: state.round
 #: src/studio/game/ui/PhaseBar.tsx
@@ -25272,8 +25288,8 @@ msgid "第 {rel} 秒"
 msgstr "第 {rel} 秒"
 
 #: src/studio/ui/SceneRails.tsx
-msgid "第 {round} 回合进行中 · 顶部看金币/血量，底部是背包与商店"
-msgstr "第 {round} 回合进行中 · 顶部看金币/血量，底部是背包与商店"
+#~ msgid "第 {round} 回合进行中 · 顶部看金币/血量，底部是背包与商店"
+#~ msgstr "第 {round} 回合进行中 · 顶部看金币/血量，底部是背包与商店"
 
 #: src/data/templates.ts
 msgid "第 {row} 行的人偶位置是空的——位置是\"把卡挂到这个人偶身上\"的唯一凭据，不能留空。对着画面从左往右数，选一个位置；想去掉这个角色位，请点它的「删掉」。"
@@ -26232,8 +26248,8 @@ msgid "给小梦换一套 Live2D 形象"
 msgstr "给小梦换一套 Live2D 形象"
 
 #: src/studio/StudioPage.tsx
-msgid "给工程起名"
-msgstr "给工程起名"
+#~ msgid "给工程起名"
+#~ msgstr "给工程起名"
 
 #: src/components/TextTemplateSheet.tsx
 msgid "给模板起个名字"
@@ -26434,8 +26450,8 @@ msgid "翻到{otherTitle}"
 msgstr "翻到{otherTitle}"
 
 #: src/studio/ui/SceneRails.tsx
-msgid "翻开卡组"
-msgstr "翻开卡组"
+#~ msgid "翻开卡组"
+#~ msgstr "翻开卡组"
 
 #: src/pages/tutor/TutorNewPage.tsx
 #: src/pages/tutor/TutorRunPage.tsx
@@ -31091,8 +31107,8 @@ msgid "这是<0>编号版</0>的老模板（2026-08-17 之前做的）。新做�
 msgstr "这是<0>编号版</0>的老模板（2026-08-17 之前做的）。新做的模板改用 按位置指认了 —— 这一个继续按编号用，不受影响，<1>也不用重做</1>。"
 
 #: src/components/guide/tours.tsx
-msgid "这是一张铸卡桌：<0>素材炼成卡</0>，卡摆上桌铸成<1>一段视频</1>，段够了再推成成片。卡分这几种——<2/>——它们决定每一段里出现谁、长什么样。"
-msgstr "这是一张铸卡桌：<0>素材炼成卡</0>，卡摆上桌铸成<1>一段视频</1>，段够了再推成成片。卡分这几种——<2/>——它们决定每一段里出现谁、长什么样。"
+#~ msgid "这是一张铸卡桌：<0>素材炼成卡</0>，卡摆上桌铸成<1>一段视频</1>，段够了再推成成片。卡分这几种——<2/>——它们决定每一段里出现谁、长什么样。"
+#~ msgstr "这是一张铸卡桌：<0>素材炼成卡</0>，卡摆上桌铸成<1>一段视频</1>，段够了再推成成片。卡分这几种——<2/>——它们决定每一段里出现谁、长什么样。"
 
 #. placeholder {0}: tpl.group.count
 #. placeholder {1}: parts.length
@@ -31677,8 +31693,8 @@ msgid "连圈多张，打包成一组"
 msgstr "连圈多张，打包成一组"
 
 #: src/studio/game/ui/GameHud.tsx
-msgid "连胜 / 连败影响每回合收入（2 连起 +1，5 连 +3）"
-msgstr "连胜 / 连败影响每回合收入（2 连起 +1，5 连 +3）"
+#~ msgid "连胜 / 连败影响每回合收入（2 连起 +1，5 连 +3）"
+#~ msgstr "连胜 / 连败影响每回合收入（2 连起 +1，5 连 +3）"
 
 #: src/data/danmaku.ts
 msgid "追！"
@@ -31689,8 +31705,8 @@ msgid "退出"
 msgstr "退出"
 
 #: src/components/guide/tours.tsx
-msgid "退出与存草稿"
-msgstr "退出与存草稿"
+#~ msgid "退出与存草稿"
+#~ msgstr "退出与存草稿"
 
 #: src/pages/FeedPage.tsx
 #: src/pages/VideoPage.tsx
@@ -32529,7 +32545,7 @@ msgstr "金"
 msgid "金像摄影指导"
 msgstr "金像摄影指导"
 
-#: src/studio/game/ui/GameHud.tsx
+#: src/studio/game/ui/BagBar.tsx
 msgid "金币：买卡与刷新都要花它"
 msgstr "金币：买卡与刷新都要花它"
 
@@ -32561,8 +32577,8 @@ msgstr "银"
 #~ msgstr "铸「{name}」第 {n}/{total} 张：{label}…"
 
 #: src/components/guide/tours.tsx
-msgid "铸一段视频"
-msgstr "铸一段视频"
+#~ msgid "铸一段视频"
+#~ msgstr "铸一段视频"
 
 #: src/studio/StudioPage.tsx
 #~ msgid "铸出第一段之后就能给这条工程起名"

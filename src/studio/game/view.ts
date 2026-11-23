@@ -9,34 +9,32 @@
  *   labels.ts，失败原因的人话在 reasons.ts —— 三个文件各管一段，别混。
  */
 import {
-  alivePlayers,
   bagUsage,
   entryById,
   entryOfPlayer,
   eventOptionsFor,
   gameEventById,
-  generationTierOf,
   incomeFor,
   ownedCards,
   screeningOrderOf,
   styleCardById,
   styleCardOf,
+  tableSlotsOf,
   votesPendingOf,
 } from "./rules";
 import type {
   GameCard,
   GameEvent,
   GameEventOption,
-  GameGenerationTier,
   GamePhase,
   GamePlayer,
   GameState,
-  ModelLevel,
   RoundEntry,
   RoundSettlement,
   RoundTally,
   ShopState,
   StyleCard,
+  TableSlots,
 } from "./types";
 
 /** rules.bagUsage 的返回形状（total 含已装备道具，见那里头顶的 ★） */
@@ -47,16 +45,10 @@ export interface HudModel {
   round: number;
   gold: number;
   hp: number;
-  winStreak: number;
-  loseStreak: number;
   /** 下一次 beginRound 会发的钱。interest 按**现在的金币**算（rules.incomeFor 一处） */
   income: ReturnType<typeof incomeFor>;
-  modelLevel: ModelLevel;
-  /** rules.generationTierOf：等级 → 草稿 480p / 高清 720p / 电影级 1080p */
-  tier: GameGenerationTier;
   /** rules.bagUsage：9 格总数 + 每类上限（角色 4 / 场景 1 / 道具 4，事件可加成） */
   bag: BagUsage;
-  alive: number;
 }
 
 export interface GameView {
@@ -77,6 +69,8 @@ export interface GameView {
   bag: { cards: GameCard[]; equipped: { item: GameCard; roleId: string }[] };
   /** roleCardId → 挂在它身上的道具（角色卡角标） */
   equippedOnRole: Record<string, GameCard>;
+  /** G4：3D 桌面 5 个卡位的占位状态（4 角色 + 1 场景；来自 rules.tableSlotsOf） */
+  table: TableSlots;
 }
 
 /**
@@ -102,13 +96,8 @@ export function gameViewOf(state: GameState, playerId: string): GameView | null 
       round: state.round,
       gold: player.gold,
       hp: player.hp,
-      winStreak: player.winStreak,
-      loseStreak: player.loseStreak,
       income: incomeFor(player),
-      modelLevel: player.modelLevel,
-      tier: generationTierOf(player),
       bag: bagUsage(player),
-      alive: alivePlayers(state).length,
     },
     phase: state.phase,
     styleChoices,
@@ -119,6 +108,7 @@ export function gameViewOf(state: GameState, playerId: string): GameView | null 
       equipped: player.equipment.map((entry) => ({ item: entry.item, roleId: entry.roleCardId })),
     },
     equippedOnRole,
+    table: tableSlotsOf(player),
   };
 }
 

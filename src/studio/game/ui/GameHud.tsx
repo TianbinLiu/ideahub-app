@@ -1,79 +1,63 @@
-// 对局 HUD：舞台顶部一条常驻（施工单第 1 条）。
+// 对局 HUD：屏幕最上方一条（G4 施工单 docs/g4-ui-revamp-spec.md §2「对局进度条 + 当前生命值」）。
 //
-// ★ 一条里只放"这一局现在怎么样"：回合 + 阶段、金币（含本回合利息）、血量、连胜/连败、
-//   模型等级 + 档位名、存活人数。**一个数都不在这里算** —— 全部来自 view.hud（它去问 rules，见 game/view.ts）。
-// ★ 「第 N 回合 · 阶段名」是 G3 加的（施工单第 3 条）：对局有五个阶段，玩家不看这一格就不知道
-//   现在该买卡还是该交片；阶段名只有 labels.phaseName 一份。
-// ★ 位置：贴在浮动顶栏**下面**（返回键与右边那组圆键占着最上面 48px）。用 `env(safe-area-inset-top)`
-//   把它顶到安全区以下：横屏真机顶部还有状态栏（G1 施工单量过，见 SceneRails 的 safe-top 注释），
-//   写死 top-14 会被状态栏压住。pointer-events-none：HUD 是读数，不该挡住桌面上的卡。
-import { Trans, useLingui } from "@lingui/react/macro";
-import { START_HP } from "../rules";
-import { modelTierName, phaseName } from "../labels";
-import type { GamePhase } from "../types";
+// ★ 这一条只有两样东西：**8 回合进度条**（打过的段亮、当前段高亮）与**当前生命值**（数 + 一小条血条）。
+//   施工单点名删掉的那几句（第 1 回合 / 商店 / 本回合利息 / 连胜 / L1 草稿 480p / 存活 N 人）全在这条上，
+//   它们随 G2 那版 HUD 一起退场：利息搬进背包栏右侧的商店键（ui/BagBar），金币也在那一栏；
+//   回合数由进度条读，阶段该干嘛由底部阶段条说（ui/PhaseBar），玩家不用再从这一行里猜。
+// ★ 一个数都不在这里算：回合与血量来自 view.hud（它去问 rules），8 回合的上限与 100 血是 rules 的常量。
+// ★ 位置：安全区以下、顶栏那排圆键下面（`+4rem`，与 G2 那版同一个数）。真机的状态栏
+//   inset 实测 41px（src/index.css 的 .safe-top 注释），顶栏按钮占 51~93px —— HUD 落在
+//   它们下面那一行才不会在 800 CSS 宽的横屏上跟「✕ 结束对局」叠到一起。
+//   `pointer-events-none`：HUD 是读数，不许挡桌面上的卡。
+import { useLingui } from "@lingui/react/macro";
+import { MAX_ROUNDS, START_HP } from "../rules";
 import type { HudModel } from "../view";
 
-/** HUD 里的小分隔点（装饰，别让读屏念它） */
-function Sep() {
-  return (
-    <span aria-hidden className="text-slate-500">
-      ·
-    </span>
-  );
-}
-
-export default function GameHud({ hud, phase }: { hud: HudModel; phase: GamePhase }) {
+export default function GameHud({ hud }: { hud: HudModel }) {
   const { t } = useLingui();
-  // 连胜 / 连败是**两个计数里只会有一个非 0**（rules.settleRound 一处维护），这里只决定说哪句
-  const streak =
-    hud.winStreak > 0 ? (
-      <Trans>{hud.winStreak} 连胜</Trans>
-    ) : hud.loseStreak > 0 ? (
-      <Trans>{hud.loseStreak} 连败</Trans>
-    ) : (
-      <Trans>暂无连胜</Trans>
-    );
+  // 血条宽度按 rules.START_HP 归一；血量在规则层已被夹在 0~100（settleRound），这里只防越界
+  const hpPct = Math.max(0, Math.min(100, (hud.hp / START_HP) * 100));
+  const round = Math.max(1, Math.min(MAX_ROUNDS, hud.round));
+
   return (
     <div className="pointer-events-none absolute inset-x-0 top-[calc(env(safe-area-inset-top,0px)+4rem)] flex justify-center px-2">
-      <div className="flex max-w-full items-center gap-2 overflow-x-auto whitespace-nowrap rounded-full bg-panel/85 px-3 py-1 text-[11px] text-slate-200 ring-1 ring-white/10 backdrop-blur">
-        <span className="font-semibold text-slate-100">
-          <Trans>第 {hud.round} 回合</Trans>
-          <span className="mx-1 text-slate-500" aria-hidden>
-            ·
-          </span>
-          <span className="text-brand-200">{phaseName(phase)}</span>
-        </span>
-        <Sep />
-        <span className="font-semibold text-gold-200" title={t`金币：买卡与刷新都要花它`}>
-          🪙 {hud.gold}
-        </span>
-        {/* 「本回合利息 X」是施工单点名要的：利息按**现在的金币**算（rules.incomeFor），
-            下一回合发钱时一并结，所以这里说的是"会发生多少"，不是"已经给了多少" */}
-        <span className="text-slate-400" title={t`每 10 金 +1，上限 5；下一回合发钱时结算`}>
-          <Trans>本回合利息 +{hud.income.interest}</Trans>
-        </span>
-        <Sep />
-        <span className="font-semibold text-danger-200" title={t`${START_HP} 血起跑，扣到 0 淘汰`}>
-          ❤ {hud.hp}
-        </span>
-        <Sep />
-        <span
-          className={
-            hud.winStreak > 0 ? "text-warn-200" : hud.loseStreak > 0 ? "text-info-200" : "text-slate-400"
-          }
-          title={t`连胜 / 连败影响每回合收入（2 连起 +1，5 连 +3）`}
+      <div className="flex w-[min(100%,30rem)] items-center gap-2.5 rounded-full bg-panel/85 px-3 py-1 ring-1 ring-white/10 backdrop-blur">
+        {/* 8 段 = MAX_ROUNDS：打过的段实心、当前段高亮一圈、没到的段淡着。
+            进度条本身不带字（第 N 回合那句是施工单点名删掉的），回合数看亮到第几段。 */}
+        <div
+          role="progressbar"
+          aria-valuemin={1}
+          aria-valuemax={MAX_ROUNDS}
+          aria-valuenow={round}
+          aria-label={t`对局进度`}
+          className="flex flex-1 items-center gap-1"
         >
-          {streak}
-        </span>
-        <Sep />
-        {/* 模型等级 + 档位名：L1 草稿 480p / L2 高清 720p / L3 电影级 1080p（rules.MODEL_LEVEL_TIERS） */}
-        <span className="text-slate-200" title={t`游戏内的出片档位（G4 才真的按它出片）`}>
-          L{hud.modelLevel} · {modelTierName(hud.tier.tier)} {hud.tier.resolution}
-        </span>
-        <Sep />
-        <span className="text-slate-400">
-          <Trans>存活 {hud.alive} 人</Trans>
-        </span>
+          {Array.from({ length: MAX_ROUNDS }, (_, i) => {
+            const passed = i + 1 < round;
+            const current = i + 1 === round;
+            return (
+              <span
+                key={i}
+                className={`h-2 flex-1 rounded-full ${
+                  current
+                    ? "bg-brand-300 ring-1 ring-brand-100/80"
+                    : passed
+                      ? "bg-brand-400/70"
+                      : "bg-white/15"
+                }`}
+              />
+            );
+          })}
+        </div>
+        <div className="flex flex-none items-center gap-1.5" role="img" aria-label={t`当前生命值`}>
+          <span aria-hidden className="text-[13px] leading-none text-danger-300">
+            ❤
+          </span>
+          <span className="text-[12px] font-semibold tabular-nums text-slate-100">{hud.hp}</span>
+          <span aria-hidden className="h-1.5 w-12 overflow-hidden rounded-full bg-white/15">
+            <span className="block h-full rounded-full bg-danger-400" style={{ width: `${hpPct}%` }} />
+          </span>
+        </div>
       </div>
     </div>
   );

@@ -124,6 +124,7 @@ const source = fs.readFileSync(modPath, "utf8");
 
   eq("背包 9 格（§2.1）", R.BAG_SIZE, 9);
   eq("类型上限 角色 4 / 场景 1 / 道具 4（§2.1）", R.TYPE_CAPS, { role: 4, scene: 1, item: 4 });
+  eq("G4 桌面角色位 4 个", R.TABLE_ROLE_SLOTS, 4);
   eq("100 血起跑（§2.1）", R.START_HP, 100);
   eq("回合上限 8（§5-2 默认值）", R.MAX_ROUNDS, 8);
   eq("事件在第 2/4/6 回合后（§2.3b / §5-7 默认值）", R.EVENT_AFTER_ROUNDS, [2, 4, 6]);
@@ -265,6 +266,21 @@ const source = fs.readFileSync(modPath, "utf8");
   for (let i = 0; i < 4; i += 1) player = must(`收第 ${i + 1} 件道具`, R.addCardToBag(player, card(`i${i}`, "item"))).player;
   eq("9 张塞满", R.bagUsage(player).total, 9);
   eq("满了之后 free = 0", R.bagUsage(player).free, 0);
+  // G4 桌面 5 个卡位（4 角色 + 1 场景）：**只读派生**，按背包顺序占位。
+  // 反例都在下面：位子数不能缩（roles 恒 4 格）、超出的角色卡不能挤进场景位、顺序不能乱。
+  eq("空背包的 5 个卡位全空", R.tableSlotsOf(base), { roles: [null, null, null, null], scene: null });
+  let slotPlayer = base;
+  slotPlayer = must("卡位夹具角色 A", R.addCardToBag(slotPlayer, card("rA", "role"))).player;
+  slotPlayer = must("卡位夹具角色 B", R.addCardToBag(slotPlayer, card("rB", "role"))).player;
+  slotPlayer = must("卡位夹具场景", R.addCardToBag(slotPlayer, card("sA", "scene"))).player;
+  const slots = R.tableSlotsOf(slotPlayer);
+  eq("角色按背包顺序占前两个位", slots.roles.map((c) => c?.id ?? null), ["rA", "rB", null, null]);
+  eq("场景卡占场景位", slots.scene?.id, "sA");
+  eq("不缩数组（恒 4 格）", R.tableSlotsOf(base).roles.length, 4);
+  // 反例：坏状态里塞进 5 张角色卡时多出来的那张不能画进第 5 个角色位 / 不能挤掉场景位。
+  const overfull = { ...base, bag: ["x1", "x2", "x3", "x4", "x5"].map((id) => card(id, "role")).concat([card("sX", "scene")]) };
+  eq("超过 4 张角色卡只画前 4 个", R.tableSlotsOf(overfull).roles.map((c) => c?.id ?? null), ["x1", "x2", "x3", "x4"]);
+  eq("角色再多场景位照旧", R.tableSlotsOf(overfull).scene?.id, "sX");
   // 反例：还能收第 10 张 = 背包条放不下（界面溢出 / 存档越界）。
   rejects("背包 9 格再收一张", R.addCardToBag(player, card("x", "role")), "bag-full");
   // 反例：角色能收到第 5 个 = §2.1 角色 ≤4 失守（牌组变成堆角色，场景 / 道具没位置）。

@@ -32,6 +32,19 @@ export interface GameCard {
 }
 
 /**
+ * G4：3D 桌面上的 5 个卡位 —— 4 个角色位一排 + 1 个场景位（docs/g4-ui-revamp-spec.md §2）。
+ * ★ 只是形状：位子上是谁由 rules.tableSlotsOf 从对局数据里**只读派生**（G4 第 1 步还没有
+ *   摆卡 / 拖拽状态）；第 3 步做拖卡入位时，这个形状是要加"位子自己记住的卡"还是继续派生，
+ *   改规则层那一处、3D 与背包两面跟着变。
+ */
+export interface TableSlots {
+  /** 4 个角色位，从左到右；null = 空位 */
+  roles: (GameCard | null)[];
+  /** 1 个场景位（角色排左上方、桌面中线玩家这一侧）；null = 空位 */
+  scene: GameCard | null;
+}
+
+/**
  * 游戏内生成档位（§2.3 ★ / §2.3b 模型升级线）。
  * ★ 只回答「游戏内这一发按什么档位出」，**不动玩家自己的 token 钱包**（§2.3b 最后一条），
  *   也不认识 data/videoTierTable —— 两边用 id 对齐是 G4 翻译层的事，规则层不引 data。

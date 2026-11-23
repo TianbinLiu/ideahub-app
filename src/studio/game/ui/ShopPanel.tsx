@@ -73,16 +73,10 @@ export default function ShopPanel({ view }: { view: GameView }) {
           })}
         </div>
 
-        {/* 右侧那列：标题、锁定状态、三颗键 */}
+        {/* 右侧那列：锁定状态、三颗键。
+            ★ G4 施工单 §2 点名的「商店 / 第 N 回合」两句**从面板上撤了**（HUD 那条也一起撤）：
+              进来时底部就是商店那 5 张卡，再用一个标题说一遍只是噪音；回合数在顶部进度条上。 */}
         <div className="flex w-[clamp(5.6rem,13vw,7rem)] flex-col gap-1">
-          <div className="flex items-baseline justify-between gap-1">
-            <span className="text-[11px] font-semibold text-slate-100">
-              <Trans>商店</Trans>
-            </span>
-            <span className="text-[10px] text-slate-400">
-              <Trans>第 {view.hud.round} 回合</Trans>
-            </span>
-          </div>
           {/* 锁定状态必须看得见（施工单第 2 条）：锁着时面板描边变金色 + 这行字 + 键本身变成"解锁"。
               不锁的时候**不占一行**（横屏真机只有 363 CSS px 高，这一行会把 HUD 顶掉）。 */}
           {locked && (

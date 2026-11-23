@@ -105,6 +105,25 @@ export const CHAIN = {
 /** 卡组位置（用户左手边） */
 export const DECK_POS: [number, number, number] = [-1.5, 0, 2.75];
 
+/**
+ * G4 桌面 5 个卡位：4 个角色位一排 + 1 个场景位（角色排左上方、桌面中线玩家这一侧）。
+ *
+ * ★ 这两个数组**只决定"位子摆哪儿"**；位子上是谁由 rules.tableSlotsOf 从对局数据里读
+ *   （TableScene 的 GameTableSlots 只画）。拖卡入位是施工单第 3 步，到那一步才需要"位子"自己的状态。
+ * ★ 竖屏这一套是量出来的（375×812 的窗口）：角色排 z=1.2、dx=0.85、卡缩到 0.55，四张卡
+ *   横跨屏宽 12.6~87.4%，正好避开左下的卡组堆（y 70.9~83.6%）与桌面中线那排市场卡；
+ *   场景位 (-1.55, 0.5) 在角色排左上方，投影到 8.3~20.4% / y 48.8~56.4% —— 仍在中线以内
+ *   （z>0 = 玩家这一侧）。**竖屏的 3D 桌面逐字不动的是别的东西：卡组堆 / 市场 / 摊开排 / 机位。**
+ */
+export const TABLE_SLOTS = {
+  roleZ: 1.2,
+  roleDx: 0.85,
+  roleScale: 0.55,
+  sceneX: -1.55,
+  sceneZ: 0.5,
+  sceneScale: 0.45,
+};
+
 /** 卡组展开排（用户手前一排，卡组右侧） */
 export const SPREAD = { z: 2.75, dx: 1.05, maxVisible: 3, centerX: 0.2 };
 
@@ -166,6 +185,25 @@ export const DECK_POS_LAND: [number, number, number] = [-1.8, 0, 3.0];
  *  每 0.1 世界单位≈2.6% 屏宽）。 */
 export const SPREAD_LAND = { z: 3.0, dx: 1.2, maxVisible: 3, centerX: 0.3 };
 
+/**
+ * 横屏的 G4 卡位（量法与量出来的数见下面 ★）：
+ *  · 角色排 z=1.7、dx=1.45、卡缩到 0.8：四张投到 x 23.0~77.0%、y 58.3~69.5%（945×785 的舞台），
+ *    桌面中线（z=0）在屏幕 y≈49% —— 这一排在它下面，且整排落在卡组堆（y 70.5~84.2%）**上方**，
+ *    两者不叠；
+ *  · 场景位 (-3.6, 0.55)：投到 x 15.8~25.4% / y 51.9~58.6%，读作"角色排的左上方"，
+ *    也在中线以下（y>49%、z>0 = 玩家这一侧）。
+ * ★ 为什么角色排不摆得更宽：窄画布（aspect 1.2~1.3 的浏览器窗口）里四张就已经撑到 90%，
+ *   再宽会撞画布边；手机上（aspect 2.2）四张占 28.7~71.3%，两侧留给卡组堆与合成法阵。
+ */
+export const TABLE_SLOTS_LAND = {
+  roleZ: 1.7,
+  roleDx: 1.45,
+  roleScale: 0.8,
+  sceneX: -3.6,
+  sceneZ: 0.55,
+  sceneScale: 0.65,
+};
+
 /** 横屏市场：一页 2 排 × 4 张 = 8 张（竖屏 2×3=6），行位置不变（rowsZ 与竖屏同一组）。
  *  dx 0.66→1.25：卡宽 0.605，横屏这一排的可视宽约是竖屏的 4 倍，四张排开只在画面中间
  *  x 27.7~72.3%（row0）/ 30.1~69.9%（row1），两侧留给卡组摊开排与合成法阵。
@@ -193,6 +231,8 @@ export interface SceneLayout {
   leftStack: [number, number, number];
   rightStack: [number, number, number];
   composePos: [number, number, number];
+  /** G4 的 5 个对局卡位（4 角色 + 1 场景） */
+  slots: typeof TABLE_SLOTS;
 }
 
 const PORTRAIT_LAYOUT: SceneLayout = {
@@ -204,6 +244,7 @@ const PORTRAIT_LAYOUT: SceneLayout = {
   leftStack: LEFT_STACK,
   rightStack: RIGHT_STACK,
   composePos: COMPOSE_POS,
+  slots: TABLE_SLOTS,
 };
 
 const LAND_LAYOUT: SceneLayout = {
@@ -215,6 +256,7 @@ const LAND_LAYOUT: SceneLayout = {
   leftStack: LEFT_STACK_LAND,
   rightStack: RIGHT_STACK_LAND,
   composePos: COMPOSE_POS_LAND,
+  slots: TABLE_SLOTS_LAND,
 };
 
 export function sceneLayout(land: boolean): SceneLayout {
