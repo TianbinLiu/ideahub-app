@@ -235,6 +235,15 @@ export interface FlowNode {
   /** 本段素材卡快照（工坊带过来的） */
   materials?: Card[];
   /**
+   * 这一段是哪一**回合的对局**出的片（G4 第 3 步的工坊对局）。
+   * ★ 为什么要有这一位：对局里的"视频生成"也要走同一条流水线（flowStore.genNode / segmentGen 契约），
+   *   而那条流水线可能还挂着玩家自己正在做的片。工作流面板（纯预览）与"这一回合是不是已经出过片"
+   *   都只认这一位 —— 按 `undefined` 过滤掉不属于这一局的段，不必清空玩家的流水线，
+   *   也不必给"对局的段"另存一份数据（那就是第二份真相）。
+   * ★ 缺省（undefined）= 不是对局出的段，读侧一律当"不是"，零迁移。
+   */
+  gameRound?: number;
+  /**
    * 这一段是从别人公开的制作过程**接**进来的（2026-10-02 P3a「接在后面」）：只管渲染（画布卡上一行「来自 @谁 的流程」）。
    * 整条照着做的那种署名走 flowStore.remixOf / DraftVideo.remixOf，不走这里 —— 接段的片子同时有自己的段和别人的流程，不署成同款。
    */
@@ -1352,6 +1361,8 @@ export interface AppendSpec {
   extendFrom?: FlowNode["extendFrom"];
   /** 文字模板段的出处（FlowNode.textTpl，只由 textTplAppendSpec 拼）。缺省 = 不是 */
   textTpl?: TextTplOrigin;
+  /** 这一段是哪一回合的对局出的（FlowNode.gameRound，只由 game/gen 拼）。缺省 = 不是对局的段 */
+  gameRound?: number;
 }
 
 /**
@@ -1382,6 +1393,8 @@ export function appendedNode(nodes: FlowNode[], spec: AppendSpec): FlowNode {
     ...(spec.extendFrom ? { extendFrom: spec.extendFrom } : {}),
     // 文字模板段（判否定）：报价 textTplQuote 与套用 applyTemplate 拼的是同一份 spec（textTplAppendSpec），这一位跟着节点走
     ...(spec.textTpl ? { textTpl: spec.textTpl } : {}),
+    // 对局出的段（G4 第 3 步）：工作流预览与"这一回合出过片没有"只认这一位
+    ...(spec.gameRound !== undefined ? { gameRound: spec.gameRound } : {}),
   };
 }
 

@@ -26,13 +26,14 @@ export default function PhaseBar({ view }: { view: GameView }) {
 
   switch (state.phase) {
     case "shop":
-      hint = t`买卡、换卡、把道具装到角色上，然后开始创作`;
+      hint = t`买卡、换卡、把卡拖到桌面卡位、把道具从右侧栏拖到角色上，然后开始创作`;
       action = { label: t`🎬 开始创作`, onClick: () => useGame.getState().enterCreate(), tone: "primary" };
       break;
     case "create":
+      // ★ G4 第 3 步起没有"三个虚框"了（一期作品的卡 = 桌面上的卡 + 装备的道具，见 rules.castCardsOf）
       hint = roundView?.mine
-        ? t`拍好了：${roundView.mine.entry.cards.length} 张卡 + 一句提示词（${roundView.mine.entry.seconds} 秒占位片）`
-        : t`把卡放进三个虚框、写一句提示词，再点「拍好了」`;
+        ? t`交片了：${roundView.mine.entry.cards.length} 张卡 + 一句提示词（${Math.round(roundView.mine.entry.seconds)} 秒）`
+        : t`桌面上摆好卡、写一句提示词，点「🎬 视频生成」真出片（或交占位片）`;
       action = { label: t`▶ 开始展映`, onClick: () => useGame.getState().enterScreening(), tone: "primary" };
       break;
     case "screening":

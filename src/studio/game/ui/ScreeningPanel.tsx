@@ -92,22 +92,35 @@ export default function ScreeningPanel() {
           </span>
         </div>
         <div className="mt-1 flex items-start gap-2">
-          <div className="flex flex-none gap-1">
-            {current.entry.cards.map((card) => (
-              <img
-                key={card.id}
-                src={gameCardArt(card)}
-                alt={gameCardName(card)}
-                title={gameCardName(card)}
-                className="h-[clamp(2.2rem,4.6vw,3rem)] w-[clamp(1.6rem,3.4vw,2.2rem)] rounded object-cover ring-1 ring-white/20"
-              />
-            ))}
-            {current.entry.cards.length === 0 && (
-              <span className="self-center text-[10px] text-slate-400">
-                <Trans>空镜（没放卡）</Trans>
-              </span>
-            )}
-          </div>
+          {/* ★ G4 第 3 步：这一期真出片了就直接放它（entry.videoUrl，来自生成小窗「用这一条交片」）。
+              没有地址 = 没出片（空镜 / 玩家没花这笔钱），照旧播占位色块 + 卡面 + 提示词。 */}
+          {current.entry.videoUrl ? (
+            <video
+              src={current.entry.videoUrl}
+              controls
+              playsInline
+              autoPlay
+              muted
+              className="h-[clamp(4.4rem,9.2vw,6rem)] w-auto rounded ring-1 ring-white/25"
+            />
+          ) : (
+            <div className="flex flex-none gap-1">
+              {current.entry.cards.map((card) => (
+                <img
+                  key={card.id}
+                  src={gameCardArt(card)}
+                  alt={gameCardName(card)}
+                  title={gameCardName(card)}
+                  className="h-[clamp(2.2rem,4.6vw,3rem)] w-[clamp(1.6rem,3.4vw,2.2rem)] rounded object-cover ring-1 ring-white/20"
+                />
+              ))}
+              {current.entry.cards.length === 0 && (
+                <span className="self-center text-[10px] text-slate-400">
+                  <Trans>空镜（没放卡）</Trans>
+                </span>
+              )}
+            </div>
+          )}
           <p className="min-w-0 flex-1 text-[11px] leading-snug text-slate-100" style={{ textShadow: "0 1px 2px rgb(0 0 0 / 0.6)" }}>
             {current.entry.prompt}
           </p>
@@ -152,7 +165,13 @@ export default function ScreeningPanel() {
         {/* ★ 这一句以前写成 <Trans>{cond ? "播完了" : `${seconds} 秒占位片`}</Trans>：中文在 JS 表达式里，
             Lingui 抽不到 → 英文界面上原样蹦中文（2026-11-23 实机验出来的）。两个分支各写一个 <Trans>。 */}
         <span className="text-[10px] text-slate-500">
-          {elapsedMs >= seconds * 1000 ? <Trans>播完了</Trans> : <Trans>{seconds} 秒占位片</Trans>}
+          {current.entry.videoUrl ? (
+            <Trans>真出片的那一条（{Math.round(seconds)} 秒）</Trans>
+          ) : elapsedMs >= seconds * 1000 ? (
+            <Trans>播完了</Trans>
+          ) : (
+            <Trans>{Math.round(seconds)} 秒占位片</Trans>
+          )}
         </span>
       </div>
     </div>

@@ -8,27 +8,28 @@
  *     一局 8 回合在脚本里跑完（不点一次界面），AI 买错卡 / 投错票这类事才在构建里就红。
  *     所以这里既不能碰 React，也不能碰 store。
  * ★ 现在的启发式是"够用的笨"（G3 的目标是把一局跑通，不是把 AI 调强）：
- *   买卡 = 买得起就买最贵的；装不下 = 用同类型里更便宜的旧卡顶掉；
- *   交片 = 每个槽位放自己品质最高的那张；投票 = 按卡品质加权随机。
+ *   买卡 = 买得起就买最贵的（G4 §3 起背包不再有上限，所以不用再"顶掉旧卡"）；
+ *   摆卡 = 品质最高的角色卡摆进 4 个角色位、最好的场景卡摆场景位，剩下的道具挂到品质最高的角色上；
+ *   交片 = 用桌面这套（submitRoundEntry 自己从桌面派生）+ 一句随机提示词；投票 = 按卡品质加权随机。
  *   它**不会**存钱吃利息、不会刷新、不会为了凑类型卖卡 —— 这些留给"AI 变强"那一步。
  */
 import {
-  SLOT_TYPES,
-  canAddCard,
   cardPrice,
   eventOptionsFor,
-  ownedCards,
+  tableCardsOf,
+  itemLimitOf,
   screeningOrderOf,
 } from "./rules.ts";
 import type { GameCard, GameEventOption, GamePlayer, GameState, Rng } from "./types";
 
 // ────────────────────────────── 商店（§2.3） ──────────────────────────────
 
-/** AI 在商店阶段的一步棋；"done" = 这一回合不再花钱。 */
-export type AiShopMove =
-  | { kind: "buy"; slot: number }
-  | { kind: "replace"; slot: number; outCardId: string }
-  | { kind: "done" };
+/**
+ * AI 在商店阶段的一步棋；"done" = 这一回合不再花钱。
+ * ★ G4 第 3 步删掉了 "replace" 那一步：背包不再有上限（施工单 §3），"装不下才换卡"这条路
+ *   在这局里根本走不到 —— 留着它就是一个永远为假的 AI 分支。
+ */
+export type AiShopMove = { kind: "buy"; slot: number } | { kind: "done" };
 
 /**
  * AI 在商店阶段的**下一步**（一次一步，由编排层 loop 到 done）。
@@ -49,51 +50,82 @@ export function aiShopMove(state: GameState, playerId: string): AiShopMove {
     .filter((offer) => cardPrice(offer.card) <= player.gold)
     .sort((a, b) => cardPrice(b.card) - cardPrice(a.card) || (a.card.id < b.card.id ? -1 : 1));
 
-  for (const { card, slot } of offers) {
-    if (canAddCard(player, card) === null) return { kind: "buy", slot };
-    // 装不下：同类型里最便宜、且比这张新卡便宜的旧卡顶掉。
-    // ★ 只换更便宜的：同价换卡是把一张卡换成另一张同名品质的卡，纯亏（rules.replaceCardInBag 不返钱）。
-    // ★ 带装备的角色不能顶（rules 会回 role-equipped），这里先排掉，省得编排层每次都要吞一次失败。
-    const outgoing = player.bag
-      .filter(
-        (owned) =>
-          owned.type === card.type &&
-          cardPrice(owned) < cardPrice(card) &&
-          !(owned.type === "role" && player.equipment.some((entry) => entry.roleCardId === owned.id)),
-      )
-      .sort((a, b) => cardPrice(a) - cardPrice(b) || (a.id < b.id ? -1 : 1))[0];
-    if (outgoing) return { kind: "replace", slot, outCardId: outgoing.id };
-  }
+  const best = offers[0];
+  if (best) return { kind: "buy", slot: best.slot };
   return { kind: "done" };
+}
+
+// ────────────────────────────── 摆卡（G4 第 3 步） ──────────────────────────────
+
+/**
+ * AI 这一回合的摆卡计划：把手上品质最高的角色卡摆进角色位、最好的场景卡摆进场景位，
+ * 再把剩下的道具挂到**品质最高的那张角色**上（每角色最多 rules.itemLimitOf 张）。
+ * ★ 只回"要做什么"，不碰 state：落地走 rules.placeOnTable / rules.equipItem（单一实现）。
+ *   失败（比如道具挂到一张还没摆到桌上的角色上）不在这里吞 —— 编排层照 rules 的回执处理。
+ */
+export interface AiTablePlan {
+  /** 要摆上桌的卡（按顺序：先角色后场景） */
+  place: string[];
+  /** 要装备的（角色 id + 道具 id） */
+  equip: { roleCardId: string; itemCardId: string }[];
+}
+
+export function aiTablePlan(state: GameState, playerId: string): AiTablePlan {
+  const player = state.players.find((candidate) => candidate.id === playerId);
+  if (!player) return { place: [], equip: [] };
+  const byQuality = (a: GameCard, b: GameCard) => b.quality - a.quality || (a.id < b.id ? -1 : 1);
+  // 已经在桌上的算"已经摆好"（不重复摆），手上剩下的才补空位
+  const onTable = new Set(tableCardsOf(player).map((card) => card.id));
+  const roles = player.bag.filter((card) => card.type === "role" && !onTable.has(card.id)).sort(byQuality);
+  const scenes = player.bag.filter((card) => card.type === "scene" && !onTable.has(card.id)).sort(byQuality);
+  const items = player.bag.filter((card) => card.type === "item").sort(byQuality);
+
+  const place = [...roles.map((card) => card.id), ...scenes.slice(0, 1).map((card) => card.id)];
+  // 挂道具：按桌上的角色品质从高到低轮流挂，每张到各自的限为止
+  const tableRoles = [...tableCardsOf(player).filter((card) => card.type === "role"), ...roles].sort(byQuality);
+  const equippedHas = new Map<string, number>();
+  for (const entry of player.equipment) {
+    equippedHas.set(entry.roleCardId, (equippedHas.get(entry.roleCardId) ?? 0) + 1);
+  }
+  const cap = itemLimitOf(player);
+  const equip: { roleCardId: string; itemCardId: string }[] = [];
+  let cursor = 0;
+  for (const item of items) {
+    // 找下一张还挂得下的角色（一轮里依次摊开，别把 3 张都堆给同一个人）
+    let target: GameCard | null = null;
+    for (let probe = 0; probe < tableRoles.length; probe += 1) {
+      const role = tableRoles[(cursor + probe) % tableRoles.length];
+      if ((equippedHas.get(role.id) ?? 0) >= cap) continue;
+      // 还没摆到桌面的角色：等 place 那一批落地之后才存在，这里只按"会摆上去"的算
+      target = role;
+      cursor = (cursor + probe + 1) % tableRoles.length;
+      break;
+    }
+    if (!target) break;
+    equippedHas.set(target.id, (equippedHas.get(target.id) ?? 0) + 1);
+    equip.push({ roleCardId: target.id, itemCardId: item.id });
+  }
+  return { place, equip };
 }
 
 // ────────────────────────────── 创作（§2.4） ──────────────────────────────
 
-/** AI 这一期交什么片：三个槽位各放自己品质最高的那张卡 + 一句随机提示词。 */
+/** AI 这一期交什么片：桌面那套（摆好的角色 / 场景 / 道具）+ 一句随机提示词。 */
 export interface AiEntryPlan {
-  cards: GameCard[];
   prompt: string;
 }
 
 /**
  * AI 的交片计划。提示词从调用方递进来的池子里随机抽一条（★ 文案不进规则 / 决策层：
- * 这个文件里一个中文都不该有，界面用 Lingui 管多语言，池子由 store 传进来 —— 与 Rng 同一种注入法）。
- * ★ 每类卡只放一张：三个虚框是"角色 / 场景 / 道具各一个"（rules.SLOT_TYPES），放两张同类型会被规则拒。
+ * 这个文件里一个中文都不该有，界面用 Lingui 管理多语言，池子由 store 传进来 —— 与 Rng 同一种注入法）。
+ * ★ G4 第 3 步起**卡不在这个计划里**：一期作品的卡 = 桌面上的卡 + 装备的道具（rules.castCardsOf），
+ *   那是状态不是决定。AI 要"用哪几张卡"改走 aiTablePlan（摆卡）。
  * ★ 一张卡都没有 = 空镜：照样交（不然它会把展映卡死），代价是没人投它（aiVote 的权重）。
  */
-export function aiEntryPlan(state: GameState, playerId: string, rng: Rng, prompts: readonly string[]): AiEntryPlan {
-  const player = state.players.find((candidate) => candidate.id === playerId);
-  const owned = player ? ownedCards(player) : [];
-  const cards: GameCard[] = [];
-  for (const type of SLOT_TYPES) {
-    const best = owned
-      .filter((card) => card.type === type)
-      .sort((a, b) => b.quality - a.quality || (a.id < b.id ? -1 : 1))[0];
-    if (best) cards.push(best);
-  }
+export function aiEntryPlan(_state: GameState, _playerId: string, rng: Rng, prompts: readonly string[]): AiEntryPlan {
   const pool = prompts.length > 0 ? prompts : [""];
   const prompt = pool[Math.min(pool.length - 1, Math.floor(unit(rng) * pool.length))];
-  return { cards, prompt };
+  return { prompt };
 }
 
 /** 把注入的 rng 夹进 [0, 1)：坏 rng 不许让 AI 决策拿到 undefined 的下标（与 rules.unit 同一条理由）。 */

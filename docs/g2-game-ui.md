@@ -322,3 +322,78 @@ G4 第 1 步之前它在右栏最上面（`src/studio/ui/SceneRails.tsx` 的 `Ma
   原因）、锁定 / 解锁（描边 + 金色键 + 已锁定）、点道具再点角色装备 / 再点角色卸下。
   **替换流程没法在真机上走到**：初始 4 金买不满 9 格，而这一块还没有回合循环（没有收入）——
   它是在浏览器里注入金币当测试夹具验的（`store.buy` 走的是同一条 `buyShopCard` → `replaceCardInBag`）。
+
+## G4 第 3 步：摆卡与出片（2026-11-23）
+
+> 施工单 [g4-ui-revamp-spec.md](g4-ui-revamp-spec.md) §2 / §3 / §4 里与卡有关的那几条。
+> 前两步（UI 清理与布局骨架、商店流程）已在 main；这一步把"桌面 5 个空位"变成真的摆卡台，
+> 并把「视频生成」接回现有出片契约（`flowStore.genNode` / `segmentGen`）。
+
+### 做了什么
+
+- **拖卡入位**：背包条（下方，只放**角色 / 场景**卡）按下即开拖，落点是桌面上的 5 个卡位。
+  拖错类型 / 卡位满了都由 **rules** 回原因（`wrong-slot-type` / `type-cap`），状态栏用
+  `reasons.ruleFailureText` 说那句人话 —— 界面一句都不自己编。
+- **道具栏搬到屏幕右侧**（施工单 §3 第三条）：`ui/ItemRail.tsx`，一列道具卡 + 顶上一颗**拆除工具**。
+  道具从这一列拖到某张**摆在桌上**的角色卡上 = 装备；拆除工具拖上去 = 一次卸下它身上的**所有**道具。
+- **规则改造**（施工单 §3 前两条，只在 `rules.ts`）：
+  - 删掉背包的 9 格与"按种类计数"（角色 ≤4 / 场景 ≤1 / 道具 ≤4）——上限改由**桌面卡位**管；
+  - 道具上限改成**每个角色最多 3 张**（`ITEMS_PER_ROLE` + `itemLimitOf`，事件「补给站」的 +1 从
+    "某类卡上限"改挂在这一格上：旧的那一类已经没有上限可加了）；
+  - `type-cap` 这个原因码**只保留桌面卡位这一层**（`placeCardOnTable` 找空位时抛）。
+- **生成小窗**（`ui/GenSheet.tsx`）：点「🎬 视频生成」→ 输入提示词（面板上那个框，同一份 `store.createPrompt`）
+  → **① 先画首帧**（`flowStore.regenProposal`）→ 看一眼 → **② 出片**（`flowStore.genNode`）
+  → 「用这一条交片」（`rules.submitRoundEntry` 收下 `videoUrl` / `seconds`）。
+  两步就是快速模式（QuickModePage，2026-11-22 阶段 A）那一条，没有第二份实现。
+- **提示词里带卡名**：素材卡由 `game/gen.gameMaterialOf` 把对局的卡转成 `types.Card`（只有名字——
+  对局的卡没有形象图、也没有 idLine），走 `segmentGen.materialText` 现有的那句
+  「本段固定素材设定……人物卡「名字」」进视频提示词。**没有另造一套点名句**。
+- **工作流按钮**：对局里打开的是**纯预览**（`ui/GenPreview.tsx`）：本局每段的回合数 / 状态 / 首帧或成片 /
+  那句提示词 / 用了哪些卡 / 档位；**没有任何"改 / 重新生成"的键**。不在对局里仍然是画布
+  （它是新建流水线唯一的门，G4 第 1 步把桌面节点卡撤了 —— 改成只读会让工坊再也做不出自己的片）。
+
+### 拖拽复用了什么（没有新写一套手势）
+
+- 手势状态住在 `game/store` 的 `drag`（`kind: place / equip / remove / return` + `hover`）：
+  2D 起点（背包条 / 右侧栏 / 拆除工具）与 3D 起点（桌面卡位上按下 = `kind:"return"`）喂同一个状态。
+- **落点判定把 3D 卡位投影回屏幕**（`scene/slotScreen.ts`，与 `cameraOrbit.NPC_SCREEN` /
+  `PLAYER_SCREEN` 同一套 `project` 做法），在 `GameTableSlots` 的 `useFrame` 里每帧重算五格矩形。
+  没有从屏幕往场景里射线反解世界坐标，也没有另起一套 3D 拾取。
+- 3D 那一侧只做两件事：按 `drag.hover` 高亮"现在悬在哪一格"（`SlotPlate` 的 `hot`），
+  以及"在卡位上按下 = 把这张卡从桌上拖走"（跑 `beginDrag`）。
+- `ui/GameDragLayer.tsx` 是那一层的 DOM 半边：跟手的 ghost + 提示条 + 松手落地。
+
+### 生成为什么只走现有契约
+
+- 铺段 = `flowStore.appendNode(gameSegmentSpec(...))`（`AppendSpec` 与工坊铸段窗 / 跟着做 / 快速模式同一批），
+  画帧 = `regenProposal`，出片 = `genNode`。档位由 `game/gen.gameTierIdOf` 把 rules 的档位名翻成档位表 id
+  （写法与快速模式 `previewTierId` 同一份：能给出 MiniMax 就用它）。
+- 新加的一位：`FlowNode.gameRound`（+ `AppendSpec.gameRound`）标记"这一段是本局出的"，
+  工作流预览按它过滤 —— 不清空玩家原来的流水线，也不给对局的段另存一份数据。
+- **钱照实说**：服务端券机制还没接，小窗上直接写"这一发按 token 结算（游戏券还没接）：画首帧约 X、出片约 Y"，
+  价签问 `redrawCost` / `nodeCost`（与真扣同一份），远端模式以服务器结算为准。
+
+### 与之前不同的地方（读代码的人会碰到的）
+
+- `buyShopCard` 不再收 `replaceCardId`：背包不限量 ⇒ 没有"装不下 → 替换"这条路了（`replaceCardInBag` 已删）。
+  想换卡就先卖（+1 金）再买。
+- 摆卡 / 装备在两阶段都允许（`rules.PLACE_PHASES = ["shop", "create"]`）：出片按钮在创作阶段，
+  进那一阶段才发现没摆就永远补不上；卖卡仍只在商店阶段（钱的事）。
+- 一期作品的卡**不再由调用方递进来**：`submitRoundEntry` 从 `rules.castCardsOf(我)` 派生
+  （桌面上的卡 + 挂在角色身上的道具），`RoundEntry.videoUrl` 记真出片那一发的地址（展映屏直接放它）。
+- 事件「补给站」的 5 金选项名不变（id 仍是 `bag-expand`），效果改成"每张角色能挂的道具 +1"。
+- 三条检查脚本同步改了：`check-game-rules.mjs`（摆卡 / 卡位满了 / 拖错类型 / 拖回背包 / 替换 /
+  每角色 3 张 / 拆除工具 / 阶段闸）、`check-game-bots.mjs`（AI 摆卡计划、不再有"替换更便宜的旧卡"）、
+  `check-i18n.mjs`（en 缺译 0）。
+
+### 验证
+
+- `npm run build` 绿（tsc + 全部 check 脚本 + vite build）、`check-game-rules` 883 条断言、
+  `check-game-bots` 538 条断言（含一局 6 回合跑完）。
+- 真机这一拍**没连上**（`adb devices` 空），改用 `npm run dev`（1384×797 横屏舞台）走了一遍：
+  开局 → 选风格 → 商店买 3 张角色 + 1 场景 + 1 道具（测试时注入了金币）→ 角色摆进 0/1 号位、场景进场景位
+  （走 store 的 `placeCard` / `equipOn`，与拖拽落点同一条规则）→ 进创作 → 生成小窗报价约 26.7k（首帧）+
+  103.7k（出片），照实写「这一发按 token 结算（游戏券还没接）」→ 工作流面板只读预览（空态一句「这一局还没有
+  出过片」；注入一段之后能看第 1 回合 / 还没出片 / 5 秒 / 首帧 / 那句提示词 / 用了哪些卡，一个改键都没有）→
+  右侧道具栏拖到角色卡装备成功、拖到空格子回 `table-slot-empty`、拆除工具一次卸光（`unequipped`）。
+  **没有点「① 先画首帧」**：这台机器的 `.env.local` 配了真 ARK key，点一下就是真花钱。

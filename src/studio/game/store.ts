@@ -1,14 +1,18 @@
 /**
- * 一局对局的全部状态（G2 第二块起的门面；G3 把回合循环接上）。
+ * 一局对局的全部状态（G2 第二块起的门面；G3 把回合循环接上；G4 第 3 步接摆卡与出片）。
  *
  * ★ 为什么单开一个 store（不塞进 StudioPage 的 useState、也不塞进 studioStore）：
  *   · 工坊里切到画布浮层、去挂卡页再回来，这一页会整个重挂 —— 局部 state 归零，一局的钱与卡就没了；
  *   · G3 的回合循环 / G4 的出片翻译层 / G5 的房间同步要认同一份 GameState，放在页面里它们够不着。
  * ★★ 这一层**不写一条规则**（铁律六）：每个动作只做三件事 —— 把当前 state 递给 rules 里的同名函数、
  *   把成功结果写回、把失败原因（RuleFailure）原样留下来交给界面说人话（铁律八：不静默失败）。
- *   金币 / 利息 / 背包上限 / 类型上限 / 装备闸 / 风格锁死 / 商店刷新与锁定的语义全部在 rules；
+ *   金币 / 利息 / 桌面卡位 / 每角色 3 张道具 / 风格锁死 / 商店刷新与锁定的语义全部在 rules；
  *   交片 / 点赞 / 投票 / 榜单 / 扣血也在 rules；"一局怎么走"（AI 陪玩的那几步）在 phases。
  *   这里连一个 `if (gold >= price)` 都不许出现。
+ * ★ G4 第 3 步起这一层还多扛一件事：**拖拽手势的状态**（`drag`）。它必须住在 store 而不是组件里 ——
+ *   拖动的起点在 2D 背包条 / 右侧道具栏（DOM），落点可能是 3D 桌面上的五个卡位（canvas 里的投影），
+ *   而 3D 那一侧要按同一个"现在正拖着什么、悬在哪一格"高亮（scene/TableScene 的 SlotPlate）。
+ *   两处各自 useState 就会一边亮一边不亮（屏幕上最像"拖坏了"的那种症状）。
  * ★ 单机版：本地玩家叫 "me"，另外 3 个是 AI 陪玩。AI 的行为在 game/bots.ts（纯函数），
  *   编排在 game/phases.ts（纯函数），两边都能在脚本里整局跑（scripts/check-game-bots.mjs）。
  * ★ 随机源住模块作用域（不进 state）：一局的 rng 是一个**有位置的序列**，放进 zustand 状态里会被
@@ -20,15 +24,16 @@ import {
   cardSellValue,
   createRng,
   equipItem,
-  equippedItemOf,
   likeEntry,
   pickStyleCard,
+  placeOnTable,
   refreshShop,
+  returnToBag,
   sellCard,
   skipEventChoice,
   submitRoundEntry,
   toggleShopLock,
-  unequipItem,
+  unequipAll,
   voteEntry,
   abstainVote,
   applyEventChoice,
@@ -39,7 +44,7 @@ import {
 } from "./rules";
 import { aiEventChoices, openRound, playOutAiOnly, startMatch, toCreation, toScreening, toVoting } from "./phases";
 import { aiPromptPool } from "./labels";
-import type { GameCard, GameState, RoundSettlement, RoundTally, Rng } from "./types";
+import type { GameCard, GameState, RoundSettlement, RoundTally, Rng, TableSlot } from "./types";
 
 /** 本地玩家的座位 id（单机版的"我"；G5 联机时换成服务端下发的 playerId） */
 export const LOCAL_PLAYER_ID = "me";
@@ -50,14 +55,16 @@ export const AI_PLAYER_IDS = ["ai-1", "ai-2", "ai-3"] as const;
 export type GameNoticeKind =
   | "bought"
   | "sold"
+  | "placed"
+  | "returned"
   | "equipped"
   | "unequipped"
   | "refreshed"
   | "locked"
   | "unlocked"
-  | "pick-item-first"
   // G3：创作 / 展映 / 投票那几下
   | "entry-saved"
+  | "generated"
   | "liked"
   | "voted"
   | "abstained";
@@ -76,6 +83,23 @@ export interface GameRejection {
   at: number;
 }
 
+/**
+ * 正在拖的东西（G4 第 3 步）。
+ *   place  = 从背包条拖一张角色 / 场景卡 → 桌面卡位
+ *   equip  = 从右侧道具栏拖一张道具 → 某张角色卡
+ *   remove = 右侧道具栏的拆除工具 → 某张角色卡（一次卸下它身上的全部道具）
+ *   return = 从桌面卡位拖一张已经摆好的卡 → 拖回背包（或拖到别的卡位上换位）
+ * ★ `hover` 是"现在悬在哪一格"：3D 卡位靠它高亮，落点判定也只认它（松手那一刻不再重算，
+ *   屏幕上亮着哪一格就落在哪一格 —— 否则手指抬起前的一两像素抖动会落到旁边的位子上）。
+ */
+export interface GameDragState {
+  kind: "place" | "equip" | "remove" | "return";
+  /** 拖的是哪张卡（remove 没有卡：拆除工具不是卡） */
+  cardId: string | null;
+  /** 桌面上的悬停卡位；null = 没悬在任何一格上 */
+  hover: TableSlot | null;
+}
+
 /** 上一期的结算摘要 + 两个榜（结算 / 事件 / 对局结束那几屏读它）。 */
 export interface RoundReport {
   summary: RoundSettlement;
@@ -88,10 +112,6 @@ export interface GameStore {
   meId: string;
   /** 这一局的种子（复盘：startGame(seed) 能重放同一局） */
   seed: number;
-  /** 点选式装备的第一步：选中了哪张道具；null = 没选 */
-  pickedItemId: string | null;
-  /** 商店里等着挑"替换掉哪一张"的那一格；null = 不在替换流程 */
-  pendingBuySlot: number | null;
   /** 商店面板收起来没有（收起后仍能从背包条那颗键打开） */
   shopOpen: boolean;
   rejection: GameRejection | null;
@@ -100,6 +120,16 @@ export interface GameStore {
   report: RoundReport | null;
   /** 我在第几回合被淘汰的（结束屏要说"你在第 N 回合出局"）；null = 还活着 */
   eliminatedAtRound: number | null;
+  /** 正在拖的东西；null = 没在拖（见 GameDragState 的 ★） */
+  drag: GameDragState | null;
+  /**
+   * 这一期要交的那句提示词（创作面板输入、生成小窗读同一份）。
+   * ★ 放 store 而不是组件 state：提示词会被**两处**读（面板上的输入框、生成那一发拼进
+   *   node.requirement / plot），生成小窗一开一关就丢一半字符的话，发出去的句子和屏幕上不是同一句。
+   */
+  createPrompt: string;
+  /** 工作流面板（纯预览）开着没有 */
+  previewOpen: boolean;
 
   startGame: (seed?: number) => void;
   endGame: () => void;
@@ -109,23 +139,36 @@ export interface GameStore {
   finishStyle: () => void;
   toggleShop: (open?: boolean) => void;
   buy: (slot: number) => void;
-  cancelReplace: () => void;
-  replaceAndBuy: (outCardId: string) => void;
   refresh: () => void;
   toggleLock: () => void;
   sell: (cardId: string) => void;
-  /** 点一张道具 = 选中 / 取消选中（点选式装备，不做 3D 拖拽） */
-  pickItem: (cardId: string | null) => void;
-  /** 点一张角色：选中了道具就装上；没选道具而角色身上有东西就卸下 */
-  equipOn: (roleCardId: string) => void;
+
+  // ── 摆卡与装备（G4 第 3 步）──
+  beginDrag: (drag: GameDragState) => void;
+  hoverSlot: (slot: TableSlot | null) => void;
+  /** 松手：按悬停的那一格落地（null = 没悬在任何卡位上，交给各动作自己决定去背包 / 自动占位） */
+  endDrag: () => void;
+  /** 直接摆一张（不经过拖拽：自动化脚本 / 键盘可达的退路） */
+  placeCard: (cardId: string, slot?: TableSlot | null) => void;
+  /** 把一个卡位上的卡拖回背包 */
+  returnCard: (slot: TableSlot) => void;
+  /** 道具装到角色身上（右侧栏拖到角色卡） */
+  equipOn: (roleCardId: string, itemCardId: string) => void;
+  /** 拆除工具：一次卸下这张角色身上的所有道具 */
   unequipFrom: (roleCardId: string) => void;
+  setCreatePrompt: (text: string) => void;
+  setPreviewOpen: (open: boolean) => void;
   clearRejection: () => void;
 
   // ── G3 回合循环 ──
   /** 商店 → 创作（AI 在这一拍把片子交了） */
   enterCreate: () => void;
-  /** 交片：三个虚框里的卡 + 一句提示词（可重交，改卡改词都行） */
-  saveEntry: (cards: readonly GameCard[], prompt: string) => void;
+  /**
+   * 交片：用**桌面上的卡**（+ 挂在角色身上的道具）+ 一句提示词。
+   * ★ 卡不再由调用方递进来（G4 第 3 步）：一期作品的卡 = rules.castCardsOf(我)，桌面就是"这一期拍什么"。
+   * ★ `videoUrl` / `seconds` = 真出片那一发的结果（game/gen 传进来）；没出片就是空镜占位片。
+   */
+  saveEntry: (patch?: { videoUrl?: string; seconds?: number }) => void;
   /** 创作 → 展映（AI 在这一拍点完赞） */
   enterScreening: () => void;
   /** 展映里给一条点赞（每条一次） */
@@ -177,17 +220,36 @@ export const useGame = create<GameStore>((set, get) => {
     set({ rejection: null, ...patch });
   };
 
+  /** 卡位比较（角色位按下标、场景位只有一个）：拖拽高亮与落点都认它，别各处自己比字段 */
+  const sameSlot = (a: TableSlot | null, b: TableSlot | null): boolean => {
+    if (!a || !b) return a === b;
+    if (a.kind !== b.kind) return false;
+    return a.kind === "scene" || (b.kind === "role" && a.index === b.index);
+  };
+
+  /** 这一格上是哪张卡（给"拖回背包 / 拆除工具"认人；空位回 null） */
+  const cardAt = (slot: TableSlot): GameCard | null => {
+    const state = get().state;
+    if (!state) return null;
+    const player = state.players.find((p) => p.id === get().meId);
+    if (!player) return null;
+    const table = player.table;
+    if (slot.kind === "scene") return table.scene;
+    return table.roles[slot.index] ?? null;
+  };
+
   return {
     state: null,
     meId: LOCAL_PLAYER_ID,
     seed: 0,
-    pickedItemId: null,
-    pendingBuySlot: null,
     shopOpen: false,
     rejection: null,
     notice: null,
     report: null,
     eliminatedAtRound: null,
+    drag: null,
+    createPrompt: "",
+    previewOpen: false,
 
     startGame: (seed) => {
       const nextSeed = typeof seed === "number" && Number.isFinite(seed) ? seed >>> 0 : freshSeed();
@@ -203,13 +265,14 @@ export const useGame = create<GameStore>((set, get) => {
       set({
         state: started.state,
         seed: nextSeed,
-        pickedItemId: null,
-        pendingBuySlot: null,
         shopOpen: false,
         rejection: null,
         notice: null,
         report: null,
         eliminatedAtRound: null,
+        drag: null,
+        createPrompt: "",
+        previewOpen: false,
       });
     },
 
@@ -218,13 +281,14 @@ export const useGame = create<GameStore>((set, get) => {
       set({
         state: null,
         seed: 0,
-        pickedItemId: null,
-        pendingBuySlot: null,
         shopOpen: false,
         rejection: null,
         notice: null,
         report: null,
         eliminatedAtRound: null,
+        drag: null,
+        createPrompt: "",
+        previewOpen: false,
       });
     },
 
@@ -262,35 +326,11 @@ export const useGame = create<GameStore>((set, get) => {
       const { state, meId } = get();
       if (!state) return;
       const bought = buyShopCard(state, meId, slot);
-      if (bought.ok) {
-        done({ state: bought.state, pendingBuySlot: null, pickedItemId: null, notice: { kind: "bought", at: Date.now() } });
+      if (!bought.ok) {
+        fail(bought);
         return;
       }
-      // ★ 装不下**不是死路**：规则说"装不下只能替换"（§2.1），所以这两种失败要记住那一格，
-      //   让玩家在背包里挑一张旧卡（replaceAndBuy 走同一条 rules.buyShopCard，带上 replaceCardId）。
-      if (bought.reason === "bag-full" || bought.reason === "type-cap") {
-        set({ rejection: { failure: bought, at: Date.now() }, pendingBuySlot: slot, notice: null });
-        return;
-      }
-      set({ rejection: { failure: bought, at: Date.now() }, pendingBuySlot: null, notice: null });
-    },
-
-    cancelReplace: () => {
-      set({ pendingBuySlot: null, rejection: null });
-    },
-
-    replaceAndBuy: (outCardId) => {
-      const { state, meId, pendingBuySlot } = get();
-      // 界面只在替换流程里画这颗键（点不到这条路）；真被点到就当作没发生，不硬编一个假原因。
-      if (!state || pendingBuySlot === null) return;
-      const bought = buyShopCard(state, meId, pendingBuySlot, outCardId);
-      if (bought.ok) {
-        done({ state: bought.state, pendingBuySlot: null, pickedItemId: null, notice: { kind: "bought", at: Date.now() } });
-        return;
-      }
-      // 保留 pendingBuySlot：换一张旧卡可能就成了（比如换成同类型的卡、角色先卸下道具），
-      // 失败原因（role-equipped / item-equipped）由界面说清楚，玩家可以再挑或取消。
-      set({ rejection: { failure: bought, at: Date.now() }, notice: null });
+      done({ state: bought.state, notice: { kind: "bought", at: Date.now() } });
     },
 
     refresh: () => {
@@ -322,7 +362,7 @@ export const useGame = create<GameStore>((set, get) => {
       if (!state) return;
       const card = state.players.find((p) => p.id === meId)?.bag.find((c) => c.id === cardId);
       if (!card) {
-        // 走到这里说明界面画了一张背包里已经没有的卡（卖掉 / 替换掉之后没重渲）：说清楚，别当没点。
+        // 走到这里说明界面画了一张背包里已经没有的卡（卖掉 / 摆到桌上之后没重渲）：说清楚，别当没点。
         fail({ ok: false, reason: "card-not-in-bag" });
         return;
       }
@@ -333,54 +373,113 @@ export const useGame = create<GameStore>((set, get) => {
       }
       done({
         state: sold.state,
-        pickedItemId: null,
         notice: { kind: "sold", at: Date.now(), gold: cardSellValue(card) },
       });
     },
 
-    pickItem: (cardId) => {
-      const { pickedItemId } = get();
-      const next = cardId === null || cardId === pickedItemId ? null : cardId;
-      set({ pickedItemId: next, rejection: null });
+    // ─────────────────────── 摆卡与装备（G4 第 3 步） ───────────────────────
+    // ★ 这些动作全是"递给 rules → 写回 → 失败原因原样留着"，一条规则都不在这里。
+
+    beginDrag: (drag) => set({ drag, rejection: null }),
+
+    hoverSlot: (slot) => {
+      const { drag } = get();
+      // 没在拖的时候不改 hover：3D 那一层每帧都会按悬停值高亮，一个残留的 hover 会一直亮着
+      if (!drag) return;
+      if (sameSlot(drag.hover, slot)) return;
+      set({ drag: { ...drag, hover: slot } });
     },
 
-    equipOn: (roleCardId) => {
-      const { state, meId, pickedItemId } = get();
-      if (!state) return;
-      const player = state.players.find((p) => p.id === meId);
-      if (!player) return;
-      if (pickedItemId === null) {
-        // 没选道具时点角色：身上有东西就卸下（施工单「再点可卸下」）；没有就告诉玩家下一步，
-        // 否则这一下在手机上就是"点了没反应"。
-        if (equippedItemOf(player, roleCardId)) {
-          get().unequipFrom(roleCardId);
-          return;
-        }
-        set({ rejection: null, notice: { kind: "pick-item-first", at: Date.now() } });
+    endDrag: () => {
+      const { drag, meId, state } = get();
+      set({ drag: null });
+      if (!drag || !state) return;
+      const hover = drag.hover;
+      if (drag.kind === "place") {
+        if (!drag.cardId) return;
+        // 悬在某一格上就落那一格；否则（拖到桌面空处）让 rules 自己找这一类的第一个空位
+        get().placeCard(drag.cardId, hover);
         return;
       }
-      const equipped = equipItem(state, meId, roleCardId, pickedItemId);
+      if (drag.kind === "return") {
+        // 落到另一格 = 换位；落到桌面空处 = 回背包（施工单：已占的位可以拖回背包）
+        if (hover && drag.cardId) {
+          const target = cardAt(hover);
+          if (!target || target.id !== drag.cardId) {
+            get().placeCard(drag.cardId, hover);
+            return;
+          }
+        }
+        const from = state.players.find((p) => p.id === meId)?.table;
+        if (!from || !drag.cardId) return;
+        const slot = findSlotOfCard(from.roles, from.scene, drag.cardId);
+        if (slot) get().returnCard(slot);
+        return;
+      }
+      // equip / remove：落点必须是角色卡（悬在空的角色位上 = 没对准人，说清楚）
+      if (!hover || hover.kind !== "role") {
+        fail({ ok: false, reason: "not-a-role" });
+        return;
+      }
+      const roleId = cardAt(hover)?.id ?? null;
+      if (!roleId) {
+        fail({ ok: false, reason: "table-slot-empty", cardType: "role" });
+        return;
+      }
+      if (drag.kind === "remove") {
+        get().unequipFrom(roleId);
+        return;
+      }
+      if (drag.cardId) get().equipOn(roleId, drag.cardId);
+    },
+
+    placeCard: (cardId, slot = null) => {
+      const { state, meId } = get();
+      if (!state) return;
+      const placed = placeOnTable(state, meId, cardId, slot);
+      if (!placed.ok) {
+        fail(placed);
+        return;
+      }
+      done({ state: placed.state, notice: { kind: "placed", at: Date.now() } });
+    },
+
+    returnCard: (slot) => {
+      const { state, meId } = get();
+      if (!state) return;
+      const returned = returnToBag(state, meId, slot);
+      if (!returned.ok) {
+        fail(returned);
+        return;
+      }
+      done({ state: returned.state, notice: { kind: "returned", at: Date.now() } });
+    },
+
+    equipOn: (roleCardId, itemCardId) => {
+      const { state, meId } = get();
+      if (!state) return;
+      const equipped = equipItem(state, meId, roleCardId, itemCardId);
       if (!equipped.ok) {
         fail(equipped);
         return;
       }
-      done({
-        state: equipped.state,
-        pickedItemId: null,
-        notice: { kind: "equipped", at: Date.now() },
-      });
+      done({ state: equipped.state, notice: { kind: "equipped", at: Date.now() } });
     },
 
     unequipFrom: (roleCardId) => {
       const { state, meId } = get();
       if (!state) return;
-      const unequipped = unequipItem(state, meId, roleCardId);
+      const unequipped = unequipAll(state, meId, roleCardId);
       if (!unequipped.ok) {
         fail(unequipped);
         return;
       }
       done({ state: unequipped.state, notice: { kind: "unequipped", at: Date.now() } });
     },
+
+    setCreatePrompt: (text) => set({ createPrompt: text }),
+
+    setPreviewOpen: (open) => set({ previewOpen: open }),
 
     clearRejection: () => {
       set({ rejection: null });
@@ -392,24 +491,31 @@ export const useGame = create<GameStore>((set, get) => {
     enterCreate: () => {
       const { state } = get();
       if (!state) return;
-      // AI 的片子在这一拍就交好（用它的卡 + 一句随机提示词，池子在这里递进去 —— bots 不认语言）
+      // AI 的片子在这一拍就交好（先摆好它自己的桌面，再用它的卡 + 一句随机提示词）
       const created = toCreation(state, AI_IDS, aiPromptPool(), rng);
       if (!created.ok) {
         fail(created);
         return;
       }
-      done({ state: created.state, shopOpen: false, pickedItemId: null, pendingBuySlot: null });
+      done({ state: created.state, shopOpen: false, drag: null });
     },
 
-    saveEntry: (cards, prompt) => {
-      const { state, meId } = get();
+    saveEntry: (patch) => {
+      const { state, meId, createPrompt } = get();
       if (!state) return;
-      const saved = submitRoundEntry(state, meId, { cards, prompt });
+      const saved = submitRoundEntry(state, meId, {
+        prompt: createPrompt,
+        videoUrl: patch?.videoUrl,
+        seconds: patch?.seconds,
+      });
       if (!saved.ok) {
         fail(saved);
         return;
       }
-      done({ state: saved.state, notice: { kind: "entry-saved", at: Date.now() } });
+      done({
+        state: saved.state,
+        notice: { kind: patch?.videoUrl ? "generated" : "entry-saved", at: Date.now() },
+      });
     },
 
     enterScreening: () => {
@@ -533,7 +639,7 @@ export const useGame = create<GameStore>((set, get) => {
         return;
       }
       // 新的回合商店默认打开（与第一回合一致）；上一期的报告留着也没人读（那一屏已经卸载了）
-      done({ state: opened.state, shopOpen: true, pickedItemId: null, pendingBuySlot: null });
+      done({ state: opened.state, shopOpen: true });
     },
 
     restart: () => {
@@ -541,6 +647,18 @@ export const useGame = create<GameStore>((set, get) => {
     },
   };
 });
+
+/** 一张卡在桌面上的位置（拖回背包时认它；不在桌上回 null）。 */
+function findSlotOfCard(
+  roles: (GameCard | null)[],
+  scene: GameCard | null,
+  cardId: string,
+): TableSlot | null {
+  const index = roles.findIndex((card) => card?.id === cardId);
+  if (index >= 0) return { kind: "role", index };
+  if (scene?.id === cardId) return { kind: "scene" };
+  return null;
+}
 
 // 给界面读的派生：胜者（结算屏 / 结束屏"谁赢了"只有 rules 一份实现，界面不自己比血量）
 export function winnersOfState(state: GameState | null): string[] {

@@ -302,8 +302,9 @@ export function eventEffectText(effect: EventEffect): string {
       return t`下一回合能出 ${effect.value} 段`;
     case "prompt-limit-pct":
       return t`下一回合提示词上限 +${effect.pct}%`;
-    case "bag-cap":
-      return t`${cardTypeName(effect.cardType)}卡上限 +${effect.delta}`;
+    case "item-limit":
+      // G4 §3 起"哪一类的上限 +1"只剩道具这一格（背包不再按种类计数，桌面卡位的数不归事件改）
+      return t`每张角色能挂的道具 +${effect.delta}`;
     case "free-refresh":
       return t`免费刷新券 ×${effect.count}`;
     case "random-card":

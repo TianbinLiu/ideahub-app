@@ -33,16 +33,30 @@ import type {
   StreakEntry,
   StreakOutcome,
   StyleCard,
+  TableSlot,
   TableSlots,
 } from "./types";
 
 // ────────────────────────────── 常量（设计稿里写死的数都在这里，别在函数里现编） ──────────────────────────────
 
-/** §2.1：背包最多 9 张。 */
-export const BAG_SIZE = 9;
+/**
+ * §2.1 背包**不再有总量、不再按种类计数**（G4 施工单 §3，2026-11-23）。
+ *
+ * ★ 原来的 9 格 + 角色≤4 / 场景≤1 / 道具≤4 三档被整组撤掉：背包只是"手上的卡"，真正的上限在
+ *   桌面卡位上（4 角色 + 1 场景），道具的上限挂在"每个角色最多 3 张"上。留着 9 格的话
+ *   4 角色 + 1 场景 + 3×4 张道具（=17）根本摆不下，「每角色 3 张」这条规则永远够不着。
+ * ★ 想按种类数上限就去数桌面（`tableSlotsOf`），别再长回一份计数 —— 两处数同一件事必然漂。
+ */
+export const TABLE_ROLE_SLOTS = 4;
+export const TABLE_SCENE_SLOTS = 1;
 
-/** §2.1 类型上限：角色 ≤4、场景 ≤1、道具 ≤4（正好 9 张；事件「补给站」可以给某一类 +1）。 */
-export const TYPE_CAPS: Readonly<Record<CardType, number>> = { role: 4, scene: 1, item: 4 };
+/**
+ * §3：每个角色卡最多挂 3 张道具（对齐参照游戏「货币战争」）。
+ * ★ G2 时是 1 张（出片时"角色带道具"占一张参考图位）；G4 改 3 张是主人点名的规则，
+ *   出片那边不进参考图位（游戏内的卡没有图，只报卡名，见 game/gen.ts），所以不会撑爆图位。
+ * ★ 上限只在这里算（`itemLimitOf`）：事件可以把它 +1，界面不许自己做加法。
+ */
+export const ITEMS_PER_ROLE = 3;
 
 /** §2.1：100 血起跑（§2.5 扣到 0 淘汰）。 */
 export const START_HP = 100;
@@ -119,8 +133,12 @@ export const VIDEO_SECONDS = 5;
  */
 export const PROMPT_BASE_MAX = 80;
 
-/** §2.4：桌面中央的 3 个虚框 = 角色槽 / 场景槽 / 道具槽（一个类型一张，重复放回 duplicate-slot）。 */
-export const SLOT_TYPES: readonly CardType[] = ["role", "scene", "item"];
+/**
+ * §2.4 创作阶段**没有虚框了**（G4 第 3 步）：摆卡就是桌面那 5 个卡位（4 角色 + 1 场景），
+ * 手里那几张（背包）与桌上的、装备在角色身上的合起来就是这一期出片的素材。
+ * ★ 原来这里有一张 `SLOT_TYPES = ["role","scene","item"]`（三个虚框各放一张）—— 随虚框一起删掉：
+ *   留着它就是第二份"这一期有哪几种卡"的真相（真上限在 TABLE_ROLE_SLOTS / TABLE_SCENE_SLOTS）。
+ */
 
 /**
  * §2.3 商店品质权重（按回合，列 = 1~5 费，单位 %）。
@@ -223,7 +241,7 @@ export const GAME_EVENTS: readonly GameEvent[] = [
     id: "supply-drop", // 补给站
     art: "public/events/supply-drop.webp",
     options: [
-      { id: "bag-expand", cost: 5, effects: [{ kind: "bag-cap", cardType: "role", delta: 1 }] },
+      { id: "bag-expand", cost: 5, effects: [{ kind: "item-limit", delta: 1 }] },
       { id: "heal", cost: 3, effects: [{ kind: "hp", delta: 15 }] },
       { id: "free-refresh", cost: 0, effects: [{ kind: "free-refresh", count: 2 }] },
     ],
@@ -233,14 +251,28 @@ export const GAME_EVENTS: readonly GameEvent[] = [
 // ────────────────────────────── 结果形状（失败一定带 reason，调用不许看图猜） ──────────────────────────────
 
 export type RuleRejectReason =
-  | "bag-full"
+  /**
+   * 某一类**卡位**满了（G4 §3 起它只剩这一层意思：桌面 4 个角色位 / 1 个场景位）。
+   * ★ 背包不再按种类计数（`bag-full` 整条随之撤掉），所以这个码现在只由 placeCardOnTable 抛。
+   */
   | "type-cap"
+  /** 拖错了位子：角色卡丢进场景位 / 场景卡丢进角色位 / 道具卡丢进卡位（道具是挂到角色身上的） */
+  | "wrong-slot-type"
+  /** 这个卡位不存在（下标越界；界面与规则各传各的号时当场响，别静默把卡吞了） */
+  | "bad-table-slot"
+  /** 这个卡位是空的（拖回去 / 拆除工具拖上去时那一格没有人） */
+  | "table-slot-empty"
+  /** 这张卡已经摆在桌面上了（卖卡 / 再摆一次时要先拖回背包） */
+  | "card-on-table"
+  /** 这张角色卡还没摆到桌面上（道具只能挂到桌上的角色身上，见 equipItemOnRole） */
+  | "role-not-on-table"
   | "card-not-in-bag"
   | "item-equipped"
   | "role-equipped"
   | "not-an-item"
   | "not-a-role"
-  | "role-already-equipped"
+  /** 这张角色身上的道具已经到上限了（rules.itemLimitOf，缺省 3 张） */
+  | "item-limit"
   | "no-equipped-item"
   | "not-enough-gold"
   | "slot-empty"
@@ -259,8 +291,6 @@ export type RuleRejectReason =
   // ── G3 回合循环（§2.4 创作 / §2.5 展映投票）新增的原因码 ──
   | "prompt-empty"
   | "prompt-too-long"
-  | "duplicate-slot"
-  | "card-not-owned"
   | "entries-pending"
   | "entry-not-found"
   | "entry-already-liked"
@@ -273,6 +303,8 @@ export interface RuleFailure {
   reason: RuleRejectReason;
   /** 补充数字：哪个卡种 / 要多少 / 有多少 / 上限多少（界面拿去说人话，不许只回一个 false）。 */
   cardType?: CardType;
+  /** 这个位子该放哪种卡（wrong-slot-type 用：拖进去的那种在 cardType，位子要的在 expected）。 */
+  expected?: CardType;
   need?: number;
   have?: number;
   cap?: number;
@@ -375,7 +407,8 @@ export function createGame(playerIds: readonly string[], rng: Rng): GameState {
     loseStreak: 0,
     bag: [],
     equipment: [],
-    capBonus: {},
+    table: emptyTable(),
+    itemLimitBonus: 0,
     styleCardId: null,
     styleChoices: rollStyleChoices(rng).map((card) => card.id),
     modelLevel: START_MODEL_LEVEL,
@@ -427,9 +460,9 @@ function replacePlayerInState(state: GameState, player: GamePlayer): GameState {
   return { ...state, players: state.players.map((p) => (p.id === player.id ? player : p)) };
 }
 
-/** 拥有的全部卡 = 背包里的 + 已装备的道具。★ 类型上限与 9 格都按这一份数，不是只看背包。 */
+/** 拥有的全部卡 = 背包 + 桌面卡位 + 已装备的道具。★ 卖卡 / 取卡 / 出片认人都按这一份。 */
 export function ownedCards(player: GamePlayer): GameCard[] {
-  return [...player.bag, ...player.equipment.map((e) => e.item)];
+  return [...player.bag, ...tableCardsOf(player), ...player.equipment.map((e) => e.item)];
 }
 
 export function typeCountsOf(player: GamePlayer): Record<CardType, number> {
@@ -438,134 +471,188 @@ export function typeCountsOf(player: GamePlayer): Record<CardType, number> {
   return counts;
 }
 
-/** 某一类的有效上限 = 基础表 + 事件加成（补给站角色 4→5）。 */
-export function capOf(player: GamePlayer, cardType: CardType): number {
-  return TYPE_CAPS[cardType] + (player.capBonus[cardType] ?? 0);
+/**
+ * 每张角色卡能挂几张道具 = 基础 `ITEMS_PER_ROLE` + 事件「补给站」的加成。
+ * ★ 只有这一处算：界面显示"x/3"、equipItemOnRole 的闸、出片时往提示词里点名道具，都问它。
+ */
+export function itemLimitOf(player: GamePlayer): number {
+  return Math.max(0, ITEMS_PER_ROLE + (player.itemLimitBonus ?? 0));
+}
+
+/** 空桌面（4 个角色位 + 1 个场景位）。 */
+export function emptyTable(): TableSlots {
+  return { roles: Array.from({ length: TABLE_ROLE_SLOTS }, () => null), scene: null };
 }
 
 /**
- * 背包占用。★ total 是「背包 + 已装备道具」的总数：装备只是把道具从背包挪到角色身上，
- * 若不计入总数，4 角色 + 1 场景 + 4 道具 = 9 这条算术就会被「先装上再买」绕开。
+ * 桌面 5 个卡位的规范化读数：补满 4 个角色位（老状态里没有 table 这一格时也回空桌）。
+ * ★ 调用方一律走它，别直接 `player.table.roles[3]` —— 补长度的写法一漏就是"少一个卡位"的静默空洞。
  */
-export function bagUsage(player: GamePlayer): {
-  total: number;
-  cap: number;
-  free: number;
-  byType: Record<CardType, number>;
-  caps: Record<CardType, number>;
-} {
-  const byType = typeCountsOf(player);
-  const caps: Record<CardType, number> = {
-    role: capOf(player, "role"),
-    scene: capOf(player, "scene"),
-    item: capOf(player, "item"),
-  };
-  const total = byType.role + byType.scene + byType.item;
-  return { total, cap: BAG_SIZE, free: Math.max(0, BAG_SIZE - total), byType, caps };
-}
-
-/**
- * G4：3D 桌面上的 5 个卡位 —— 4 个角色位一排 + 1 个场景位（施工单 docs/g4-ui-revamp-spec.md §2）。
- *
- * ★ 这是**只读派生**，不新增一份"桌面状态"：G4 施工单第 1 步还没有摆卡 / 拖拽，桌面摆的就是
- *   背包里的身分卡（角色 4 + 场景 1），所以"谁占了这个位"直接按背包里的顺序读出来。
- *   第 3 步做拖卡入位时，摆在哪一格才会变成真的状态（届时改这一个函数，3D 与背包两面跟着变）。
- * ★ 空位用 null 占满 4 格，调用方不用自己补长度（补长度的写法一漏就是"少一个卡位"的静默空洞）。
- */
-export const TABLE_ROLE_SLOTS = 4;
-
 export function tableSlotsOf(player: GamePlayer): TableSlots {
-  const roles = player.bag.filter((card) => card.type === "role").slice(0, TABLE_ROLE_SLOTS);
-  const scene = player.bag.find((card) => card.type === "scene") ?? null;
+  const table = player.table ?? emptyTable();
   return {
-    roles: Array.from({ length: TABLE_ROLE_SLOTS }, (_, i) => roles[i] ?? null),
-    scene,
+    roles: Array.from({ length: TABLE_ROLE_SLOTS }, (_, i) => table.roles?.[i] ?? null),
+    scene: table.scene ?? null,
   };
 }
 
-/** 装不下时先看总数、再看类型（两个都满时报 bag-full —— 它比 type-cap 更根本）。 */
-export function canAddCard(player: GamePlayer, card: GameCard): RuleFailure | null {
-  const usage = bagUsage(player);
-  if (usage.total >= BAG_SIZE) return reject("bag-full", { count: usage.total, cap: BAG_SIZE });
-  const cap = usage.caps[card.type];
-  const count = usage.byType[card.type];
-  if (count >= cap) return reject("type-cap", { cardType: card.type, count, cap });
+/** 桌上摆着的卡（角色 + 场景，去掉空位）。 */
+export function tableCardsOf(player: GamePlayer): GameCard[] {
+  const table = tableSlotsOf(player);
+  return [...table.roles.filter((card): card is GameCard => !!card), ...(table.scene ? [table.scene] : [])];
+}
+
+/**
+ * 背包占用（界面读数用）。
+ * ★ 没有上限：G4 §3 把 9 格与"按种类计数"整组撤掉，上限落在桌面卡位与「每角色 3 张道具」上。
+ *   这个函数只剩"给界面报个数"，**不参与任何门禁** —— 想判能不能收卡，问桌面的空位。
+ */
+export function bagUsage(player: GamePlayer): { total: number; byType: Record<CardType, number> } {
+  const byType: Record<CardType, number> = { role: 0, scene: 0, item: 0 };
+  for (const card of player.bag) byType[card.type] += 1;
+  return { total: player.bag.length, byType };
+}
+
+/**
+ * 还能不能收一张卡进背包。
+ * ★ 恒为 null（收得下）：背包不再有总量与种类上限。函数留着是因为 buyShopCard / 事件随机卡 /
+ *   出片取卡都走同一条"先问再收"的形状，删了就要在三个地方各写一遍"直接塞进去"
+ *   （而那些地方正是"以后想加个上限"时该改的一处）。
+ */
+export function canAddCard(_player: GamePlayer, _card: GameCard): RuleFailure | null {
   return null;
 }
 
-/** §2.1 收一张卡进背包。装不下就回原因，**不替换、不丢卡**（替换走 replaceCardInBag）。 */
+/** 收一张卡进背包。★ 背包不再有上限（见 canAddCard），失败只可能是坏状态 —— 这里没有失败分支。 */
 export function addCardToBag(player: GamePlayer, card: GameCard): PlayerResult {
-  const failure = canAddCard(player, card);
-  if (failure) return failure;
   return { ok: true, player: { ...player, bag: [...player.bag, card] } };
 }
 
-/**
- * 装不上时唯一的出路：以旧换新（§2.1「装不上时只能替换」）。
- * ★ 这是**原子**操作：旧卡不在了、新卡一定在；任何一步失败都回原因、玩家原样不动。
- * ★ 带装备的角色不能直接被替换：道具退回背包可能把 9 格撑破，硬换就会静默丢一张卡；
- *   先 unequipItemFromRole 再替换（回 role-equipped，界面据此提示先卸下）。
- * ★ 不给 1 金回收：给钱就把「卖卡」与「替换」变成两条会双记的路；想要钱先 sellCardFromBag。
- */
-export function replaceCardInBag(player: GamePlayer, outCardId: string, incoming: GameCard): PlayerResult {
-  const index = player.bag.findIndex((card) => card.id === outCardId);
-  if (index < 0) {
-    if (player.equipment.some((e) => e.item.id === outCardId)) return reject("item-equipped");
-    return reject("card-not-in-bag");
-  }
-  const outgoing = player.bag[index];
-  if (outgoing.type === "role" && player.equipment.some((e) => e.roleCardId === outgoing.id)) {
-    return reject("role-equipped");
-  }
-  const interim: GamePlayer = { ...player, bag: player.bag.filter((_, i) => i !== index) };
-  return addCardToBag(interim, incoming);
+// ── 桌面卡位的一小套内部工具（摆卡 / 回背包 / 换人共用，别在 UI 里各写一遍） ──
+
+function slotOf(table: TableSlots, slot: TableSlot): { card: GameCard | null; ok: boolean } {
+  if (slot.kind === "scene") return { card: table.scene, ok: true };
+  if (!Number.isInteger(slot.index) || slot.index < 0 || slot.index >= TABLE_ROLE_SLOTS) return { card: null, ok: false };
+  return { card: table.roles[slot.index] ?? null, ok: true };
+}
+
+function withSlot(table: TableSlots, slot: TableSlot, card: GameCard | null): TableSlots {
+  if (slot.kind === "scene") return { ...table, scene: card };
+  const roles = [...table.roles];
+  roles[slot.index] = card;
+  return { ...table, roles };
+}
+
+/** 这一类卡的第一个空位；一个空位都没有 → null（调用方回 type-cap，这就是"桌面卡位才是上限"那一层）。 */
+function firstFreeSlot(table: TableSlots, type: CardType): TableSlot | null {
+  if (type === "scene") return table.scene === null ? { kind: "scene" } : null;
+  const index = table.roles.findIndex((card) => card === null);
+  return index < 0 ? null : { kind: "role", index };
+}
+
+/** 这一类卡位一共几个（type-cap 的 cap；界面说"角色位 4/4 满了"用的也是它）。 */
+export function slotCountOf(type: CardType): number {
+  return type === "scene" ? TABLE_SCENE_SLOTS : TABLE_ROLE_SLOTS;
 }
 
 /**
- * §2.1 卖卡：回收 1 金；已装备的道具**退回背包**（卖的是角色时）。
- * ★ 已装备的道具不能直接卖：它不在背包里，卖它就会让角色身上留一个指向空气的装备（回 item-equipped）。
- * ★ 健康状态里退回道具一定装得下（装备的道具本来就算在 9 格内），这里的 bag-full 只是防坏状态把卡吞掉。
+ * §2（G4 施工单）：把一张卡**从背包摆到桌面卡位**上。
+ *
+ * ★ `slot === null` = 拖到桌面上但没对准某一格 → 自己找这一类的第一个空位（真机上拖到格子边缘
+ *   很常见，落点差一格就判失败会让人以为拖不动）；一个空位都没有才回 `type-cap`
+ *   —— 这就是施工单说的"type-cap 那套只保留桌面卡位这一层"。
+ * ★ 目标位上有卡 = **替换**：旧卡回背包（同一张卡拖回原位是空操作，不算失败）。
+ * ★ 旧的那张是**带道具的角色**时整句拒（role-equipped）：道具的回背包 / 交给新卡都不对，
+ *   硬换就会让几张已装备的道具指向一张不在桌上的卡（零报错、出片时少人少东西）。
  */
-export function sellCardFromBag(player: GamePlayer, cardId: string): SellResult {
-  const index = player.bag.findIndex((card) => card.id === cardId);
-  if (index < 0) {
-    if (player.equipment.some((e) => e.item.id === cardId)) return reject("item-equipped");
+export function placeCardOnTable(player: GamePlayer, cardId: string, slot: TableSlot | null = null): PlayerResult {
+  const table = tableSlotsOf(player);
+  // ★ 目标位子上**就是这张卡** = 空操作（成功）：从桌上拖起来又松手在同一格、
+  //   或者"同一张卡再摆一次"都不该报错（拖拽时最容易被当成"拖坏了"的就是这一下）。
+  if (slot) {
+    const probe = slotOf(table, slot);
+    if (!probe.ok) return reject("bad-table-slot", { count: slot.kind === "role" ? slot.index : 0, cap: TABLE_ROLE_SLOTS });
+    if (probe.card?.id === cardId) return { ok: true, player };
+  } else if (tableCardsOf(player).some((card) => card.id === cardId)) {
+    // 没指定目标位子、而这张卡已经在桌上了：它本来就摆着，什么都不用做
+    return { ok: true, player };
+  }
+
+  const card = player.bag.find((candidate) => candidate.id === cardId);
+  if (!card) {
+    // 已经摆在桌上 / 装备在角色身上：说清楚"它已经在那儿了"，别报成"不在背包里"
+    if (tableCardsOf(player).some((candidate) => candidate.id === cardId)) return reject("card-on-table");
+    if (player.equipment.some((entry) => entry.item.id === cardId)) return reject("item-equipped");
     return reject("card-not-in-bag");
   }
-  const card = player.bag[index];
-  const returned = player.equipment.filter((e) => e.roleCardId === card.id).map((e) => e.item);
-  const bag = player.bag.filter((_, i) => i !== index);
-  if (bag.length + returned.length > BAG_SIZE) {
-    return reject("bag-full", { count: bag.length + returned.length, cap: BAG_SIZE });
+  if (card.type === "item") return reject("wrong-slot-type", { cardType: card.type, expected: "role" });
+
+  let target: TableSlot | null = slot;
+  if (target) {
+    const probe = slotOf(table, target);
+    if (!probe.ok) return reject("bad-table-slot", { count: target.kind === "role" ? target.index : 0, cap: TABLE_ROLE_SLOTS });
+  } else {
+    target = firstFreeSlot(table, card.type);
+    if (!target) return reject("type-cap", { cardType: card.type, count: slotCountOf(card.type), cap: slotCountOf(card.type) });
   }
+
+  const want: CardType = target.kind === "scene" ? "scene" : "role";
+  if (card.type !== want) return reject("wrong-slot-type", { cardType: card.type, expected: want });
+
+  const outgoing = slotOf(table, target).card;
+  if (outgoing?.id === card.id) return { ok: true, player };
+  if (outgoing?.type === "role" && equippedCountOf(player, outgoing.id) > 0) return reject("role-equipped");
+
+  const bag = player.bag.filter((candidate) => candidate.id !== cardId);
   return {
     ok: true,
     player: {
       ...player,
-      bag: [...bag, ...returned],
-      equipment: player.equipment.filter((e) => e.roleCardId !== card.id),
-      gold: player.gold + CARD_SELL_GOLD,
+      bag: outgoing ? [...bag, outgoing] : bag,
+      table: withSlot(table, target, card),
     },
-    refund: CARD_SELL_GOLD,
   };
 }
 
 /**
- * §2.1 装备：道具只能挂到角色卡上。
- * ★ 一个角色最多挂 1 件（设计稿没写死数量）：出片时「角色带道具」是一张参考图位，
- *   挂两件要么在提示词里挤成一团、要么得再开一个图位，G2 先按 1 件跑通。
+ * 把桌面卡位上的一张卡**拖回背包**（施工单：已占的位可以拖回背包）。
+ * ★ 带道具的角色整句拒（role-equipped）：道具得先卸下来 —— 一张角色回背包、几张道具还挂在它身上，
+ *   下次再摆回来之前它们谁都拿不到（界面也没有地方列出"挂在背包里那张角色上的道具"）。
+ */
+export function returnTableCardToBag(player: GamePlayer, slot: TableSlot): PlayerResult {
+  const table = tableSlotsOf(player);
+  const probe = slotOf(table, slot);
+  if (!probe.ok) return reject("bad-table-slot", { count: slot.kind === "role" ? slot.index : 0, cap: TABLE_ROLE_SLOTS });
+  const card = probe.card;
+  if (!card) return reject("table-slot-empty", { cardType: slot.kind === "scene" ? "scene" : "role" });
+  if (card.type === "role" && equippedCountOf(player, card.id) > 0) return reject("role-equipped");
+  return {
+    ok: true,
+    player: { ...player, bag: [...player.bag, card], table: withSlot(table, slot, null) },
+  };
+}
+
+/**
+ * §2.1 / 施工单 §3 装备：道具只能挂到**桌上**的角色卡上（右侧道具栏拖到角色卡那一下）。
+ * ★ 一个角色最多 `itemLimitOf(player)` 张（缺省 3）：到上限回 item-limit，界面拿 count/cap 说人话。
+ * ★ 角色必须已经摆到桌面上：道具要挂在一张**正在出片**的角色身上才有意义，挂在背包里的卡上
+ *   屏幕上没有地方显示它（右侧栏只列道具，勾不回去），下一个人也看不出它属于谁。
  */
 export function equipItemOnRole(player: GamePlayer, roleCardId: string, itemCardId: string): PlayerResult {
-  const role = player.bag.find((card) => card.id === roleCardId);
-  if (!role) return reject("card-not-in-bag");
-  if (role.type !== "role") return reject("not-a-role");
-  if (player.equipment.some((e) => e.roleCardId === roleCardId)) return reject("role-already-equipped");
+  const role = tableSlotsOf(player).roles.find((card) => card?.id === roleCardId) ?? null;
+  if (!role) {
+    if (player.bag.some((card) => card.id === roleCardId)) return reject("role-not-on-table");
+    return reject("not-a-role");
+  }
   const item = player.bag.find((card) => card.id === itemCardId);
   if (!item) {
-    if (player.equipment.some((e) => e.item.id === itemCardId)) return reject("item-equipped");
+    if (player.equipment.some((entry) => entry.item.id === itemCardId)) return reject("item-equipped");
     return reject("card-not-in-bag");
   }
   if (item.type !== "item") return reject("not-an-item");
+  const cap = itemLimitOf(player);
+  const count = equippedCountOf(player, roleCardId);
+  if (count >= cap) return reject("item-limit", { count, cap });
   return {
     ok: true,
     player: {
@@ -576,24 +663,49 @@ export function equipItemOnRole(player: GamePlayer, roleCardId: string, itemCard
   };
 }
 
-/** 卸下：道具退回背包（§2.1「已装备道具退回背包」的另一半）。 */
-export function unequipItemFromRole(player: GamePlayer, roleCardId: string): PlayerResult {
-  const index = player.equipment.findIndex((e) => e.roleCardId === roleCardId);
-  if (index < 0) return reject("no-equipped-item");
-  if (player.bag.length >= BAG_SIZE) return reject("bag-full", { count: player.bag.length, cap: BAG_SIZE });
-  const entry = player.equipment[index];
+/**
+ * 拆除工具：把一张角色身上的**所有**道具一次卸回背包（施工单 §3「右侧栏的拆除工具」）。
+ * ★ 一次全卸而不是卸一张：参照游戏里那颗工具就是"清空这个人的装备"，逐张卸要一双手点三次。
+ */
+export function unequipAllFromRole(player: GamePlayer, roleCardId: string): PlayerResult {
+  const mine = player.equipment.filter((entry) => entry.roleCardId === roleCardId);
+  if (mine.length === 0) return reject("no-equipped-item");
   return {
     ok: true,
     player: {
       ...player,
-      bag: [...player.bag, entry.item],
-      equipment: player.equipment.filter((_, i) => i !== index),
+      bag: [...player.bag, ...mine.map((entry) => entry.item)],
+      equipment: player.equipment.filter((entry) => entry.roleCardId !== roleCardId),
     },
   };
 }
 
-export function equippedItemOf(player: GamePlayer, roleCardId: string): GameCard | null {
-  return player.equipment.find((e) => e.roleCardId === roleCardId)?.item ?? null;
+/** 一张角色身上的道具（按装备顺序，右侧栏 / 卡面角标按它画"3 张里的哪几张"）。 */
+export function equippedItemsOf(player: GamePlayer, roleCardId: string): GameCard[] {
+  return player.equipment.filter((entry) => entry.roleCardId === roleCardId).map((entry) => entry.item);
+}
+
+export function equippedCountOf(player: GamePlayer, roleCardId: string): number {
+  return player.equipment.reduce((count, entry) => (entry.roleCardId === roleCardId ? count + 1 : count), 0);
+}
+
+/**
+ * §2.1 卖卡：回收 1 金。
+ * ★ 只有**背包里**的卡能卖：桌上的卡（角色 / 场景）要卖先拖回背包 —— 否则桌上会留一个空位、
+ *   而出片提示词那一份刚读过它（同"创作阶段背包锁住"那条 ★ 的同一个理由）。
+ */
+export function sellCardFromBag(player: GamePlayer, cardId: string): SellResult {
+  const index = player.bag.findIndex((card) => card.id === cardId);
+  if (index < 0) {
+    if (player.equipment.some((entry) => entry.item.id === cardId)) return reject("item-equipped");
+    if (tableCardsOf(player).some((card) => card.id === cardId)) return reject("card-on-table");
+    return reject("card-not-in-bag");
+  }
+  return {
+    ok: true,
+    player: { ...player, bag: player.bag.filter((_, i) => i !== index), gold: player.gold + CARD_SELL_GOLD },
+    refund: CARD_SELL_GOLD,
+  };
 }
 
 // ────────────────────────────── 经济（§2.3） ──────────────────────────────
@@ -791,10 +903,11 @@ export function toggleShopLock(state: GameState, playerId: string): StateResult 
 
 /**
  * §2.3 买商店里的一张：价钱 = 品质。
- * ★ 原子：钱不够 / 装不下 / 替换失败都**不扣钱、不动商店**（否则就是「付了钱没拿到卡」）。
- * ★ 背包满时传 replaceCardId 走 replaceCardInBag（§2.1 装不上只能替换）。
+ * ★ 原子：钱不够 / 那一格空了都**不扣钱、不动商店**（否则就是「付了钱没拿到卡」）。
+ * ★ G4 §3 起没有"装不下"这回事（背包不限量），所以也没有"替换掉旧卡"那条路了 ——
+ *   买不到卡的唯一原因是**钱不够**。旧卡想换成金币走 sellCard（卖 +1 金）。
  */
-export function buyShopCard(state: GameState, playerId: string, slotIndex: number, replaceCardId: string | null = null): StateResult {
+export function buyShopCard(state: GameState, playerId: string, slotIndex: number): StateResult {
   if (state.phase !== "shop") return reject("wrong-phase");
   const found = findPlayer(state, playerId);
   if (!found) return reject("unknown-player");
@@ -809,11 +922,8 @@ export function buyShopCard(state: GameState, playerId: string, slotIndex: numbe
   const price = cardPrice(card);
   if (found.player.gold < price) return reject("not-enough-gold", { need: price, have: found.player.gold });
 
-  const bagResult = replaceCardId === null
-    ? addCardToBag(found.player, card)
-    : replaceCardInBag(found.player, replaceCardId, card);
+  const bagResult = addCardToBag(found.player, card);
   if (!bagResult.ok) return bagResult;
-
   const player: GamePlayer = { ...bagResult.player, gold: bagResult.player.gold - price };
   const cards = shop.cards.map((c, i) => (i === slotIndex ? null : c));
   return {
@@ -823,10 +933,15 @@ export function buyShopCard(state: GameState, playerId: string, slotIndex: numbe
 }
 
 /**
- * 卖卡 / 装备 / 卸下 / 换卡只在**商店阶段**允许（§2.0 ①）。
- * ★ 创作阶段开始后背包要锁住：正在出片的那一段引用了角色 / 场景 / 道具，这时候卖掉或换掉
- *   会让一段已经付费的画面指向一张不存在的卡（零报错、成片里少一个人）。
+ * 卖卡只在**商店阶段**允许（§2.0 ①）；**摆卡 / 装备道具两阶段都允许**（G4 第 3 步）。
+ * ★ 卖卡为什么锁在商店阶段：钱是商店阶段的事，而创作阶段卖掉的卡可能刚被这一期的出片引用
+ *   （零报错、成片里少一个人）。
+ * ★ 摆卡 / 装备为什么也放创作阶段：出片是拿**桌面上的卡 + 提示词**发出去的，而"视频生成"按钮就在
+ *   创作阶段 —— 只在商店阶段能摆卡的话，玩家进创作阶段才发现没摆，那一步就永远补不上
+ *   （改动会在发出去的提示词里少一张卡）。这两样都不动钱、也不删卡，不违反上面那条。
  */
+export const PLACE_PHASES: readonly GamePhase[] = ["shop", "create"];
+
 export function sellCard(state: GameState, playerId: string, cardId: string): StateResult {
   if (state.phase !== "shop") return reject("wrong-phase");
   const found = findPlayer(state, playerId);
@@ -837,22 +952,43 @@ export function sellCard(state: GameState, playerId: string, cardId: string): St
   return { ok: true, state: replacePlayerInState(state, sold.player) };
 }
 
-export function equipItem(state: GameState, playerId: string, roleCardId: string, itemCardId: string): StateResult {
-  if (state.phase !== "shop") return reject("wrong-phase");
+export function placeOnTable(state: GameState, playerId: string, cardId: string, slot: TableSlot | null = null): StateResult {
+  const gate = placeGate(state, playerId);
+  if (gate) return gate;
+  const placed = placeCardOnTable(findPlayer(state, playerId)!.player, cardId, slot);
+  if (!placed.ok) return placed;
+  return { ok: true, state: replacePlayerInState(state, placed.player) };
+}
+
+export function returnToBag(state: GameState, playerId: string, slot: TableSlot): StateResult {
+  const gate = placeGate(state, playerId);
+  if (gate) return gate;
+  const returned = returnTableCardToBag(findPlayer(state, playerId)!.player, slot);
+  if (!returned.ok) return returned;
+  return { ok: true, state: replacePlayerInState(state, returned.player) };
+}
+
+/** 摆卡 / 回背包 / 装备 / 卸道具共用的阶段闸（判据只有 PLACE_PHASES 一处）。 */
+function placeGate(state: GameState, playerId: string): RuleFailure | null {
+  if (!PLACE_PHASES.includes(state.phase)) return reject("wrong-phase");
   const found = findPlayer(state, playerId);
   if (!found) return reject("unknown-player");
   if (found.player.eliminated) return reject("player-eliminated");
-  const equipped = equipItemOnRole(found.player, roleCardId, itemCardId);
+  return null;
+}
+
+export function equipItem(state: GameState, playerId: string, roleCardId: string, itemCardId: string): StateResult {
+  const gate = placeGate(state, playerId);
+  if (gate) return gate;
+  const equipped = equipItemOnRole(findPlayer(state, playerId)!.player, roleCardId, itemCardId);
   if (!equipped.ok) return equipped;
   return { ok: true, state: replacePlayerInState(state, equipped.player) };
 }
 
-export function unequipItem(state: GameState, playerId: string, roleCardId: string): StateResult {
-  if (state.phase !== "shop") return reject("wrong-phase");
-  const found = findPlayer(state, playerId);
-  if (!found) return reject("unknown-player");
-  if (found.player.eliminated) return reject("player-eliminated");
-  const unequipped = unequipItemFromRole(found.player, roleCardId);
+export function unequipAll(state: GameState, playerId: string, roleCardId: string): StateResult {
+  const gate = placeGate(state, playerId);
+  if (gate) return gate;
+  const unequipped = unequipAllFromRole(findPlayer(state, playerId)!.player, roleCardId);
   if (!unequipped.ok) return unequipped;
   return { ok: true, state: replacePlayerInState(state, unequipped.player) };
 }
@@ -957,7 +1093,7 @@ function applyEventEffects(
   option: GameEventOption,
   rng: Rng,
   serial: number,
-): { ok: true; player: GamePlayer; serial: number } | RuleFailure {  let next: GamePlayer = { ...player, buffs: { ...player.buffs }, capBonus: { ...player.capBonus } };
+): { ok: true; player: GamePlayer; serial: number } | RuleFailure {  let next: GamePlayer = { ...player, buffs: { ...player.buffs } };
   let nextSerial = serial;
 
   for (const effect of option.effects) {
@@ -981,12 +1117,10 @@ function applyEventEffects(
       case "prompt-limit-pct":
         next.buffs.promptLimitPct = effect.pct;
         break;
-      case "bag-cap": {
-        const capBonus = { ...next.capBonus };
-        capBonus[effect.cardType] = Math.max(0, (capBonus[effect.cardType] ?? 0) + effect.delta);
-        next.capBonus = capBonus;
+      case "item-limit":
+        // G4 §3：道具上限不再按卡种类记，只剩"每张角色最多挂几张"这一格（itemLimitOf 读它）
+        next.itemLimitBonus = Math.max(0, (next.itemLimitBonus ?? 0) + effect.delta);
         break;
-      }
       case "free-refresh":
         next.buffs.freeRefreshes += effect.count;
         break;
@@ -1237,19 +1371,28 @@ export function entryById(state: GameState, entryId: string): RoundEntry | null 
 }
 
 /**
- * §2.4 交片：把 3 个虚框里的卡 + 一句提示词变成这一期的作品（G3 是占位视频，固定 5 秒）。
- * ★ 卡**从自己的拥有清单里按 id 取**（背包 + 已装备的道具），不采信调用方递进来的卡对象：
- *   否则一条伪造的 5 费卡就能绕过背包上限去投票。
- * ★ 一条都没放也算交片（空镜）：这个游戏里"没有卡"是可能的（开局 0 张、又把钱花光了），
- *   而展映要全员都有片子才开得下去 —— 不然玩家会卡在创作阶段出不去。空镜的代价落在
- *   AI 的投票权重上（bots.entryWeightOf：没有卡就几乎不会有人投你）。
- * ★ 同一回合可以重交（改卡、改提示词）：占位视频不花钱，重拍一趟没有代价；G4 真出片时这一条要改成
- *   一次性（重拍要再付一次出片钱，那时的口径另说）。
+ * 一期作品取哪几张卡 = **桌面上的卡 + 挂在角色身上的道具**（G4 第 3 步）。
+ * ★ 只有这一处算：交片（submitRoundEntry）、生成那一发（game/gen 把卡名拼进提示词）、
+ *   展映的卡面都读它 —— 三处各列一遍，迟早一处漏掉道具，"提示词里有、卡面没有"。
+ */
+export function castCardsOf(player: GamePlayer): GameCard[] {
+  return [...tableCardsOf(player), ...player.equipment.map((entry) => entry.item)];
+}
+
+/**
+ * §2.4 交片：把**桌面上的卡** + 一句提示词变成这一期的作品。
+ * ★ 卡**从自己的拥有清单里派生**（castCardsOf），不再由调用方递进来：G4 第 3 步起"摆哪几张"
+ *   就是桌面那 5 个卡位 + 装备关系，调用方再递一份就是第二份真相（递错一张就是投票时少一个人）。
+ * ★ 一条卡都没有也算交片（空镜）：开局 0 张、又把钱花光时是可能的，而展映要全员都有片子才开得下去 ——
+ *   不然玩家会卡在创作阶段出不去。空镜的代价落在 AI 的投票权重上（bots.entryWeightOf）。
+ * ★ 同一回合可以重交（改提示词 / 重摆卡）：重交不花钱（钱花在生成那一发，由界面自己说清楚）。
+ * ★ `videoUrl` = 这一期真出片的结果（game/gen 传进来）：展映屏放它；没出片（空镜 / 没花钱）就没有，
+ *   屏上仍按占位色块播，时长落回 VIDEO_SECONDS。
  */
 export function submitRoundEntry(
   state: GameState,
   playerId: string,
-  input: { cards: readonly GameCard[]; prompt: string },
+  input: { prompt: string; videoUrl?: string; seconds?: number },
 ): EntryResult {
   if (state.phase !== "create") return reject("wrong-phase");
   const found = findPlayer(state, playerId);
@@ -1263,29 +1406,16 @@ export function submitRoundEntry(
   const promptLimit = promptLimitOf(found.player);
   if (promptLength > promptLimit) return reject("prompt-too-long", { cap: promptLimit, have: promptLength });
 
-  if (input.cards.length > SLOT_TYPES.length) {
-    return reject("duplicate-slot", { count: input.cards.length, cap: SLOT_TYPES.length });
-  }
-  const owned = ownedCards(found.player);
-  const cards: GameCard[] = [];
-  for (const card of input.cards) {
-    const real = owned.find((ownedCard) => ownedCard.id === card.id);
-    if (!real) return reject("card-not-owned", { cardType: card.type });
-    if (cards.some((picked) => picked.type === real.type)) {
-      // 同一个虚框放两张 = 界面的槽位坏了；不许静默丢一张（丢的是玩家刚选的那张，画面就会少个人）。
-      return reject("duplicate-slot", { cardType: real.type, count: 2, cap: 1 });
-    }
-    cards.push(real);
-  }
-
+  const seconds = Number.isFinite(input.seconds) && (input.seconds as number) > 0 ? (input.seconds as number) : VIDEO_SECONDS;
   const entry: RoundEntry = {
     id: roundEntryId(state.round, playerId),
     round: state.round,
     playerId,
-    cards,
+    cards: castCardsOf(found.player),
     prompt,
     styleCardId: found.player.styleCardId,
-    seconds: VIDEO_SECONDS,
+    seconds,
+    ...(input.videoUrl ? { videoUrl: input.videoUrl } : {}),
     likedBy: [],
     votedBy: [],
   };
