@@ -4856,6 +4856,10 @@ msgstr "③ 套用出片"
 msgid "3D 动画"
 msgstr "3D 动画"
 
+#: src/studio/game/labels.ts
+msgid "3D 动画 ＋ 体积光"
+msgstr "3D 动画 ＋ 体积光"
+
 #: src/studio/studioStore.ts
 msgid "3D 建模需 {price} token，余额不足，跳过"
 msgstr "3D 建模需 {price} token，余额不足，跳过"
@@ -10462,8 +10466,8 @@ msgstr "升级 {finLabel}"
 #~ msgstr "升级 1080p"
 
 #: src/studio/game/labels.ts
-msgid "半调印刷 ＋ 镀铬高光"
-msgstr "半调印刷 ＋ 镀铬高光"
+#~ msgid "半调印刷 ＋ 镀铬高光"
+#~ msgstr "半调印刷 ＋ 镀铬高光"
 
 #: src/pages/SettingsPage.tsx
 msgid "协议与须知"
@@ -12697,6 +12701,10 @@ msgstr "图生成好了，但人物信息没写成。{moneyLine}下一步自己�
 msgid "图生成好了，但人物信息没写成（这一半没扣钱）——下一步自己填就行"
 msgstr "图生成好了，但人物信息没写成（这一半没扣钱）——下一步自己填就行"
 
+#: src/studio/game/labels.ts
+msgid "圆润的立体造型、橙黄与铁锈色的废墟，歪掉的霓虹还亮着。"
+msgstr "圆润的立体造型、橙黄与铁锈色的废墟，歪掉的霓虹还亮着。"
+
 #: src/pages/WorkshopMinePage.tsx
 msgid "圈一张就走"
 msgstr "圈一张就走"
@@ -12965,8 +12973,8 @@ msgid "复刻 · 同款"
 msgstr "复刻 · 同款"
 
 #: src/studio/game/labels.ts
-msgid "复古未来太空歌剧"
-msgstr "复古未来太空歌剧"
+#~ msgid "复古未来太空歌剧"
+#~ msgstr "复古未来太空歌剧"
 
 #: src/studio/game/labels.ts
 msgid "复古相机"
@@ -13834,8 +13842,8 @@ msgid "局部细节"
 msgstr "局部细节"
 
 #: src/studio/game/labels.ts
-msgid "层叠纸片的手工感，每一帧都有一点点手抖的错位。"
-msgstr "层叠纸片的手工感，每一帧都有一点点手抖的错位。"
+#~ msgid "层叠纸片的手工感，每一帧都有一点点手抖的错位。"
+#~ msgstr "层叠纸片的手工感，每一帧都有一点点手抖的错位。"
 
 #: src/components/support/SafetyCard.tsx
 #: src/pages/FlowPage.tsx
@@ -19261,6 +19269,10 @@ msgstr "未配置 ARK_API_KEY：产物为本地模拟，仅演示流程"
 #~ msgid "未锁定 · 每回合自动刷新"
 #~ msgstr "未锁定 · 每回合自动刷新"
 
+#: src/studio/game/labels.ts
+msgid "末日废土"
+msgstr "末日废土"
+
 #. placeholder {0}: fmtTokens(partPrice)
 #: src/pages/VideoPage.tsx
 msgid "本 P 为付费内容 · <0>{0} token</0>"
@@ -20934,6 +20946,10 @@ msgstr "比如「树洞」「陪练」「编剧搭子」"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "比如「认识很久的朋友」"
 msgstr "比如「认识很久的朋友」"
+
+#: src/studio/game/labels.ts
+msgid "水彩晕染的柔和边缘、暖黄与苔绿，雨丝里飘着萤火般的光点。"
+msgstr "水彩晕染的柔和边缘、暖黄与苔绿，雨丝里飘着萤火般的光点。"
 
 #: src/studio/game/labels.ts
 msgid "水粉 ＋ 柔粉调"
@@ -24784,6 +24800,10 @@ msgstr "站位构图"
 msgid "站在演唱会舞台中央，跟着节拍跳一段"
 msgstr "站在演唱会舞台中央，跟着节拍跳一段"
 
+#: src/studio/game/labels.ts
+msgid "童话森林"
+msgstr "童话森林"
+
 #. placeholder {0}: index + 1
 #. placeholder {1}: playlist.length
 #: src/studio/game/ui/ScreeningPanel.tsx
@@ -26050,8 +26070,8 @@ msgid "素材超了上限，最前面的 {droppedChars} 字没有送去分析。
 msgstr "素材超了上限，最前面的 {droppedChars} 字没有送去分析。"
 
 #: src/studio/game/labels.ts
-msgid "纸片定格动画"
-msgstr "纸片定格动画"
+#~ msgid "纸片定格动画"
+#~ msgstr "纸片定格动画"
 
 #: src/studio/game/labels.ts
 msgid "纸片小镇的清晨"
@@ -26165,8 +26185,12 @@ msgid "绘本"
 msgstr "绘本"
 
 #: src/studio/game/labels.ts
-msgid "绘本小镇"
-msgstr "绘本小镇"
+#~ msgid "绘本小镇"
+#~ msgstr "绘本小镇"
+
+#: src/studio/game/labels.ts
+msgid "绘本水彩 ＋ 柔边勾线"
+msgstr "绘本水彩 ＋ 柔边勾线"
 
 #. placeholder {0}: tpl!.roles!.length
 #. placeholder {0}: tpl.roles!.length
@@ -26349,8 +26373,8 @@ msgid "缩放"
 msgstr "缩放"
 
 #: src/studio/game/labels.ts
-msgid "网点印刷的颗粒配上镀铬反光，七十年代的未来感。"
-msgstr "网点印刷的颗粒配上镀铬反光，七十年代的未来感。"
+#~ msgid "网点印刷的颗粒配上镀铬反光，七十年代的未来感。"
+#~ msgstr "网点印刷的颗粒配上镀铬反光，七十年代的未来感。"
 
 #: src/api/client.ts
 #: src/api/uploads.ts

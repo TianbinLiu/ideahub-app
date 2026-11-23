@@ -16,7 +16,7 @@
 | `src/studio/game/store.ts` | 对局状态（zustand）：一局的 `GameState` + 点选装备 / 替换流程 / 失败原因 / 轻提示。**动作全部委托 rules** |
 | `src/studio/game/view.ts` | 界面读的视图模型（HUD / 商店 / 背包的数），全部问 rules 派生 |
 | `src/studio/game/labels.ts` | 卡名 / 类型 / 品质 / 风格卡中文名与一行说明 / 档位名（规则层只有英文占位） |
-| `src/studio/game/art.ts` | 卡面与风格样张的图从哪来（现在都是仓库里现成素材占位） |
+| `src/studio/game/art.ts` | 卡面与风格样张的图从哪来（卡面借市场卡图占位；**风格样张是真图**，路径从 `rules.STYLE_POOL.sample` 取） |
 | `src/studio/game/reasons.ts` | `RuleFailure` → 那一句人话（**唯一一处**） |
 | `src/studio/game/ui/GameLayer.tsx` | 覆盖层外壳：状态栏（失败 / 替换 / 选中道具 / 刚做完）、商店与背包的摆放 |
 | `src/studio/game/ui/GameHud.tsx` | 顶部常驻：金币 + 本回合利息、血量、连胜/连败、模型等级 + 档位名、回合、存活 |
@@ -57,11 +57,27 @@
 3. 背包条整条切进替换模式（每格「换这张」）→ 点一张 → 再走 `rules.buyShopCard(…, replaceCardId)`；
 4. 还不成（`role-equipped` 等）原因照说，流程不退出；「取消」= `cancelReplace`，不扣钱不动卡。
 
+## 风格样张（G2-c，2026-11-23）
+
+三选一那一屏的图是**真样张**：`public/styles/<id>.webp`，八套各一张，八张合计约 350KB。
+
+- **同一句话、只换风格**（§2.2）：八张共用一个场景句（雨夜里一个年轻女性在霓虹街头回头、半身构图），
+  差别只有技法与题材那一段。换了内容就没法比较了 —— 玩家要比的是"这套风格长什么样"。
+- **离线批量生成、打进包**：`design/gen-style-samples.mjs`（一次性工具，`design/` 不进 App 构建），
+  方舟 Seedream `doubao-seedream-4-0-20260415`、1536×1152（4:3）出图，ffmpeg 转 512px webp 入包。
+  重跑：`node design/gen-style-samples.mjs`（只补缺的）、`--force`（全重出）、`--only=<id>`（点名）。
+- 单张 ≤ 80KB、八张合计 ≤ 600KB —— 由 `scripts/check-game-rules.mjs` 逐个核（连同"id 就是文件名"：
+  `public/styles/<id>.webp`；缺文件、多出池子外的图、超体积，`npm run build` 当场红）。
+- 池子是 8 套：§2.2 点名的六套（赛璐璐+赛博朋克、胶片颗粒+九十年代香港霓虹、湿壁画+文艺复兴奇幻、
+  3D 动画+末日废土、水墨+武侠、绘本+童话森林）＋ 硬派黑白、水粉柔粉。
+- 新增一套风格要走三处：`rules.STYLE_POOL` 加一条（id = 文件名）、`design/gen-style-samples.mjs` 的
+  STYLES 加一条 `look` 并跑一次、`labels.ts` 的 `styleMeta` 补中文（en.po 同 PR 补英文）。
+
 ## 还没做的（下一块）
 
 - **3D 拖拽装备**：现在是点选式（点道具 → 点角色 / 再点角色卸下）。拖拽要在 3D 场景里做，这一块不碰 `scene/`。
-- **风格样张是真占位**：`public/create/*.jpg`、`public/cards/market/*.webp` 顶的；真实样张离线批量生成、
-  打进包（`public/styles/<id>.webp`），代码里的 TODO 标在 `art.ts`（`TODO(G2-c)`）。
+- **样张进 i2i 链路**：§2.2 说选中的样张同时当风格参考图用，那是 G4 把「风格 + 卡 + 提示词」翻成
+  `GenSpec` 时的事；这一块只把图摆出来。
 - **回合循环**：G3 接上了（商店 → 创作 → 展映 / 点赞 → 投票 → 结算 → 事件 → 下一回合），
   见 `docs/g3-round-loop.md`；创作 / 展映 / 投票 / 结算 / 事件五个面板也在那一份里列了。
 - **生成**：G4 才把「风格 + 卡 + 提示词」翻译成 `GenSpec`；G3 每一期是一条 5 秒占位片

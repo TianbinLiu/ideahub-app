@@ -6,8 +6,10 @@
  *   以后卡池接真素材时只改这张表。
  * ★ 按目录 id 取模而不是按品质：同一张目录卡永远拿同一张图（买两张同名卡看得出是一张卡），
  *   刷新前后也认得出。
- * ★ 风格样张现在也是占位图（见下面 stylePreviewUrl），真实样张是 G2-c 的事。
+ * ★ 风格样张是**真图**（G2-c 落地）：八套各一张离线生成的样张，路径从 rules.STYLE_POOL 的
+ *   `sample` 取 —— 规则层的 id 就是文件名，不在这里抄第二份映射（抄一份就多一处会忘记改的地方）。
  */
+import { STYLE_POOL } from "./rules";
 import type { GameCard } from "./types";
 
 /** 打包在安装包里的 18 张市场卡图（根相对路径，见 data/cardViews 里同一批素材的用法） */
@@ -22,31 +24,17 @@ export function gameCardArt(card: GameCard): string {
 }
 
 /**
- * 风格卡的预览图。
+ * 风格卡的预览图（§2.2「每张风格卡必须带预览图」）。
  *
- * ★ 现在拿仓库里现成的卡面 / 封面占位（public/cards/market 与 public/create 都有）：选风格那一屏
- *   要的是"三张能比较的图"，而不是三种形容词；图先摆上，真实的样张是下一块的事。
- * TODO(G2-c): 换成离线批量生成的风格样张
+ * ★ 图是**离线生成、打进包**的（public/styles/<id>.webp，见 design/gen-style-samples.mjs）：
+ *   选风格那一屏毫秒出图、不花任何 token，也绝不在这里实时生成。
+ * ★ 认不出 id 时回一张中性的品牌图而不是空串：<img> 拿到空 src 在真机上是一块破图，
+ *   而这条路只会在"池子里新增了风格、界面还没跟上"时走到 —— 有张图总比一片空白好。
  */
 export function stylePreviewUrl(styleId: string): string {
-  switch (styleId) {
-    case "cel-cyberpunk":
-      return "/cards/market/mkt_2.webp";
-    case "film-hk-neon":
-      return "/cards/market/mkt_5.webp";
-    case "fresco-renaissance":
-      return "/create/mode-custom.jpg";
-    case "ink-wuxia":
-      return "/create/mode-cards.jpg";
-    case "paper-stopmotion":
-      return "/create/mode-tpl.jpg";
-    case "noir-alley":
-      return "/cards/market/mkt_11.webp";
-    case "gouache-seaside":
-      return "/create/simple.jpg";
-    default:
-      return "/create/workflow.jpg";
-  }
+  const card = STYLE_POOL.find((style) => style.id === styleId);
+  // rules 里的 sample 是仓库相对路径（public/styles/…），装进包之后同一个文件在站点根下
+  return card ? card.sample.replace(/^public/, "") : "/create/workflow.jpg";
 }
 
 // ────────────────────────────── 占位视频（G3，§2.4 / §2.5） ──────────────────────────────

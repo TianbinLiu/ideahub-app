@@ -149,13 +149,32 @@ const source = fs.readFileSync(modPath, "utf8");
     ok(`卡池有 ${quality} 费卡`, R.CARD_LIBRARY.some((c) => c.quality === quality));
   }
 
-  ok("风格池 6~8 个占位（§2.2）", R.STYLE_POOL.length >= 6 && R.STYLE_POOL.length <= 8);
+  ok("风格池 6~8 套（§2.2）", R.STYLE_POOL.length >= 6 && R.STYLE_POOL.length <= 8);
   eq("风格池 id 唯一", new Set(R.STYLE_POOL.map((s) => s.id)).size, R.STYLE_POOL.length);
   for (const style of R.STYLE_POOL) {
     ok(`风格卡 ${style.id} 有技法名词`, style.technique.length > 0);
     ok(`风格卡 ${style.id} 有题材`, style.topic.length > 0);
     eq(`风格卡 ${style.id} 的样张路径（§2.2 打进包）`, style.sample, `public/styles/${style.id}.webp`);
   }
+
+  // 样张是**打进门包的产品素材**（G2-c）：id 就是文件名，缺一张界面上就是一块碎图，
+  // 而 `vite build` 对"public/ 里少一个文件"零意见 —— 只有这里能拦。体积也在这里钉住：
+  // 每张 ≤ 80KB、合计 ≤ 600KB（这是进 APK 的资源，生成口径见 design/gen-style-samples.mjs）。
+  // 反方向同样要核：池子外的残留图会跟着打进包白占体积（改 id 时最容易留下它）。
+  const styleDir = path.join(root, "public", "styles");
+  let styleBytes = 0;
+  for (const style of R.STYLE_POOL) {
+    const file = path.join(root, style.sample);
+    const bytes = fs.existsSync(file) ? fs.statSync(file).size : 0;
+    styleBytes += bytes;
+    ok(`风格样张 ${style.id}.webp 在仓库里`, bytes > 0);
+    ok(`风格样张 ${style.id} 单张 ≤ 80KB（现在 ${Math.round(bytes / 1024)}KB）`, bytes > 0 && bytes <= 80 * 1024);
+  }
+  ok(`八张风格样张合计 ≤ 600KB（现在 ${Math.round(styleBytes / 1024)}KB）`, styleBytes <= 600 * 1024);
+  const stray = (fs.existsSync(styleDir) ? fs.readdirSync(styleDir) : []).filter(
+    (n) => n.endsWith(".webp") && !R.STYLE_POOL.some((s) => `${s.id}.webp` === n),
+  );
+  eq("public/styles/ 里没有风格池之外的样张", stray, []);
 
   eq("事件池 3 个示例（§2.3b）", R.GAME_EVENTS.map((e) => e.id), ["model-arms-race", "inspiration-burst", "supply-drop"]);
   for (const event of R.GAME_EVENTS) {
