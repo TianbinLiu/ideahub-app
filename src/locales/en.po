@@ -4576,6 +4576,11 @@ msgstr "0/{0, plural, one {# segment} other {# segments}}"
 msgid "① 传视频 / 写提示词"
 msgstr "① Upload a video / write a prompt"
 
+#. placeholder {0}: fmtTokens(frameCostOf(i))
+#: src/pages/QuickModePage.tsx
+msgid "① 先画首帧（{0}）"
+msgstr "① Draw the first frame ({0})"
+
 #: src/components/flow/ModePicker.tsx
 msgid "① 先选出片模型"
 msgstr "① Pick the video model first"
@@ -4612,6 +4617,11 @@ msgstr "1K textures · 40K faces · fastest to load (she 0.9MB / he 0.8MB) · fo
 #: src/components/TemplateCreateCard.tsx
 msgid "② 做成模板"
 msgstr "② Make the template"
+
+#. placeholder {0}: fmtTokens(priceOf(i))
+#: src/pages/QuickModePage.tsx
+msgid "② 出片（{0}）"
+msgstr "② Render the clip ({0})"
 
 #. placeholder {0}: CARD_TYPE_LABELS[type]
 #. placeholder {1}: slots.length
@@ -8090,6 +8100,10 @@ msgstr "The two-shot is drawn first, then both over-the-shoulder shots from it (
 msgid "先画双人镜头…"
 msgstr "Drawing the two-shot first…"
 
+#: src/pages/QuickModePage.tsx
+msgid "先画首帧看一眼：满意了再出片，不满意就在同一颗键上换一张 —— 这样首帧不对时不用等视频出来才发现。"
+msgstr "Draw the first frame first: render only when you like it, or draw another from the same button — no more waiting for the whole clip to find out it was wrong."
+
 #: src/components/flow/ModePicker.tsx
 msgid "先看关键画面"
 msgstr "Key frames first"
@@ -9023,9 +9037,7 @@ msgstr "Videos, images, card forging and paid unlocks all draw from it. <0>Plan 
 #~ msgid "出片、出图、铸卡、解锁付费作品，扣的都是它。点开看余额、买套餐或直充 ——<0>套餐额度先扣（付费套餐按月给，免费版每天补一点），直充和新人额度不过期</0>。"
 #~ msgstr "Rendering videos, generating images, minting cards and unlocking paid videos all spend these. Tap to see your balance, buy a plan or top up — <0>plan tokens are used first (paid plans refill monthly, the free plan adds a little each day); top-ups and welcome tokens don't expire</0>."
 
-#. placeholder {0}: fmtTokens(priceOf(i))
 #. placeholder {0}: priceTag(cost)
-#: src/pages/QuickModePage.tsx
 #: src/pages/SimpleModePage.tsx
 msgid "出片（{0}）"
 msgstr "Generate video ({0})"
