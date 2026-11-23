@@ -72,7 +72,8 @@ import TokenCost from "../../components/TokenCost";
 import { proposalsCost } from "../../data/economy";
 import { fileToFrameDataUrl } from "../../utils/image";
 import { computeChain } from "../scene/TableScene";
-import { CHAIN, focusCam } from "../scene/layout";
+import { focusCam, sceneLayout } from "../scene/layout";
+import { useIsLandscape } from "../../hooks/useIsLandscape";
 import DeleteSegBtn, { removeNodeWithUndo } from "../../components/flow/DeleteSegBtn";
 import CastPreviewCard from "../../components/flow/CastPreviewCard";
 import FixSegmentBox from "../../components/flow/FixSegmentBox";
@@ -83,8 +84,14 @@ import ConfirmDialog from "../../components/ConfirmDialog";
 
 export default function ProjectionWindow() {
   const projection = useStudio((s) => s.projection);
+  // ★ 横屏的宽布局（G1 施工单进入第 3 步后补的）：这一面板原来是按竖屏一屏铺满写的
+  //   （inset-x-2 + top 2% / bottom 11%），横屏照用就是"一张竖屏长表被拉宽"：顶栏被盖住、
+  //   底部为悬浮卡留的那 11% 也白留着（横屏的悬浮卡在链那一行，不在屏幕底）。横屏改成
+  //   **居中定宽的窗口** + 让开顶栏（top 9%），底边收到 7%。
+  // ★ 竖屏那一支的 class 一个字没动（逐字不变）。
+  const land = useIsLandscape();
   if (!projection) return null;
-  // 卡组选择：小窗置于屏幕中间偏下（上部留给玩家上半身）
+  // 卡组选择：竖屏是屏幕下部的小窗（上部留给玩家上半身）；横屏人偶已经摘掉，改成居中的一扇窗。
   if (projection === "decks") {
     return (
       // pointer-events-none 是功能而非样式：这层 inset-0 原来把整屏的指针事件全吃了，
@@ -92,7 +99,11 @@ export default function ProjectionWindow() {
       // 轨道手势接管，绕玩家上半身转（openDeckView 已设 orbit:{target:"player"}）。
       // 小窗自身必须 pointer-events-auto 把事件收回来，否则卡片就点不动了。
       <div className="pointer-events-none absolute inset-0 z-20">
-        <div className="pointer-events-auto absolute inset-x-2 top-[54%] bottom-[7%] flex flex-col overflow-hidden rounded-2xl border border-cyan-400/40 bg-[#0c142b]/40 shadow-[0_0_60px_rgba(103,232,249,0.28)] backdrop-blur-lg">
+        <div
+          className={`pointer-events-auto absolute flex flex-col overflow-hidden rounded-2xl border border-cyan-400/40 bg-[#0c142b]/40 shadow-[0_0_60px_rgba(103,232,249,0.28)] backdrop-blur-lg ${
+            land ? "left-1/2 top-[9%] bottom-[8%] w-[min(52rem,94%)] -translate-x-1/2" : "inset-x-2 top-[54%] bottom-[7%]"
+          }`}
+        >
           <DeckPickPanel />
         </div>
       </div>
@@ -100,23 +111,30 @@ export default function ProjectionWindow() {
   }
   return (
     <div className="absolute inset-0 z-20">
-      {/* 背景灰化+模糊；底部留出浮卡区域保持清晰 */}
-      <div className="absolute inset-x-0 top-0 bottom-[12%] bg-slate-900/55 backdrop-blur-md" />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[12%] bg-gradient-to-t from-transparent via-transparent to-slate-900/55" />
-      {/* 投影光束：从悬浮卡射向窗口 */}
-      <div
-        className="pointer-events-none absolute bottom-[9%] left-1/2 h-[4%] w-32 -translate-x-1/2 opacity-70"
-        style={{
-          clipPath: "polygon(50% 100%, 2% 0, 98% 0)",
-          background: "linear-gradient(to bottom, rgba(103,232,249,0.4), rgba(103,232,249,0.04))",
-        }}
-      />
+      {/* 背景灰化+模糊；底部留出浮卡区域保持清晰（横屏没有"屏幕底那颗浮卡"，不留） */}
+      <div className={`absolute inset-x-0 bg-slate-900/55 backdrop-blur-md ${land ? "top-[8%] bottom-0" : "top-0 bottom-[12%]"}`} />
+      {!land && <div className="pointer-events-none absolute inset-x-0 bottom-0 h-[12%] bg-gradient-to-t from-transparent via-transparent to-slate-900/55" />}
+      {/* 投影光束：从悬浮卡射向窗口（横屏的浮卡在链那一行、被面板整个盖住，这道"从卡上射出来"的光束没有落点，不画） */}
+      {!land && (
+        <div
+          className="pointer-events-none absolute bottom-[9%] left-1/2 h-[4%] w-32 -translate-x-1/2 opacity-70"
+          style={{
+            clipPath: "polygon(50% 100%, 2% 0, 98% 0)",
+            background: "linear-gradient(to bottom, rgba(103,232,249,0.4), rgba(103,232,249,0.04))",
+          }}
+        />
+      )}
       {/* 半透明全息面板：透出后方 3D 桌景，靠模糊保证可读性。
           ★ 2026-08-30 主人点名放到**近乎全屏**：底部原来留 35% 给悬浮卡，而铸段窗那三步
             （尤其三张模式卡与首尾帧格）在剩下的 62% 里被压得很小。现在只留 11% ——
             够看见悬浮卡的上沿与那道投影光束（"这块面板是从卡上投出来的"这个隐喻还在），
-            但不再为它牺牲主内容。 */}
-      <div className="absolute inset-x-2 top-[2%] bottom-[11%] flex flex-col overflow-hidden rounded-2xl border border-cyan-400/40 bg-[#0c142b]/40 shadow-[0_0_60px_rgba(103,232,249,0.28)] backdrop-blur-lg">
+            但不再为它牺牲主内容。
+          ★ 横屏（G1 第 3 步）：居中 58rem 定宽、top 9% 让开顶栏；竖屏分支原样。 */}
+      <div
+        className={`absolute flex flex-col overflow-hidden rounded-2xl border border-cyan-400/40 bg-[#0c142b]/40 shadow-[0_0_60px_rgba(103,232,249,0.28)] backdrop-blur-lg ${
+          land ? "left-1/2 top-[9%] bottom-[7%] w-[min(58rem,94%)] -translate-x-1/2" : "inset-x-2 top-[2%] bottom-[11%]"
+        }`}
+      >
         {projection === "editor" ? <EditorPanel /> : <ProposalsPanel />}
       </div>
     </div>
@@ -158,6 +176,13 @@ function DeckPickPanel() {
     // 还没选过卡组时点「卡片」= 看全部卡片
     if (useStudio.getState().activeDeck || useStudio.getState().pickDeck(null, allLabel)) setView("cards");
   };
+  /**
+   * 卡牌高度：竖屏是"吃满面板"（面板本来就矮，整张卡完整可见）。
+   * ★ 横屏的窗口高 690px，再吃满就是 320×480 一张卡 —— 一屏只看得见一张，像放大了的竖屏。
+   *   横屏给一道 19rem 的上限（约 203×304，与竖屏那颗差不多大），多出来的高度留给横向排下一套。
+   */
+  const land = useIsLandscape();
+  const tileH = land ? "h-[19rem] max-h-[94%]" : "h-[94%]";
 
   // 卡组渲染成一张塔罗式实体卡牌（Seedream 生成的魔法边框，见 TarotCard）：
   // 高度吃满面板、宽度由 2:3 比例导出——**整张卡永远完整可见**，不需要上下滚动
@@ -212,7 +237,7 @@ function DeckPickPanel() {
                 onClick={() => {
                   if (useStudio.getState().pickDeck(null, allLabel)) setView("cards");
                 }}
-                className="h-[94%] flex-none snap-center text-left"
+                className={`${tileH} flex-none snap-center text-left`}
                 style={{ aspectRatio: "2/3" }}
               >
                 <DeckCard
@@ -229,7 +254,7 @@ function DeckPickPanel() {
                 onClick={() => {
                   if (useStudio.getState().pickDeck(d.id, d.name)) setView("cards");
                 }}
-                className="h-[94%] flex-none snap-center text-left"
+                className={`${tileH} flex-none snap-center text-left`}
                 style={{ aspectRatio: "2/3" }}
               >
                 <DeckCard
@@ -265,7 +290,7 @@ function DeckPickPanel() {
               <button
                 key={c.id}
                 onClick={() => useStudio.getState().viewCardDetail(c)}
-                className="h-[94%] flex-none snap-center text-left"
+                className={`${tileH} flex-none snap-center text-left`}
                 style={{ aspectRatio: "2/3" }}
               >
                 <TarotCard cover={c.cover || null} title={c.name} sub={CARD_TYPE_LABELS[c.type]} type={c.type} size="md" />
@@ -337,6 +362,8 @@ function EditorPanel() {
   useAccountVersion();
   // 两家都给得出时摆哪一家（account.tierListed 读偏好）
   useProviderPref();
+  /** 横屏宽布局（G1 第 3 步）：选法屏的做法清单铺成两列（竖屏一列）。★ hook 排在早退之前 */
+  const land = useIsLandscape();
   // ★★ hook 一律排在早退**之前**（本文件两处栽过，2026-08-30 同日各修一次）：
   // editor 从 null 变非 null 的那一拍 hook 数就对不上，React 抛
   // 「Rendered more hooks than during the previous render」——整个投影窗当场崩掉，
@@ -509,6 +536,7 @@ function EditorPanel() {
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-3">
           <ModePicker
             tierId={editor.videoTier}
+            wide={land}
             onTier={(id) => useStudio.getState().setVideoTier(id)}
             derivePrice={derivePrice}
             onPick={(m) => {
@@ -1307,6 +1335,9 @@ function ProposalsPanel() {
   const [refsOpen, setRefsOpen] = useState(false);
   const flowMode = useFlow((s) => s.mode);
   const { t } = useLingui();
+  /** 横屏 7 张链 / 竖屏 5 张（layout.sceneLayout）：‹› 切段时要跟桌面上的卡位算镜头。★ hook 排在早退之前 */
+  const land = useIsLandscape();
+  const L = sceneLayout(land);
   if (!node) return null;
   const idx = path.findIndex((n) => n.id === node.id);
   const prev = idx > 0 ? chosenProposal(path[idx - 1]) : null;
@@ -1379,9 +1410,9 @@ function ProposalsPanel() {
     const st = useStudio.getState();
     const target = path[idx + dir];
     if (!target) return;
-    const nx = computeChain(useFlow.getState().nodes, target.id).items.find((it) => it.node.id === target.id)?.x;
+    const nx = computeChain(useFlow.getState().nodes, target.id, land).items.find((it) => it.node.id === target.id)?.x;
     if (nx == null) return;
-    const cam = focusCam(nx, CHAIN.rowZ);
+    const cam = focusCam(nx, L.chain.rowZ);
     st.switchFocusNode(target.id, cam.pos, cam.look);
   }
 

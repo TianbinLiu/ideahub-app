@@ -4530,7 +4530,7 @@ msgstr "🧬 Fuse first frame"
 #~ msgid "🪪 这张真人卡还<0>没接上已授权的肖像素材</0>——「高清」「电影级」档不收直接上传的真人照片，接上之前用它出片会被拒。"
 #~ msgstr "🪪 This real-person card <0>isn't connected to an authorized portrait asset yet</0> — the HD and Cinematic tiers don't accept directly uploaded photos of real people, so videos using it will be rejected until it's connected."
 
-#: src/studio/ui/NpcDialog.tsx
+#: src/studio/ui/MarketSearch.tsx
 msgid "🛒 市场"
 msgstr "🛒 Market"
 
@@ -16824,13 +16824,17 @@ msgid "搜用户名 / 昵称"
 msgstr "Search username / nickname"
 
 #: src/pages/FeedPage.tsx
-#: src/studio/ui/NpcDialog.tsx
+#: src/studio/ui/MarketSearch.tsx
 msgid "搜索"
 msgstr "Search"
 
-#: src/studio/ui/NpcDialog.tsx
+#: src/studio/ui/MarketSearch.tsx
 msgid "搜索：古风 / 侦探 / 场景…"
 msgstr "Search: period / detective / scene…"
+
+#: src/studio/ui/MarketSearch.tsx
+msgid "搜索…"
+msgstr "Search…"
 
 #: src/components/guide/tours.tsx
 msgid "搜索与分类"
@@ -16852,6 +16856,10 @@ msgstr "Search card names / tags"
 #: src/pages/DiscoverPage.tsx
 msgid "搜索历史"
 msgstr "Search history"
+
+#: src/studio/ui/MarketSearch.tsx
+msgid "搜索市场"
+msgstr "Search the market"
 
 #: src/pages/DiscoverPage.tsx
 #~ msgid "搜索视频 / 分区 / 用户"
@@ -23993,7 +24001,7 @@ msgstr "Step {0} / {1}"
 #~ msgstr "Step {0} of {1} · {stepLabel}"
 
 #. placeholder {0}: page + 1
-#. placeholder {1}: Math.ceil(count / MARKET.perPage)
+#. placeholder {1}: Math.ceil(count / M.perPage)
 #: src/studio/ui/SceneRails.tsx
 msgid "第 {0} / {1} 页 · 翻页用桌面两侧的箭头"
 msgstr "Page {0} / {1} · turn pages with the arrows on either side of the table"

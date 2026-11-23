@@ -10,7 +10,7 @@ import { AI_REAL } from "../ai";
 import { myCards } from "../data/account";
 import { backLabelOf, composable, placeholderVisible, useStudio } from "./studioStore";
 import { useFlow } from "./flowStore";
-import { SPREAD, defaultCamFor } from "./scene/layout";
+import { defaultCamFor, sceneLayout } from "./scene/layout";
 import NpcDialog from "./ui/NpcDialog";
 import ProjectionWindow from "./ui/projection";
 import { CardDetailModal } from "./ui/modals";
@@ -31,7 +31,6 @@ import DraftTitle from "../components/DraftTitle";
 import Icon from "../components/Icon";
 import HelpButton from "../components/guide/HelpButton";
 import { useAutoGuide } from "../components/guide/useAutoGuide";
-import { MARKET } from "./scene/layout";
 
 // 入场加载过渡：盖住模型/贴图流式加载过程（不然首页跳转进来会看到模型逐个蹦出+卡顿）。
 // 进度来自 THREE.DefaultLoadingManager；资源全命中内存缓存时无事件——1.5s 静默兜底收起。
@@ -150,11 +149,22 @@ function useHint(): string {
 
 // ── 市场翻页箭头：屏幕两侧竖直居中，56px 热区（比卡组那对 36px 的大一圈，
 //    因为它在 3D 画布上、周围没有别的可点物，够大才不会误触到桌面）──
-function MarketArrow({ dir, disabled, side }: { dir: 1 | -1; disabled: boolean; side: "left" | "right" }) {
+// `perPage` 必须由页面给：横屏一页 8 张、竖屏 6 张，store 的 shiftMarket 只负责夹页
+function MarketArrow({
+  dir,
+  disabled,
+  side,
+  perPage,
+}: {
+  dir: 1 | -1;
+  disabled: boolean;
+  side: "left" | "right";
+  perPage: number;
+}) {
   const { t } = useLingui();
   return (
     <button
-      onClick={() => useStudio.getState().shiftMarket(dir)}
+      onClick={() => useStudio.getState().shiftMarket(dir, perPage)}
       disabled={disabled}
       aria-label={dir < 0 ? t`上一页` : t`下一页`}
       className={`absolute top-[46%] z-10 flex h-14 w-14 items-center justify-center rounded-full bg-panel/75 text-2xl text-slate-200 backdrop-blur transition-opacity disabled:opacity-40 ${
@@ -286,6 +296,11 @@ export default function StudioPage() {
    *   flex 容器、gutter 与两条边栏），竖屏时这层 div 就是原来那个 relative/inset 全屏壳。
    */
   const isLand = useIsLandscape();
+  /**
+   * 横屏/竖屏两套桌面卡位（layout.sceneLayout）：市场一页几张、摊开排摆几张。
+   * 判据与 isLand 同一个 —— 别再在这里判一次 `orientation`。
+   */
+  const L = sceneLayout(isLand);
   /**
    * 首帧相机用哪台：与 CameraRig 每帧求值的判据同一个（layout.defaultCamFor）。
    * 不这么做的话，横屏窗口会从俯视那台"飞"到落点机位（r3f 的 camera 初值就是 DEFAULT_CAM.pos），
@@ -445,20 +460,28 @@ export default function StudioPage() {
       </div>
 
 
-      {/* 提示条（NPC 气泡栏上方） */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-16 flex justify-center px-4">
-        <div data-guide="studio-hint" className="rounded-full bg-panel/75 px-4 py-1.5 text-center text-xs text-slate-300 backdrop-blur">{hint}</div>
+      {/* 提示条（NPC 气泡栏上方）。横屏：屏幕矮（462 CSS px）、这句话在窄舞台里折成两行，
+          bottom-16 会正好压在摊开排那三张卡上（真机 3C15CJ00C8V00000 实测）—— 落到贴底 8px。 */}
+      <div className={`pointer-events-none absolute inset-x-0 flex justify-center ${isLand ? "bottom-2 px-3" : "bottom-16 px-4"}`}>
+        <div
+          data-guide="studio-hint"
+          className={`rounded-full bg-panel/75 text-center text-slate-300 backdrop-blur ${
+            isLand ? "px-3 py-1 text-[11px]" : "px-4 py-1.5 text-xs"
+          }`}
+        >
+          {hint}
+        </div>
       </div>
 
       {/* 市场翻页箭头：市场种子有 19 张，一页摆 6 张 → 4 页。放在屏幕两侧竖直居中，
           与卡组展开排那对箭头（左下角）错开位置，不会打架 */}
-      {marketOpen && marketLen > MARKET.perPage && (
+      {marketOpen && marketLen > L.market.perPage && (
         <>
-          <MarketArrow dir={-1} disabled={marketPage === 0} side="left" />
-          <MarketArrow dir={1} disabled={(marketPage + 1) * MARKET.perPage >= marketLen} side="right" />
+          <MarketArrow dir={-1} disabled={marketPage === 0} side="left" perPage={L.market.perPage} />
+          <MarketArrow dir={1} disabled={(marketPage + 1) * L.market.perPage >= marketLen} side="right" perPage={L.market.perPage} />
           <div className="pointer-events-none absolute inset-x-0 bottom-28 flex justify-center">
             <span className="rounded-full px-2.5 py-1 bg-black/45 text-[11px] text-slate-300 backdrop-blur">
-              {marketPage + 1} / {Math.ceil(marketLen / MARKET.perPage)}
+              {marketPage + 1} / {Math.ceil(marketLen / L.market.perPage)}
             </span>
           </div>
         </>
@@ -470,7 +493,7 @@ export default function StudioPage() {
       {autoQ && <AutoQualityHint q={autoQ} />}
 
       {/* 卡组展开翻页箭头 */}
-      {spreadOpen && deckLen > SPREAD.maxVisible && (
+      {spreadOpen && deckLen > L.spread.maxVisible && (
         <div className="absolute bottom-28 left-3 z-10 flex gap-2">
           <button
             onClick={() => shiftSpread(-1)}

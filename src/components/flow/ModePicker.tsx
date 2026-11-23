@@ -91,6 +91,7 @@ export default function ModePicker({
   onTier,
   onPick,
   derivePrice,
+  wide,
 }: {
   /** 现在选着的出片档位（economy.VideoTier.id） */
   tierId: string;
@@ -98,6 +99,11 @@ export default function ModePicker({
   onTier: (id: string) => void;
   /** 挑定一个模式 */
   onPick: (id: GuidedModeId) => void;
+  /**
+   * 宽布局（横屏工坊的铸段窗）：做法清单铺成两列。默认不传 = 竖屏的一列（画布那面的抽屉原样）。
+   * ★ 只改排法、不改内容与判据 —— 摆哪几种、灰不灰仍由下面同一批 modeBlock / tierBlockReason 决定。
+   */
+  wide?: boolean;
   /**
    * 「AI 推演三套」那行估价，由宿主按**将要落的那一段**算一次传进来（必填：漏传是零症状的，所以不给缺省）。
    * ★ 2026-10-15 教材人格评审（norman-interaction-4）：原来这里自己按 proposalsCost(false) 报不承接的上限 —— 从第 2 段起真正的价
@@ -218,6 +224,8 @@ export default function ModePicker({
           return (
             <div key={g} className="space-y-1.5">
               <div className="text-[10px] font-semibold tracking-wide text-slate-500">{t(GROUP_LABEL[g])}</div>
+              {/* 宽布局（横屏铸段窗）两列：竖屏那一支的内层 space-y-1.5 与原来按钮直接排在组里时逐像素相同 */}
+              <div className={wide ? "grid grid-cols-2 gap-1.5" : "space-y-1.5"}>
               {modes.map((m) => {
                 const text = MODE_TEXT[m.id];
                 const steps = m.steps;
@@ -282,6 +290,7 @@ export default function ModePicker({
                   </button>
                 );
               })}
+              </div>
             </div>
           );
         })}

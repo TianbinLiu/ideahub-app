@@ -1,7 +1,9 @@
 // 桌面世界坐标约定：桌面顶面 y=0；用户侧 z>0，NPC 侧 z<0；中线沿 x 轴。
 // ★ G1 起**横屏优先**（docs/g1-scene-plan.md §2）：进工坊自动横屏，默认机位是能看全 NPC 的落点机位
 //   （LAND_CAM）；竖屏窗口（浏览器 dev / ROM 拒绝转屏）退回俯视的 DEFAULT_CAM，见 defaultCamFor。
-//   下面那组卡位常量仍是**竖屏时代量出来的**，横屏那套等 G1 第 3 步（桌子加宽）一起重算。
+// ★ 桌面与卡位有**两套**（G1 第 3 步，docs/g1-scene-plan.md §3）：紧挨着的这组是竖屏那套
+//   （竖屏窗口逐字照用，一个数都没动），`*_LAND` 那组是横屏那套。哪一套只由 `sceneLayout(land)`
+//   一处决定 —— TableScene 的每块 mesh、市场分页、飞卡起点全问它，别在调用点各判一次 landscape。
 export const TABLE = { w: 16, d: 7, thick: 0.35 };
 
 /** ★ 工坊 3D 场景里挂不挂「玩家自己」那具人偶（`PlayerArms`：手臂/上身）。
@@ -26,17 +28,23 @@ export const DEFAULT_CAM: { pos: [number, number, number]; look: [number, number
 
 /** ★ 横屏的**落点机位**（G1 施工单 docs/g1-scene-plan.md §4 的终点机位，第 2 步先拿它当默认机位用）。
  *
- *  为什么是这一台（数值是把这个场景的坐标按 fov 50 投影到屏幕算出来的，不是估的）：
- *  · **能看全铸卡师**：DEFAULT_CAM 那台俯视把她的头顶压到画面 **y=1.4%** —— 顶栏一盖就"只露胸以下"
- *    （第 1 步报告里那个坑就是它）。这一台：头顶 y=26%、下巴 30%、搭在桌沿的手 36%，
- *    头离上缘还有四分之一屏，横屏 3:2 / 16:9 / 20:9 几乎不变（y 只与垂直 fov 有关）。
- *  · **卡组堆还在画面里、点得到**：卡组堆（DECK_POS，z=2.75）落 x 20~38% / y 67~80%（横屏各比例都量过），
- *    既不贴屏幕底边（系统手势条那一带），也没有跑到相机背后 —— 上一轮试 `NPC_CAM`（z=2.45）就栽在这里。
- *  · **市场和节点链一起在框里**：市场两排（z=-1.05 / -2.2）x 41~59% / y 40~49%，
- *    节点链 5 张 + 左右收起堆 x 24~76% / y 53~61%，法阵（COMPOSE_POS）在 (60,51)% 附近。
- *  · 比施工单写的 `pos [0,4.2,6.2] / look [0,0.2,-1.2]` **往后 1.2、压低 0.8**：那一组算下来卡组堆正好落在
- *    y 84~104% —— 近侧一半在画外，手机上还压在系统手势条上。往前推也试过（z 6.4~6.8、y 3.8~4.2），
- *    卡组堆会跟着顶到 y≈90% 以上，所以退这一档。第 4 步的入场动画就落在这一台上。 */
+ *  数值是把这个场景的坐标按 fov 50 投影到屏幕上量出来的，不是估的。第 3 步换桌子之后**整组重算过**：
+ *  量的是真实舞台 945×785（1384×797 的窗口扣掉两条 15vw 常驻条后的画布，aspect 1.204）。
+ *  **重算结论：机位不用动，换的是桌子与卡位**（TABLE_LAND 22×9 / 节点链 7 张 / 市场 4 张一排 /
+ *  卡组堆 -1.8,3.0 / 合成法阵 3.0）。这一台仍然把关键点全框在画面里，而且新桌子的近边（z=4.5）
+ *  被推到 y=101.9% 之外 —— 桌毡这才真正铺满画面底边（16×7 时它只到 83%，底下露出一截地板）。
+ *  各处量出来的数（屏幕 x 范围 / y 范围）：
+ *  · **能看全铸卡师**：头顶 y=25.1%、下巴 29.3%、搭在桌沿的手 37.4%，头离上缘还有四分之一屏；
+ *  · **卡组堆在画面里、点得到**：DECK_POS_LAND（-1.8, z=3.0）落 x 10.7~28.3% / y 70.5~84.2%，
+ *    离画布左缘 10.7%、离底缘 16%（系统手势条只在最底 8% 那一带）；
+ *  · **市场四张一排**：两排 x 27.7~72.3% / 30.1~69.9%，y 44.8~48.8% / 40.6~43.8%；
+ *  · **节点链 7 张 + 左右收起堆**：卡位 x 14.5~85.5%（收起堆 11.6~88.4%），y 54.2~61.7%；
+ *  · **合成法阵**：台座中心 (82.9, 51.5)%、x 77.2~88.6%，铭牌 75.1~94.2%；
+ *  · **桌面**：远边 y=35.4%、近边 101.9%；两侧半宽 11 比任何深度上的可视半宽都大（最远处 ±6.7）。
+ *  为什么不是施工单 §4 写的 `pos [0,4.2,6.2] / look [0,0.2,-1.2]`：那一组算下来卡组堆正好落在
+ *  y 84~104%（近侧一半在画外，手机上还压在系统手势条上）；往前推（z 6.4~6.8 / y 3.8~4.2）
+ *  卡组堆会顶到 y≈90% 以上，所以退这一档。第 4 步的入场动画就落在这一台上。
+ *  ⚠ 竖屏那台（DEFAULT_CAM）与竖屏卡位都不受影响：defaultCamFor 按画布 aspect 选，竖屏走另一支。 */
 export const LAND_CAM: { pos: [number, number, number]; look: [number, number, number] } = {
   pos: [0, 3.4, 7.4],
   look: [0, -0.2, -0.8],
@@ -116,20 +124,6 @@ export const SPREAD = { z: 2.75, dx: 1.05, maxVisible: 3, centerX: 0.2 };
  */
 export const MARKET = { rowsZ: [-1.05, -2.2], perRow: 3, dx: 0.66, lift: 0.02, scale: 0.55, perPage: 6 };
 
-/** 市场卡在桌上的位置。**本页内的下标**（0 ~ perPage-1），不是全局下标。
- *  抽出来是因为这段算式原本有两份：TableScene 的 MarketFan 摆卡、modals 的详情单
- *  算飞卡起点。分页之后两边一个用页内下标、一个用全局下标就会当场错位——
- *  第二页点任何一张卡，卡都从第一页那个位置飞出来。 */
-export function marketSlot(i: number, countOnPage: number): { x: number; z: number } {
-  const row = Math.floor(i / MARKET.perRow);
-  const col = i % MARKET.perRow;
-  const rowCount = Math.min(MARKET.perRow, countOnPage - row * MARKET.perRow);
-  return {
-    x: (col - (rowCount - 1) / 2) * MARKET.dx,
-    z: MARKET.rowsZ[Math.min(row, MARKET.rowsZ.length - 1)],
-  };
-}
-
 /** 溢出节点的左侧收起堆（贴左缘露半张=「收起」） */
 export const LEFT_STACK: [number, number, number] = [-1.85, 0, 0.95];
 
@@ -139,6 +133,111 @@ export const RIGHT_STACK: [number, number, number] = [1.85, 0, 0.95];
 /** 合成按钮：中线右端（竖屏可视范围内） */
 export const COMPOSE_POS: [number, number, number] = [1.5, 0.03, 0];
 
-export function chainX(visibleIndex: number): number {
-  return CHAIN.startX + visibleIndex * CHAIN.dx;
+// ─────────────────────────────────────────────────────────────
+// 横屏那套（G1 施工单 docs/g1-scene-plan.md §3）。**只影响横屏**：竖屏窗口继续读上面那组，
+// 一个数都不改。下面每个 `*_LAND` 都注明了"为什么是这个数"，量法见 LAND_CAM 的注释。
+// ─────────────────────────────────────────────────────────────
+
+/** 横屏桌面：22×9（竖屏 16×7）。为什么是这两个数（945×785 的舞台 = 1384×797 的窗口扣掉两条常驻条，
+ *  aspect 1.204，见 LAND_CAM 注释）：
+ *  · 近边 z=+4.5 投到 y=101.9% —— 刚好落到画面下沿之外，桌毡铺满画面底边（16×7 时它只到 83%，
+ *    下面露出一截地板，横屏看就是"桌面没占满"）；
+ *  · 远边 z=-4.5 在 y=35.4%，两侧半宽 11 远超任何深度上的可视半宽（最远那排也只有 ±6.7）——
+ *    "两侧不留黑边"就是靠这两个数。
+ *  ⚠ 深度从 7 加到 9 之后铸卡师站的位置（z=-4.3）正好贴着远边内侧（原来离远边 0.8）：
+ *    她被桌子挡到腰线的高度只从 38% 抬到 35.4%（视觉上"站在桌沿后面"），这是加宽的代价里最可控的一档。 */
+export const TABLE_LAND = { w: 22, d: 9, thick: 0.35 };
+
+/** 横屏节点链：一屏 7 张（竖屏 5 张）。dx 0.78 > 卡宽 1.1×0.66=0.726，7 张之间有 0.054 的缝（不叠压，
+ *  与竖屏 5 张 / 0.8 间距同一种"链"的读法）。startX=-2.34 让 7 张以 x=0 为中心摊开：卡位中心 ±2.34、
+ *  外缘 ±2.70 投到 x 14.5~85.5%，两端各剩 14.5% 给收起堆（±2.59 投 11.6~88.4%）。
+ *  为什么不再摆宽一点：再宽 0.2 左右，右端就会把合成法阵（COMPOSE_POS_LAND）挤出画面。 */
+export const CHAIN_LAND = { startX: -2.34, dx: 0.78, rowZ: 0.95, maxVisible: 7, scale: 0.66 };
+
+/** 横屏卡组堆（用户左手边）：x -1.5→-1.8、z 2.75→3.0。
+ *  横屏的卡组行在屏幕上更靠外（同样的 x 在 z 更近时占屏更宽），-1.5/z2.75 会压到摊开排的排头；
+ *  -1.8/z3.0 投到 x 10.7~28.3% / y 70.5~84.2%（竖屏那颗在 20~38% / 67~80%）——仍读作"左手边那叠"，
+ *  离画布左缘还有 10.7% 余量、离系统手势区（屏幕底 8%）还有 16%，点得到。 */
+export const DECK_POS_LAND: [number, number, number] = [-1.8, 0, 3.0];
+
+/** 横屏摊开排：dx 1.05→1.2（卡片原尺寸 1.1 宽，留 0.1 的缝）、centerX 0.2→0.3。
+ *  卡组挪到 -1.8 之后排头（-0.9，卡宽 ±0.55）正好从卡组右缘（-1.437）外一点开始摊；
+ *  排尾 1.5+0.55=2.05 投到 x 89.4% —— 再往右就撞画布右缘了（z=3.0 这一排是全屏最近的一张，
+ *  每 0.1 世界单位≈2.6% 屏宽）。 */
+export const SPREAD_LAND = { z: 3.0, dx: 1.2, maxVisible: 3, centerX: 0.3 };
+
+/** 横屏市场：一页 2 排 × 4 张 = 8 张（竖屏 2×3=6），行位置不变（rowsZ 与竖屏同一组）。
+ *  dx 0.66→1.25：卡宽 0.605，横屏这一排的可视宽约是竖屏的 4 倍，四张排开只在画面中间
+ *  x 27.7~72.3%（row0）/ 30.1~69.9%（row1），两侧留给卡组摊开排与合成法阵。
+ *  为什么不是更宽：dx 1.25 已经是"四张之间留 0.645（> 一张卡宽）"的稀疏摆法，再宽就不像"摊开的一排"了。 */
+export const MARKET_LAND = { rowsZ: [-1.05, -2.2], perRow: 4, dx: 1.25, lift: 0.02, scale: 0.55, perPage: 8 };
+
+/** 横屏的左右收起堆：跟着节点链走 —— 链尾卡位 2.34 + 0.25 = 2.59，与竖屏 1.6→1.85 同一个
+ *  "从最后一张后面露半张"的关系（收起堆的卡面因此始终压在链尾卡右下/左下角，一眼看出还有一段）。 */
+export const LEFT_STACK_LAND: [number, number, number] = [-2.59, 0, 0.95];
+export const RIGHT_STACK_LAND: [number, number, number] = [2.59, 0, 0.95];
+
+/** 横屏合成法阵：中线右端从 1.5 挪到 3.0 —— 链尾卡在 2.34，法阵仍读作"右端那颗"。
+ *  3.0 时台座投到 x 77.2~88.6%、铭牌 75.1~94.2%（竖屏那颗的铭牌几乎是贴着屏幕右缘的；
+ *  再往右 0.35 铭牌就会压到 98%） */
+export const COMPOSE_POS_LAND: [number, number, number] = [3.0, 0.03, 0];
+
+/** 横屏/竖屏两套卡位的**唯一分派入口**（铁律六）。`land` 由 hooks/useIsLandscape 或
+ *  `camera.aspect >= 1`（defaultCamFor 的同一判据）之后传进来，别在调用点各判一次。 */
+export interface SceneLayout {
+  table: typeof TABLE;
+  chain: typeof CHAIN;
+  deckPos: [number, number, number];
+  spread: typeof SPREAD;
+  market: typeof MARKET;
+  leftStack: [number, number, number];
+  rightStack: [number, number, number];
+  composePos: [number, number, number];
+}
+
+const PORTRAIT_LAYOUT: SceneLayout = {
+  table: TABLE,
+  chain: CHAIN,
+  deckPos: DECK_POS,
+  spread: SPREAD,
+  market: MARKET,
+  leftStack: LEFT_STACK,
+  rightStack: RIGHT_STACK,
+  composePos: COMPOSE_POS,
+};
+
+const LAND_LAYOUT: SceneLayout = {
+  table: TABLE_LAND,
+  chain: CHAIN_LAND,
+  deckPos: DECK_POS_LAND,
+  spread: SPREAD_LAND,
+  market: MARKET_LAND,
+  leftStack: LEFT_STACK_LAND,
+  rightStack: RIGHT_STACK_LAND,
+  composePos: COMPOSE_POS_LAND,
+};
+
+export function sceneLayout(land: boolean): SceneLayout {
+  return land ? LAND_LAYOUT : PORTRAIT_LAYOUT;
+}
+
+/** 市场卡在桌上的位置。**本页内的下标**（0 ~ perPage-1），不是全局下标。
+ *  抽出来是因为这段算式原本有两份：TableScene 的 MarketFan 摆卡、modals 的详情单
+ *  算飞卡起点。分页之后两边一个用页内下标、一个用全局下标就会当场错位——
+ *  第二页点任何一张卡，卡都从第一页那个位置飞出来。
+ *  ★ 横屏一页 8 张、竖屏 6 张，所以 `land` 必须由**同一个判据**传进来（见 sceneLayout）。 */
+export function marketSlot(land: boolean, i: number, countOnPage: number): { x: number; z: number } {
+  const M = sceneLayout(land).market;
+  const row = Math.floor(i / M.perRow);
+  const col = i % M.perRow;
+  const rowCount = Math.min(M.perRow, countOnPage - row * M.perRow);
+  return {
+    x: (col - (rowCount - 1) / 2) * M.dx,
+    z: M.rowsZ[Math.min(row, M.rowsZ.length - 1)],
+  };
+}
+
+export function chainX(land: boolean, visibleIndex: number): number {
+  const C = sceneLayout(land).chain;
+  return C.startX + visibleIndex * C.dx;
 }
