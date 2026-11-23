@@ -1,13 +1,16 @@
 // 对局 HUD：舞台顶部一条常驻（施工单第 1 条）。
 //
-// ★ 一条里只放"这一局现在怎么样"：金币（含本回合利息）、血量、连胜/连败、模型等级 + 档位名、
-//   回合与存活人数。**一个数都不在这里算** —— 全部来自 view.hud（它去问 rules，见 game/view.ts）。
+// ★ 一条里只放"这一局现在怎么样"：回合 + 阶段、金币（含本回合利息）、血量、连胜/连败、
+//   模型等级 + 档位名、存活人数。**一个数都不在这里算** —— 全部来自 view.hud（它去问 rules，见 game/view.ts）。
+// ★ 「第 N 回合 · 阶段名」是 G3 加的（施工单第 3 条）：对局有五个阶段，玩家不看这一格就不知道
+//   现在该买卡还是该交片；阶段名只有 labels.phaseName 一份。
 // ★ 位置：贴在浮动顶栏**下面**（返回键与右边那组圆键占着最上面 48px）。用 `env(safe-area-inset-top)`
 //   把它顶到安全区以下：横屏真机顶部还有状态栏（G1 施工单量过，见 SceneRails 的 safe-top 注释），
 //   写死 top-14 会被状态栏压住。pointer-events-none：HUD 是读数，不该挡住桌面上的卡。
 import { Trans, useLingui } from "@lingui/react/macro";
 import { START_HP } from "../rules";
-import { modelTierName } from "../labels";
+import { modelTierName, phaseName } from "../labels";
+import type { GamePhase } from "../types";
 import type { HudModel } from "../view";
 
 /** HUD 里的小分隔点（装饰，别让读屏念它） */
@@ -19,7 +22,7 @@ function Sep() {
   );
 }
 
-export default function GameHud({ hud }: { hud: HudModel }) {
+export default function GameHud({ hud, phase }: { hud: HudModel; phase: GamePhase }) {
   const { t } = useLingui();
   // 连胜 / 连败是**两个计数里只会有一个非 0**（rules.settleRound 一处维护），这里只决定说哪句
   const streak =
@@ -35,6 +38,10 @@ export default function GameHud({ hud }: { hud: HudModel }) {
       <div className="flex max-w-full items-center gap-2 overflow-x-auto whitespace-nowrap rounded-full bg-panel/85 px-3 py-1 text-[11px] text-slate-200 ring-1 ring-white/10 backdrop-blur">
         <span className="font-semibold text-slate-100">
           <Trans>第 {hud.round} 回合</Trans>
+          <span className="mx-1 text-slate-500" aria-hidden>
+            ·
+          </span>
+          <span className="text-brand-200">{phaseName(phase)}</span>
         </span>
         <Sep />
         <span className="font-semibold text-gold-200" title={t`金币：买卡与刷新都要花它`}>

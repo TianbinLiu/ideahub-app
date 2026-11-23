@@ -15,6 +15,7 @@ import type {
   CardQuality,
   CardType,
   DamageEntry,
+  EntryTally,
   GameBuffs,
   GameCard,
   GameEvent,
@@ -25,7 +26,9 @@ import type {
   GameState,
   ModelLevel,
   Rng,
+  RoundEntry,
   RoundSettlement,
+  RoundTally,
   ShopState,
   StreakEntry,
   StreakOutcome,
@@ -99,6 +102,24 @@ export const MODEL_LEVEL_TIERS: Readonly<Record<ModelLevel, GameGenerationTier>>
 
 /** §2.2：开局从池子里抽 3 张风格卡。 */
 export const STYLE_PICK_COUNT = 3;
+
+/**
+ * §2.4：一期作品的占位视频固定 5 秒（G3 不接生成）。展映播放器的进度条按这一格走。
+ * ★ 放在规则层而不是界面：一条片子的时长是"作品"的属性，G4 接真出片后由生成契约填进来，
+ *   播放器那时不用改（它一直读 entry.seconds）。
+ */
+export const VIDEO_SECONDS = 5;
+
+/**
+ * §2.4：一句提示词的字符上限（按 Unicode 码点数，一个汉字算 1）。
+ * ★ 80 字：横屏真机那一栏只有一行半的宽度（800×363 的视口，见 docs/g2-game-ui.md），
+ *   再长就要滚动输入框，而这句话只是"这一期拍什么"的一句话。
+ * ★ 事件「灵感爆发」的 +50% 走 promptLimitOf 一处加成，别在界面里另乘一遍。
+ */
+export const PROMPT_BASE_MAX = 80;
+
+/** §2.4：桌面中央的 3 个虚框 = 角色槽 / 场景槽 / 道具槽（一个类型一张，重复放回 duplicate-slot）。 */
+export const SLOT_TYPES: readonly CardType[] = ["role", "scene", "item"];
 
 /**
  * §2.3 商店品质权重（按回合，列 = 1~5 费，单位 %）。
@@ -226,7 +247,18 @@ export type RuleRejectReason =
   | "event-not-drawn"
   | "event-already-picked"
   | "round-limit"
-  | "no-cards-left";
+  | "no-cards-left"
+  // ── G3 回合循环（§2.4 创作 / §2.5 展映投票）新增的原因码 ──
+  | "prompt-empty"
+  | "prompt-too-long"
+  | "duplicate-slot"
+  | "card-not-owned"
+  | "entries-pending"
+  | "entry-not-found"
+  | "entry-already-liked"
+  | "already-voted"
+  | "self-vote"
+  | "votes-pending";
 
 export interface RuleFailure {
   ok: false;
@@ -245,6 +277,10 @@ export type SellResult = { ok: true; player: GamePlayer; refund: number } | Rule
 export type EventOptionsResult = { ok: true; options: GameEventOption[] } | RuleFailure;
 export type EventApplyResult = { ok: true; state: GameState; option: GameEventOption } | RuleFailure;
 export type SettleResult = { ok: true; state: GameState; summary: RoundSettlement } | RuleFailure;
+/** 交片：回执里带上刚写进去的那条作品（界面要立刻显示"拍好了"）。 */
+export type EntryResult = { ok: true; state: GameState; entry: RoundEntry } | RuleFailure;
+/** 结算（从本期实际投出来的名次）：摘要 + 两个榜一起交出来（界面在结算屏上同屏显示）。 */
+export type RoundResult = { ok: true; state: GameState; summary: RoundSettlement; tally: RoundTally } | RuleFailure;
 
 function reject(reason: RuleRejectReason, extra: Omit<RuleFailure, "ok" | "reason"> = {}): RuleFailure {
   return { ok: false, reason, ...extra };
@@ -345,6 +381,10 @@ export function createGame(playerIds: readonly string[], rng: Rng): GameState {
     players,
     modelLevel: START_MODEL_LEVEL,
     shops: {},
+    // 第 1 回合还没有作品 / 弃权 / 上一期名次：展映顺序按座位表（rules.screeningOrderOf）
+    entries: [],
+    abstained: [],
+    lastRanking: [],
     drawnEventIds: [],
     currentEventId: null,
     eventPicks: {},
@@ -671,6 +711,10 @@ export function beginRound(state: GameState, rng: Rng): StateResult {
       players,
       shops,
       phase: "shop",
+      // 上一期的作品 / 弃权在这个回合开张时作废（结算摘要那时已经交给界面了）；
+      // lastRanking **留着** —— 本期展映的播放顺序读的正是它（§2.5「按上一回合综合排名倒序」）。
+      entries: [],
+      abstained: [],
       currentEventId: null,
       eventPicks: {},
       cardSerial: serial,
@@ -886,8 +930,7 @@ function applyEventEffects(
   option: GameEventOption,
   rng: Rng,
   serial: number,
-): { ok: true; player: GamePlayer; serial: number } | RuleFailure {
-  let next: GamePlayer = { ...player, buffs: { ...player.buffs }, capBonus: { ...player.capBonus } };
+): { ok: true; player: GamePlayer; serial: number } | RuleFailure {  let next: GamePlayer = { ...player, buffs: { ...player.buffs }, capBonus: { ...player.capBonus } };
   let nextSerial = serial;
 
   for (const effect of option.effects) {
@@ -941,8 +984,32 @@ function applyEventEffects(
   return { ok: true, player: next, serial: nextSerial };
 }
 
-// ────────────────────────────── 回合结算与胜负（§2.5） ──────────────────────────────
+/**
+ * 事件里"跳过"的表态（§2.3b 的兜底出口）。
+ * ★★ 为什么需要它：三选一里那个**免费项**在某些局面下也会落不了账 ——
+ *   「灵感爆发」的免费项是"随机一张蓝卡"，而背包满了 / 该类型到上限时 applyEventEffects 会整项拒
+ *   （铁律八：不静默丢卡）。同一时刻另外两项要 3 / 6 金；一个满背包、身上没钱的人就**一个选项都选不了**，
+ *   而事件要求全员各选一次才进下一回合 ⇒ 这一局永远停在事件阶段，只能结束对局（零报错）。
+ * ★ 跳过 = 记一笔表态、**什么都不改**（不是白拿收益）：设计稿 §2.3b 本来就说免费项"相当于跳过"，
+ *   这里只是给这句话一个永远走得通的实现。界面照常摆三选一，跳过是第四个从属出口。
+ */
+export function skipEventChoice(state: GameState, playerId: string): StateResult {
+  if (state.phase !== "event") return reject("wrong-phase");
+  if (state.currentEventId === null) return reject("event-not-drawn");
+  const found = findPlayer(state, playerId);
+  if (!found) return reject("unknown-player");
+  if (found.player.eliminated) return reject("player-eliminated");
+  if (state.eventPicks[playerId] !== undefined) return reject("event-already-picked");
+  const eventPicks: Record<string, string> = { ...state.eventPicks, [playerId]: EVENT_SKIP_PICK };
+  const alive = state.players.filter((player) => !player.eliminated);
+  const allPicked = alive.every((player) => eventPicks[player.id] !== undefined);
+  return { ok: true, state: { ...state, eventPicks, phase: allPicked ? "round-end" : "event" } };
+}
 
+/** 跳过在 eventPicks 里记的 optionId（与事件数据里的选项 id 不可能撞：事件 id 里没有 "skip" 这种短词）。 */
+export const EVENT_SKIP_PICK = "skip";
+
+// ────────────────────────────── 回合结算与胜负（§2.5） ──────────────────────────────
 /**
  * §2.5 扣血：rankFromLast = 0 是最后一名。
  * 缩放 = 存活人数 / 4，向下取到 DAMAGE_GRID 的整数倍、最低 5（见 DAMAGE_LADDER 的注释）。
@@ -1079,7 +1146,8 @@ export function settleRound(state: GameState, ranking: readonly string[], rng: R
   };
   return {
     ok: true,
-    state: { ...candidate, phase, drawnEventIds, currentEventId, eventPicks: {} },
+    // lastRanking = 本期名次：下一期展映按它**倒序**播（§2.5「落后先放」），排序在 screeningOrderOf 一处。
+    state: { ...candidate, phase, drawnEventIds, currentEventId, eventPicks: {}, lastRanking: rankingIds },
     summary,
   };
 }
@@ -1089,19 +1157,282 @@ function clearTimedBuffs(buffs: GameBuffs): GameBuffs {
   return { nextRoundCostHalf: false, nextRoundSegments: 1, promptLimitPct: 0, freeRefreshes: buffs.freeRefreshes };
 }
 
-// ────────────────────────────── 阶段推进（§2.0 的 ①②③） ──────────────────────────────
+// ────────────────────────────── 阶段推进（§2.0 的 ①②③④⑤） ──────────────────────────────
 
 export function enterCreation(state: GameState): StateResult {
   if (state.phase !== "shop") return reject("wrong-phase");
   return { ok: true, state: { ...state, phase: "create" } };
 }
 
+/**
+ * 创作 → 展映：**全员都交了片**才放行（§2.0 ③ 播的是"全员本回合的视频"）。
+ * ★ 为什么不让人先开始展映、播到一半再补：展映的播放顺序是上一期名次定的，少一条片子那条片子
+ *   就永远没人点赞；而投票要求"全员看完"—— 顺序里缺一格，这一期的榜就不完整。
+ * ★ 单机版的 AI 由编排层（game/phases.ts）在进创作阶段时就交片，所以卡在这里的只可能是真人的片子。
+ */
 export function enterScreening(state: GameState): StateResult {
   if (state.phase !== "create") return reject("wrong-phase");
+  const alive = alivePlayers(state);
+  const missing = alive.filter((player) => entryOfPlayer(state, player.id) === null);
+  if (missing.length > 0) return reject("entries-pending", { count: missing.length, cap: alive.length });
   return { ok: true, state: { ...state, phase: "screening" } };
 }
 
 export function enterVoting(state: GameState): StateResult {
   if (state.phase !== "screening") return reject("wrong-phase");
   return { ok: true, state: { ...state, phase: "voting" } };
+}
+
+// ────────────────────────────── 创作：一期作品（§2.4） ──────────────────────────────
+
+/** 一期作品的 id：`r<回合>-<playerId>`。★ 稳定 —— 点赞 / 投票 / 结算回执都认它，不靠数组下标。 */
+export function roundEntryId(round: number, playerId: string): string {
+  return `r${round}-${playerId}`;
+}
+
+/**
+ * §2.4 提示词上限：基础 80 字 + 事件「灵感爆发」的 +50%（rules.promptLimitBonusPct 一处读 buffs）。
+ * ★ 只在这里算：界面拿它显示"还能写几个字"、submitRoundEntry 拿它判拒 —— 两处各乘一遍就会漂。
+ */
+export function promptLimitOf(player: GamePlayer): number {
+  return Math.floor((PROMPT_BASE_MAX * (100 + promptLimitBonusPct(player))) / 100);
+}
+
+/** 这一期某个人的作品；没交回 null。按 id 认（不按数组顺序）。 */
+export function entryOfPlayer(state: GameState, playerId: string): RoundEntry | null {
+  const id = roundEntryId(state.round, playerId);
+  return state.entries.find((entry) => entry.id === id) ?? null;
+}
+
+/** 按 id 找一条作品（点赞 / 投票 / 界面点开那一条都走它）。 */
+export function entryById(state: GameState, entryId: string): RoundEntry | null {
+  return state.entries.find((entry) => entry.id === entryId) ?? null;
+}
+
+/**
+ * §2.4 交片：把 3 个虚框里的卡 + 一句提示词变成这一期的作品（G3 是占位视频，固定 5 秒）。
+ * ★ 卡**从自己的拥有清单里按 id 取**（背包 + 已装备的道具），不采信调用方递进来的卡对象：
+ *   否则一条伪造的 5 费卡就能绕过背包上限去投票。
+ * ★ 一条都没放也算交片（空镜）：这个游戏里"没有卡"是可能的（开局 0 张、又把钱花光了），
+ *   而展映要全员都有片子才开得下去 —— 不然玩家会卡在创作阶段出不去。空镜的代价落在
+ *   AI 的投票权重上（bots.entryWeightOf：没有卡就几乎不会有人投你）。
+ * ★ 同一回合可以重交（改卡、改提示词）：占位视频不花钱，重拍一趟没有代价；G4 真出片时这一条要改成
+ *   一次性（重拍要再付一次出片钱，那时的口径另说）。
+ */
+export function submitRoundEntry(
+  state: GameState,
+  playerId: string,
+  input: { cards: readonly GameCard[]; prompt: string },
+): EntryResult {
+  if (state.phase !== "create") return reject("wrong-phase");
+  const found = findPlayer(state, playerId);
+  if (!found) return reject("unknown-player");
+  if (found.player.eliminated) return reject("player-eliminated");
+
+  const prompt = input.prompt.trim();
+  if (prompt.length === 0) return reject("prompt-empty");
+  // 按码点数（不是 .length）：表情 / 生僻字不该因为 UTF-16 记两个字就提前顶到上限
+  const promptLength = Array.from(prompt).length;
+  const promptLimit = promptLimitOf(found.player);
+  if (promptLength > promptLimit) return reject("prompt-too-long", { cap: promptLimit, have: promptLength });
+
+  if (input.cards.length > SLOT_TYPES.length) {
+    return reject("duplicate-slot", { count: input.cards.length, cap: SLOT_TYPES.length });
+  }
+  const owned = ownedCards(found.player);
+  const cards: GameCard[] = [];
+  for (const card of input.cards) {
+    const real = owned.find((ownedCard) => ownedCard.id === card.id);
+    if (!real) return reject("card-not-owned", { cardType: card.type });
+    if (cards.some((picked) => picked.type === real.type)) {
+      // 同一个虚框放两张 = 界面的槽位坏了；不许静默丢一张（丢的是玩家刚选的那张，画面就会少个人）。
+      return reject("duplicate-slot", { cardType: real.type, count: 2, cap: 1 });
+    }
+    cards.push(real);
+  }
+
+  const entry: RoundEntry = {
+    id: roundEntryId(state.round, playerId),
+    round: state.round,
+    playerId,
+    cards,
+    prompt,
+    styleCardId: found.player.styleCardId,
+    seconds: VIDEO_SECONDS,
+    likedBy: [],
+    votedBy: [],
+  };
+  const exists = state.entries.some((existing) => existing.id === entry.id);
+  const entries = exists
+    ? state.entries.map((existing) => (existing.id === entry.id ? entry : existing))
+    : [...state.entries, entry];
+  return { ok: true, state: { ...state, entries }, entry };
+}
+
+/**
+ * §2.5 展映顺序：**上一期综合名次倒序**（落后先放，避免"看完强的就不敢做"）。
+ * ★ 第 1 回合没有上一期名次 → 按座位表（state.players 的顺序，与建局时给的一致，回放稳定）。
+ * ★ 名次里没有的人（理论上不该有）排在最后，按座位定序 —— 宁可按一个确定的顺序播，也别乱序。
+ */
+export function screeningOrderOf(state: GameState): RoundEntry[] {
+  const entries = state.entries.filter((entry) => entry.round === state.round);
+  const seat = new Map(state.players.map((player, index) => [player.id, index]));
+  const seatOf = (playerId: string) => seat.get(playerId) ?? Number.MAX_SAFE_INTEGER;
+  if (state.lastRanking.length === 0) {
+    return [...entries].sort((a, b) => seatOf(a.playerId) - seatOf(b.playerId));
+  }
+  const rankOf = (playerId: string) => {
+    const index = state.lastRanking.indexOf(playerId);
+    return index < 0 ? state.lastRanking.length : index;
+  };
+  return [...entries].sort((a, b) => rankOf(b.playerId) - rankOf(a.playerId) || seatOf(a.playerId) - seatOf(b.playerId));
+}
+
+// ────────────────────────────── 展映：点赞（§2.5） ──────────────────────────────
+
+/**
+ * §2.5 点赞：展映播放中可以给**任意一条**点一次（含自己那条 —— §2.5 只写"任何人可点赞"，
+ * 而投票那一句才明说"不能投自己"；平台上给自己点个赞也不稀奇，且四条各 +1 在名次上没有影响）。
+ * ★ 每个玩家对同一条只能点一次（entry-already-liked）；不设"取消点赞"：一回合就一次机会。
+ */
+export function likeEntry(state: GameState, voterId: string, entryId: string): StateResult {
+  if (state.phase !== "screening") return reject("wrong-phase");
+  const found = findPlayer(state, voterId);
+  if (!found) return reject("unknown-player");
+  if (found.player.eliminated) return reject("player-eliminated");
+  const entry = entryById(state, entryId);
+  if (!entry || entry.round !== state.round) return reject("entry-not-found");
+  if (entry.likedBy.includes(voterId)) return reject("entry-already-liked");
+  return {
+    ok: true,
+    state: {
+      ...state,
+      entries: state.entries.map((existing) =>
+        existing.id === entryId ? { ...existing, likedBy: [...existing.likedBy, voterId] } : existing,
+      ),
+    },
+  };
+}
+
+/**
+ * §2.5 投票：**不能投自己**、每人一票、可弃权（abstainVote）。
+ * ★ 投过 / 弃过都算表态，再投会回 already-voted —— 「全员表态完毕」是 settleRoundFromVotes 的闸。
+ */
+export function voteEntry(state: GameState, voterId: string, entryId: string): StateResult {
+  if (state.phase !== "voting") return reject("wrong-phase");
+  const found = findPlayer(state, voterId);
+  if (!found) return reject("unknown-player");
+  if (found.player.eliminated) return reject("player-eliminated");
+  if (hasSpoken(state, voterId)) return reject("already-voted");
+  const entry = entryById(state, entryId);
+  if (!entry || entry.round !== state.round) return reject("entry-not-found");
+  if (entry.playerId === voterId) return reject("self-vote");
+  return {
+    ok: true,
+    state: {
+      ...state,
+      entries: state.entries.map((existing) =>
+        existing.id === entryId ? { ...existing, votedBy: [...existing.votedBy, voterId] } : existing,
+      ),
+    },
+  };
+}
+
+/** §2.5「可弃权」：记一笔表态，这一票就不投了（不能投完再弃 —— 一次机会只有一种用法）。 */
+export function abstainVote(state: GameState, voterId: string): StateResult {
+  if (state.phase !== "voting") return reject("wrong-phase");
+  const found = findPlayer(state, voterId);
+  if (!found) return reject("unknown-player");
+  if (found.player.eliminated) return reject("player-eliminated");
+  if (hasSpoken(state, voterId)) return reject("already-voted");
+  return { ok: true, state: { ...state, abstained: [...state.abstained, voterId] } };
+}
+
+/** 这个人这一期表过态没有（投过或弃权过）。 */
+function hasSpoken(state: GameState, playerId: string): boolean {
+  if (state.abstained.includes(playerId)) return true;
+  return state.entries.some((entry) => entry.round === state.round && entry.votedBy.includes(playerId));
+}
+
+/** 还没表态的存活玩家（按座位表）：投票屏用它说"还差谁"，settleRoundFromVotes 用它拒。 */
+export function votesPendingOf(state: GameState): string[] {
+  return alivePlayers(state)
+    .filter((player) => !hasSpoken(state, player.id))
+    .map((player) => player.id);
+}
+
+// ────────────────────────────── 结算：两个榜 + 综合名次（§2.5） ──────────────────────────────
+
+/**
+ * §2.5 的两个榜与综合名次。
+ *   · 点赞榜 / 投票榜：按条数排；**并列同名次**（竞赛排名：2,2,1 → 1,1,3）。
+ *   · 综合名次 = 点赞榜名次 + 投票榜名次（越小越好）——「讨喜」和「专业」都能赢；
+ *     并列时**看投票榜**（§2.5 明说），再并列看票数、再看点赞数，最后按 playerId 定序
+ *     （扣血需要一个确定的顺序，而回放 / 检查脚本要求同一份输入永远得同一个名次）。
+ * ★ 综合名次**不并列**：并列会让 settleRound 的「最后一名 -20」没有唯一解。
+ */
+export function tallyRound(state: GameState): RoundTally {
+  const entries = state.entries.filter((entry) => entry.round === state.round);
+  const likeCounts = entries.map((entry) => entry.likedBy.length);
+  const voteCounts = entries.map((entry) => entry.votedBy.length);
+  /** 竞赛排名：比自己严格更好的有几条，名次就是几 + 1。 */
+  const competitionRank = (counts: readonly number[], index: number) =>
+    1 + counts.filter((count) => count > counts[index]).length;
+
+  const rows = entries.map((entry, index) => ({
+    entry,
+    likes: likeCounts[index],
+    votes: voteCounts[index],
+    likeRank: competitionRank(likeCounts, index),
+    voteRank: competitionRank(voteCounts, index),
+  }));
+  const byPlayerId = (a: { entry: RoundEntry }, b: { entry: RoundEntry }) =>
+    a.entry.playerId < b.entry.playerId ? -1 : a.entry.playerId > b.entry.playerId ? 1 : 0;
+
+  const ranked = [...rows].sort(
+    (a, b) =>
+      a.likeRank + a.voteRank - (b.likeRank + b.voteRank) ||
+      a.voteRank - b.voteRank ||
+      b.votes - a.votes ||
+      b.likes - a.likes ||
+      byPlayerId(a, b),
+  );
+  const tallies: EntryTally[] = ranked.map((row, index) => ({
+    entryId: row.entry.id,
+    playerId: row.entry.playerId,
+    likes: row.likes,
+    votes: row.votes,
+    likeRank: row.likeRank,
+    voteRank: row.voteRank,
+    score: row.likeRank + row.voteRank,
+    rank: index + 1,
+  }));
+
+  const likeBoard = [...rows].sort((a, b) => b.likes - a.likes || b.votes - a.votes || byPlayerId(a, b));
+  const voteBoard = [...rows].sort((a, b) => b.votes - a.votes || b.likes - a.likes || byPlayerId(a, b));
+
+  return {
+    round: state.round,
+    entries: tallies,
+    ranking: tallies.map((entry) => entry.playerId),
+    likeBoard: likeBoard.map((row) => row.entry.id),
+    voteBoard: voteBoard.map((row) => row.entry.id),
+  };
+}
+
+/**
+ * §2.0 ⑤：**从本期真的投出来的名次**结算 —— 榜单在 rules 里算、扣血也在 rules 里扣，
+ * 界面 / store 不需要（也不许）自己拼一个名次递给 settleRound。
+ * ★ 闸：全员表过态（投过或弃权）才准结算；否则回 votes-pending（少一个人这一期的榜就不完整）。
+ */
+export function settleRoundFromVotes(state: GameState, rng: Rng): RoundResult {
+  if (state.phase !== "voting") return reject("wrong-phase");
+  const pending = votesPendingOf(state);
+  if (pending.length > 0) {
+    return reject("votes-pending", { count: pending.length, cap: alivePlayers(state).length });
+  }
+  const tally = tallyRound(state);
+  const settled = settleRound(state, tally.ranking, rng);
+  if (!settled.ok) return settled;
+  return { ok: true, state: settled.state, summary: settled.summary, tally };
 }

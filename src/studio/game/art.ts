@@ -48,3 +48,29 @@ export function stylePreviewUrl(styleId: string): string {
       return "/create/workflow.jpg";
   }
 }
+
+// ────────────────────────────── 占位视频（G3，§2.4 / §2.5） ──────────────────────────────
+
+/**
+ * 占位视频的色相（0~359）：按作品 id 稳定 hash。
+ * ★ 为什么按 id 而不是随机：同一条片子播两次、重进这一屏都要是**同一个颜色**
+ *   （颜色是"这是谁的片子"的唯一视觉线索，G4 换成真视频时这一格整个删掉）。
+ * ★ 放在 art.ts 而不是规则层：色相是画出来的东西，不是规则（rules.RoundEntry 里没有它）。
+ */
+export function placeholderHue(seed: string): number {
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  return hash % 360;
+}
+
+/**
+ * 占位视频那一屏的底色 / 主色（内联 style 用，不进 Tailwind 类名）。
+ * ★ 用 hsl 的三段而不是 hex：深浅两档只差明度，一处改就能同时调"色块"和"进度条"。
+ */
+export function placeholderColors(hue: number): { background: string; accent: string; glow: string } {
+  return {
+    background: `linear-gradient(135deg, hsl(${hue} 55% 22%), hsl(${(hue + 40) % 360} 60% 12%))`,
+    accent: `hsl(${hue} 85% 62%)`,
+    glow: `hsl(${hue} 90% 70% / 0.35)`,
+  };
+}

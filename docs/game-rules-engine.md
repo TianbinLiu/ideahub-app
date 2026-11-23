@@ -7,9 +7,9 @@
 
 | 文件 | 内容 |
 |---|---|
-| `src/studio/game/types.ts` | 数据形状：`GameCard` / `GamePlayer` / `GameState` / `ShopState` / `StyleCard` / `GameEvent` / `RoundSettlement` … |
+| `src/studio/game/types.ts` | 数据形状：`GameCard` / `GamePlayer` / `GameState` / `ShopState` / `StyleCard` / `GameEvent` / `RoundSettlement` / `RoundEntry` / `RoundTally` … |
 | `src/studio/game/rules.ts` | 全部规则（纯函数、零运行时依赖、随机源从参数注入） |
-| `scripts/check-game-rules.mjs` | 704 条断言（正例 645 / 反例 59），构建里实跑 |
+| `scripts/check-game-rules.mjs` | 851 条断言（正例 770 / 反例 81），构建里实跑 |
 
 ★ 为什么 `rules.ts` 只 `import type`：`scripts/check-game-rules.mjs` 用 Node 直接 import 它跑正反例
 （Node 只剥类型），这条与 `data/cutProject.ts` 等零依赖模块相同，已由 `scripts/check-import-direction.mjs`
@@ -34,6 +34,13 @@
 | 扣血 20/15/10/5、人少按比例缩放、hp≤0 淘汰 | `settleRound` / `damageForRank` / `streakOutcomeOf` | §2.5 |
 | 剩 ≤2 人给胜者；打满 8 回合结束 | `winnersOf` / `isGameOver` / `MAX_ROUNDS` | §2.5 / §5-2 |
 | 阶段机（商店 → 创作 → 展映 → 投票 → 结算 / 事件） | `enterCreation` / `enterScreening` / `enterVoting` | §2.0 |
+| 一期作品（三张卡 + 一句提示词、固定 5 秒占位片） | `submitRoundEntry` / `roundEntryId` / `promptLimitOf`（G3） | §2.4 |
+| 展映顺序 = 上一期综合名次倒序（第 1 回合按座位） | `screeningOrderOf` / `GameState.lastRanking`（G3） | §2.5 |
+| 点赞：播放中每条一次（含自己那条） | `likeEntry`（G3） | §2.5 |
+| 投票：不能投自己、一人一票、可弃权 | `voteEntry` / `abstainVote` / `votesPendingOf`（G3） | §2.5 |
+| 两个榜（点赞 / 投票）+ 综合名次（名次相加、并列看投票） | `tallyRound`（G3） | §2.5 |
+| 从本期真实的票结算（全员表态才放行） | `settleRoundFromVotes`（G3） | §2.0 ⑤ |
+| 事件「跳过」兜底（三选一全落不了账时） | `skipEventChoice`（G3） | §2.3b |
 
 ## 约定
 
@@ -42,6 +49,11 @@
 - `createGame` 的参数错误（人数不对 / 重复 id）直接抛 —— 那是程序员的错，不是玩家操作被拒。
 - 随机源 `Rng` 从参数注入（`createRng(seed)` 给一个 mulberry32）：同一 seed 能复盘一局，检查脚本才能写确定性用例。
 - 卖卡 / 装备 / 卸下只在 `shop` 阶段允许：创作阶段开始后背包锁住，否则正在出片的一段会引用被卖掉的卡。
+- **一局的"票"也在这层算**（G3）：点赞 / 投票存在 `RoundEntry.likedBy` / `votedBy` 里，两个榜与综合名次由
+  `tallyRound` 一处产出，结算入口是 `settleRoundFromVotes`（它再调 `settleRound` 扣血）——
+  界面与 store 都不许自己拼一个名次递进去。`lastRanking` 记上一期名次，下一期展映按它倒序播。
+- 13 条 G3 与设计稿不一致的地方（空镜、点赞可自赞、事件跳过、综合名次不并列…）见
+  `docs/g3-round-loop.md`「与设计稿不一致」；回合循环本身（AI 陪玩 / 阶段屏）也在那份。
 
 ## 与设计稿不一致 / 设计稿没写清、规则层拍了的地方（待主人复核）
 

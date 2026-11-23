@@ -1,42 +1,50 @@
 /**
- * 一局对局的全部状态（G2 第二块：把规则引擎接到工坊界面上）。
+ * 一局对局的全部状态（G2 第二块起的门面；G3 把回合循环接上）。
  *
  * ★ 为什么单开一个 store（不塞进 StudioPage 的 useState、也不塞进 studioStore）：
  *   · 工坊里切到画布浮层、去挂卡页再回来，这一页会整个重挂 —— 局部 state 归零，一局的钱与卡就没了；
  *   · G3 的回合循环 / G4 的出片翻译层 / G5 的房间同步要认同一份 GameState，放在页面里它们够不着。
  * ★★ 这一层**不写一条规则**（铁律六）：每个动作只做三件事 —— 把当前 state 递给 rules 里的同名函数、
  *   把成功结果写回、把失败原因（RuleFailure）原样留下来交给界面说人话（铁律八：不静默失败）。
- *   金币 / 利息 / 背包上限 / 类型上限 / 装备闸 / 风格锁死 / 商店刷新与锁定的语义全部在 rules，
+ *   金币 / 利息 / 背包上限 / 类型上限 / 装备闸 / 风格锁死 / 商店刷新与锁定的语义全部在 rules；
+ *   交片 / 点赞 / 投票 / 榜单 / 扣血也在 rules；"一局怎么走"（AI 陪玩的那几步）在 phases。
  *   这里连一个 `if (gold >= price)` 都不许出现。
- * ★ 单机版（G3 之前）：本地玩家叫 "me"，另外 3 个是 AI 陪玩。AI 现在只有一种行为 ——
- *   「轮到自己选风格时挑抽到的第一张」。这是**编排**不是规则：规则只管"一人一次、只能选自己那三张、
- *   选定锁死"，AI 选哪张规则不表态（G3 才给它正经的出片与投票）。
+ * ★ 单机版：本地玩家叫 "me"，另外 3 个是 AI 陪玩。AI 的行为在 game/bots.ts（纯函数），
+ *   编排在 game/phases.ts（纯函数），两边都能在脚本里整局跑（scripts/check-game-bots.mjs）。
  * ★ 随机源住模块作用域（不进 state）：一局的 rng 是一个**有位置的序列**，放进 zustand 状态里会被
  *   devtools / 持久化那类东西当成普通字段；而它必须与 seed 一一对应才能复盘（rules.createRng 的 ★）。
  */
 import { create } from "zustand";
 import {
-  beginRound,
   buyShopCard,
   cardSellValue,
-  createGame,
   createRng,
   equipItem,
   equippedItemOf,
+  likeEntry,
   pickStyleCard,
   refreshShop,
   sellCard,
+  skipEventChoice,
+  submitRoundEntry,
   toggleShopLock,
   unequipItem,
+  voteEntry,
+  abstainVote,
+  applyEventChoice,
+  settleRoundFromVotes,
+  winnersOf,
   type RuleFailure,
   type StateResult,
 } from "./rules";
-import type { GameState, Rng } from "./types";
+import { aiEventChoices, openRound, playOutAiOnly, startMatch, toCreation, toScreening, toVoting } from "./phases";
+import { aiPromptPool } from "./labels";
+import type { GameCard, GameState, RoundSettlement, RoundTally, Rng } from "./types";
 
 /** 本地玩家的座位 id（单机版的"我"；G5 联机时换成服务端下发的 playerId） */
 export const LOCAL_PLAYER_ID = "me";
 /** 三个 AI 陪玩。排列顺序固定，方便复盘（同 seed 同一局） */
-const AI_PLAYER_IDS = ["ai-1", "ai-2", "ai-3"] as const;
+export const AI_PLAYER_IDS = ["ai-1", "ai-2", "ai-3"] as const;
 
 /** 动作成功后那条轻提示的**种类**（不带文案：文案在界面里按语言拼，见 ui/GameLayer） */
 export type GameNoticeKind =
@@ -47,7 +55,12 @@ export type GameNoticeKind =
   | "refreshed"
   | "locked"
   | "unlocked"
-  | "pick-item-first";
+  | "pick-item-first"
+  // G3：创作 / 展映 / 投票那几下
+  | "entry-saved"
+  | "liked"
+  | "voted"
+  | "abstained";
 
 export interface GameNotice {
   kind: GameNoticeKind;
@@ -61,6 +74,12 @@ export interface GameNotice {
 export interface GameRejection {
   failure: RuleFailure;
   at: number;
+}
+
+/** 上一期的结算摘要 + 两个榜（结算 / 事件 / 对局结束那几屏读它）。 */
+export interface RoundReport {
+  summary: RoundSettlement;
+  tally: RoundTally;
 }
 
 export interface GameStore {
@@ -77,6 +96,10 @@ export interface GameStore {
   shopOpen: boolean;
   rejection: GameRejection | null;
   notice: GameNotice | null;
+  /** 最近一次结算（§2.5）：结算屏 / 事件屏 / 结束屏读它 */
+  report: RoundReport | null;
+  /** 我在第几回合被淘汰的（结束屏要说"你在第 N 回合出局"）；null = 还活着 */
+  eliminatedAtRound: number | null;
 
   startGame: (seed?: number) => void;
   endGame: () => void;
@@ -97,6 +120,32 @@ export interface GameStore {
   equipOn: (roleCardId: string) => void;
   unequipFrom: (roleCardId: string) => void;
   clearRejection: () => void;
+
+  // ── G3 回合循环 ──
+  /** 商店 → 创作（AI 在这一拍把片子交了） */
+  enterCreate: () => void;
+  /** 交片：三个虚框里的卡 + 一句提示词（可重交，改卡改词都行） */
+  saveEntry: (cards: readonly GameCard[], prompt: string) => void;
+  /** 创作 → 展映（AI 在这一拍点完赞） */
+  enterScreening: () => void;
+  /** 展映里给一条点赞（每条一次） */
+  like: (entryId: string) => void;
+  /** 展映 → 投票（AI 在这一拍投完票） */
+  enterVoting: () => void;
+  /** 投票（不能投自己，一人一票） */
+  vote: (entryId: string) => void;
+  /** 弃权（也算表过态） */
+  abstain: () => void;
+  /** 结算：榜单由 rules 算、扣血由 rules 扣 */
+  settle: () => void;
+  /** 事件三选一 */
+  chooseEvent: (optionId: string) => void;
+  /** 这次事件不要了（三选一全落不了账时的出口，见 rules.skipEventChoice） */
+  skipEvent: () => void;
+  /** 下一回合（发收入 + 刷商店 + AI 买卡） */
+  nextRound: () => void;
+  /** 再来一局（= 用新种子开一局） */
+  restart: () => void;
 }
 
 /** 这一局的随机源（模块作用域，见文件头 ★） */
@@ -109,26 +158,15 @@ function freshSeed(): number {
 
 /**
  * 本地玩家选完之后，替 AI 把风格选完，再开第一回合。
- * ★ AI 的选择也走 rules.pickStyleCard（不直接改 styleChoices）：规则里"一人一次 / 只能选自己那三张 /
+ * ★ AI 的风格与买卡都走 phases / rules（不直接改 styleChoices）：规则里"一人一次 / 只能选自己那三张 /
  *   全员选完才 ready"这三条与真人共用一处，AI 不该有后门。
- * ★ 全员选完时 rules 把 phase 推到 ready；第一回合商店由 beginRound 开（ready 那支不发钱，见 rules）。
  */
-function aiFinishStyle(state: GameState): StateResult {
-  let next = state;
-  for (const id of AI_PLAYER_IDS) {
-    if (next.phase !== "style") break;
-    const ai = next.players.find((p) => p.id === id);
-    if (!ai || ai.styleCardId !== null) continue;
-    const choice = ai.styleChoices[0];
-    // 落到这里说明 createGame 给的 3 张风格没了（坏状态）：宁可响一声让界面报出来，也别让这局卡死。
-    if (choice === undefined) return { ok: false, reason: "style-not-offered" };
-    const picked = pickStyleCard(next, id, choice);
-    if (!picked.ok) return picked;
-    next = picked.state;
-  }
-  if (next.phase !== "ready") return { ok: true, state: next };
-  return beginRound(next, rng);
+function beginFirstRound(state: GameState): StateResult {
+  if (state.phase !== "ready") return { ok: true, state };
+  return openRound(state, [...AI_PLAYER_IDS], rng);
 }
+
+const AI_IDS: readonly string[] = [...AI_PLAYER_IDS];
 
 export const useGame = create<GameStore>((set, get) => {
   /** 失败统一从这里落地：原因原样留着，界面说人话；轻提示让位给失败 */
@@ -148,22 +186,30 @@ export const useGame = create<GameStore>((set, get) => {
     shopOpen: false,
     rejection: null,
     notice: null,
+    report: null,
+    eliminatedAtRound: null,
 
     startGame: (seed) => {
       const nextSeed = typeof seed === "number" && Number.isFinite(seed) ? seed >>> 0 : freshSeed();
-      // createGame 用**同一个** rng 抽三张风格卡，之后的商店 / 事件 / 随机卡都接着这条序列走
+      // 开局用**同一个** rng：抽风格卡、AI 选风格、之后的商店 / 事件 / 随机卡都接着这条序列走
       // （两处各 createRng(seed) 会抽出一模一样的序列，复盘就对不上了）。
       const r = createRng(nextSeed);
-      const next = createGame([LOCAL_PLAYER_ID, ...AI_PLAYER_IDS], r);
+      const started = startMatch([LOCAL_PLAYER_ID, ...AI_PLAYER_IDS], AI_IDS, r);
       rng = r;
+      if (!started.ok) {
+        fail(started);
+        return;
+      }
       set({
-        state: next,
+        state: started.state,
         seed: nextSeed,
         pickedItemId: null,
         pendingBuySlot: null,
         shopOpen: false,
         rejection: null,
         notice: null,
+        report: null,
+        eliminatedAtRound: null,
       });
     },
 
@@ -177,6 +223,8 @@ export const useGame = create<GameStore>((set, get) => {
         shopOpen: false,
         rejection: null,
         notice: null,
+        report: null,
+        eliminatedAtRound: null,
       });
     },
 
@@ -188,7 +236,7 @@ export const useGame = create<GameStore>((set, get) => {
         fail(picked);
         return;
       }
-      // 先把"我选好了"写回去：后面替 AI 选的那几步万一失败，玩家这一下不该白点（界面会显示重试）。
+      // 先把"我选好了"写回去：后面替 AI 开第一回合的那几步万一失败，玩家这一下不该白点（界面会显示原因）。
       set({ state: picked.state, rejection: null });
       get().finishStyle();
     },
@@ -197,7 +245,7 @@ export const useGame = create<GameStore>((set, get) => {
       const { state } = get();
       if (!state) return;
       if (state.phase !== "style" && state.phase !== "ready") return; // 不在选风格阶段：按钮不该出现
-      const advanced = aiFinishStyle(state);
+      const advanced = beginFirstRound(state);
       if (!advanced.ok) {
         fail(advanced);
         return;
@@ -337,8 +385,167 @@ export const useGame = create<GameStore>((set, get) => {
     clearRejection: () => {
       set({ rejection: null });
     },
+
+    // ─────────────────────────── G3 回合循环 ───────────────────────────
+    // 每一步都是"递给 phases / rules → 写回 → 失败原因原样留着"，没有一条规则住在这里。
+
+    enterCreate: () => {
+      const { state } = get();
+      if (!state) return;
+      // AI 的片子在这一拍就交好（用它的卡 + 一句随机提示词，池子在这里递进去 —— bots 不认语言）
+      const created = toCreation(state, AI_IDS, aiPromptPool(), rng);
+      if (!created.ok) {
+        fail(created);
+        return;
+      }
+      done({ state: created.state, shopOpen: false, pickedItemId: null, pendingBuySlot: null });
+    },
+
+    saveEntry: (cards, prompt) => {
+      const { state, meId } = get();
+      if (!state) return;
+      const saved = submitRoundEntry(state, meId, { cards, prompt });
+      if (!saved.ok) {
+        fail(saved);
+        return;
+      }
+      done({ state: saved.state, notice: { kind: "entry-saved", at: Date.now() } });
+    },
+
+    enterScreening: () => {
+      const { state } = get();
+      if (!state) return;
+      const screened = toScreening(state, AI_IDS, rng);
+      if (!screened.ok) {
+        fail(screened);
+        return;
+      }
+      done({ state: screened.state });
+    },
+
+    like: (entryId) => {
+      const { state, meId } = get();
+      if (!state) return;
+      const liked = likeEntry(state, meId, entryId);
+      if (!liked.ok) {
+        fail(liked);
+        return;
+      }
+      done({ state: liked.state, notice: { kind: "liked", at: Date.now() } });
+    },
+
+    enterVoting: () => {
+      const { state } = get();
+      if (!state) return;
+      const voting = toVoting(state, AI_IDS, rng);
+      if (!voting.ok) {
+        fail(voting);
+        return;
+      }
+      done({ state: voting.state });
+    },
+
+    vote: (entryId) => {
+      const { state, meId } = get();
+      if (!state) return;
+      const voted = voteEntry(state, meId, entryId);
+      if (!voted.ok) {
+        fail(voted);
+        return;
+      }
+      done({ state: voted.state, notice: { kind: "voted", at: Date.now() } });
+    },
+
+    abstain: () => {
+      const { state, meId } = get();
+      if (!state) return;
+      const abstained = abstainVote(state, meId);
+      if (!abstained.ok) {
+        fail(abstained);
+        return;
+      }
+      done({ state: abstained.state, notice: { kind: "abstained", at: Date.now() } });
+    },
+
+    settle: () => {
+      const { state, meId } = get();
+      if (!state) return;
+      const settled = settleRoundFromVotes(state, rng);
+      if (!settled.ok) {
+        fail(settled);
+        return;
+      }
+      let next = settled.state;
+      const report: RoundReport = { summary: settled.summary, tally: settled.tally };
+      // 事件（§2.3b）：AI 先把三选一选掉，真人的选项由事件屏摆出来
+      const evented = aiEventChoices(next, AI_IDS, rng);
+      if (!evented.ok) {
+        fail(evented);
+        return;
+      }
+      next = evented.state;
+      const me = next.players.find((player) => player.id === meId);
+      let eliminatedAtRound = get().eliminatedAtRound;
+      // ★ 淘汰发生在**这一期**：先记下回合数再跑后台回合 —— playOutAiOnly 会把 round 推到最后一回合，
+      //   晚一步记就会把"你在第 8 回合被淘汰"说成错的回合（实机验过：第 6 回合出局被念成第 8 回合）。
+      if (me?.eliminated) eliminatedAtRound = eliminatedAtRound ?? next.round;
+      // ★ 真人被淘汰：这一局对他已经结束，但胜者要等"剩 ≤2 人 / 打满 8 回合"才出 ——
+      //   所以让剩下的回合在后台按 AI 自动跑完（phases.playOutAiOnly），玩家直接看到最终胜者。
+      if (me?.eliminated && next.phase !== "over") {
+        const played = playOutAiOnly(next, AI_IDS, aiPromptPool(), rng);
+        if (!played.ok) {
+          fail(played);
+          return;
+        }
+        next = played.state;
+      }
+      done({ state: next, report, eliminatedAtRound, shopOpen: false });
+    },
+
+    chooseEvent: (optionId) => {
+      const { state, meId } = get();
+      if (!state) return;
+      const chosen = applyEventChoice(state, meId, optionId, rng);
+      if (!chosen.ok) {
+        fail(chosen);
+        return;
+      }
+      done({ state: chosen.state });
+    },
+
+    skipEvent: () => {
+      const { state, meId } = get();
+      if (!state) return;
+      const skipped = skipEventChoice(state, meId);
+      if (!skipped.ok) {
+        fail(skipped);
+        return;
+      }
+      done({ state: skipped.state });
+    },
+
+    nextRound: () => {
+      const { state } = get();
+      if (!state) return;
+      const opened = openRound(state, AI_IDS, rng);
+      if (!opened.ok) {
+        fail(opened);
+        return;
+      }
+      // 新的回合商店默认打开（与第一回合一致）；上一期的报告留着也没人读（那一屏已经卸载了）
+      done({ state: opened.state, shopOpen: true, pickedItemId: null, pendingBuySlot: null });
+    },
+
+    restart: () => {
+      get().startGame();
+    },
   };
 });
+
+// 给界面读的派生：胜者（结算屏 / 结束屏"谁赢了"只有 rules 一份实现，界面不自己比血量）
+export function winnersOfState(state: GameState | null): string[] {
+  return state ? winnersOf(state) : [];
+}
 
 // DEV 调试挂钩（与 __cut / __studio / __flow 同款）：自动化脚本要直接驱动对局，不必去点 2D 面板。
 // 正式包里 import.meta.env.DEV 为假，字面量写在原地才保证被剥掉。

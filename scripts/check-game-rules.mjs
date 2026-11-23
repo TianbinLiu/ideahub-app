@@ -94,6 +94,18 @@ function newMatch(seed = 20261122) {
 const basePlayer = () => R.createGame(["p1", "p2", "p3"], R.createRng(99)).players[0];
 const withCards = (cards, extra = {}) => ({ ...basePlayer(), bag: cards, ...extra });
 
+/**
+ * 全员交片的夹具（G3）：展映要求"全员都有片子"（rules.enterScreening 的闸）。
+ * 每人拿自己背包里的第一张卡（没卡就是空镜），提示词用一句英文夹具 —— 规则不认语言。
+ */
+function submitAll(state, prompt = "fixture shot") {
+  let next = state;
+  for (const id of next.players.filter((p) => !p.eliminated).map((p) => p.id)) {
+    next = must(`交片 ${id}`, R.submitRoundEntry(next, id, { cards: R.ownedCards(find(next, id)).slice(0, 1), prompt })).state;
+  }
+  return next;
+}
+
 // ────────────────────────────── 0. 形状：零运行时依赖 / 常量 / 卡池 / 事件池 ──────────────────────────────
 
 const source = fs.readFileSync(modPath, "utf8");
@@ -531,6 +543,7 @@ const source = fs.readFileSync(modPath, "utf8");
   const eventRounds = [];
   for (let round = 1; round <= 6; round += 1) {
     state = must(`第 ${round} 回合创作`, R.enterCreation(state)).state;
+    state = submitAll(state, `round ${round} fixture`);
     state = must(`第 ${round} 回合展映`, R.enterScreening(state)).state;
     state = must(`第 ${round} 回合投票`, R.enterVoting(state)).state;
     const ranking = state.players.filter((p) => !p.eliminated).map((p) => p.id);
@@ -770,13 +783,204 @@ const source = fs.readFileSync(modPath, "utf8");
   const created = must("商店 → 创作", R.enterCreation(match.state)).state;
   eq("创作阶段", created.phase, "create");
   rejects("创作阶段直接投票", R.enterVoting(created), "wrong-phase");
-  const screened = must("创作 → 展映", R.enterScreening(created)).state;
+  // 创作阶段一片都没交就进不了展映（§2.0 ③ 播的是全员的作品）：这条闸的回执由界面说人话。
+  rejects("没交片就进不了展映", R.enterScreening(created), "entries-pending");
+  const screened = must("创作 → 展映", R.enterScreening(submitAll(created))).state;
   eq("展映阶段", screened.phase, "screening");
   const voted = must("展映 → 投票", R.enterVoting(screened)).state;
   eq("投票阶段", voted.phase, "voting");
   // 反例：投票阶段再进一次投票 = 阶段机可以原地打转，回合循环会卡住。
   rejects("投票阶段再进投票", R.enterVoting(voted), "wrong-phase");
   rejects("选风格阶段开商店", R.beginRound(R.createGame(IDS, R.createRng(102)), R.createRng(102)), "wrong-phase");
+
+  // 还有人没交片：只差一个人也不能进（一个人没片 = 这一期少一张榜）
+  const oneMissing = R.createGame(IDS, R.createRng(103));
+  let three = oneMissing;
+  for (const id of IDS) three = must(`选风格 ${id}`, R.pickStyleCard(three, id, find(three, id).styleChoices[0])).state;
+  three = must("开第一回合", R.beginRound(three, R.createRng(103))).state;
+  three = must("进创作", R.enterCreation(three)).state;
+  for (const id of ["p1", "p2", "p3"]) three = must(`交片 ${id}`, R.submitRoundEntry(three, id, { cards: [], prompt: "only three" })).state;
+  const almost = R.enterScreening(three);
+  rejects("只差一个人交片也不能开始展映", almost, "entries-pending");
+  eq("缺口人数报给界面（count）", almost.count, 1);
+  eq("缺口人数组的上限（cap）", almost.cap, 4);
+}
+
+// ────────────────────────────── 11. 创作 / 展映 / 点赞 / 投票 / 榜单（§2.4 / §2.5，G3） ──────────────
+
+{
+  eq("占位视频固定 5 秒（§2.4）", R.VIDEO_SECONDS, 5);
+  eq("提示词基础上限 80 字（§2.4）", R.PROMPT_BASE_MAX, 80);
+  eq("三个虚框 = 角色 / 场景 / 道具（§2.4）", R.SLOT_TYPES, ["role", "scene", "item"]);
+
+  /** 4 人局走到创作阶段（每人背包里给一张各自的卡，方便试"槽位"）。 */
+  function createPhase(seed) {
+    const match = newMatch(seed);
+    let state = match.state;
+    state = withBag(state, "p1", [card("c-r", "role", 5), card("c-s", "scene", 3), card("c-i", "item", 2)]);
+    state = withBag(state, "p2", [card("d-r", "role", 1)]);
+    state = must("进创作", R.enterCreation(state)).state;
+    return { state, rng: match.rng };
+  }
+
+  const { state: createA, rng: rngA } = createPhase(111);
+  const submitted = must("交片：角色 + 场景 + 道具", R.submitRoundEntry(createA, "p1", { cards: [card("c-r", "role", 5), card("c-s", "scene", 3), card("c-i", "item", 2)], prompt: "  雨夜回头  " })).state;
+  const mine = R.entryOfPlayer(submitted, "p1");
+  eq("作品 id 是 r<回合>-<玩家>（稳定，不靠下标）", mine.id, R.roundEntryId(1, "p1"));
+  eq("提示词去掉首尾空白再存", mine.prompt, "雨夜回头");
+  eq("占位视频时长 = rules 的 5 秒", mine.seconds, R.VIDEO_SECONDS);
+  eq("作品记下风格卡（出片整局带这套）", mine.styleCardId, find(submitted, "p1").styleCardId);
+  // ★ 卡按 id 从自己的拥有清单里取回来：调用方递进来的卡对象只是"哪一张"的指针
+  const forged = must(
+    "交片：卡按 id 认，取回的是自己的那张",
+    R.submitRoundEntry(createA, "p1", { cards: [{ id: "c-r", type: "role", quality: 1, name: "伪Card" }], prompt: "x" }),
+  ).state;
+  eq("卡按 id 取回（品质 / 名字都是自己那一张）", R.entryOfPlayer(forged, "p1").cards.map((c) => [c.id, c.quality, c.name]), [["c-r", 5, "C-R"]]);
+  eq("空镜也能交片（一张卡都不放 —— 不然没卡的玩家出不去创作阶段）", must("空镜交片", R.submitRoundEntry(createA, "p2", { cards: [], prompt: "空镜" })).entry.cards, []);
+  eq("交片后作品进了本期名单", R.entryOfPlayer(submitted, "p1") !== null, true);
+  eq("别人没交就是 null（不是空对象）", R.entryOfPlayer(submitted, "p3"), null);
+
+  // 重交：作品 id 不变、名单不涨（创作阶段改卡改词不花钱）
+  const resubmitted = must("重交", R.submitRoundEntry(submitted, "p1", { cards: [card("c-r", "role", 5)], prompt: "重拍一次" })).state;
+  eq("重交只留一条作品（同 id 覆盖）", resubmitted.entries.length, 1);
+  eq("重交把卡换成新选的那张", R.entryOfPlayer(resubmitted, "p1").cards.map((c) => c.id), ["c-r"]);
+  eq("重交把提示词换掉", R.entryOfPlayer(resubmitted, "p1").prompt, "重拍一次");
+
+  // 反例：提示词是玩家自己写的，空着就不知道这一期拍什么（不给"默认提示词"兜底 —— 那是在替玩家做决定）
+  rejects("提示词空着不能交片", R.submitRoundEntry(createA, "p1", { cards: [], prompt: "   " }), "prompt-empty");
+  const longPrompt = "字".repeat(R.PROMPT_BASE_MAX + 1);
+  const tooLong = R.submitRoundEntry(createA, "p1", { cards: [], prompt: longPrompt });
+  rejects("提示词超上限不能交片", tooLong, "prompt-too-long");
+  eq("提示词上限报给界面（cap）", [tooLong.cap, tooLong.have], [R.PROMPT_BASE_MAX, R.PROMPT_BASE_MAX + 1]);
+  eq("正好顶到上限可以交", R.submitRoundEntry(createA, "p1", { cards: [], prompt: "字".repeat(R.PROMPT_BASE_MAX) }).ok, true);
+  // 事件「灵感爆发」的 +50% 走 promptLimitOf 一处（别在界面里再乘一遍）
+  const inspired = withPlayer(createA, "p1", { buffs: { ...find(createA, "p1").buffs, promptLimitPct: 50 } });
+  eq("灵感爆发 +50% → 120 字上限（rules.promptLimitOf）", R.promptLimitOf(find(inspired, "p1")), 120);
+  // 反例：别人的卡不能放进自己的虚框（伪造一张没拥有的卡 = 画面里多一个不存在的人）
+  rejects("不是自己的卡不能进虚框", R.submitRoundEntry(createA, "p1", { cards: [card("d-r", "role", 1)], prompt: "x" }), "card-not-owned");
+  // 反例：同一个虚框放两张 = 界面槽位坏了；静默丢一张会让画面少个人
+  const dup = R.submitRoundEntry(createA, "p1", { cards: [card("c-r", "role", 5), card("c-r2", "role", 1)], prompt: "x" });
+  eq("同类型两张被拒（先补一张同类型的卡夹具）", dup.ok || dup.reason, "card-not-owned");
+  const withTwo = withBag(createA, "p1", [card("c-r", "role", 5), card("c-r2", "role", 1)]);
+  rejects("同类型两张不能交片", R.submitRoundEntry(withTwo, "p1", { cards: [card("c-r", "role", 5), card("c-r2", "role", 1)], prompt: "x" }), "duplicate-slot");
+  rejects("四张卡超过三个虚框", R.submitRoundEntry(withTwo, "p1", { cards: [card("c-r", "role", 5), card("c-r2", "role", 1), card("x", "scene", 1), card("y", "item", 1)], prompt: "x" }), "duplicate-slot");
+  rejects("商店阶段不能交片", R.submitRoundEntry(newMatch(117).state, "p1", { cards: [], prompt: "x" }), "wrong-phase");
+  rejects("已淘汰的人不能交片", R.submitRoundEntry(withPlayer(createA, "p4", { eliminated: true }), "p4", { cards: [], prompt: "x" }), "player-eliminated");
+  rejectUnknownPlayer: {
+    rejects("不在这一局的人不能交片", R.submitRoundEntry(createA, "nobody", { cards: [], prompt: "x" }), "unknown-player");
+  }
+  // 已装备的道具也算"自己的卡"（它只是从背包挪到了角色身上，见 rules.ownedCards）
+  const equipped = withPlayer(createA, "p1", {
+    bag: [card("c-r", "role", 5)],
+    equipment: [{ roleCardId: "c-r", item: card("c-i", "item", 2) }],
+  });
+  eq("已装备的道具可以进道具槽", must("装备着的道具交片", R.submitRoundEntry(equipped, "p1", { cards: [card("c-i", "item", 2)], prompt: "x" })).entry.cards.map((c) => c.id), ["c-i"]);
+
+  // ── 展映顺序（§2.5：上一期综合名次倒序，落后先放） ──
+  let screen = createA;
+  for (const id of IDS) screen = must(`全员交片 ${id}`, R.submitRoundEntry(screen, id, { cards: [], prompt: `shot ${id}` })).state;
+  eq("第 1 回合没有上一期名次：按座位表", R.screeningOrderOf(screen).map((e) => e.playerId), IDS);
+  screen = must("进参展", R.enterScreening(screen)).state;
+  screen = must("进投票", R.enterVoting(screen)).state;
+  // 让 p4 全票第一、p3 第二、p2 第三、p1 最后（投票给除自己外的第一条）
+  const votable = R.screeningOrderOf(screen);
+  for (const id of IDS) {
+    const target = votable.find((entry) => entry.playerId !== id);
+    screen = must(`投票 ${id}`, R.voteEntry(screen, id, target.id)).state;
+  }
+  eq("全员表态后没有待投的人", R.votesPendingOf(screen), []);
+  const settled = must("从票数结算", R.settleRoundFromVotes(screen, R.createRng(112)));
+  eq("结算回执带着两个榜（点赞榜 + 投票榜）", [settled.tally.likeBoard.length, settled.tally.voteBoard.length], [4, 4]);
+  eq("结算把本期名次记进 lastRanking（下一期展映倒序读它）", settled.state.lastRanking, settled.tally.ranking);
+  const nextRound = must("下一回合开张", R.beginRound(settled.state, R.createRng(113))).state;
+  eq("换回合清掉上一期的作品", nextRound.entries, []);
+  eq("换回合清掉上一期的弃权", nextRound.abstained, []);
+  eq("换回合保留上一期名次（展映顺序要用）", nextRound.lastRanking, settled.tally.ranking);
+  let nextCreate = must("下一回合进创作", R.enterCreation(nextRound)).state;
+  for (const id of IDS) nextCreate = must(`第 2 回合交片 ${id}`, R.submitRoundEntry(nextCreate, id, { cards: [], prompt: `shot2 ${id}` })).state;
+  eq(
+    "第 2 回合按上一期名次倒序播（落后先放）",
+    R.screeningOrderOf(nextCreate).map((e) => e.playerId),
+    [...settled.tally.ranking].reverse(),
+  );
+
+  // ── 点赞（§2.5 播放中可点，一条一次） ──
+  const likePhase = must("第 2 回合进参展", R.enterScreening(nextCreate)).state;
+  const p1Entry = R.entryOfPlayer(likePhase, "p1");
+  rejects("创作阶段还不能点赞", R.likeEntry(createA, "p1", p1Entry.id), "wrong-phase");
+  const liked = must("给 p1 那条点赞", R.likeEntry(likePhase, "p2", p1Entry.id)).state;
+  eq("点赞数落在作品上", R.entryById(liked, p1Entry.id).likedBy, ["p2"]);
+  rejects("同一个人对同一条只能点一次", R.likeEntry(liked, "p2", p1Entry.id), "entry-already-liked");
+  eq("自己也可以点自己那条（§2.5 只写\"任何人可点赞\"）", must("自赞", R.likeEntry(liked, "p1", p1Entry.id)).ok, true);
+  rejects("给不存在的作品点赞", R.likeEntry(likePhase, "p2", "r2-nobody"), "entry-not-found");
+  rejects("不在这一局的人点赞", R.likeEntry(likePhase, "nobody", p1Entry.id), "unknown-player");
+
+  // ── 投票（§2.5：不能投自己、一人一票、可弃权） ──
+  const votePhase = must("进投票", R.enterVoting(likePhase)).state;
+  const roundNo = votePhase.round;
+  rejects("不能投自己", R.voteEntry(votePhase, "p1", p1Entry.id), "self-vote");
+  rejects("给不存在的作品投票", R.voteEntry(votePhase, "p1", R.roundEntryId(roundNo, "nobody")), "entry-not-found");
+  rejects("展映阶段还不能投票", R.voteEntry(likePhase, "p1", R.roundEntryId(roundNo, "p2")), "wrong-phase");
+  const votedOnce = must("投票给 p2", R.voteEntry(votePhase, "p1", R.roundEntryId(roundNo, "p2"))).state;
+  rejects("一人一票", R.voteEntry(votedOnce, "p1", R.roundEntryId(roundNo, "p3")), "already-voted");
+  rejects("投完不能再弃权", R.abstainVote(votedOnce, "p1"), "already-voted");
+  const abstainedState = must("弃权", R.abstainVote(votePhase, "p1")).state;
+  eq("弃权记在 abstained 上", abstainedState.abstained, ["p1"]);
+  rejects("弃权后也不能再投", R.voteEntry(abstainedState, "p1", R.roundEntryId(roundNo, "p2")), "already-voted");
+  eq("还差几个人表态（votesPendingOf，弃权也算表过态）", R.votesPendingOf(abstainedState), ["p2", "p3", "p4"]);
+  eq("一个人都没表态时待投 4 人", R.votesPendingOf(votePhase), IDS);
+  const pendingSettle = R.settleRoundFromVotes(abstainedState, R.createRng(114));
+  rejects("有人没投票不能结算", pendingSettle, "votes-pending");
+  eq("待投人数报给界面（count / cap）", [pendingSettle.count, pendingSettle.cap], [3, 4]);
+
+  // ── 两个榜 + 综合名次（§2.5「名次相加、并列看投票」） ──
+  // 手造一份：点赞 p1=3 p2=2 p3=1 p4=0；投票 p4=2 p1=1 p3=1 p2=0
+  const boardState = {
+    ...nextCreate,
+    entries: IDS.map((id, index) => ({
+      id: R.roundEntryId(nextCreate.round, id),
+      round: nextCreate.round,
+      playerId: id,
+      cards: [],
+      prompt: `b ${id}`,
+      styleCardId: null,
+      seconds: R.VIDEO_SECONDS,
+      likedBy: IDS.slice(0, [3, 2, 1, 0][index]),
+      votedBy: id === "p1" ? ["p4"] : id === "p2" ? [] : id === "p3" ? ["p1"] : ["p2", "p3"],
+    })),
+  };
+  const tally = R.tallyRound(boardState);
+  const row = (id) => tally.entries.find((e) => e.playerId === id);
+  eq("点赞数从作品上数", IDS.map((id) => row(id).likes), [3, 2, 1, 0]);
+  eq("投票数从作品上数", IDS.map((id) => row(id).votes), [1, 0, 1, 2]);
+  eq("点赞榜名次 1/2/3/4", IDS.map((id) => row(id).likeRank), [1, 2, 3, 4]);
+  eq("投票榜：并列拿同一个名次（2,1,1,0 票 → p4 第 1、p1/p3 并列第 2、p2 第 4）", IDS.map((id) => row(id).voteRank), [2, 4, 2, 1]);
+  eq("总分 = 两个榜名次相加", IDS.map((id) => row(id).score), [3, 6, 5, 5]);
+  eq("综合名次：总分并列时看投票榜（p4 与 p3 都是 5 分，p4 的投票榜更好）", tally.ranking, ["p1", "p4", "p3", "p2"]);
+  eq("综合名次不并列（扣血要唯一解）", new Set(tally.entries.map((e) => e.rank)).size, 4);
+  eq("点赞榜按条数排（p1 3 > p2 2 > p3 1 > p4 0）", tally.likeBoard, IDS.map((id) => R.roundEntryId(nextCreate.round, id)));
+  eq("投票榜按票数排（p4 2 > p1/p3 1 > p2 0）", tally.voteBoard.map((entryId) => boardState.entries.find((e) => e.id === entryId).playerId), ["p4", "p1", "p3", "p2"]);
+  // 并列同名次：2,2,1 → 1,1,3（竞赛排名）
+  const tieState = {
+    ...boardState,
+    entries: boardState.entries.map((entry, index) => ({ ...entry, likedBy: IDS.slice(0, [2, 2, 1, 0][index]) })),
+  };
+  eq("点赞并列拿同名次（2,2,1,0 → 1,1,3,4）", IDS.map((id) => R.tallyRound(tieState).entries.find((e) => e.playerId === id).likeRank), [1, 1, 3, 4]);
+  eq("两个榜都并列时按 playerId 定序（结算要确定）", R.tallyRound({ ...boardState, entries: boardState.entries.map((entry) => ({ ...entry, likedBy: [], votedBy: [] })) }).ranking, IDS);
+
+  // 从票数结算：名次直接影响扣血（4 人局 5/10/15/20）
+  const fullVoted = { ...boardState, phase: "voting", abstained: [] };
+  for (const id of IDS) {
+    const target = IDS.filter((other) => other !== id)[0];
+    // 用 entry 投票：p1→p2 / p2→p1 / p3→p1 / p4→p1 造一个明确的榜
+    const entryId = R.roundEntryId(nextCreate.round, id === "p1" ? "p2" : "p1");
+    fullVoted.entries = fullVoted.entries.map((entry) => (entry.id === entryId ? { ...entry, votedBy: [...entry.votedBy, id] } : entry));
+  }
+  const finalSettle = must("从票数结算出扣血", R.settleRoundFromVotes(fullVoted, R.createRng(115)));
+  eq("名次与扣血同序（第 1 名 -5 … 最后一名 -20）", finalSettle.summary.damages.map((d) => [d.rank, d.damage]), [[1, 5], [2, 10], [3, 15], [4, 20]]);
+  eq("榜单名次与结算名次是同一份", finalSettle.summary.ranking, finalSettle.tally.ranking);
+  eq("扣血落在血上（100 → 95）", find(finalSettle.state, finalSettle.tally.ranking[0]).hp, find(boardState, finalSettle.tally.ranking[0]).hp - 5);
+  rejects("不在投票阶段不能从票数结算", R.settleRoundFromVotes(boardState, R.createRng(116)), "wrong-phase");
 }
 
 // ────────────────────────────── 汇总 ──────────────────────────────
