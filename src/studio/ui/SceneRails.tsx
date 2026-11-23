@@ -6,12 +6,14 @@
 //   而常驻条的位置不依赖 3D 取景 —— 这是给玩家一个稳定的入口，不是第二套玩法。
 // ★ 只在**横屏**挂（StudioPage 里由 hooks/useIsLandscape 判）：竖屏时桌面本来就一屏看全，
 //   多两条边栏只会把 3D 画布挤成细长条。
-// ★ 道具栏还没做（它的内容是 G2 的单机规则：买卡 / 装备 / 背包上限），这里不摆一个点不动的占位块 ——
-//   本仓那条「永远点不动的选项」规矩同样适用于灰着的假面板。市场是真能点开的，所以先摆它。
+// ★ 道具栏还没做（它的内容是 G2 的单机规则：买卡 / 装备 / 背包上限）—— 对局那一整套 2D 覆盖层
+//   在 src/studio/game/ui/GameLayer.tsx，右栏只摆一颗「开局」的固定入口（见 MarketRail 的 ★）。
+//   不在这里摆一个点不动的占位块 —— 本仓那条「永远点不动的选项」规矩同样适用于灰着的假面板。
 import type { ReactNode } from "react";
 import { Trans } from "@lingui/react/macro";
 import { sceneLayout } from "../scene/layout";
 import { useStudio } from "../studioStore";
+import { useGame } from "../game/store";
 import { MarketSearchField } from "./MarketSearch";
 
 /** 两条常驻条的共用外框：宽度按窗口比例给（竖过来就没它了），窄屏也不低于 8.5rem 免得字折成两行 */
@@ -98,10 +100,39 @@ export function MarketRail() {
   const marketOpen = useStudio((s) => s.market.open);
   const count = useStudio((s) => s.market.items.length);
   const page = useStudio((s) => s.market.page);
+  // 对局态（G2 第二块）：开局 / 结束对局这一组键摆在这条栏的最上面。
+  // ★ 为什么入口在这里：横屏时桌面上能点的地方被两条常驻条挤窄、3D 卡位的屏幕位置又跟着机位漂，
+  //   而"开一局"必须是**固定位置**的一颗键（G1 施工单的做法：常驻条给稳定入口，不新增玩法）。
+  // ★ 它是 2D 覆盖层（src/studio/game/ui/），不往 3D 场景里塞任何东西。
+  const game = useGame((s) => s.state);
+  const round = game?.round ?? 0;
   // 右栏只在横屏挂，所以这里读到的就是横屏那套分页（一页 8 张）
   const M = sceneLayout(true).market;
   return (
     <Rail side="right">
+      <RailTitle>
+        <Trans>对局</Trans>
+      </RailTitle>
+      {game ? (
+        <>
+          <RailBtn onClick={() => useGame.getState().endGame()}>
+            <Trans>✕ 结束对局</Trans>
+          </RailBtn>
+          <p className="px-1 text-[10px] leading-relaxed text-slate-400">
+            <Trans>第 {round} 回合进行中 · 顶部看金币/血量，底部是背包与商店</Trans>
+          </p>
+        </>
+      ) : (
+        <>
+          <RailBtn onClick={() => useGame.getState().startGame()} tone="primary">
+            <Trans>▶ 开局</Trans>
+          </RailBtn>
+          <p className="px-1 text-[10px] leading-relaxed text-slate-400">
+            <Trans>100 血 · 4 人单机 · 先选风格卡，再买卡</Trans>
+          </p>
+        </>
+      )}
+      <div className="h-px flex-none bg-white/10" aria-hidden />
       <RailTitle count={marketOpen ? count : undefined}>
         <Trans>市场</Trans>
       </RailTitle>
