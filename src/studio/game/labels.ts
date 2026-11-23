@@ -10,7 +10,16 @@
  * ★ 函数体里的 t 是"调用那一刻才翻"，别把这几句提到模块顶层存成常量（会冻结在开机语言）。
  */
 import { t } from "@lingui/core/macro";
-import type { CardQuality, CardType, GameCard, GameGenerationTier, StyleCard } from "./types";
+import type {
+  CardQuality,
+  CardType,
+  EventEffect,
+  GameCard,
+  GameEventOption,
+  GameGenerationTier,
+  GamePhase,
+  StyleCard,
+} from "./types";
 import type { CardType as TarotCardType } from "../../types";
 
 // ────────────────────────────── 卡牌 ──────────────────────────────
@@ -211,4 +220,117 @@ export function styleTopic(style: StyleCard): string {
 
 export function styleLine(style: StyleCard): string {
   return styleMeta(style.id)?.line ?? t`这一套风格还没有中文说明`;
+}
+
+// ────────────────────────────── 玩家 / 阶段（§2.0） ──────────────────────────────
+
+/**
+ * 座位 id → 展示名。单机版固定四个座位：本地玩家 "me"、三个 AI 陪玩 ai-1/2/3。
+ * ★ 只认 id 不认顺序：以后 G5 联机换成服务端下发的昵称时，改这一个函数就够了。
+ * ★ 多语言照常走 t（"对手 A" 在英文界面里是 "Rival A"）。
+ */
+export function playerName(playerId: string): string {
+  switch (playerId) {
+    case "me":
+      return t`我`;
+    case "ai-1":
+      return t`对手 A`;
+    case "ai-2":
+      return t`对手 B`;
+    case "ai-3":
+      return t`对手 C`;
+    default:
+      return playerId;
+  }
+}
+
+/**
+ * 阶段名（§2.0 的五个阶段 + 选风格 / 事件）。
+ * ★ 这是 HUD 上「第 N 回合 · 阶段名」那一格，也是阶段按钮旁边那句提示的词 —— 只有这一份。
+ */
+export function phaseName(phase: GamePhase): string {
+  switch (phase) {
+    case "style":
+      return t`选风格`;
+    case "ready":
+      return t`准备`;
+    case "shop":
+      return t`商店`;
+    case "create":
+      return t`创作`;
+    case "screening":
+      return t`展映`;
+    case "voting":
+      return t`投票`;
+    case "event":
+      return t`事件`;
+    case "round-end":
+      return t`回合结算`;
+    case "over":
+      return t`对局结束`;
+  }
+}
+
+// ────────────────────────────── 事件（§2.3b） ──────────────────────────────
+
+/** 事件名（规则层只有 id 与英文 art 名） */
+export function eventName(eventId: string): string {
+  switch (eventId) {
+    case "model-arms-race":
+      return t`模型军备`;
+    case "inspiration-burst":
+      return t`灵感爆发`;
+    case "supply-drop":
+      return t`补给站`;
+    default:
+      return eventId;
+  }
+}
+
+/** 事件效果的一句话（§2.3b「卡片带一句话收益说明」；数字全部来自规则层的数据，这里只念） */
+export function eventEffectText(effect: EventEffect): string {
+  switch (effect.kind) {
+    case "gold":
+      return effect.delta >= 0 ? t`立刻 +${effect.delta} 金` : t`立刻 −${-effect.delta} 金`;
+    case "hp":
+      return effect.delta >= 0 ? t`立刻回 ${effect.delta} 血` : t`立刻掉 ${-effect.delta} 血`;
+    case "model-level":
+      return t`本局出片档位升到 ${modelTierName(effect.to === 2 ? "hd" : "cinema")}`;
+    case "next-round-cost-half":
+      return t`下一回合出片费减半`;
+    case "next-round-segments":
+      return t`下一回合能出 ${effect.value} 段`;
+    case "prompt-limit-pct":
+      return t`下一回合提示词上限 +${effect.pct}%`;
+    case "bag-cap":
+      return t`${cardTypeName(effect.cardType)}卡上限 +${effect.delta}`;
+    case "free-refresh":
+      return t`免费刷新券 ×${effect.count}`;
+    case "random-card":
+      return t`随机一张${qualityName(effect.quality)}卡`;
+  }
+}
+
+/** 一个事件选项的全部效果拼成一句（三选一里每条最多两个效果） */
+export function eventOptionText(option: GameEventOption): string {
+  return option.effects.map((effect) => eventEffectText(effect)).join("；");
+}
+
+// ────────────────────────────── AI 陪玩的提示词（§2.4） ──────────────────────────────
+
+/**
+ * AI 交片时随机抽的那几句提示词。
+ * ★ 为什么放在这里（界面层）而不是 bots.ts：AI 的"决策"是纯逻辑（不认语言），
+ *   而提示词是要显示在展映屏上的**界面文案**（要进 Lingui 目录、要能切语言）——
+ *   由 store 把这一份递进 phases.toCreation，bots 只负责挑一条。
+ */
+export function aiPromptPool(): string[] {
+  return [
+    t`雨夜里一个女孩回头`,
+    t`霓虹灯下追着跑的两个人`,
+    t`纸片小镇的清晨`,
+    t`墨色的山与一阵风`,
+    t`天台上的最后一支烟`,
+    t`镜子里多出来的那个人`,
+  ];
 }

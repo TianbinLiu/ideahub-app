@@ -106,6 +106,8 @@ export function MarketRail() {
   // ★ 它是 2D 覆盖层（src/studio/game/ui/），不往 3D 场景里塞任何东西。
   const game = useGame((s) => s.state);
   const round = game?.round ?? 0;
+  // 对局结束（G3）：这一栏原来一直写「第 N 回合进行中」，打完还这么写就是假话
+  const over = game?.phase === "over";
   // 右栏只在横屏挂，所以这里读到的就是横屏那套分页（一页 8 张）
   const M = sceneLayout(true).market;
   return (
@@ -119,7 +121,11 @@ export function MarketRail() {
             <Trans>✕ 结束对局</Trans>
           </RailBtn>
           <p className="px-1 text-[10px] leading-relaxed text-slate-400">
-            <Trans>第 {round} 回合进行中 · 顶部看金币/血量，底部是背包与商店</Trans>
+            {over ? (
+              <Trans>本局打完了（共 {round} 回合）· 底部按「再来一局」重开</Trans>
+            ) : (
+              <Trans>第 {round} 回合进行中 · 顶部看金币/血量，底部是背包与商店</Trans>
+            )}
           </p>
         </>
       ) : (

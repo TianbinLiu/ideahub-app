@@ -41,7 +41,7 @@ export function ruleFailureText(failure: RuleFailure): string {
     case "bad-slot":
       return t`商店没有这一格`;
     case "wrong-phase":
-      return t`现在不是买卖的时候——买卡、卖卡、装备都只在商店阶段能做`;
+      return t`这个阶段做不了这件事——买卡 / 卖卡 / 装备在商店阶段，交片在创作阶段，点赞在展映，投票在投票阶段`;
     case "unknown-player":
       return t`这一局里找不到你`;
     case "player-eliminated":
@@ -62,6 +62,27 @@ export function ruleFailureText(failure: RuleFailure): string {
       return t`已经打到第 ${failure.cap ?? failure.count ?? 0} 回合，没有下一回合了`;
     case "no-cards-left":
       return t`卡池里已经没有这种品质的卡了`;
+    // ── G3 回合循环（§2.4 创作 / §2.5 展映投票）──
+    case "prompt-empty":
+      return t`写一句提示词再拍——这一期拍什么就靠这句话`;
+    case "prompt-too-long":
+      return t`提示词太长了：最多 ${failure.cap ?? 0} 字，现在 ${failure.have ?? 0} 字`;
+    case "duplicate-slot":
+      return t`三个虚框各放一张卡（角色 / 场景 / 道具），同一个虚框不能放两张`;
+    case "card-not-owned":
+      return t`这张卡不在你手上（可能已经被卖掉或换掉了）`;
+    case "entries-pending":
+      return t`还有 ${failure.count ?? 0} 个人没交片——展映要把全员的片子都放一遍`;
+    case "entry-not-found":
+      return t`这一期没有这条片子`;
+    case "entry-already-liked":
+      return t`这一条你已经点过赞了（同一期同一条只能点一次）`;
+    case "already-voted":
+      return t`这一期你已经投过票（或者已经弃权了）——一人一票`;
+    case "self-vote":
+      return t`不能投给自己——选别人的一条`;
+    case "votes-pending":
+      return t`还有 ${failure.count ?? 0} 个人没投票——全员表态之后才结算`;
     default:
       // 规则层以后新增了原因码、这里还没写人话：把原因码原样摆出来（不吞掉、不编一个"操作失败"）。
       return t`这一步没成功（规则回的原因：${String(failure.reason)}）`;

@@ -45,6 +45,61 @@ export interface GameGenerationTier {
 }
 
 /**
+ * 一期作品（§2.4 创作 / §2.5 展映投票）—— G3 是一条**占位视频**：三张卡 + 一句提示词 + 固定 5 秒。
+ * ★ 存卡的**本身**而不是 id：展映排片要读卡名与品质（AI 投票按品质加权），而回合内这些卡是锁住的
+ *   （rules 只在 shop 阶段允许卖 / 换），所以快照就是当时的真相；G4 接真出片时这一份正好是生成契约的输入。
+ * ★ 点赞 / 投票落在作品上（`likedBy` / `votedBy` 里是 playerId）：§2.5「一回合给同一条只能点一次」、
+ *   「不能投自己」都由 rules.likeEntry / voteEntry 判，界面不自己数。
+ */
+export interface RoundEntry {
+  /** 稳定 id：`r<回合>-<playerId>`（rules.roundEntryId）。点赞 / 投票 / 报告都认它，不靠数组下标。 */
+  id: string;
+  round: number;
+  playerId: string;
+  /** 三个虚框里放进去的卡：角色 / 场景 / 道具各最多一张；一张都没放 = 空镜（照样能交片，见 rules）。 */
+  cards: GameCard[];
+  prompt: string;
+  /** 出片时锁死的风格（§2.2）；null = 这个玩家没选（坏状态，界面照 null 判）。 */
+  styleCardId: string | null;
+  /** 占位视频时长（秒）：G3 固定 rules.VIDEO_SECONDS；G4 由生成契约给。 */
+  seconds: number;
+  /** 点过赞的人（每人对同一条只能一次；**自己也可以点** —— 见 rules.likeEntry 的 ★）。 */
+  likedBy: string[];
+  /** 投给它的人（一人一票、不能投自己；弃权的人不在这里，见 GameState.abstained）。 */
+  votedBy: string[];
+}
+
+/** 一期的单条作品在榜单上的位置（rules.tallyRound 产出；规则层只给数，话在界面）。 */
+export interface EntryTally {
+  entryId: string;
+  playerId: string;
+  likes: number;
+  votes: number;
+  /**
+   * 点赞榜名次：**并列同名次**（2,2,1 → 1,1,3）。§2.5 的胜负口径是「两个榜的名次相加」，
+   * 并列就该拿同一个名次 —— 拿不并列的序位，"并列看投票"这条就永远轮不到投票说话了。
+   */
+  likeRank: number;
+  voteRank: number;
+  /** 胜负口径 = likeRank + voteRank（越小越好）。 */
+  score: number;
+  /** 综合名次（1 = 第一，**不并列**）：扣血需要一个确定的顺序，见 rules.tallyRound 的并列规则。 */
+  rank: number;
+}
+
+/** 一期的两个榜 + 综合名次（§2.5）；rules.settleRoundFromVotes 会把它连同结算摘要一起交出来。 */
+export interface RoundTally {
+  round: number;
+  /** 综合名次：从好到差。 */
+  entries: EntryTally[];
+  /** 结算要的名次（playerId 从好到差）—— 与 entries 同序。 */
+  ranking: string[];
+  /** 点赞榜 / 投票榜（entryId，从多到少；同分看另一个榜，再同按 playerId 定序）。 */
+  likeBoard: string[];
+  voteBoard: string[];
+}
+
+/**
  * 一局的阶段（§2.0 的形状）。
  *   style   → 开局选风格卡（3 选 1）
  *   ready   → 全员选完，等 beginRound 开第一回合商店
@@ -217,6 +272,22 @@ export interface GameState {
   modelLevel: ModelLevel;
   /** 每人的商店（TFT 同款各自一份，不是共享卡池 —— 我们这个游戏暂时不需要抢卡）。 */
   shops: Record<string, ShopState>;
+  /**
+   * 本期的作品（§2.0 ③④）：每个存活玩家一条，创作阶段交片、展映 / 投票阶段被点赞与投票。
+   * ★ beginRound 换回合时清空（那时结算摘要已经交到界面那一层，作品只在"本期"有意义）。
+   */
+  entries: RoundEntry[];
+  /**
+   * 本期投票阶段弃权的人（§2.5「可弃权」）。一人一票：投过的人不在这个名单里，
+   * 「全员表态完毕」= 每个人要么在某个 entry.votedBy 里、要么在这里（rules.votesPendingOf）。
+   */
+  abstained: string[];
+  /**
+   * 上一期的综合名次（从好到差，结算那一刻由 settleRound 记下）。
+   * ★ §2.5「展映按上一回合综合排名倒序播放（落后先放）」读的就是它 —— 排序规则在
+   *   rules.screeningOrderOf 一处，界面不自己排。
+   */
+  lastRanking: string[];
   /** 已经抽过的事件 id（§2.3b「一局里的 3~4 次事件从池子里不重样地抽」）。 */
   drawnEventIds: string[];
   /** 本期抽到的事件（phase === "event" 时非空；beginRound 会清掉）。 */
