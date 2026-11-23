@@ -51,6 +51,7 @@ const ZERO_DEP = [
   "src/data/guidedModes.ts",
   "src/data/oauthState.ts",
   "src/data/live2dMotionCheck.ts",
+  "src/data/gameTicketRules.ts",
   "src/studio/game/rules.ts",
 ];
 /** ③′ 零 store 依赖（纯函数、不认识 store，但可以用同层的 data 模块） */

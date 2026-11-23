@@ -4861,6 +4861,10 @@ msgstr "② Make the template"
 msgid "② 出片（{0}）"
 msgstr "② Render the clip ({0})"
 
+#: src/studio/game/ui/GenSheet.tsx
+msgid "② 出片（用 {perGen} 张游戏券）"
+msgstr "② Generate (uses {perGen} game tickets)"
+
 #. placeholder {0}: fmtTokens(quote.video)
 #: src/studio/game/ui/GenSheet.tsx
 msgid "② 出片（约 {0}）"
@@ -9510,6 +9514,11 @@ msgstr "{count, plural, one {The # frame drawn before the video was charged} oth
 msgid "出片前画好的 {count} 张画面已按张计费（共 {paid} token）；视频那一发可能也扣了 {price} token——以「我的」页的 token 余额为准。"
 msgstr "{count, plural, one {The # frame drawn before the video was charged} other {The # frames drawn before the video were charged per image}} ({paid} tokens in total); the video itself may also have been charged {price} tokens — check your token balance on the “Me” page."
 
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "出片前画好的 {count} 张画面已按张计费（共 {paid} token）；视频那一发用的是游戏券，没扣 token。"
+msgstr "{count, plural, one {The # frame drawn before the video was charged} other {The # frames drawn before the video were charged per image}} ({paid} tokens in total); the video itself used a game ticket, so no tokens were charged."
+
 #: src/studio/ui/PlanBoard.tsx
 msgid "出片前补画"
 msgstr "Drawn before rendering"
@@ -10248,6 +10257,41 @@ msgstr "Refresh 5 new cards. Free refresh passes are used first"
 #: src/components/PortraitAuthPanel.tsx
 #~ msgid "刷新中…"
 #~ msgstr "Refreshing…"
+
+#: src/ai/failCharge.ts
+msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
+msgid "券会退回"
+msgstr "Ticket will be refunded"
+
+#: src/ai/failCharge.ts
+msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
+msgid "券会退回，画面 {count} 张已计费"
+msgstr "{count, plural, one {Ticket will be refunded, # frame charged} other {Ticket will be refunded, # frames charged}}"
+
+#: src/ai/failCharge.ts
+msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
+msgid "券可能已花掉，画面 {count} 张已计费"
+msgstr "{count, plural, one {Ticket may have been spent, # frame charged} other {Ticket may have been spent, # frames charged}}"
+
+#: src/ai/failCharge.ts
+msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
+msgid "券已退回"
+msgstr "Ticket refunded"
+
+#: src/ai/failCharge.ts
+msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
+msgid "券已退回，画面 {count} 张已计费"
+msgstr "{count, plural, one {Ticket refunded, # frame charged} other {Ticket refunded, # frames charged}}"
+
+#: src/ai/failCharge.ts
+msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
+msgid "券没有退回"
+msgstr "Ticket not refunded"
+
+#: src/ai/failCharge.ts
+msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
+msgid "券没有退回，画面 {count} 张已计费"
+msgstr "{count, plural, one {Ticket not refunded, # frame charged} other {Ticket not refunded, # frames charged}}"
 
 #: src/studio/flowStore.ts
 msgid "前一段还没出片：退回铸段窗之后，新做的段要等前一段生成出来才接得上，这一下就只是把这一段删掉了。先把前一段生成出来再退。"
@@ -12069,6 +12113,11 @@ msgstr "About {0} MB available"
 msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
 msgid "可能已经扣了钱"
 msgstr "may already have been charged"
+
+#: src/ai/failCharge.ts
+msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
+msgid "可能已经花掉一张券"
+msgstr "May have spent one ticket"
 
 #: src/pages/SettingsPage.tsx
 msgid "可能是网络没通，或者这个版本的清单里还没有这一项。"
@@ -22079,6 +22128,15 @@ msgstr "Rendering video"
 #~ msgid "游戏内的出片档位（G4 才真的按它出片）"
 #~ msgstr "In-game render tier (used for real once G4 lands)"
 
+#. placeholder {0}: ticket.tickets?.limit ?? 0
+#: src/studio/game/ui/BagBar.tsx
+msgid "游戏券：出片扣 {perGen} 张，不扣 token（每月 {0} 张，{resetDay} 号刷新；做任务也能领）"
+msgstr "Game tickets: {perGen} per generation, no tokens charged ({0} per month, refresh on day {resetDay}; tasks can earn more)"
+
+#: src/studio/game/reasons.ts
+msgid "游戏券只能用在出片上：这一发不是出片（出图 / 对话 / 建模），所以没有受理、也没有扣费。"
+msgstr "Game tickets only cover video generation: this call isn't a video (image / chat / 3D model), so it wasn't accepted and nothing was charged."
+
 #: src/components/flow/EffectWizard.tsx
 msgid "游戏英雄登场"
 msgstr "Game hero entrance"
@@ -23563,6 +23621,11 @@ msgstr "Frame"
 msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
 msgid "画面 {count} 张已计费，视频可能也扣了"
 msgstr "{count, plural, one {# frame charged, the video may also have been charged} other {# frames charged, the video may also have been charged}}"
+
+#: src/ai/failCharge.ts
+msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
+msgid "画面 {count} 张已计费，视频没扣 token"
+msgstr "{count, plural, one {# frame charged; no tokens charged for the video} other {# frames charged; no tokens charged for the video}}"
 
 #: src/ai/failCharge.ts
 msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
@@ -29123,8 +29186,66 @@ msgstr "The tokens charged for this run weren't refunded — check your token ba
 #. placeholder {0}: fmtTokens(quote.frame)
 #. placeholder {1}: fmtTokens(quote.video)
 #: src/studio/game/ui/GenSheet.tsx
-msgid "这一发按 token 结算（游戏券还没接）：画首帧约 {0}、出片约 {1}。远端模式下以服务器结算为准。"
-msgstr "This one is billed in tokens (game tickets are not wired up yet): about {0} for the first frame and {1} for the video. In remote mode the server's settlement is authoritative."
+msgid "这一发按 token 结算：本月的游戏券用完了（{resetDay} 号刷新，做任务也能领券）；画首帧约 {0}、出片约 {1}。远端模式下以服务器结算为准。"
+msgstr "This one is billed in tokens: this month's game tickets are used up (they refresh on day {resetDay}; tasks can earn more). First frame ~{0}, video ~{1}. When connected to the server, its billing is authoritative."
+
+#. placeholder {0}: fmtTokens(quote.frame)
+#. placeholder {1}: fmtTokens(quote.video)
+#: src/studio/game/ui/GenSheet.tsx
+msgid "这一发按 token 结算（游戏券的余额还没读到）：画首帧约 {0}、出片约 {1}。远端模式下以服务器结算为准。"
+msgstr "This one is billed in tokens (the game-ticket balance hasn't loaded yet): first frame ~{0}, video ~{1}. When connected to the server, its billing is authoritative."
+
+#. placeholder {0}: fmtTokens(quote.frame)
+#. placeholder {1}: fmtTokens(quote.video)
+#: src/studio/game/ui/GenSheet.tsx
+#~ msgid "这一发按 token 结算（游戏券还没接）：画首帧约 {0}、出片约 {1}。远端模式下以服务器结算为准。"
+#~ msgstr "This one is billed in tokens (game tickets are not wired up yet): about {0} for the first frame and {1} for the video. In remote mode the server's settlement is authoritative."
+
+#. placeholder {0}: fmtTokens(quote.frame)
+#. placeholder {1}: fmtTokens(quote.video)
+#: src/studio/game/ui/GenSheet.tsx
+msgid "这一发按 token 结算（这台服务器没有开通游戏券）：画首帧约 {0}、出片约 {1}。远端模式下以服务器结算为准。"
+msgstr "This one is billed in tokens (this server doesn't offer game tickets): first frame ~{0}, video ~{1}. When connected to the server, its billing is authoritative."
+
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "这一发按游戏券出片，可能已经花掉一张券——以游戏券剩余张数为准。"
+msgstr "This generation used a game ticket and may have spent one — check the remaining ticket count."
+
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "这一发按游戏券出片，可能已经花掉一张券；出片前画好的 {count} 张画面已按张计费（共 {paid} token）——以游戏券剩余张数为准。"
+msgstr "{count, plural, one {This generation used a game ticket and may have spent one; the # frame drawn before it was charged} other {This generation used a game ticket and may have spent one; the # frames drawn before it were charged per image}} ({paid} tokens in total) — check the remaining ticket count."
+
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "这一发按游戏券出片，扣的那张券没有退回——以游戏券剩余张数为准。"
+msgstr "This generation used a game ticket and that ticket wasn't refunded — check the remaining ticket count."
+
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "这一发按游戏券出片，扣的那张券没有退回；出片前画好的 {count} 张画面已按张计费（共 {paid} token）——以游戏券剩余张数为准。"
+msgstr "{count, plural, one {This generation used a game ticket and that ticket wasn't refunded; the # frame drawn before it was charged} other {This generation used a game ticket and that ticket wasn't refunded; the # frames drawn before it were charged per image}} ({paid} tokens in total) — check the remaining ticket count."
+
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "这一发按游戏券出片，没出成——扣的那张券会退回；出片前画好的 {count} 张画面已按张计费（共 {paid} token）。"
+msgstr "{count, plural, one {This generation used a game ticket and didn't produce a video; that ticket will be refunded and the # frame drawn before it was charged} other {This generation used a game ticket and didn't produce a video; that ticket will be refunded and the # frames drawn before it were charged per image}} ({paid} tokens in total)."
+
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "这一发按游戏券出片，没出成——扣的那张券会退回（以游戏券剩余张数为准）。"
+msgstr "This generation used a game ticket and didn't produce a video — that ticket will be refunded (check the remaining ticket count)."
+
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "这一发按游戏券出片，没出成——扣的那张券已经退回；出片前画好的 {count} 张画面已按张计费（共 {paid} token）。"
+msgstr "{count, plural, one {This generation used a game ticket and didn't produce a video; that ticket has been refunded and the # frame drawn before it was charged} other {This generation used a game ticket and didn't produce a video; that ticket has been refunded and the # frames drawn before it were charged per image}} ({paid} tokens in total)."
+
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "这一发按游戏券出片，没出成——扣的那张券已经退回。"
+msgstr "This generation used a game ticket and didn't produce a video — that ticket has been refunded."
 
 #: src/data/videoJobs.ts
 msgid "这一发没出成"
@@ -29170,6 +29291,12 @@ msgstr "No tokens were charged for this job, and it's most likely still running 
 msgid "这一发没有扣 token。成片在受理之后 7 天内都取得回来（还剩 {rest}）——点「取回」把它领回来，不花钱；点「重新生成」是重新下一单。还在出片的话，隔一会儿再点一次。"
 msgstr "No tokens were charged for this job. Its video can be recovered for up to 7 days after it was accepted ({rest} left) — tap “Recover” to collect it, free of charge; tapping “Regenerate” places a new order. If it's still rendering, tap again in a little while."
 
+#. placeholder {0}: ticket.tickets?.left ?? 0
+#. placeholder {1}: fmtTokens(quote.frame)
+#: src/studio/game/ui/GenSheet.tsx
+msgid "这一发用游戏券（剩余 {0}）：出片扣 {perGen} 张券、不扣 token；画首帧照旧按 token 结算（约 {1}）。远端模式下以服务器结算为准。"
+msgstr "This one uses game tickets ({0} left): {perGen} ticket per generation, no tokens charged; the first frame is still billed in tokens (~{1}). When connected to the server, its billing is authoritative."
+
 #: src/components/TemplateShelf.tsx
 msgid "这一发白模化已经取不回来了"
 msgstr "This blockout job can no longer be recovered"
@@ -29177,6 +29304,10 @@ msgstr "This blockout job can no longer be recovered"
 #: src/data/templates.ts
 msgid "这一发白模化预估要 {price} token（看帧认人 + 一次真实付费出片），余额不够——去「我的」页充值后再回来，框选不会丢。"
 msgstr "This blockout is estimated at {price} tokens (looking at frames to identify people + one real paid render), and your balance isn't enough — top up on the “Me” page and come back; your selection won't be lost."
+
+#: src/studio/game/reasons.ts
+msgid "这一发的游戏券不够了：本月的券已经用光，{day} 号刷新（做任务也能领券）——也可以改成按 token 出片。这一次没有受理，也没有扣费。"
+msgstr "Not enough game tickets for this generation: this month's tickets are used up and refresh on day {day} (tasks can earn more) — or switch to billing in tokens. This call wasn't accepted and nothing was charged."
 
 #: src/ai/real.ts
 msgid "这一发的状态暂时查不到（{why}）——联网后再点一次「取回」，凭据还在，也不花钱"
@@ -29596,6 +29727,10 @@ msgstr "This tier can't be priced right now; try another tier"
 #: src/ai/arkClient.ts
 msgid "这一档用的模型已经停止服务了，请换一档再出片——这一次没有受理，也没有扣费。"
 msgstr "The model behind this tier has been shut down — pick another tier and generate again. This request wasn't accepted and nothing was charged."
+
+#: src/studio/game/reasons.ts
+msgid "这一档要会员套餐（或充值过任意一笔）才给用——游戏券只顶出片那笔钱，不能把会员档打开；换回「草稿」档再出片。这次没有扣券。"
+msgstr "This tier needs a membership plan (or any top-up) — game tickets only pay for the generation itself and can't unlock member tiers; switch back to the “Draft” tier and generate. No ticket was spent."
 
 #. 一句完整的、自带句号的话，会被当占位符（keep）接在下载失败原因后面：译文首尾不要留空格
 #: src/data/appUpdate.ts
@@ -30810,6 +30945,10 @@ msgstr "This server doesn't support detecting roles (the reply had the wrong sha
 #: src/data/account.ts
 msgid "这台服务器出片只接了 {via}"
 msgstr "This server only has {via} connected for video"
+
+#: src/studio/game/reasons.ts
+msgid "这台服务器暂时关掉了游戏券出片——这一发没有受理、也没有扣费；改成按 token 出片再试。"
+msgstr "This server has game-ticket generation turned off for now — this call wasn't accepted and nothing was charged; switch to token billing and try again."
 
 #: src/ai/minimaxVideo.ts
 msgid "这台服务器没有开 MiniMax H3 出片——先换一档出片"

@@ -8,7 +8,13 @@
 //   道具有"每个角色最多 3 张"（rules.itemLimitOf）。所以这一条**不画空位**、
 //   也不画"角色 3/4"这种计数 —— 画了反而像还有一条按种类算的闸。
 // ★ 场景卡与角色卡都能从桌上拖回来（kind="return" 的起点在 3D 那一侧）；这一条只负责"从这儿拿出去"。
+// ★ 游戏券（G4 收尾 2026-11-23）：金币旁边加一格 🎟 券数 —— 施工单说"商店键附近"，而商店键就长在这一条右边，
+//   摆在这儿比塞进顶部 HUD 更近（商店键里面已经塞了利息，再塞券数就挤成两个图标）。
+//   · **只在这台服务器真的开了券、而且读到了余额时才摆**（有券 / 用完两种；老服务端、还没读到 → 一格都不画）；
+//   · 出片带不带券由 flowStore 判，这里只是读数 —— 这一条不参与"用不用券"的决定（铁律六）。
 import { Trans, useLingui } from "@lingui/react/macro";
+import { resetDayOf } from "../../../data/gameTicketRules";
+import { useGameTickets } from "../../../hooks/useGameTickets";
 import { CARD_SELL_GOLD } from "../rules";
 import { useGame } from "../store";
 import { gameCardName } from "../labels";
@@ -20,6 +26,11 @@ export default function BagBar({ view }: { view: GameView }) {
   const { t } = useLingui();
   const shopOpen = useGame((s) => s.shopOpen);
   const usage = view.hud.bag;
+  /** 券（null = 这台服务器没有 / 还没读到 —— 不摆那一格） */
+  const ticket = useGameTickets();
+  const showTickets = ticket.mode === "ticket" || ticket.mode === "empty";
+  const perGen = ticket.tickets?.perGeneration ?? 1;
+  const resetDay = resetDayOf(ticket.tickets?.nextResetAt ?? "");
 
   /** 一张还没上桌的卡：按下开始拖（拖到桌面卡位），下面那颗小键是卖 */
   const renderCard = (card: GameCard) => (
@@ -65,6 +76,15 @@ export default function BagBar({ view }: { view: GameView }) {
           <span className="font-semibold text-gold-200" title={t`金币：买卡与刷新都要花它`}>
             🪙 {view.hud.gold}
           </span>
+          {/* 游戏券：出片扣一张、不扣 token（G4 收尾；老服务端 / 还没读到余额时不摆） */}
+          {showTickets && (
+            <span
+              className={`font-semibold ${ticket.canPay ? "text-brand-200" : "text-slate-400"}`}
+              title={t`游戏券：出片扣 ${perGen} 张，不扣 token（每月 ${ticket.tickets?.limit ?? 0} 张，${resetDay} 号刷新；做任务也能领）`}
+            >
+              🎟 {ticket.tickets?.left ?? 0}
+            </span>
+          )}
           <span className="text-[10px] text-slate-400">
             <Trans>角色 / 场景卡拖到桌面空位；道具在右侧栏</Trans>
           </span>

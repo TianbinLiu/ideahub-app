@@ -17,6 +17,7 @@ import { i18n } from "@lingui/core";
 import { t } from "@lingui/core/macro";
 import { API_BASE } from "../api/client";
 import { getToken, withAppVersion } from "../api/client";
+import { gameTicketHeaders } from "../data/gameTicketRules";
 import {
   ArkBadReply,
   ArkHttpError,
@@ -53,11 +54,12 @@ const BASE = `${API_BASE}/api/minimax`;
 const T_CREATE_MS = 150_000;
 const T_QUERY_MS = 40_000;
 
-/** @param url 这一发打到哪儿 —— 只为了让 withAppVersion 判要不要带版本头（自家服务器的 /api/ 才带） */
-function authHeaders(url: string): Record<string, string> {
+/** @param url 这一发打到哪儿 —— 只为了让 withAppVersion 判要不要带版本头（自家服务器的 /api/ 才带）
+ *  @param extra 额外请求头（只有「这一发用游戏券」那一格 X-Game-Ticket，G4 收尾） */
+function authHeaders(url: string, extra: Record<string, string> = {}): Record<string, string> {
   // 生产（server 代理）要带登录态；dev 的 vite 代理会忽略这个头，无害
   const tk = getToken();
-  return withAppVersion(url, { "Content-Type": "application/json", ...(tk ? { Authorization: `Bearer ${tk}` } : {}) });
+  return withAppVersion(url, { "Content-Type": "application/json", ...extra, ...(tk ? { Authorization: `Bearer ${tk}` } : {}) });
 }
 
 /**
@@ -342,6 +344,12 @@ export async function minimaxV2Video(o: {
   images: { url: string; role: MinimaxV2Role }[];
   onProgress?: (ev: ArkProgress) => void;
   onTask?: (taskId: string) => void;
+  /**
+   * 这一发用**游戏券**结算（对局出片，G4 收尾）：创建那一发带 `X-Game-Ticket: 1`，服务端扣一张券、token 钱包一分不动。
+   * ★ 对局的 L1 / L2 / L3 正好都落在 MiniMax H3 这三行上（studio/game/genTier），所以这一位是对局真正会走的那条。
+   * ★ 带不带由 studio/flowStore.genNode 判，这一层只负责拼头。
+   */
+  payWithTicket?: boolean;
 }): Promise<string> {
   const prog = (ev: ArkProgress) => o.onProgress?.(ev);
   const url = `${BASE}/v2/video`;
@@ -357,7 +365,12 @@ export async function minimaxV2Video(o: {
   };
   let res: Response;
   try {
-    res = await fetch(url, { method: "POST", headers: authHeaders(url), body: JSON.stringify(body), signal: AbortSignal.timeout(T_CREATE_MS) });
+    res = await fetch(url, {
+      method: "POST",
+      headers: authHeaders(url, gameTicketHeaders(o.payWithTicket)),
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(T_CREATE_MS),
+    });
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e);
     throw new ArkNoReply(t`MiniMax 出片创建没收到回包：${detail}`);
@@ -444,6 +457,12 @@ export async function minimaxVideo(o: {
    *   开始等待**之前** —— 进程被系统回收时，落过盘的那一份是唯一还活着的线索。
    */
   onTask?: (taskId: string) => void;
+  /**
+   * 这一发用**游戏券**结算（G4 收尾）：创建那一发带 `X-Game-Ticket: 1`，「真人」档也是出片，服务端认这一格。
+   * ★ 对局的 L1~L3 **不会**落在这条路上（genTier 映射到 H3 三行 / Seedance 两行，真人档只认一张起拍画面、挂不上 5 张卡）；
+   *   留着是为了"出片请求带券"这条契约在三家出片客户端上是同一份，不出现"换了个档就悄悄扣 token"。
+   */
+  payWithTicket?: boolean;
 }): Promise<string> {
   // 「任务创建中」那一步由 real.composeSegments 在调用之前就报了，这里不再重复报一遍
   //（改之前这里多报的那条在日志里显示成「真人档 · 真人档任务创建中…」）
@@ -454,7 +473,7 @@ export async function minimaxVideo(o: {
   const created = await jsonOf(
     await fetch(`${BASE}/video`, {
       method: "POST",
-      headers: authHeaders(`${BASE}/video`),
+      headers: authHeaders(`${BASE}/video`, gameTicketHeaders(o.payWithTicket)),
       body: JSON.stringify({
         model: o.model,
         prompt: o.prompt,

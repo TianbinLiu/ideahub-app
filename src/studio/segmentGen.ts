@@ -152,6 +152,14 @@ export interface SegmentGenInput {
    * ★ 返修 / 延长 / 定稿不带（genNode 传 null）：那几条路发的不是模板正文。
    */
   textTpl: TextTplGen | null;
+  /**
+   * 这一段的**视频请求**用游戏券结算（对局出片，G4 收尾；服务端 store 里叫 currency = "ticket"）：
+   * 创建任务那一发带 `X-Game-Ticket: 1`，服务端扣一张券、token 钱包一分不动；失败退券。
+   * ★ 补画的设定帧 / 圈选改帧 / 转存**都不带**（券只认出片，出图带了会被 400 TICKET_NOT_APPLICABLE 整发拒）
+   *   —— 那几样各自按 token 结算，与改版前一样。
+   * ★ 只有对局那条路传（flowStore.genNode 的 `opts.payWithTicket` 且镜像里确实有券）；缺省 = 走 token 钱包，逐字节不变。
+   */
+  payWithTicket?: boolean;
 }
 
 /** 出片这一侧要知道的文字模板段的事（FlowNode.textTpl 的投影，flowStore.textTplGenOf 一处给） */
@@ -1530,6 +1538,7 @@ export async function generateSegment(
       (_d, _t, status) => prog(status),
       // ★ 受理回调**必须给**（同另外几条支路）：没有凭据，「没接到结果」这一支就等于不存在
       (taskId) => onTask?.(taskId),
+      { payWithTicket: input.payWithTicket },
     );
     settleSegment(res, 0, null); // 定稿一张画面都不画
     return { url: res?.url, firstFrame: "", lastFrame: res?.lastFrame || "", poster: res?.poster, realDurationSec: res?.durationSec };
@@ -1660,6 +1669,7 @@ export async function generateSegment(
       (_d, _t, status) => prog(status),
       // ★ 受理回调**必须给**：不给就没有凭据，「没接到结果」这一支等于不存在
       (taskId) => onTask?.(taskId),
+      { payWithTicket: input.payWithTicket },
     );
     settleSegment(res, 0, null); // 延长段一张画面都不画
     return {
@@ -1800,6 +1810,7 @@ export async function generateSegment(
       (_d, _t, status) => prog(status),
       // ★ 受理回调**必须给**：不给就没有凭据，"没接到结果"这一支等于不存在
       (taskId) => onTask?.(taskId),
+      { payWithTicket: input.payWithTicket },
     );
     settleSegment(res, 0, null); // 素材参考：帧是用户给的，不画（上传不计费）
     return {
@@ -1879,6 +1890,7 @@ export async function generateSegment(
       (_d, _t, status) => prog(status),
       // ★ 受理回调**必须给**：不给就没有凭据，"没接到结果"这一支等于不存在
       (taskId) => onTask?.(taskId),
+      { payWithTicket: input.payWithTicket },
     );
     // ★ **四**件连动（2026-08-31，当天补第四件）：minimaxVideo 补 onTask、
     //   segmentGen 这一层**把它递下去**、VideoJob 记 provider、takeVideoTask 按 provider 分流。
@@ -2477,6 +2489,7 @@ export async function generateSegment(
     ],
     (_d, _t, status) => prog(status),
     (taskId) => onTask?.(taskId),
+    { payWithTicket: input.payWithTicket },
   );
   // 文字模板段的提示词被方舟拒了：话改成「是模板正文的问题、换图没用」（textTplRefusal）
   settleSegment(textTplRefusal(res, !!textTpl), imagesSettled, keptOrNull()); // 与另外几条支路同一处实现（见 settleSegment 的 ★★）

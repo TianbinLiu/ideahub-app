@@ -8,16 +8,26 @@
 // ★ 提示词里带上卡名：素材卡的 `name` 走 segmentGen.materialText 现有的那句
 //   「本段固定素材设定……人物卡「名字」」进视频提示词 —— 卡名能被模型认出来靠的就是它，
 //   这里不再自己拼一句"参考这几张卡"（那是第二套点火话术）。
-// ★ 钱如实说：**游戏券还没接**（服务端那套在另一个人手里），这一发走的是普通 token 路径 ——
-//   小窗上直接写"这一发按 token 结算"，不写"免费"、也不写"用券"。
+// ★ 钱如实说（G4 收尾 2026-11-23 接上服务端游戏券）：三种状态三种说法，判据只在 data/gameTicketRules
+//   （能力位 + 余额 + perGeneration）：
+//     · 有券   → 「这一发用游戏券（剩余 N）」：出片扣一张券、不扣 token；**画首帧照旧按 token**（券只认出片）；
+//     · 用完   → 「这一发按 token 结算」+ 几号刷新（券买不到，说"去充值"是死路 —— 服务端 NO_GAME_TICKET 也这么说）；
+//     · 没有/没读到 → 「这一发按 token 结算」：老服务端（没有 gameTickets 能力位）不摆券数，也不带券头，与改版前逐字节相同。
+//   绝不写"免费"：券是花掉了的一张额度，而首帧那笔 token 是真的。
+// ★ 带券那一发交给 genNode 的 opts（payWithTicket / rejectText）：带不带由 flowStore 再问一次
+//   `canPayWithTicket()`（券可能刚被另一发用掉），四个拒绝码的人话在 studio/game/reasons.gameRejectText。
 // ★ 出片完成不自动交片：玩家可能想先看一遍。看完点「用这一条交片」才写进这一期作品
 //   （rules.submitRoundEntry 只认桌面上的卡 + 这句提示词，视频地址是 patch 进去的）。
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { fmtTokens, tierOf } from "../../../data/economy";
+import { resetDayOf } from "../../../data/gameTicketRules";
+import { refreshGameTickets } from "../../../data/gameTickets";
+import { useGameTickets } from "../../../hooks/useGameTickets";
 import { chosenOf, nodeDone, realVideoOfNode, useFlow } from "../../flowStore";
 import { useGame } from "../store";
 import { gameGenQuote, gameGenQuoteOf, gameNodeOfRound, gameSegmentSpec, seedGameSegment } from "../gen";
+import { gameRejectText } from "../reasons";
 import type { GameView } from "../view";
 import GameBtn from "./GameBtn";
 
@@ -29,6 +39,13 @@ export default function GenSheet({ view, onClose }: { view: GameView; onClose: (
   const prompt = useGame((s) => s.createPrompt);
   const round = view.hud.round;
   const [drawing, setDrawing] = useState(false);
+  /** 券：有券 / 用完 / 这台服务器没有 / 还没读到 —— 三句钱的说明与那一发带不带券头都读它 */
+  const ticket = useGameTickets();
+
+  // 打开小窗就读一次余额（别拿上一回合的旧数决定"用不用券"；读不到就按 token 走，服务端会兜底）
+  useEffect(() => {
+    void refreshGameTickets();
+  }, []);
 
   const node = gameNodeOfRound(nodes, round);
   const index = node ? nodes.findIndex((candidate) => candidate.id === node.id) : -1;
@@ -74,11 +91,14 @@ export default function GenSheet({ view, onClose }: { view: GameView; onClose: (
     if (!id) return;
     setDrawing(true);
     try {
-      await useFlow.getState().genNode(id);
+      // 带券出片：带不带由 flowStore 再核一次（见文件头）；四个拒绝码的人话在 reasons.gameRejectText
+      await useFlow.getState().genNode(id, { payWithTicket: ticket.canPay, rejectText: gameRejectText });
     } catch (error) {
       console.error(error);
     } finally {
       setDrawing(false);
+      // 券在服务端扣 / 退：这一发之后立刻重读余额（flowStore 的 finally 也读一次，这里兜"根本没铺成段"的那条路）
+      void refreshGameTickets(true);
     }
   };
 
@@ -90,6 +110,11 @@ export default function GenSheet({ view, onClose }: { view: GameView; onClose: (
     useGame.getState().saveEntry({ videoUrl: url, seconds });
     onClose();
   };
+
+  /** 这一发扣几张券（服务端说，别在界面上写死 1） */
+  const perGen = ticket.tickets?.perGeneration ?? 1;
+  /** 下一次刷新的日子（几号）—— 服务端给的是下个月 1 日 00:00 UTC，句子跟着回包走 */
+  const resetDay = resetDayOf(ticket.tickets?.nextResetAt ?? "");
 
   return (
     <div className="pointer-events-auto w-full max-w-[40rem] rounded-xl bg-panel/95 p-2 ring-1 ring-brand/40 backdrop-blur">
@@ -125,12 +150,27 @@ export default function GenSheet({ view, onClose }: { view: GameView; onClose: (
         )}
       </div>
 
-      {/* 钱：照实说走 token，不装作有券 */}
+      {/* 钱：照实说。三种状态 —— 有券 / 券用完了 / 这台服务器没有（或还没读到） */}
       <div className="mt-1 rounded bg-ink/40 px-1.5 py-1 text-[9px] leading-snug text-slate-300">
-        <Trans>
-          这一发按 token 结算（游戏券还没接）：画首帧约 {fmtTokens(quote.frame)}、出片约{" "}
-          {fmtTokens(quote.video)}。远端模式下以服务器结算为准。
-        </Trans>
+        {ticket.mode === "ticket" ? (
+          <Trans>
+            这一发用游戏券（剩余 {ticket.tickets?.left ?? 0}）：出片扣 {perGen} 张券、不扣 token；画首帧照旧按 token 结算（约{" "}
+            {fmtTokens(quote.frame)}）。远端模式下以服务器结算为准。
+          </Trans>
+        ) : ticket.mode === "empty" ? (
+          <Trans>
+            这一发按 token 结算：本月的游戏券用完了（{resetDay} 号刷新，做任务也能领券）；画首帧约 {fmtTokens(quote.frame)}、出片约{" "}
+            {fmtTokens(quote.video)}。远端模式下以服务器结算为准。
+          </Trans>
+        ) : ticket.mode === "unknown" ? (
+          <Trans>
+            这一发按 token 结算（游戏券的余额还没读到）：画首帧约 {fmtTokens(quote.frame)}、出片约 {fmtTokens(quote.video)}。远端模式下以服务器结算为准。
+          </Trans>
+        ) : (
+          <Trans>
+            这一发按 token 结算（这台服务器没有开通游戏券）：画首帧约 {fmtTokens(quote.frame)}、出片约 {fmtTokens(quote.video)}。远端模式下以服务器结算为准。
+          </Trans>
+        )}
       </div>
 
       {/* 首帧：画出来就摆在这儿让人看一眼，再决定要不要花视频的钱 */}
@@ -159,7 +199,13 @@ export default function GenSheet({ view, onClose }: { view: GameView; onClose: (
               <Trans>换一张</Trans>
             </GameBtn>
             <GameBtn onClick={() => void generate()} tone="primary" disabled={drawing || busy}>
-              {drawing || busy ? <Trans>正在出片…</Trans> : <Trans>② 出片（约 {fmtTokens(quote.video)}）</Trans>}
+              {drawing || busy ? (
+                <Trans>正在出片…</Trans>
+              ) : ticket.canPay ? (
+                <Trans>② 出片（用 {perGen} 张游戏券）</Trans>
+              ) : (
+                <Trans>② 出片（约 {fmtTokens(quote.video)}）</Trans>
+              )}
             </GameBtn>
           </>
         )}

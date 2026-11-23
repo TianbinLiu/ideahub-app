@@ -4861,6 +4861,10 @@ msgstr "② 做成模板"
 msgid "② 出片（{0}）"
 msgstr "② 出片（{0}）"
 
+#: src/studio/game/ui/GenSheet.tsx
+msgid "② 出片（用 {perGen} 张游戏券）"
+msgstr "② 出片（用 {perGen} 张游戏券）"
+
 #. placeholder {0}: fmtTokens(quote.video)
 #: src/studio/game/ui/GenSheet.tsx
 msgid "② 出片（约 {0}）"
@@ -9518,6 +9522,11 @@ msgstr "出片前画好的 {count} 张画面已按张计费（共 {paid} token�
 msgid "出片前画好的 {count} 张画面已按张计费（共 {paid} token）；视频那一发可能也扣了 {price} token——以「我的」页的 token 余额为准。"
 msgstr "出片前画好的 {count} 张画面已按张计费（共 {paid} token）；视频那一发可能也扣了 {price} token——以「我的」页的 token 余额为准。"
 
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "出片前画好的 {count} 张画面已按张计费（共 {paid} token）；视频那一发用的是游戏券，没扣 token。"
+msgstr "出片前画好的 {count} 张画面已按张计费（共 {paid} token）；视频那一发用的是游戏券，没扣 token。"
+
 #: src/studio/ui/PlanBoard.tsx
 msgid "出片前补画"
 msgstr "出片前补画"
@@ -10256,6 +10265,41 @@ msgstr "刷新 5 张新卡。有免费刷新券时先用券"
 #: src/components/PortraitAuthPanel.tsx
 #~ msgid "刷新中…"
 #~ msgstr "刷新中…"
+
+#: src/ai/failCharge.ts
+msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
+msgid "券会退回"
+msgstr "券会退回"
+
+#: src/ai/failCharge.ts
+msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
+msgid "券会退回，画面 {count} 张已计费"
+msgstr "券会退回，画面 {count} 张已计费"
+
+#: src/ai/failCharge.ts
+msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
+msgid "券可能已花掉，画面 {count} 张已计费"
+msgstr "券可能已花掉，画面 {count} 张已计费"
+
+#: src/ai/failCharge.ts
+msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
+msgid "券已退回"
+msgstr "券已退回"
+
+#: src/ai/failCharge.ts
+msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
+msgid "券已退回，画面 {count} 张已计费"
+msgstr "券已退回，画面 {count} 张已计费"
+
+#: src/ai/failCharge.ts
+msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
+msgid "券没有退回"
+msgstr "券没有退回"
+
+#: src/ai/failCharge.ts
+msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
+msgid "券没有退回，画面 {count} 张已计费"
+msgstr "券没有退回，画面 {count} 张已计费"
 
 #: src/studio/flowStore.ts
 msgid "前一段还没出片：退回铸段窗之后，新做的段要等前一段生成出来才接得上，这一下就只是把这一段删掉了。先把前一段生成出来再退。"
@@ -12077,6 +12121,11 @@ msgstr "可用约 {0} MB"
 msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
 msgid "可能已经扣了钱"
 msgstr "可能已经扣了钱"
+
+#: src/ai/failCharge.ts
+msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
+msgid "可能已经花掉一张券"
+msgstr "可能已经花掉一张券"
 
 #: src/pages/SettingsPage.tsx
 msgid "可能是网络没通，或者这个版本的清单里还没有这一项。"
@@ -22087,6 +22136,15 @@ msgstr "渲染视频"
 #~ msgid "游戏内的出片档位（G4 才真的按它出片）"
 #~ msgstr "游戏内的出片档位（G4 才真的按它出片）"
 
+#. placeholder {0}: ticket.tickets?.limit ?? 0
+#: src/studio/game/ui/BagBar.tsx
+msgid "游戏券：出片扣 {perGen} 张，不扣 token（每月 {0} 张，{resetDay} 号刷新；做任务也能领）"
+msgstr "游戏券：出片扣 {perGen} 张，不扣 token（每月 {0} 张，{resetDay} 号刷新；做任务也能领）"
+
+#: src/studio/game/reasons.ts
+msgid "游戏券只能用在出片上：这一发不是出片（出图 / 对话 / 建模），所以没有受理、也没有扣费。"
+msgstr "游戏券只能用在出片上：这一发不是出片（出图 / 对话 / 建模），所以没有受理、也没有扣费。"
+
 #: src/components/flow/EffectWizard.tsx
 msgid "游戏英雄登场"
 msgstr "游戏英雄登场"
@@ -23571,6 +23629,11 @@ msgstr "画面"
 msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
 msgid "画面 {count} 张已计费，视频可能也扣了"
 msgstr "画面 {count} 张已计费，视频可能也扣了"
+
+#: src/ai/failCharge.ts
+msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
+msgid "画面 {count} 张已计费，视频没扣 token"
+msgstr "画面 {count} 张已计费，视频没扣 token"
 
 #: src/ai/failCharge.ts
 msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
@@ -29131,8 +29194,66 @@ msgstr "这一发扣的 token 没有退回——以「我的」页的 token 余�
 #. placeholder {0}: fmtTokens(quote.frame)
 #. placeholder {1}: fmtTokens(quote.video)
 #: src/studio/game/ui/GenSheet.tsx
-msgid "这一发按 token 结算（游戏券还没接）：画首帧约 {0}、出片约 {1}。远端模式下以服务器结算为准。"
-msgstr "这一发按 token 结算（游戏券还没接）：画首帧约 {0}、出片约 {1}。远端模式下以服务器结算为准。"
+msgid "这一发按 token 结算：本月的游戏券用完了（{resetDay} 号刷新，做任务也能领券）；画首帧约 {0}、出片约 {1}。远端模式下以服务器结算为准。"
+msgstr "这一发按 token 结算：本月的游戏券用完了（{resetDay} 号刷新，做任务也能领券）；画首帧约 {0}、出片约 {1}。远端模式下以服务器结算为准。"
+
+#. placeholder {0}: fmtTokens(quote.frame)
+#. placeholder {1}: fmtTokens(quote.video)
+#: src/studio/game/ui/GenSheet.tsx
+msgid "这一发按 token 结算（游戏券的余额还没读到）：画首帧约 {0}、出片约 {1}。远端模式下以服务器结算为准。"
+msgstr "这一发按 token 结算（游戏券的余额还没读到）：画首帧约 {0}、出片约 {1}。远端模式下以服务器结算为准。"
+
+#. placeholder {0}: fmtTokens(quote.frame)
+#. placeholder {1}: fmtTokens(quote.video)
+#: src/studio/game/ui/GenSheet.tsx
+#~ msgid "这一发按 token 结算（游戏券还没接）：画首帧约 {0}、出片约 {1}。远端模式下以服务器结算为准。"
+#~ msgstr "这一发按 token 结算（游戏券还没接）：画首帧约 {0}、出片约 {1}。远端模式下以服务器结算为准。"
+
+#. placeholder {0}: fmtTokens(quote.frame)
+#. placeholder {1}: fmtTokens(quote.video)
+#: src/studio/game/ui/GenSheet.tsx
+msgid "这一发按 token 结算（这台服务器没有开通游戏券）：画首帧约 {0}、出片约 {1}。远端模式下以服务器结算为准。"
+msgstr "这一发按 token 结算（这台服务器没有开通游戏券）：画首帧约 {0}、出片约 {1}。远端模式下以服务器结算为准。"
+
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "这一发按游戏券出片，可能已经花掉一张券——以游戏券剩余张数为准。"
+msgstr "这一发按游戏券出片，可能已经花掉一张券——以游戏券剩余张数为准。"
+
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "这一发按游戏券出片，可能已经花掉一张券；出片前画好的 {count} 张画面已按张计费（共 {paid} token）——以游戏券剩余张数为准。"
+msgstr "这一发按游戏券出片，可能已经花掉一张券；出片前画好的 {count} 张画面已按张计费（共 {paid} token）——以游戏券剩余张数为准。"
+
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "这一发按游戏券出片，扣的那张券没有退回——以游戏券剩余张数为准。"
+msgstr "这一发按游戏券出片，扣的那张券没有退回——以游戏券剩余张数为准。"
+
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "这一发按游戏券出片，扣的那张券没有退回；出片前画好的 {count} 张画面已按张计费（共 {paid} token）——以游戏券剩余张数为准。"
+msgstr "这一发按游戏券出片，扣的那张券没有退回；出片前画好的 {count} 张画面已按张计费（共 {paid} token）——以游戏券剩余张数为准。"
+
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "这一发按游戏券出片，没出成——扣的那张券会退回；出片前画好的 {count} 张画面已按张计费（共 {paid} token）。"
+msgstr "这一发按游戏券出片，没出成——扣的那张券会退回；出片前画好的 {count} 张画面已按张计费（共 {paid} token）。"
+
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "这一发按游戏券出片，没出成——扣的那张券会退回（以游戏券剩余张数为准）。"
+msgstr "这一发按游戏券出片，没出成——扣的那张券会退回（以游戏券剩余张数为准）。"
+
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "这一发按游戏券出片，没出成——扣的那张券已经退回；出片前画好的 {count} 张画面已按张计费（共 {paid} token）。"
+msgstr "这一发按游戏券出片，没出成——扣的那张券已经退回；出片前画好的 {count} 张画面已按张计费（共 {paid} token）。"
+
+#. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
+#: src/ai/failCharge.ts
+msgid "这一发按游戏券出片，没出成——扣的那张券已经退回。"
+msgstr "这一发按游戏券出片，没出成——扣的那张券已经退回。"
 
 #: src/data/videoJobs.ts
 msgid "这一发没出成"
@@ -29178,6 +29299,12 @@ msgstr "这一发没有扣 token，任务多半还在上游跑 —— 点「取�
 msgid "这一发没有扣 token。成片在受理之后 7 天内都取得回来（还剩 {rest}）——点「取回」把它领回来，不花钱；点「重新生成」是重新下一单。还在出片的话，隔一会儿再点一次。"
 msgstr "这一发没有扣 token。成片在受理之后 7 天内都取得回来（还剩 {rest}）——点「取回」把它领回来，不花钱；点「重新生成」是重新下一单。还在出片的话，隔一会儿再点一次。"
 
+#. placeholder {0}: ticket.tickets?.left ?? 0
+#. placeholder {1}: fmtTokens(quote.frame)
+#: src/studio/game/ui/GenSheet.tsx
+msgid "这一发用游戏券（剩余 {0}）：出片扣 {perGen} 张券、不扣 token；画首帧照旧按 token 结算（约 {1}）。远端模式下以服务器结算为准。"
+msgstr "这一发用游戏券（剩余 {0}）：出片扣 {perGen} 张券、不扣 token；画首帧照旧按 token 结算（约 {1}）。远端模式下以服务器结算为准。"
+
 #: src/components/TemplateShelf.tsx
 msgid "这一发白模化已经取不回来了"
 msgstr "这一发白模化已经取不回来了"
@@ -29185,6 +29312,10 @@ msgstr "这一发白模化已经取不回来了"
 #: src/data/templates.ts
 msgid "这一发白模化预估要 {price} token（看帧认人 + 一次真实付费出片），余额不够——去「我的」页充值后再回来，框选不会丢。"
 msgstr "这一发白模化预估要 {price} token（看帧认人 + 一次真实付费出片），余额不够——去「我的」页充值后再回来，框选不会丢。"
+
+#: src/studio/game/reasons.ts
+msgid "这一发的游戏券不够了：本月的券已经用光，{day} 号刷新（做任务也能领券）——也可以改成按 token 出片。这一次没有受理，也没有扣费。"
+msgstr "这一发的游戏券不够了：本月的券已经用光，{day} 号刷新（做任务也能领券）——也可以改成按 token 出片。这一次没有受理，也没有扣费。"
 
 #: src/ai/real.ts
 msgid "这一发的状态暂时查不到（{why}）——联网后再点一次「取回」，凭据还在，也不花钱"
@@ -29604,6 +29735,10 @@ msgstr "这一档暂时报不出价，换个档位再试"
 #: src/ai/arkClient.ts
 msgid "这一档用的模型已经停止服务了，请换一档再出片——这一次没有受理，也没有扣费。"
 msgstr "这一档用的模型已经停止服务了，请换一档再出片——这一次没有受理，也没有扣费。"
+
+#: src/studio/game/reasons.ts
+msgid "这一档要会员套餐（或充值过任意一笔）才给用——游戏券只顶出片那笔钱，不能把会员档打开；换回「草稿」档再出片。这次没有扣券。"
+msgstr "这一档要会员套餐（或充值过任意一笔）才给用——游戏券只顶出片那笔钱，不能把会员档打开；换回「草稿」档再出片。这次没有扣券。"
 
 #. 一句完整的、自带句号的话，会被当占位符（keep）接在下载失败原因后面：译文首尾不要留空格
 #: src/data/appUpdate.ts
@@ -30818,6 +30953,10 @@ msgstr "这台服务器不支持识别角色位（回包形状不对，可能需
 #: src/data/account.ts
 msgid "这台服务器出片只接了 {via}"
 msgstr "这台服务器出片只接了 {via}"
+
+#: src/studio/game/reasons.ts
+msgid "这台服务器暂时关掉了游戏券出片——这一发没有受理、也没有扣费；改成按 token 出片再试。"
+msgstr "这台服务器暂时关掉了游戏券出片——这一发没有受理、也没有扣费；改成按 token 出片再试。"
 
 #: src/ai/minimaxVideo.ts
 msgid "这台服务器没有开 MiniMax H3 出片——先换一档出片"

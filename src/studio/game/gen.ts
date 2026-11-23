@@ -10,14 +10,12 @@
  * ★ 对局的卡没有形象图、也没有 idLine（rules.CARD_LIBRARY 只有 type/quality/name）——
  *   所以这些段是**纯文字出片**：靠卡名 + 提示词，不往模型塞图。等卡片库接进来（卡上有图 / 有 idLine）
  *   时这里一个字都不用改（gameMaterialOf 补两位即可）。
- * ★ 档位：rules 只回「哪一档 + 多少 p」（零依赖，不认识 data）；id 的翻译在这里，写法与快速模式
- *   同一份（tierOf + tierOfPreferred + tierOffered）：**这台机器给得出 MiniMax 就用它**
- *   （2026-11-19 真机：同一张写实人像首帧 Seedance 侧整发拒、H3 Lite 收）。
+ * ★ 档位：rules 只回「哪一档 + 多少 p」（零依赖，不认识 data）；id 的翻译在 ./genTier 一处
+ *   （L1 → `draft-mm` / L2 → `hd-mm` / L3 → `ultra-mm`，这台机器给不出 MiniMax 时各自回落），
+ *   依据与实测在 docs/g2-game-ui.md §4 与 genTier 的文件头。
  */
 import type { Card as StudioCard } from "../../types";
 import { DEFAULT_ASPECT, uid } from "../../types";
-import { tierOf } from "../../data/economy";
-import { tierOffered, tierOfPreferred } from "../../data/account";
 import {
   appendedNode,
   chosenOf,
@@ -28,35 +26,8 @@ import {
   type FlowNode,
 } from "../flowStore";
 import { castCardsOf } from "./rules";
-import type { GameGenerationTier, GamePlayer } from "./types";
-
-/**
- * rules 的档位（draft / hd / cinema）→ 档位表的**系列 id**。
- * ★ "cinema" 在档位表里没有同名的 id：1080p 只存在于 `ultra` 的「样片 → 定稿」第二步
- *   （docs/g2-game-ui.md §4 第 3 条的结论），所以 L3 落在 `ultra`。写死成表，别在调用点三元。
- */
-const TIER_FAMILY: Record<GameGenerationTier["tier"], string> = {
-  draft: "draft",
-  hd: "hd",
-  cinema: "ultra",
-};
-
-/**
- * 这一发按哪个 tierId 出片（规则层的档位名 → 这台机器摆得出来的那一档）。
- * ★ 与快速模式 `previewTierId` 逐字同源：优先这个地区给得出的 MiniMax 同档，给不出就用原名那一档。
- */
-export function gameTierIdOf(tier: GameGenerationTier["tier"]): string {
-  const base = tierOf(TIER_FAMILY[tier]);
-  const mm = tierOfPreferred(base, "minimax");
-  return tierOffered(mm) ? mm.id : base.id;
-}
-
-/** rules.generationTierOf 的等价读法（只要档位名这一格；玩家等级 → draft / hd / cinema）。 */
-export function gameTierOf(player: GamePlayer): GameGenerationTier["tier"] {
-  if (player.modelLevel === 3) return "cinema";
-  if (player.modelLevel === 2) return "hd";
-  return "draft";
-}
+import { genTierIdOf } from "./genTier";
+import type { GamePlayer } from "./types";
 
 /** 对局的卡 → 出片素材卡（只有名字：见文件头 ★；对局三种卡映射到卡片库的卡种）。 */
 export function gameMaterialOf(card: { id: string; type: "role" | "scene" | "item"; name: string }): StudioCard {
@@ -86,7 +57,7 @@ export function gameSegmentSpec(player: GamePlayer, prompt: string, round: numbe
     chosenId: proposalId,
     materials,
     requirement: prompt,
-    videoTier: gameTierIdOf(gameTierOf(player)),
+    videoTier: genTierIdOf(player),
     aspect: DEFAULT_ASPECT,
     chain: false,
     gameRound: round,
