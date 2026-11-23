@@ -4576,6 +4576,11 @@ msgstr "0/{0} 段"
 msgid "① 传视频 / 写提示词"
 msgstr "① 传视频 / 写提示词"
 
+#. placeholder {0}: fmtTokens(frameCostOf(i))
+#: src/pages/QuickModePage.tsx
+msgid "① 先画首帧（{0}）"
+msgstr "① 先画首帧（{0}）"
+
 #: src/components/flow/ModePicker.tsx
 msgid "① 先选出片模型"
 msgstr "① 先选出片模型"
@@ -4612,6 +4617,11 @@ msgstr "1K 贴图 · 4 万面 · 加载最快（她 0.9MB／他 0.8MB）· 老�
 #: src/components/TemplateCreateCard.tsx
 msgid "② 做成模板"
 msgstr "② 做成模板"
+
+#. placeholder {0}: fmtTokens(priceOf(i))
+#: src/pages/QuickModePage.tsx
+msgid "② 出片（{0}）"
+msgstr "② 出片（{0}）"
 
 #. placeholder {0}: CARD_TYPE_LABELS[type]
 #. placeholder {1}: slots.length
@@ -8094,6 +8104,10 @@ msgstr "先画双人镜头，再照着它画两个过肩（地方、光线、两
 msgid "先画双人镜头…"
 msgstr "先画双人镜头…"
 
+#: src/pages/QuickModePage.tsx
+msgid "先画首帧看一眼：满意了再出片，不满意就在同一颗键上换一张 —— 这样首帧不对时不用等视频出来才发现。"
+msgstr "先画首帧看一眼：满意了再出片，不满意就在同一颗键上换一张 —— 这样首帧不对时不用等视频出来才发现。"
+
 #: src/components/flow/ModePicker.tsx
 msgid "先看关键画面"
 msgstr "先看关键画面"
@@ -9031,9 +9045,7 @@ msgstr "出片、出图、铸卡、解锁付费作品，扣的都是它。<0>套
 #~ msgid "出片、出图、铸卡、解锁付费作品，扣的都是它。点开看余额、买套餐或直充 ——<0>套餐额度先扣（付费套餐按月给，免费版每天补一点），直充和新人额度不过期</0>。"
 #~ msgstr "出片、出图、铸卡、解锁付费作品，扣的都是它。点开看余额、买套餐或直充 ——<0>套餐额度先扣（付费套餐按月给，免费版每天补一点），直充和新人额度不过期</0>。"
 
-#. placeholder {0}: fmtTokens(priceOf(i))
 #. placeholder {0}: priceTag(cost)
-#: src/pages/QuickModePage.tsx
 #: src/pages/SimpleModePage.tsx
 msgid "出片（{0}）"
 msgstr "出片（{0}）"

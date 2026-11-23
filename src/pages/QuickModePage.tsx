@@ -23,7 +23,7 @@ import DiscardFlowDialog from "../components/flow/DiscardFlowDialog";
 import { installSharedCard, myCards, tierOffered, tierOfPreferred } from "../data/account";
 import { listSharedCards, type ApiSharedCard } from "../api/branch";
 import { CHAT_TURN_TOKENS, fmtTokens, priceTag, providerOf, tierOf } from "../data/economy";
-import { useFlow, flowDirty, nodeCost, nodeDone, chosenOf } from "../studio/flowStore";
+import { useFlow, flowDirty, nodeCost, nodeDone, chosenOf, redrawCost } from "../studio/flowStore";
 import { shotPlanNodes } from "../studio/structuredSkills";
 import { useLeadDraft, toggleCast } from "../studio/leadDraftStore";
 import { saveVoice, subscribeVoices, voiceOf, voicesVersion, VOICE_MAX_SEC, VOICE_MIN_SEC } from "../data/cardVoice";
@@ -241,6 +241,14 @@ export default function QuickModePage() {
   const err = d.err || (d.step === "preview" || d.step === "cut" ? flowErr : "");
   const allDone = nodes.length > 0 && nodes.every(nodeDone);
   const priceOf = (i: number, tierOverride?: string) => nodeCost(nodes, i, mode, tierOverride);
+  /** 只画首帧的价（与 regenProposal 内部报价同一份 redrawCost，含"承接上一段时不画"的规则） */
+  const frameCostOf = (i: number) => {
+    const n = nodes[i];
+    const p = n ? chosenOf(n) : null;
+    if (!n || !p) return 0;
+    const prev = i > 0 ? chosenOf(nodes[i - 1]) : null;
+    return redrawCost(n, p, prev);
+  };
   /** 定稿档在这一刻是什么（跟着预览那一家走，见文件头的 finalTierId） */
   const fin = finalTierId();
   const finLabel = tierOf(fin).label;
@@ -513,6 +521,7 @@ export default function QuickModePage() {
           <p className="text-sm text-slate-300"><Trans>逐段看样片，不满意的重抽</Trans></p>
           <p className="mt-1 text-[11px] leading-relaxed text-slate-500">
             <Trans>先用便宜档（480p）出样片；勾中的段之后会按 {finLabel} 重出，画面会有变化。</Trans>
+            <Trans>先画首帧看一眼：满意了再出片，不满意就在同一颗键上换一张 —— 这样首帧不对时不用等视频出来才发现。</Trans>
           </p>
           <ol className="mt-3 space-y-2">
             {nodes.map((n, i) => {
@@ -567,13 +576,25 @@ export default function QuickModePage() {
                         </button>
                       </>
                     )}
-                    {!done && (
+                    {/* ★ 2026-11-22 阶段 A：**先画首帧、人看过再出片**。原来一颗键直接把帧和视频一起发出去 ——
+                        首帧不对时只能等视频出来再重抽（真机上等了 5 分钟才知道被审核拒）。
+                        首帧还没有时这颗键只画帧（走 regenProposal，报价与它同一份），画完再出片。 */}
+                    {!done && !poster && (
+                      <button
+                        onClick={() => void useFlow.getState().regenProposal(n.id)}
+                        disabled={busy || drawing}
+                        className="rounded-full bg-panel px-3 py-1.5 text-[11px] text-brand ring-1 ring-brand/50 disabled:opacity-40"
+                      >
+                        {t`① 先画首帧（${fmtTokens(frameCostOf(i))}）`}
+                      </button>
+                    )}
+                    {!done && !!poster && (
                       <button
                         onClick={() => void useFlow.getState().genNode(n.id)}
                         disabled={busy || drawing}
                         className="rounded-full bg-panel px-3 py-1.5 text-[11px] text-slate-200 ring-1 ring-slate-700 disabled:opacity-40"
                       >
-                        {t`出片（${fmtTokens(priceOf(i))}）`}
+                        {t`② 出片（${fmtTokens(priceOf(i))}）`}
                       </button>
                     )}
                     {done && (
