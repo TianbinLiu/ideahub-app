@@ -3555,6 +3555,13 @@ export async function composeSegments(
    *   那是一个**看得见的决定**，不是一次遗漏。
    */
   onTask: (taskId: string, index: number) => void,
+  /**
+   * 这一批出片用什么币种结算（G4 收尾，2026-11-23）。`payWithTicket` = 每一发的**视频请求**带 `X-Game-Ticket: 1`：
+   * 服务端按请求扣一张券、token 钱包一分不动。补画的设定帧、转存那一发**不带**（券只认视频，出图带了会被 400 拒）。
+   * ★ 按「一发一张券」的协议：一批里如果有多段，每一段各扣一张（服务端按请求扣）——
+   *   今天只有对局传它，而对局一次只铺一段（gameSegmentSpec 一段一回合），所以不会有人被悄悄多扣。
+   */
+  opts?: { payWithTicket?: boolean },
 ): Promise<SegmentResult[]> {
   const out: SegmentResult[] = [];
   // 衔接判定要对照"原始设定帧"：后面会用真实尾帧顶替首帧，不能拿改过的值比
@@ -3613,6 +3620,7 @@ export async function composeSegments(
           durationSec: sg.durationSec,
           onTask: (taskId) => onTask?.(taskId, i),
           onProgress: progOf(tier.id),
+          payWithTicket: opts?.payWithTicket,
         });
         res.url = url3;
         await captureInto(url3);
@@ -3635,6 +3643,7 @@ export async function composeSegments(
           // ★ 受理回调必须给：不给就没有凭据，"没接到结果"那一支等于不存在
           //   （与方舟那条同一条约定，见 minimaxVideo 的 onTask）
           onTask: (taskId) => onTask?.(taskId, i),
+          payWithTicket: opts?.payWithTicket,
         });
         res.url = url2;
         await captureInto(url2);
@@ -3690,6 +3699,7 @@ export async function composeSegments(
           onProgress: progOf(tier.id),
           // ★ 受理回调必须给（同上两支）：不给就没有凭据，"没接到结果"那一支等于不存在
           onTask: (taskId) => onTask?.(taskId, i),
+          payWithTicket: opts?.payWithTicket,
         });
         // ★ 拿到的是 MiniMax 的临时地址（有时效）：先换成永久地址，再截帧（截帧走 Cloudinary 抽帧那条快路）
         res.url = await permanentVideoUrl(url4, progOf(tier.id));
@@ -3725,6 +3735,8 @@ export async function composeSegments(
         ratio: aspectOf(sg.aspect).ratio,
         onTask: (taskId) => onTask?.(taskId, i),
         onProgress: progOf(tier.id),
+        // 这一发用游戏券（G4 收尾）：只有创建任务那一发带 X-Game-Ticket（出图带不了、也不该带）
+        payWithTicket: opts?.payWithTicket,
       });
       // 视频较大（数 MB），存 URL 而非 dataURL——localStorage 放不下 base64 视频；
       // 方舟 URL 24h 有效，超时后播放器自动回退首尾帧渐变

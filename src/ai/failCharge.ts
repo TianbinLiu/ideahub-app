@@ -61,6 +61,12 @@ export interface FailCharge {
   video: boolean;
   /** tier = refunded 时服务端说退了多少（服务端的数，不是本机报价）；0 = 服务端没给数 */
   refunded: number;
+  /**
+   * 这一发**用游戏券**结算（G4 收尾；flowStore.genNode 的 ticketOn）：券不进 token 钱包，
+   * 所以视频那一笔的钱上那句话按"券 / 张"说（`ticketVideoChargeNote`），不能说"扣了 X token"。
+   * ★ 出片前画好的画面照旧按张（那是真的 token）—— 两笔分开说。
+   */
+  ticket: boolean;
 }
 
 /**
@@ -78,7 +84,9 @@ export interface FailCharge {
  *   syncWalletFromHeaders 没机会跑），不刷的话「我的」页上那个数还是扣之前的 —— 而我们正要用户去看它。
  *   放在这里而不是留给调用点：漏掉它没有任何症状。charged 与 paidBefore 那几发都拿到过 2xx，余额已经随响应头同步过。
  */
-export function chargeOnFail(e: unknown): FailCharge {
+export function chargeOnFail(e: unknown, opts?: { ticket?: boolean }): FailCharge {
+  // 券只可能出现在**视频**那一发上（补画的画面不带券头）：传了 ticket 就记下来，钱上的句子据此换名词
+  const ticket = opts?.ticket === true;
   // 外面那层壳：逐格出图（同一种调用）/ 一段出片（前面是画面、失败的是视频或其中一张画面）。拆一层就够 —— 两种壳不互相套
   const frames = e instanceof SegmentGenFailed;
   const failure = e instanceof ArkBatchPartial || e instanceof SegmentGenFailed ? e.failure : e;
@@ -99,26 +107,26 @@ export function chargeOnFail(e: unknown): FailCharge {
   // 离线：失败的这一发没扣；之前那几发只算调用方收下、并按张记进本机账本的那几张（见 paidBefore 的 ★）——
   // 逐格出图是画好的全部（settledBefore），一段出片是随错误带出来、genNode 真记上账的那几张（keptCharged —— 不是 kept 的张数：记没记上还要看
   // 演示构建、换没换账号、本机余额够不够，屏幕上说的只能是真扣了的）
-  if (!isRemoteMode()) return { shape, tier: "none", paidBefore: frames ? e.keptCharged : settled, video, refunded: 0 };
-  if (billingExempt()) return { shape, tier: "none", paidBefore: 0, video, refunded: 0 };
+  if (!isRemoteMode()) return { shape, tier: "none", paidBefore: frames ? e.keptCharged : settled, video, refunded: 0, ticket };
+  if (billingExempt()) return { shape, tier: "none", paidBefore: 0, video, refunded: 0, ticket };
   if (shape === "noReply") void refreshRemoteWallet();
   if (failure instanceof ArkTaskFailed) {
     const r = failure.refund;
     if (r?.state === "refunded" || r?.state === "refunding") {
       // ★ 退款发生在服务端：钱包镜像**只**从服务端读（这一发轮询的响应头多半已经带回来了；清扫器早先退的那种没有，刷一次）
       void refreshRemoteWallet();
-      return { shape, tier: r.state, paidBefore: settled, video, refunded: r.state === "refunded" ? r.tokens : 0 };
+      return { shape, tier: r.state, paidBefore: settled, video, refunded: r.state === "refunded" ? r.tokens : 0, ticket };
     }
     // 服务端说这一发本来就没扣（管理员免单 / 一分没扣）
-    if (r?.state === "skipped") return { shape, tier: "none", paidBefore: settled, video, refunded: 0 };
+    if (r?.state === "skipped") return { shape, tier: "none", paidBefore: settled, video, refunded: 0, ticket };
     // ★ 其余一律「已计费、没退」：服务端没说（老服务端不退 / 上线之前的任务）、还没结局（真人档退款开关关着）、问不出结局。
     //   往吓人的方向说错是可以接受的那一边：钱真退了的话，余额与站内通知会说话；把没退说成退了才是不可接受的
-    return { shape, tier: "charged", paidBefore: settled, video, refunded: 0 };
+    return { shape, tier: "charged", paidBefore: settled, video, refunded: 0, ticket };
   }
   // ★ 出片地区（403 REGION_UNAVAILABLE，2026-10-26）：照服务端回包的 billed 说 —— 出片与真人档这两条路被拦恒为没扣（门禁在扣钱之前），
   //   所以它平常与下面「服务端明说失败 = 没扣」那一档结论相同；单列出来是为了不靠「所有 403 都没扣」这个巧合：哪天哪条路回了 billed:true，这里照实说已计费
   if (failure instanceof ArkRegionDenied) {
-    return { shape, tier: failure.billed ? "charged" : "none", paidBefore: settled, video, refunded: 0 };
+    return { shape, tier: failure.billed ? "charged" : "none", paidBefore: settled, video, refunded: 0, ticket };
   }
   return {
     shape,
@@ -126,6 +134,7 @@ export function chargeOnFail(e: unknown): FailCharge {
     paidBefore: settled,
     video,
     refunded: 0,
+    ticket,
   };
 }
 
@@ -165,7 +174,7 @@ export interface ChargeNote {
  */
 export function chargeNote(c: FailCharge, unitTokens: number): ChargeNote | null {
   // 视频那一发（受理之后失败 / 出片前画过画面）另有一套话：前面那几张按出图的价、退款按服务端的数
-  if (c.video) return videoChargeNote(c, unitTokens);
+  if (c.video) return c.ticket ? ticketVideoChargeNote(c) : videoChargeNote(c, unitTokens);
   const price = fmtTokens(unitTokens);
   if (c.paidBefore === 0) {
     if (c.tier === "maybe") {
@@ -202,10 +211,80 @@ export function chargeNote(c: FailCharge, unitTokens: number): ChargeNote | null
 }
 
 /**
+ * 带**游戏券**的那一发失败时钱上的那句话（G4 收尾，2026-11-23；chargeNote 的视频那一半在 c.ticket 时走这里）。
+ *
+ * ★★ 为什么不能复用 videoChargeNote：那里的名词是 token —— 券**买不到、转不了、没有汇率**（服务端 T1），
+ *   说「扣的 X token 已经退回」是一句假话（钱包一分没动）；说「已计费 X token」更是把券当钱了。
+ *   所以这一支只按"券 / 张"说，一个金额都不带；出片前画好的画面照旧按张（那几笔是真的 token）—— 两笔分开说。
+ * ★ 券的退款结论读的还是服务端那句 `ArkTaskFailed.refund.state`（TaskRefund 对券那一笔 tokens: 0，所以这里不读数）。
+ */
+function ticketVideoChargeNote(c: FailCharge): ChargeNote | null {
+  const count = c.paidBefore;
+  const paid = fmtTokens(count * IMAGE_TOKENS);
+  if (c.tier === "refunded") {
+    if (count === 0) {
+      return {
+        line: t({ message: "这一发按游戏券出片，没出成——扣的那张券已经退回。", comment: "一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格" }),
+        brief: t({ message: "券已退回", context: "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）" }),
+      };
+    }
+    return {
+      line: t({ message: `这一发按游戏券出片，没出成——扣的那张券已经退回；出片前画好的 ${count} 张画面已按张计费（共 ${paid} token）。`, comment: "一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格" }),
+      brief: t({ message: `券已退回，画面 ${count} 张已计费`, context: "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）" }),
+    };
+  }
+  if (c.tier === "refunding") {
+    if (count === 0) {
+      return {
+        line: t({ message: "这一发按游戏券出片，没出成——扣的那张券会退回（以游戏券剩余张数为准）。", comment: "一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格" }),
+        brief: t({ message: "券会退回", context: "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）" }),
+      };
+    }
+    return {
+      line: t({ message: `这一发按游戏券出片，没出成——扣的那张券会退回；出片前画好的 ${count} 张画面已按张计费（共 ${paid} token）。`, comment: "一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格" }),
+      brief: t({ message: `券会退回，画面 ${count} 张已计费`, context: "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）" }),
+    };
+  }
+  if (c.tier === "charged") {
+    // 受理之后失败、服务端没说退（或 2xx 之后才坏）：照实说券没回来，指去券数核对（不指钱包）
+    if (count === 0) {
+      return {
+        line: t({ message: "这一发按游戏券出片，扣的那张券没有退回——以游戏券剩余张数为准。", comment: "一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格" }),
+        brief: t({ message: "券没有退回", context: "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）" }),
+      };
+    }
+    return {
+      line: t({ message: `这一发按游戏券出片，扣的那张券没有退回；出片前画好的 ${count} 张画面已按张计费（共 ${paid} token）——以游戏券剩余张数为准。`, comment: "一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格" }),
+      brief: t({ message: `券没有退回，画面 ${count} 张已计费`, context: "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）" }),
+    };
+  }
+  if (c.tier === "maybe") {
+    // 没等到回包：服务端那一发可能已经扣了券（钱上的判定照旧"可能"，只是名词换成券）
+    if (count === 0) {
+      return {
+        line: t({ message: "这一发按游戏券出片，可能已经花掉一张券——以游戏券剩余张数为准。", comment: "一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格" }),
+        brief: t({ message: "可能已经花掉一张券", context: "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）" }),
+      };
+    }
+    return {
+      line: t({ message: `这一发按游戏券出片，可能已经花掉一张券；出片前画好的 ${count} 张画面已按张计费（共 ${paid} token）——以游戏券剩余张数为准。`, comment: "一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格" }),
+      brief: t({ message: `券可能已花掉，画面 ${count} 张已计费`, context: "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）" }),
+    };
+  }
+  // none：视频那一发用的是券、没扣 token（服务端在扣券之前就拒了：券不够 / 券关着 / 会员档 / 地区）
+  if (count === 0) return null;
+  return {
+    line: t({ message: `出片前画好的 ${count} 张画面已按张计费（共 ${paid} token）；视频那一发用的是游戏券，没扣 token。`, comment: "一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格" }),
+    brief: t({ message: `画面 ${count} 张已计费，视频没扣 token`, context: "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）" }),
+  };
+}
+
+/**
  * 一段**视频**失败时钱上的那句话（chargeNote 的视频那一半，2026-10-07）。
  * @param videoTokens 这一段视频的报价（只在「可能扣了 / 已计费」两句里用；退款的数一律用服务端的 c.refunded，不拿本机报价顶）
  * ★ 出片之前画好的画面（c.paidBefore 张）按出图单价 IMAGE_TOKENS 报：它们各自结算过，视频退了也退不到它们头上 ——
  *   只说「已退回」会把退款说大（主人拍板的「失败返回 token」管的是视频那一发）。
+ * ★ 这一支说 token；**带券的视频那一发不走这里**（c.ticket → ticketVideoChargeNote，券不是钱）。
  */
 function videoChargeNote(c: FailCharge, videoTokens: number): ChargeNote | null {
   const count = c.paidBefore;

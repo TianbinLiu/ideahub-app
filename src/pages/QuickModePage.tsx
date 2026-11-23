@@ -20,7 +20,7 @@ import Warn from "../components/Warn";
 import StepDots from "../components/StepDots";
 import CastPicker from "../components/flow/CastPicker";
 import DiscardFlowDialog from "../components/flow/DiscardFlowDialog";
-import { installSharedCard, myCards, tierOffered, tierOfPreferred } from "../data/account";
+import { installSharedCard, myCards, preferredTierIdOf } from "../data/account";
 import { listSharedCards, type ApiSharedCard } from "../api/branch";
 import { CHAT_TURN_TOKENS, fmtTokens, priceTag, providerOf, tierOf } from "../data/economy";
 import { useFlow, flowDirty, nodeCost, nodeDone, chosenOf, redrawCost } from "../studio/flowStore";
@@ -41,12 +41,12 @@ import type { Card } from "../types";
  *   `reference_image` 判「真人照片」整发拒；MiniMax H3 Lite 同一条走通了，而且更便宜
  *   （5s 竖屏 82.7k vs 103.7k）。所以预览**优先走 MiniMax 草稿**，这台机器没有
  *   MiniMax 那几档时回落 Seedance 草稿。
+ * ★ 这条"优先 MiniMax、给不出就回落"的两行式收在 account.preferredTierIdOf 一处（对局 genTier 也读它）：
+ *   原来这里与那边各写一份，偏好规则一变就会一处的写实卡能出片、另一处又被拒，零报错。
  */
 const PREVIEW_TIER_BASE = "draft";
 function previewTierId(): string {
-  const base = tierOf(PREVIEW_TIER_BASE);
-  const mm = tierOfPreferred(base, "minimax");
-  return tierOffered(mm) ? mm.id : base.id;
+  return preferredTierIdOf(PREVIEW_TIER_BASE, "minimax");
 }
 /**
  * 定稿档（原来写死 1080p 的「电影级」）。
@@ -57,9 +57,7 @@ function previewTierId(): string {
  */
 const FINAL_TIER_BASE = "ultra";
 function finalTierId(): string {
-  const provider = providerOf(previewTierId());
-  const t = tierOfPreferred(tierOf(FINAL_TIER_BASE), provider);
-  return tierOffered(t) ? t.id : FINAL_TIER_BASE;
+  return preferredTierIdOf(FINAL_TIER_BASE, providerOf(previewTierId()));
 }
 const STEP_LABEL: Record<QuickStep, MessageDescriptor> = {
   idea: msg`想法`,

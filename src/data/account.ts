@@ -19,6 +19,9 @@ import { adoptRemoteAssets, assetOf, claimLegacyAssets, hasAsset, removeAsset, s
 import { PLANS, PLATFORM_CUT, VIDEO_TIERS, apiCase, blockoutBlockOf, blockoutPriceIssue, fmtTokens, joinTierNames, modelLabel, planOf, providerOf, r2vBlockOf, r2vPriceIssue, tierModelId, tierModelLabel, tierOf, tierRetireDay, tierRetired, type R2vScope, type VideoTier } from "./economy";
 import { cardInputOf, modelsOfTiers, type VideoModelOf } from "./cardFit";
 import { serverFreeVideo, serverSupports, subscribeServerCaps } from "./serverCaps";
+// 工坊游戏券（G4 收尾）：canAfford 认券 —— 券由服务端扣、不进 token 钱包，所以"余额不够"这一条对带券的那一发不该拦。
+// ★ 方向：account → gameTickets 单向（gameTickets 反过来 import account 会成环，那边文件头也钉着）
+import { canPayWithTicket } from "./gameTickets";
 import { minimaxV2Offered, minimaxV2Unsettled, refreshVideoZone, subscribeVideoZone, videoZone, zoneDenies, zoneIsRegional, type VideoProvider } from "./videoZone";
 import { stepAsideOf, tierGoOf } from "./videoZoneRules";
 import { providerPref } from "./videoProvider";
@@ -868,6 +871,10 @@ function nudgeWallet(): void {
 
 /**
  * 余额是否够付 n token。
+ * @param opts.ticket 这一发明说**用游戏券**（对局出片，G4 收尾）：镜像里确实有券时直接放行 —— 券走服务端扣、不进 token 钱包，
+ *   拿 token 余额去拦它就是"明明有券却说不够"（与管理员那条反向假特权同一个形状）。
+ *   ★ 必须由调用方**明说**：无条件「有券就放行」会让任何非对局的付费调用跳过余额预检、飞到服务端吃 402。
+ *   ★ 冻结（退款欠额）照旧拦：服务端 preAuthorizeTicket 也拿它挡券（券不花钱，但券换来的是我们付给上游的钱）。
  * ★ 远端模式下这是**乐观判断**：镜像还没取到（null）时一律放行，让请求打出去，
  *   由服务端回 402 说了算。宁可多一次往返，也不能因为镜像慢了半拍就把功能锁死
  *   ——那会表现成"明明有余额却说不够"，而且刷新也好不了。
@@ -913,7 +920,7 @@ export function frozenNote(): string | null {
   return f ? frozenLine(f.debt) : null;
 }
 
-export function canAfford(n: number): boolean {
+export function canAfford(n: number, opts?: { ticket?: boolean }): boolean {
   if (billingExempt()) return true;
   // ★★ 冻结也要在这里拦（2026-09-25 评审）：`walletFrozen()` 原来只接进 TokenCost 与
   //   balanceNote 两处**文案**，而全 app 有 19+ 处预检走的是 canAfford ——
@@ -922,6 +929,8 @@ export function canAfford(n: number): boolean {
   //   工坊铸卡师那条链路的 403 还会落进「（指尖停在桌沿）走神了」这种兜底台词，
   //   用户完全不知道发生了什么。
   if (walletFrozen()) return false;
+  // 对局出片带券：券由服务端扣、不进 token 钱包 —— 余额门禁对这一发不该拦（见上面的 @param opts.ticket）
+  if (opts?.ticket && canPayWithTicket()) return true;
   if (remoteOn()) {
     if (!currentUser()) return false;
     if (!remoteWallet) return true; // 还不知道，交给服务端判
@@ -1280,6 +1289,20 @@ export function tierOfPreferred(tier: VideoTier, provider = providerPref()): Vid
   if (providerOf(tier.id) === provider) return tier;
   const twin = tierTwin(tier);
   return twin && providerOf(twin.id) === provider ? twin : tier;
+}
+
+/**
+ * 「同一颗芯片的另一家，只要这台机器摆得出来就用它」—— 基准行 id → 真正发出去的那一档 id。
+ * ★ 这条两行式（`tierOfPreferred` + `tierOffered` 判可用）此前在**快速模式**（QuickModePage.previewTierId / finalTierId）
+ *   与**对局**（studio/game/genTier）各写了一份：两处要的是同一件事（2026-11-19 真机：写实人像首帧 Seedance 侧整发拒、
+ *   H3-Lite 收），各写一份的后果是"哪天偏好规则变了，一处的写实卡能出片、另一处又被拒"，零报错。收在这里一份。
+ * ★ 给不出（没接 MiniMax 的服务端 / 这个地区不给 / V2 没开）就原样回基准行 —— 界面负责说清那一刻的代价。
+ * @param provider 想要哪一家（缺省 minimax：那三行是不要求认证素材、又能挂写实卡的那一份）
+ */
+export function preferredTierIdOf(baseId: string, provider: VideoProvider = "minimax"): string {
+  const base = tierOf(baseId);
+  const twin = tierOfPreferred(base, provider);
+  return tierOffered(twin) ? twin.id : base.id;
 }
 
 // ── 「哪个出片模型」怎么写（2026-10-26 出片地区 · 主人第 2 件：卡片信息写具体模型名，并按地区只列给得出的）──

@@ -67,6 +67,15 @@ export interface ServerCaps {
    * 读它的只有 account.tierTextOnly（唯一判据）。
    */
   minimaxV2FreeTextOnly: boolean;
+  /**
+   * 工坊游戏券（G4 收尾，2026-11-23；服务端 server#155）：有 `GET /api/game/tickets`，出片路由认 `X-Game-Ticket: 1`
+   * （扣一张券、token 钱包一分不动）。读不到这一位 = 老服务端 / dev 直连方舟 / 离线演示包 ⇒ data/gameTickets
+   * **一个请求都不发**、界面不摆券数，出片按 token 交付（与改版前逐字节相同）。
+   * ★ 这一位与「不知道 = 放行」的那几位口径相反（见 data/gameTicketRules.gameTicketModeOf）：
+   *   券是"扣钱"的币种，把"不知道"当"有券"会让界面写着「用券」、服务端却扣了 token（钱上的话与事实相反）；
+   *   当"没有"的代价只是少摆一格、多花一次 token（报价在屏上，用户看得见）。
+   */
+  gameTickets: boolean;
 }
 
 /** 布尔的那几位（serverSupports 只答这几样） */
@@ -82,7 +91,8 @@ export type BoolCap =
   | "ipRegion"
   | "templateReward"
   | "minimaxV2"
-  | "minimaxV2FreeTextOnly";
+  | "minimaxV2FreeTextOnly"
+  | "gameTickets";
 
 /** 健康端点的 JSON → ServerCaps（形状不对的位一律按「没有」）。**唯一解析处** */
 function capsOf(j: Record<string, unknown>): ServerCaps {
@@ -106,6 +116,7 @@ function capsOf(j: Record<string, unknown>): ServerCaps {
     templateReward: j.templateReward === true,
     minimaxV2: j.minimaxV2 === true,
     minimaxV2FreeTextOnly: j.minimaxV2FreeTextOnly !== false,
+    gameTickets: j.gameTickets === true,
   };
 }
 
@@ -128,6 +139,7 @@ const NONE: ServerCaps = {
   templateReward: false,
   minimaxV2: false,
   minimaxV2FreeTextOnly: true,
+  gameTickets: false,
 };
 /**
  * 直连 / 离线：没有服务端那一层，能力全在；免费档清单按档位表（freeVideo null）。
@@ -135,6 +147,7 @@ const NONE: ServerCaps = {
  *   而失败上报是**发给服务端的一条请求** —— 没有服务端就没有可报的地方，dev 里的渲染错也不该往任何地方发。
  *   videoZone 同理（data/videoZone 本来也不在直连 / 离线时问）：dev 的出片不经服务端、没有地区门禁，地区当「不知道」照老样子摆。
  *   minimaxV2 同理（2026-10-26）：H3 只经服务端的 /api/minimax/v2 出片（MiniMax 的 key 在服务端），dev 直连方舟、离线走 mock 都没有它 —— 三档不摆。
+ *   gameTickets 同理（G4 收尾）：dev 的 /api/ark 由 vite 代理直连方舟、不经服务端计费，也没有 /api/game/tickets —— 券没有可扣的地方。
  */
 const ALL: ServerCaps = {
   res480: true,
@@ -151,6 +164,7 @@ const ALL: ServerCaps = {
   templateReward: false,
   minimaxV2: false,
   minimaxV2FreeTextOnly: true,
+  gameTickets: false,
 };
 const listeners = new Set<() => void>();
 

@@ -27,6 +27,8 @@ import { maxTimecodeSec, textTplSig } from "../data/textTemplate";
 import { isArkAssetUrl, reasonClause, transferArkVideo } from "../ai/arkClient";
 import { canAfford, defaultTierId, draftModeIssue, draftModeOffered, frozenNote, myCards, noTierLine, realFaceIssue, sameChipProvider, spendTokens, tierBlockReason, tierGo, tierOffered, tierRegionGate, tierRegionIssue, tierRegionRecheck, tierTextOnly, usableTierId, walletOf, type TierNeed } from "../data/account";
 import { refreshVideoZone, zoneIsRegional } from "../data/videoZone";
+// 工坊游戏券（G4 收尾）：对局出片那一发可以带 X-Game-Ticket —— "这一发能不能用券"只问 canPayWithTicket 一处
+import { canPayWithTicket, refreshGameTickets } from "../data/gameTickets";
 import { showToast } from "../data/toast";
 import {
   apiCase,
@@ -300,6 +302,23 @@ export interface GenNodeOpts {
    * ★ 放在 genNode 里而不是另写一个 action：门禁 / 计费 / 凭据 / 写回 / 进度日志都是同一份实现（与返修同一个理由）。
    */
   finalizeDraft?: boolean;
+  /**
+   * 这一发用**游戏券**结算（对局出片，G4 收尾，2026-11-23）：只有对局的生成小窗传它。
+   * 真的带不带还看 data/gameTickets 的镜像（`canPayWithTicket()`）：宿主说要用、而券其实已经用完 / 没读到，
+   * 这一发就**按 token 走**（界面照实说），绝不带一个注定 403 的头出去。
+   * ★ 带券的那一发：视频请求带 `X-Game-Ticket: 1`（服务端扣一张券、token 钱包一分不动）；
+   *   余额门禁走 `canAfford(cost, { ticket })`；**不**在成功那一拍 spendTokens（券不进 token 钱包）。
+   *   补画的设定帧 / 圈选改帧照旧按 token（券只认出片）。
+   */
+  payWithTicket?: boolean;
+  /**
+   * 把**这一发的失败**翻成一句人话的钩子（可选；只有对局那条传 `studio/game/reasons.gameRejectText`）。
+   * 为什么要有它：游戏券那四类拒绝码（NO_GAME_TICKET / GAME_TICKETS_OFF / TICKET_NOT_APPLICABLE / PLAN_REQUIRED）
+   * 的话只在 reasons.ts 一处，而这张 store 不该认识"游戏券"这个词 —— 钩子返回值优先于按错误类型的默认说法；
+   * 回 null = 不归它说，照旧按原错误类型 / failCharge 说。
+   * ★ 只在**这一发真的带了券**（ticketOn）时才调：那四个码之外的错误一律走原来那套。
+   */
+  rejectText?: (e: unknown) => string | null;
 }
 
 /** 返修的输入时长（秒）：成片实测优先，退回申报值；报价与 refVideo 校验读同一个数 */
@@ -4656,7 +4675,15 @@ export const useFlow = create<FlowState>()((set, get) => ({
       : rv && reviseRef
         ? (r2vTokens(reviseRef.durationSec, node.videoTier) ?? 0)
         : nodeCost(s0.nodes, idx, s0.mode);
-    if (AI_REAL && !canAfford(cost)) {
+    /**
+     * 这一发用**游戏券**付（对局出片，G4 收尾）：宿主说要用（opts.payWithTicket）**且**镜像里确实有券。
+     * ★ "能不能用券"只问 data/gameTickets.canPayWithTicket 一处（能力位 + 余额 + perGeneration，规则在 gameTicketRules）：
+     *   券其实用完 / 还没读到 / 这台服务器没有 —— 这一发就按 token 走，绝不放一句「这一发用券」却不带券头
+     *   （钱上的话与事实相反是这一批最不能接受的一种错）。
+     * ★ 券只顶**视频**那一发：补画的设定帧 / 圈选改帧照旧按 token（带券头会被服务端 400 TICKET_NOT_APPLICABLE 整发拒）。
+     */
+    const ticketOn = opts?.payWithTicket === true && canPayWithTicket();
+    if (AI_REAL && !canAfford(cost, { ticket: ticketOn })) {
       const w = walletOf();
       set({
         err: frozenNote() ?? t`本段约需 ${fmtTokens(cost)} token，余额 ${fmtTokens((w?.plan ?? 0) + (w?.addon ?? 0))} 不足——去「我的」页充值`,
@@ -4726,6 +4753,8 @@ export const useFlow = create<FlowState>()((set, get) => ({
           plot: rv ? revisePlotOf(rv.instruction, rv.range) : prop.plot,
           // 报价 ↔ 契约对账（segmentGen.contractLine）：扣的就是这个 cost；演示构建没有报价，明说 null
           quotedTokens: AI_REAL ? cost : null,
+          // 这一发的视频请求用游戏券（只有对局传、而且镜像里确实有券才有值；见上面 ticketOn 的 ★）
+          payWithTicket: ticketOn,
           firstFrame: rv || ext || fin ? "" : frames.first,
           lastFrame: rv || ext || fin ? "" : frames.last,
           durationSec: prop.durationSec,
@@ -4869,7 +4898,9 @@ export const useFlow = create<FlowState>()((set, get) => ({
         );
         return false;
       }
-      if (res.url && AI_REAL) spendTokens(cost);
+      // ★ 带券的那一发不在这里记 token：服务端扣的是券，钱包一分没动（记了就是"账上与服务端对不上"；
+      //   远端模式下 spendTokens 本来也只算不动镜像，但"记不记"这件事得与真扣一致）
+      if (res.url && AI_REAL && !ticketOn) spendTokens(cost);
       // 成片已经到手，凭据结案（留着只会在界面上多一颗"取回"，点了拿回同一段）
       if (taskId) dropVideoJob(taskId);
       // 真实帧顶替设定帧：节点卡显示的就是视频里实际的画面，也是下一段的起拍帧。
@@ -5030,7 +5061,7 @@ export const useFlow = create<FlowState>()((set, get) => ({
       //   原来这一支对钱一个字都不说，而远端模式下受理之后才失败的那一发是**扣过钱**的 —— 现在服务端会退回，
       //   退没退、退了多少只认服务端在回包上说的那一句；出片前画好的画面另说（它们各自结算过，退不到）。
       //   单价：失败的是视频那一发 → 按这一段报价里视频那一半说「可能扣了 / 已计费」；失败的是出片前的某张画面 → 按一张图说。
-      const fc = chargeOnFail(e);
+      const fc = chargeOnFail(e, { ticket: ticketOn });
       const framesSettled = e instanceof SegmentGenFailed ? e.framesSettled : 0;
       const money = chargeNote(fc, fc.video ? Math.max(0, cost - framesSettled * ONE_IMAGE) : ONE_IMAGE);
       const inner = unwrapFailure(e);
@@ -5039,8 +5070,11 @@ export const useFlow = create<FlowState>()((set, get) => ({
       //   原来出片前画过帧时屏幕上是「…也没有扣费。。已经画好的 2 张…」（2026-10-26 P1 审核）
       // ★ 地区那一句（ArkRegionDenied）不截（2026-10-26 终审）：长度有界的整句，英文配上长国名能到 250 字 —— 按 240 截会断在词中间、
       //   把括号里钱的短语截掉；钱上的话已经不在它里面（chargeNote 的 regionNoCharge）
+      // ★ 带券的那一发先问宿主的 rejectText（对局传 gameRejectText）：游戏券那四类拒绝码的话只在 studio/game/reasons 一处，
+      //   而这张 store 不该认识"游戏券"这个词 —— 钩子回 null 就照旧按错误类型说（见 GenNodeOpts.rejectText）
       const region = inner instanceof ArkRegionDenied;
-      const why = reasonClause(inner instanceof ArkTaskFailed ? inner.reason : region ? inner.message : msg.slice(0, 240));
+      const ticketWhy = ticketOn ? opts?.rejectText?.(inner) : null;
+      const why = reasonClause(ticketWhy ?? (inner instanceof ArkTaskFailed ? inner.reason : region ? inner.message : msg.slice(0, 240)));
       // 失败也留在日志里：卡在哪一步、跑了多久，比一句"生成失败"有用得多
       log.fail(money ? t`失败：${why.slice(0, 160)}（${money.brief}）` : t`失败：${why.slice(0, 160)}`);
       const nodeErr = money ? t`${why}（${money.brief}）` : why;
@@ -5079,6 +5113,9 @@ export const useFlow = create<FlowState>()((set, get) => ({
       // ★ 不论成了、废了、还是没接到：这一会话"正在等这一发"到此为止。
       //   凭据本身留不留由上面各支路决定（成了/废了 drop，没接到留着），这里只管显示门
       if (taskId) setVideoJobWaiting(taskId, false);
+      // ★ 带券的那一发：券在服务端扣 / 退（没受理当场退、受理之后失败走 taskRefund），这一拍的详情本机不猜 ——
+      //   成 / 败 / 没接到都重读一次余额，界面上的 🎟 与下一发的"用不用券"都跟着它走
+      if (ticketOn) void refreshGameTickets(true);
     }
   },
 

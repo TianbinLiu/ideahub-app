@@ -9,6 +9,9 @@
  * ★ 调用那一刻才翻（函数体里的 t），别把这几句提成模块常量（会冻结在开机语言）。
  */
 import { t } from "@lingui/core/macro";
+import { ArkHttpError } from "../../ai/arkClient";
+import { gameTicketResetDay } from "../../data/gameTickets";
+import { GAME_TICKET_REJECT_CODES } from "../../data/gameTicketRules";
 import type { RuleFailure } from "./rules";
 import { cardTypeName } from "./labels";
 
@@ -95,5 +98,36 @@ export function ruleFailureText(failure: RuleFailure): string {
     default:
       // 规则层以后新增了原因码、这里还没写人话：把原因码原样摆出来（不吞掉、不编一个"操作失败"）。
       return t`这一步没成功（规则回的原因：${String(failure.reason)}）`;
+  }
+}
+
+/**
+ * 对局出片被**游戏券**那条路打回时的四句话（G4 收尾，2026-11-23；契约 docs/api-contract.md「工坊游戏券 · 错误码」）。
+ *
+ * ★★ 为什么在这一处：这四个码只会在「这一发带了 `X-Game-Ticket`」时出现，而带券的那一发只有对局的生成小窗。
+ *   话如果散在组件里，英文界面会原样显示服务端的中文 `message`（服务端没有 i18n，全仓 i18n 都是 App 这边翻的），
+ *   而中文界面与英文界面说的会是两套不同的原因 —— 认码说话是 D7 a 的口径（服务端给码、App 说话）。
+ * ★ 认**码**不认文案：服务端那两句 message 是写死的中文兜底，别去里面找字。
+ * ★ 返 null = 不归它说（别的错误照旧按类型说 —— 例如视频受理之后失败，钱上的话走 ai/failCharge）。
+ */
+export function gameRejectText(e: unknown): string | null {
+  if (!(e instanceof ArkHttpError)) return null;
+  if (!GAME_TICKET_REJECT_CODES.includes(e.code)) return null;
+  switch (e.code) {
+    case "NO_GAME_TICKET": {
+      // 券**买不到**（服务端不用 402 正是这个理由）：指去"充值"是死路，只能说清几号刷新 / 做任务能领
+      const day = gameTicketResetDay();
+      return t`这一发的游戏券不够了：本月的券已经用光，${day} 号刷新（做任务也能领券）——也可以改成按 token 出片。这一次没有受理，也没有扣费。`;
+    }
+    case "GAME_TICKETS_OFF":
+      return t`这台服务器暂时关掉了游戏券出片——这一发没有受理、也没有扣费；改成按 token 出片再试。`;
+    case "TICKET_NOT_APPLICABLE":
+      return t`游戏券只能用在出片上：这一发不是出片（出图 / 对话 / 建模），所以没有受理、也没有扣费。`;
+    case "PLAN_REQUIRED":
+      // 券不是会员（服务端 preAuthorizeTicket 的顺序：冻结 → 套餐门禁 → 扣券，被套餐拦下时**不扣券**）
+      return t`这一档要会员套餐（或充值过任意一笔）才给用——游戏券只顶出片那笔钱，不能把会员档打开；换回「草稿」档再出片。这次没有扣券。`;
+    default:
+      // 列表里以后多了码、这里还没写句子：不吞掉，按「不归它说」交回去（原来的类型分流照旧）
+      return null;
   }
 }

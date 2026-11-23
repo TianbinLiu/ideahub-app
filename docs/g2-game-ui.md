@@ -370,8 +370,9 @@ G4 第 1 步之前它在右栏最上面（`src/studio/ui/SceneRails.tsx` 的 `Ma
   （写法与快速模式 `previewTierId` 同一份：能给出 MiniMax 就用它）。
 - 新加的一位：`FlowNode.gameRound`（+ `AppendSpec.gameRound`）标记"这一段是本局出的"，
   工作流预览按它过滤 —— 不清空玩家原来的流水线，也不给对局的段另存一份数据。
-- **钱照实说**：服务端券机制还没接，小窗上直接写"这一发按 token 结算（游戏券还没接）：画首帧约 X、出片约 Y"，
-  价签问 `redrawCost` / `nodeCost`（与真扣同一份），远端模式以服务器结算为准。
+- **钱照实说**：G4 第 3 步落下来时服务端的券机制还没接，小窗上直接写"这一发按 token 结算（游戏券还没接）"；
+  **2026-11-23 收尾已接上**（见下一节「G4 收尾：App 侧接游戏券 + 档位落点」）：有券时照实写「这一发用游戏券（剩余 N）」，
+  没券 / 没读到余额时照实写「这一发按 token 结算」。价签问 `redrawCost` / `nodeCost`（与真扣同一份），远端模式以服务器结算为准。
 
 ### 与之前不同的地方（读代码的人会碰到的）
 
@@ -397,3 +398,101 @@ G4 第 1 步之前它在右栏最上面（`src/studio/ui/SceneRails.tsx` 的 `Ma
   出过片」；注入一段之后能看第 1 回合 / 还没出片 / 5 秒 / 首帧 / 那句提示词 / 用了哪些卡，一个改键都没有）→
   右侧道具栏拖到角色卡装备成功、拖到空格子回 `table-slot-empty`、拆除工具一次卸光（`unequipped`）。
   **没有点「① 先画首帧」**：这台机器的 `.env.local` 配了真 ARK key，点一下就是真花钱。
+
+## G4 收尾：App 侧接游戏券 + 档位落点（2026-11-23）
+
+> 施工单 [g4-ui-revamp-spec.md](g4-ui-revamp-spec.md) §0 的结算（免费套餐每月 6 张券、任务加券、券只用于出片、不扣 token），
+> 服务端那一半已经上线（server#155：`GET /api/game/tickets` + 三条出片路由认 `X-Game-Ticket: 1`，
+> 契约 `server/docs/api-contract.md`「工坊游戏券」）。这一块只改 App：**档位落点 + 券的读/带/报错 + canAfford 认券**。
+> **服务端一行没改**（App 只读它的回包与错误码）。
+
+### 1. 三个档位的 tierId 与回落（`src/studio/game/genTier.ts`，唯一翻译处）
+
+规则层（`rules.MODEL_LEVEL_TIERS` / `generationTierOf`，零依赖）只给**语义**（`level` + `draft / hd / cinema` + 分辨率），
+tierId 的翻译在 `genTier`，写法与快速模式同源（`account.preferredTierIdOf` = `tierOfPreferred` + `tierOffered` 那两行，
+**2026-11-23 收成一处**，快速模式与对局都读它）：
+
+| 规则层 | 首选（这台机器给得出 MiniMax 时） | 回落（给不出：没接 MiniMax 的服务端 / 地区不给 / V2 没开） |
+|---|---|---|
+| L1 `draft` | **`draft-mm`**（MiniMax H3-Lite · 480P，5 秒 56,000） | `draft`（Seedance 2.0 mini · 480p，77,004） |
+| L2 `hd` | **`hd-mm`**（MiniMax H3-Highspeed · 768P，134,500） | `hd`（165,600） |
+| L3 `cinema` | **`ultra-mm`**（MiniMax H3 · 768P，179,000） | `ultra`（Seedance 2.5 · 720p，507,600） |
+
+- **L3 不是字面上的 `ultra`**：规则层写的 `1080p` 在档位表里没有这一行（1080p 只是 `ultra` 的「样片 → 定稿」第二步），
+  照字面实现 = 5 秒片发两发 ≈147 万 token，而定稿那一发在方舟上会被写实人脸审核整段拒（2026-11-19）。
+  `ultra` 只是**回落**那一格。
+- ⚠ `hd-mm` / `ultra-mm` 收不收写实人像**没验过**（只有 `draft-mm` 那一发，2026-11-19）：这里只说"这台机器给得出"，不说"写实卡一定行"。
+- `gen.gameTierOf` / `gameTierIdOf` 已删（原来另判了一次等级、另抄了一份 family 表）；`gen.ts` 现在只调 `genTierIdOf(player)`。
+
+### 2. 券怎么读、怎么显示（`data/gameTickets` + `data/gameTicketRules` + `hooks/useGameTickets`）
+
+- **问不问只看能力位**：`GET /api/ark/health` 的 `gameTickets`（服务端 `GAME_TICKETS=off` 时它自己就是 false）。
+  没有这一位（老服务端 / `npm run dev` 直连方舟 / 离线包）⇒ **一个请求都不发、界面一格 🎟 都不摆**；
+  dev 的 `/api/ark` 由 vite 代理直连方舟、不经服务端计费，也没有 `/api/game/tickets`（`serverCaps.ALL` 里是 false）。
+- **读一次 = 当月懒发**：`GET /api/game/tickets` 回 `{ cycle, limit, granted, earned, spent, refunded, used, left, perGeneration, nextResetAt, enabled }`，
+  App **只显示不计算**（上限、几号刷新、一发几张都由服务端说）。20 秒内不重复问，出片前后强制各读一次。
+- **三种状态三种说法**（判据只在 `gameTicketRules.gameTicketModeOf`，界面语言随渲染走）：
+
+  | 状态 | 界面（背包条 / 生成小窗） | 出片 |
+  |---|---|---|
+  | 有券（`ticket`） | 🎟 4（金币旁边）；「这一发用游戏券（剩余 4）：出片扣 1 张券、不扣 token；画首帧照旧按 token 结算（约 X）」；按钮「② 出片（用 1 张游戏券）」 | 带 `X-Game-Ticket: 1` |
+  | 券用完了（`empty`） | 🎟 0；「这一发按 token 结算：本月的游戏券用完了（1 号刷新，做任务也能领券）；画首帧约 X、出片约 Y」 | 不带券头，走 token |
+  | 接口不可用（`off`：老服务端 / `GAME_TICKETS=off`） | **不摆 🎟**；「这一发按 token 结算（这台服务器没有开通游戏券）」 | 不带券头 |
+  | 还没读到（`unknown`：有能力位但没读到余额 / 断网） | 不摆 🎟；「这一发按 token 结算（游戏券的余额还没读到）」 | 不带券头 |
+
+  ★ **不知道 ≠ 有券**：券是"扣钱"的币种，界面写着「用券」而服务端扣了 token 是钱上最不能接受的一种错
+  （与 `serverCaps` 那几位「不知道 = 放行」的口径相反，理由钉在 `gameTicketRules.gameTicketModeOf` 上）。
+  ★ 券**买不到**（服务端 T1，与 token 不可互换）：券用完那一句指去"几号刷新 / 做任务"，绝不指去充值页。
+
+### 3. 出片怎么带券（从生成小窗到底层请求的一条线）
+
+`GenSheet`（`payWithTicket` = 有券）→ `flowStore.genNode`（**再核一次** `canPayWithTicket()`）→ `segmentGen.generateSegment`
+→ `real.composeSegments`（第 4 参 `{ payWithTicket }`）→ `arkClient.generateVideo` / `minimaxVideo.minimaxV2Video` /
+`minimaxVideo.minimaxVideo` 的**创建任务那一发**带 `X-Game-Ticket: 1`。
+
+- **只有视频那一发带**：补画的首帧 / 圈选改帧 / 转存 / 对话都不带 —— 服务端 `currencyOf` 对"带券却不是出片"回 400 `TICKET_NOT_APPLICABLE`。
+- 带券那一发**不扣 token**：`genNode` 成功后**不** `spendTokens(cost)`（券不进 token 钱包），余额门禁走 `canAfford(cost, { ticket })`。
+- 券在服务端扣 / 退：`genNode` 的 `finally` 强制重读一次余额（成 / 败 / 没接到都读），背包条的 🎟 与下一发"用不用券"都跟着它走。
+- 首帧那一笔照旧是 token（免费账号每天 2,000），所以**绝不写"免费"**。
+
+### 4. 四个错误码（`studio/game/reasons.gameRejectText` 一处；认码不认文案）
+
+| code | 什么时候 | App 说 |
+|---|---|---|
+| `NO_GAME_TICKET` (403) | 券不够（镜像过时 / 并发） | 「这一发的游戏券不够了：本月的券已经用光，**N 号刷新**（做任务也能领券）——也可以改成按 token 出片。这一次没有受理，也没有扣费。」（N 读回包的 `nextResetAt`） |
+| `GAME_TICKETS_OFF` (403) | 这台服务器 `GAME_TICKETS=off` | 「这台服务器暂时关掉了游戏券出片——这一发没有受理、也没有扣费；改成按 token 出片再试。」 |
+| `TICKET_NOT_APPLICABLE` (400) | 带券却不是出片 | 「游戏券只能用在出片上：这一发不是出片（出图 / 对话 / 建模），所以没有受理、也没有扣费。」 |
+| `PLAN_REQUIRED` (403) | 带券点了会员档（券 ≠ 会员） | 「这一档要会员套餐（或充值过任意一笔）才给用——游戏券只顶出片那笔钱，不能把会员档打开；换回「草稿」档再出片。这次没有扣券。」 |
+
+- 通路：`flowStore.genNode` 的 catch 在**这一发真带了券**时先问宿主传进来的 `opts.rejectText`（对局传 `gameRejectText`），
+  回 null 才照旧按错误类型说 —— 这张 store 不认识"游戏券"这个词，四句话只在 `reasons.ts` 一处。
+- 为什么不能把服务端那句原样摆出来：服务端没有 i18n（写死中文），英文界面会显示中文；而且两种界面语言会说出两种说法（D7 a：服务端给码、App 说话）。
+
+### 5. 钱上的话：券不是 token（`ai/failCharge`）
+
+带券的那一发失败时，`chargeOnFail(e, { ticket: true })` 记下这一位，`chargeNote` 的视频那一半改走
+`ticketVideoChargeNote`：**按"券 / 张"说**（"这一发按游戏券出片，没出成——扣的那张券已经退回"），
+一个 token 金额都不带；出片前画好的画面照旧按张（那几笔是真的 token）—— 两笔分开说。
+★ 不这么做的后果：受理之后失败的那一发会照 token 那套说"扣的 X token 已经退回 / 已计费 X token"，
+而钱包一分没动（券买不到、没有汇率）—— 钱上的一句假话。
+
+### 6. 只此一处（收掉了哪些散算）
+
+- 档位翻译：`genTier.genTierIdOf(player)`（`rules.MODEL_LEVEL_TIERS` 给语义）；"优先另一家 + 给不出就回落"收进 `account.preferredTierIdOf`，
+  快速模式 `previewTierId` / `finalTierId` 也改成读它（原来两处各一份）。
+- 券的规则：`data/gameTicketRules`（零依赖，`scripts/check-game-tickets.mjs` 45 条断言实跑：回包解析 / 三态真值表 /
+  `left >= perGeneration` / 请求头 / 刷新日 / "档位落点只此一处"的源文件棘轮）。
+- 构建：`check-game-tickets.mjs` 已接进 `npm run build`（`check:all` 也会跑它，漏接会红）；`gameTicketRules.ts` 进了
+  `check-import-direction` 的零依赖表。
+
+### 7. 验证（这一块）
+
+- `npm run build` 绿（tsc + 全部 check 脚本 + vite build），`check-game-tickets` 45 条断言；
+  造违规试红四条（`caps === null` 当有券 / `left > 0` / `resetDayOf` 写死 / `genTier` 的 `cinema` 改成 `1080p`）各自变红。
+- **线上服务端真连**（只读，不出片、不烧券）：`GET https://api.ideahubs.org/api/ark/health` 回
+  `gameTickets: true`、`gameTicketMonthly: 6`、`gameTicketPerGeneration: 1`、`gameTicketUnlocksMedia: true` ——
+  App 的能力位与"一月 6 张、一发 1 张"今天就是从这里读的。
+- 真机没连上（`adb devices` 空），浏览器（`npm run dev`）里 **dev 没有券那一路**（`serverCaps.ALL.gameTickets = false`，
+  见 §2 第一条），所以界面走的是「这台服务器没有开通游戏券」那一支：背包条不摆 🎟、生成小窗写「这一发按 token 结算」。
+  有券 / 用完那两句话的判定由 `check-game-tickets` 的真值表钉住（45 条），**没有**在真机上走到真实扣券那一发。
+

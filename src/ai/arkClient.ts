@@ -19,6 +19,7 @@ import { frozenLine, planRequiredLine, regionDeniedLine, syncRemoteWallet } from
 import { probeServerCaps } from "../data/serverCaps";
 import { noteRegionDenied } from "../data/videoZone";
 import { isMinimaxV2VideoUrl } from "../data/upstreamVideo";
+import { gameTicketHeaders } from "../data/gameTicketRules";
 import type { TierResolution } from "../data/videoTierTable";
 import { DEFAULT_IMAGE_TIER, durationWindowOfModel, imageGroupOk, imageTierOf, modelLabel, videoAudioOn } from "../data/economy";
 import type { GenMode } from "../types";
@@ -826,6 +827,12 @@ async function arkFetch<T>(
   init?: Omit<RequestInit, "headers" | "signal">,
   timeoutMs = 90_000,
   describeRefusal?: (status: number, body: string) => Error | null,
+  /**
+   * 额外请求头（只给「这一发用游戏券」那一格 `X-Game-Ticket: 1`，G4 收尾）。
+   * ★ 走参数而不是让调用方自己 fetch：鉴权 / 版本头 / 429 退避 / 计费拒绝翻译都在这一个函数里，
+   *   绕过去等于把那一整套再抄一份。空对象 = 与改版前逐字节相同。
+   */
+  extraHeaders?: Record<string, string>,
 ): Promise<T> {
   // 服务端的 /api/ark 是 requireAuth 的（每次调用都真烧钱，不能裸奔）。
   // dev 走 vite 代理，那里不认这个头，带上也无害。版本头只给自家服务器（authHeaders → withAppVersion）
@@ -834,7 +841,7 @@ async function arkFetch<T>(
     const res = await fetch(url, {
       ...init,
       signal: AbortSignal.timeout(timeoutMs),
-      headers: authHeaders(url, { "Content-Type": "application/json" }),
+      headers: authHeaders(url, { "Content-Type": "application/json", ...extraHeaders }),
     }).catch((e) => {
       // 类型见 ArkNoReply 的 ★★：没收到回包 ≠ 没扣钱
       const detail = e instanceof Error ? e.message : String(e);
@@ -1712,6 +1719,14 @@ export async function generateVideo(
     onTask?: (taskId: string) => void;
     /** 轮询 / 转存进度（结构化，见 ArkProgress）；句子由调用方按界面语言写 */
     onProgress?: (ev: ArkProgress) => void;
+    /**
+     * 这一发用**游戏券**结算（对局出片，G4 收尾）：创建任务那一发带 `X-Game-Ticket: 1`，
+     * 服务端扣一张券、token 钱包一分不动（失败退券）。不带 = 走 token 钱包，与改版前逐字节相同。
+     * ★ 只有**出片**能带：出图 / 对话 / 建模带了会被 400 TICKET_NOT_APPLICABLE 整发拒（服务端 currencyOf 的唯一判据）。
+     * ★ 要不要带由 studio/flowStore.genNode 判（`opts.payWithTicket && 镜像里确实有券`）——
+     *   这一层只负责"带了就拼上去"，不自己看余额（协议层认识业务数据就成了双向依赖）。
+     */
+    payWithTicket?: boolean;
   },
 ): Promise<string> {
   const model = opts?.model ?? MODELS.video;
@@ -1867,6 +1882,8 @@ export async function generateVideo(
     120_000,
     // 提交时被方舟同步拒（文字 / 图没过审、参考图没拉到）：说成人话、分清是哪一样（videoRefusalError 的 ★）
     videoRefusalError,
+    // 这一发用游戏券（G4 收尾）：只有出片会带，别的路径传 false/undefined → 空对象（与改版前逐字节相同）
+    gameTicketHeaders(opts?.payWithTicket),
   );
   // 参考图没拉到（图刚传上图床、方舟拉回空的）：等一会儿自动再交一次（submitWithFetchRetry 的 ★）
   const created = await submitWithFetchRetry(submit);
