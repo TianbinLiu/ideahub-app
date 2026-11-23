@@ -362,14 +362,18 @@ export default function StudioPage() {
               {inGame ? <Trans>✕ 结束对局</Trans> : <Trans>▶ 开局</Trans>}
             </button>
           )}
-          {/* 「🧩 工作流」：同一条流水线换到画布那一面 —— 与画布顶栏「🎴 工坊」对称
-              （2026-08-30 主人点名：此前只有画布→工坊单向有键，反向只剩法阵那条隐路）。
-              G4 第 1 步起桌面节点卡撤了，**这颗键是新建流水线唯一的门**：空流水线也照开，
-              画布里有空态和「对画布说话」输入条（见 canvasCovered 的 ★）。 */}
+          {/* 「🧩 工作流」：**对局里 = 纯预览**（G4 施工单 §2 第三条：只展示本局每段视频的信息，
+              删掉修改 / 重新生成片段那些操作，见 game/ui/GenPreview）；不在对局里 = 原来的画布。
+              ★ 为什么分两种：画布是**新建流水线唯一的门**（G4 第 1 步把桌面节点卡撤了，见 canvasCovered
+                的 ★）。对局外也做成只读的话，工坊就再也做不出自己的片了 —— 而施工单这一条
+                说的是"桌面（对局）右上那颗键"。
+              不在对局里时：空流水线也照开，画布里有空态与「对画布说话」输入条。 */}
           <button
-            onClick={() => setCanvasOpen(true)}
-            title={t`工作流画布：同一条流水线的另一面`}
-            aria-label={t`工作流画布`}
+            onClick={() =>
+              inGame ? useGame.getState().setPreviewOpen(true) : setCanvasOpen(true)
+            }
+            title={inGame ? t`工作流：本局每段的预览（只让看不让改）` : t`工作流画布：同一条流水线的另一面`}
+            aria-label={inGame ? t`工作流预览` : t`工作流画布`}
             className="flex h-9 w-9 items-center justify-center rounded-full bg-panel/85 text-slate-100 backdrop-blur"
           >
             <Icon name="branch" size={18} />

@@ -20,9 +20,11 @@ import {
   enterCreation,
   enterScreening,
   enterVoting,
+  equipItem,
   eventOptionsFor,
   likeEntry,
   pickStyleCard,
+  placeOnTable,
   settleRoundFromVotes,
   skipEventChoice,
   submitRoundEntry,
@@ -32,9 +34,12 @@ import {
 import * as bots from "./bots.ts";
 import type { GameState, Rng } from "./types";
 
-export type PhaseResult = { ok: true; state: GameState } | RuleFailure;
+export type PhaseResult = ({ ok: true; state: GameState; lastFailure?: RuleFailure }) | RuleFailure;
 
-/** AI 一回合最多走几步商店棋。9 格 + 顶掉旧的，8 步就够；12 是防死循环的保险丝（不是规则）。 */
+/**
+ * AI 一回合最多走几步商店棋。G4 §3 起背包没有上限，它会把买得起的都买（钱花完就停），
+ * 5 张商店卡 + 重刷那几手的保险丝取 12 —— 防死循环，不是规则。
+ */
 const MAX_AI_SHOP_MOVES = 12;
 
 function playerOf(state: GameState, playerId: string) {
@@ -89,10 +94,7 @@ export function aiShop(state: GameState, aiIds: readonly string[]): PhaseResult 
     for (let move = 0; move < MAX_AI_SHOP_MOVES; move += 1) {
       const decision = bots.aiShopMove(next, id);
       if (decision.kind === "done") break;
-      const bought =
-        decision.kind === "buy"
-          ? buyShopCard(next, id, decision.slot)
-          : buyShopCard(next, id, decision.slot, decision.outCardId);
+      const bought = buyShopCard(next, id, decision.slot);
       if (!bought.ok) return bought;
       next = bought.state;
     }
@@ -100,26 +102,61 @@ export function aiShop(state: GameState, aiIds: readonly string[]): PhaseResult 
   return { ok: true, state: next };
 }
 
+/**
+ * 替一个 AI 把它这一回合的桌面摆好：先摆角色 / 场景，再把道具挂到角色上。
+ * ★ 落地走 rules.placeOnTable / rules.equipItem（与玩家拖拽同一批规则）：AI 没有后门，
+ *   摆不上去（比如角色位满了）就是**被规则拒** —— 这里照它的回执处理，不静默吞。
+ * ★ 摆失败不整局失败（只是这个 AI 少一张卡）：卡位满了是正常局面，记在 `lastFailure` 里交给调用方。
+ */
+function aiSetupTable(state: GameState, playerId: string): { state: GameState; lastFailure?: RuleFailure } {
+  const plan = bots.aiTablePlan(state, playerId);
+  let next = state;
+  let lastFailure: RuleFailure | undefined;
+  for (const cardId of plan.place) {
+    const placed = placeOnTable(next, playerId, cardId, null);
+    if (!placed.ok) {
+      lastFailure = placed;
+      continue;
+    }
+    next = placed.state;
+  }
+  for (const step of plan.equip) {
+    const equipped = equipItem(next, playerId, step.roleCardId, step.itemCardId);
+    if (!equipped.ok) {
+      lastFailure = equipped;
+      continue;
+    }
+    next = equipped.state;
+  }
+  return lastFailure ? { state: next, lastFailure } : { state: next };
+}
+
 // ────────────────────────────── 创作 / 展映 / 投票（§2.0 ②③④） ──────────────────────────────
 
 /**
- * 商店 → 创作，并替每个 AI 交片（它自己的卡 + 一句随机提示词）。
+ * 商店 → 创作，并替每个 AI 摆好桌面、交片（它自己那套 + 一句随机提示词）。
  * ★ AI 不交片就不能进创作阶段：展映要求全员都有片子（rules.enterScreening 的闸），
  *   而单机版没有"超时兜底"这套时序，所以 AI 在进创作的那一拍就拍好了。
+ * ★ G4 第 3 步起一期作品的卡来自**桌面**（rules.castCardsOf），所以 AI 交片前先把卡摆上桌 ——
+ *   摆卡与玩家拖拽走同一批规则（placeOnTable / equipItem）。
  */
 export function toCreation(state: GameState, aiIds: readonly string[], prompts: readonly string[], rng: Rng): PhaseResult {
   const entered = enterCreation(state);
   if (!entered.ok) return entered;
   let next = entered.state;
+  let lastFailure: RuleFailure | undefined;
   for (const id of aiIds) {
     const player = playerOf(next, id);
     if (!player || player.eliminated) continue;
+    const setup = aiSetupTable(next, id);
+    next = setup.state;
+    if (setup.lastFailure) lastFailure = setup.lastFailure;
     const plan = bots.aiEntryPlan(next, id, rng, prompts);
     const submitted = submitRoundEntry(next, id, plan);
     if (!submitted.ok) return submitted;
     next = submitted.state;
   }
-  return { ok: true, state: next };
+  return lastFailure ? { ok: true, state: next, lastFailure } : { ok: true, state: next };
 }
 
 /**

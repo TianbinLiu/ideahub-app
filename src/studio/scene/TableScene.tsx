@@ -15,6 +15,8 @@ import { gameViewOf } from "../game/view";
 import { gameCardName } from "../game/labels";
 import { TABLE_ROLE_SLOTS } from "../game/rules";
 import type { GameCard, TableSlots } from "../game/types";
+// G4 第 3 步：卡位的屏幕坐标（拖拽落点判定），与 cameraOrbit.NPC_SCREEN 同一套 project 做法
+import { SLOT_SCREEN, sameTableSlot } from "./slotScreen";
 import {
   CARD,
   DECK_CAM,
@@ -1326,11 +1328,14 @@ function MarketFan() {
 
 // ── G4 桌面 5 个卡位：4 角色位一排 + 1 场景位（左上方、桌面中线玩家这一侧）─────
 //
-// ★ 位子上是谁**不在这里算**：rules.tableSlotsOf 从对局数据里派生（角色卡按背包顺序占 4 格、
-//   场景卡占 1 格），view.gameViewOf 把它挂到 view.table 上。这一层只把"空 / 已放"画出来。
-// ★ 空位画暗色牌框 + 一个「+」；放上卡就画卡名 + 青色（角色）/ 金色（场景）牌框 ——
-//   第 3 步做拖拽入位时才需要位子自己的状态，这一拍位子上的卡来自现有对局数据。
-// ★ 没有开局时五格全空（骨架照样在）：施工单要求桌面先看得出"这是摆卡台"，不是节点链。
+// ★ 位子上是谁来自 rules.tableSlotsOf（G4 第 3 步起是**真的状态**：拖上桌的卡从背包拿出来放进
+//   player.table），view.gameViewOf 把它挂到 view.table 上。这一层只把"空 / 已放 / 正拖到它上面"画出来。
+// ★ 拖拽：起点在 2D 那一层（背包条 / 右侧道具栏是 DOM），落点判定靠**把卡位投影回屏幕**
+//   （scene/slotScreen：与 NPC_SCREEN / PLAYER_SCREEN 同一套 project 做法），3D 这一侧只做两件事 ——
+//   ① 每帧把五格的屏占比重算一遍（相机一动就跟着动；商店拉近、进对话视角都对得上）；
+//   ② 按对局 store 的 `drag.hover` 高亮"现在悬在哪一格"（拖拽高亮只有这一个读数，别再各算一次）。
+// ★ 从桌面上把卡拖回背包：在卡位上按下去就开一个 kind="return" 的拖拽（R3F 的 pointerdown），
+//   之后的移动 / 松手交给 2D 那层（GameDragLayer）—— 两处手势是同一个 store 状态，不是两套实现。
 const EMPTY_TABLE: TableSlots = { roles: [null, null, null, null], scene: null };
 
 function SlotPlate({
@@ -1338,18 +1343,24 @@ function SlotPlate({
   z,
   scale,
   kind,
+  index,
   card,
+  hot,
 }: {
   x: number;
   z: number;
   scale: number;
   kind: "role" | "scene";
+  /** 角色位下标（场景位不传）：拖拽状态认位子认的是它 */
+  index?: number;
   card: GameCard | null;
+  /** 现在正拖着一张卡悬在这一格上 */
+  hot: boolean;
 }) {
   const w = CARD.w * scale;
   const h = CARD.h * scale;
-  // 角色位青、场景位金；空位是同一档的暗色（空 ≠ 没有这一格，只是还没放）
-  const ink = card ? (kind === "role" ? "#67e8f9" : "#d6b26a") : "#31465c";
+  // 角色位青、场景位金；空位是同一档的暗色（空 ≠ 没有这一格，只是还没放）；正悬在上面时更亮一档
+  const ink = hot ? (kind === "role" ? "#a5f3fc" : "#f3d69a") : card ? (kind === "role" ? "#67e8f9" : "#d6b26a") : "#31465c";
   const frame = useMemo(
     () =>
       new THREE.MeshBasicMaterial({
@@ -1380,6 +1391,24 @@ function SlotPlate({
         <planeGeometry args={[card ? w * 0.92 : w * 1.05, card ? w * 0.23 : w * 0.5]} />
         <meshBasicMaterial map={label} transparent depthWrite={false} />
       </mesh>
+      {/* 按下来 = 把这张卡从桌上拖走（落点由 2D 那层判；空位不接受 pointerdown —— 空位没有东西可拖） */}
+      {card && (
+        <mesh
+          rotation={[-Math.PI / 2, 0, 0]}
+          position={[0, 0.01, 0]}
+          onPointerDown={(e: ThreeEvent<PointerEvent>) => {
+            e.stopPropagation();
+            useGame.getState().beginDrag({
+              kind: "return",
+              cardId: card.id,
+              hover: kind === "scene" ? { kind: "scene" } : { kind: "role", index: index ?? 0 },
+            });
+          }}
+        >
+          <planeGeometry args={[w * 1.12, h * 1.09]} />
+          <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+        </mesh>
+      )}
     </group>
   );
 }
@@ -1389,20 +1418,55 @@ function GameTableSlots() {
   const S = sceneLayout(land).slots;
   const state = useGame((s) => s.state);
   const meId = useGame((s) => s.meId);
+  const hover = useGame((s) => s.drag?.hover ?? null);
+  const camera = useThree((s) => s.camera);
   const table = (state ? gameViewOf(state, meId)?.table : null) ?? EMPTY_TABLE;
+
+  /** 五格的世界坐标（角色 4 + 场景 1），投影与绘制读同一份：位子挪了不会只挪一半 */
+  const plates = useMemo(() => {
+    const roles = Array.from({ length: TABLE_ROLE_SLOTS }, (_, i) => ({
+      slot: { kind: "role" as const, index: i },
+      x: (i - (TABLE_ROLE_SLOTS - 1) / 2) * S.roleDx,
+      z: S.roleZ,
+      scale: S.roleScale,
+    }));
+    return [...roles, { slot: { kind: "scene" as const }, x: S.sceneX, z: S.sceneZ, scale: S.sceneScale }];
+  }, [S.roleDx, S.roleZ, S.roleScale, S.sceneX, S.sceneZ, S.sceneScale]);
+
+  // 每帧把五格的屏占比重算进 SLOT_SCREEN（2D 那一层按它判落点、亮高亮）。
+  // ★ 相机这一刻就可能是商店机位 / 对话视角：不做缓存，宁可每帧算 5×3 次投影（这点量看不见）。
+  const probe = useMemo(() => new THREE.Vector3(), []);
+  useFrame(() => {
+    const rects = plates.map((plate) => {
+      const halfW = (CARD.w * plate.scale) / 2;
+      const halfH = (CARD.h * plate.scale) / 2;
+      const center = probe.set(plate.x, CARD.lift, plate.z).project(camera);
+      const cx = (center.x + 1) / 2;
+      const cy = (1 - center.y) / 2;
+      const visible = center.z < 1;
+      const edgeX = probe.set(plate.x + halfW, CARD.lift, plate.z).project(camera);
+      const rx = Math.abs((edgeX.x + 1) / 2 - cx);
+      const edgeZ = probe.set(plate.x, CARD.lift, plate.z + halfH).project(camera);
+      const ry = Math.abs((1 - edgeZ.y) / 2 - cy);
+      return { slot: plate.slot, cx, cy, rx: Math.max(rx, 0.012), ry: Math.max(ry, 0.012), visible };
+    });
+    SLOT_SCREEN.rects = rects;
+  });
+
   return (
     <group>
-      {table.roles.map((card, i) => (
+      {plates.map((plate) => (
         <SlotPlate
-          key={`role-${i}`}
-          x={(i - (TABLE_ROLE_SLOTS - 1) / 2) * S.roleDx}
-          z={S.roleZ}
-          scale={S.roleScale}
-          kind="role"
-          card={card}
+          key={plate.slot.kind === "scene" ? "scene" : `role-${plate.slot.index}`}
+          x={plate.x}
+          z={plate.z}
+          scale={plate.scale}
+          kind={plate.slot.kind}
+          index={plate.slot.kind === "role" ? plate.slot.index : undefined}
+          card={plate.slot.kind === "scene" ? table.scene : (table.roles[plate.slot.index] ?? null)}
+          hot={!!hover && sameTableSlot(hover, plate.slot)}
         />
       ))}
-      <SlotPlate x={S.sceneX} z={S.sceneZ} scale={S.sceneScale} kind="scene" card={table.scene} />
     </group>
   );
 }

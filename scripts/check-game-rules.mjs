@@ -101,7 +101,7 @@ const withCards = (cards, extra = {}) => ({ ...basePlayer(), bag: cards, ...extr
 function submitAll(state, prompt = "fixture shot") {
   let next = state;
   for (const id of next.players.filter((p) => !p.eliminated).map((p) => p.id)) {
-    next = must(`交片 ${id}`, R.submitRoundEntry(next, id, { cards: R.ownedCards(find(next, id)).slice(0, 1), prompt })).state;
+    next = must(`交片 ${id}`, R.submitRoundEntry(next, id, { prompt })).state;
   }
   return next;
 }
@@ -122,8 +122,9 @@ const source = fs.readFileSync(modPath, "utf8");
   const imports = [...source.matchAll(/^\s*import[^;]*?from\s+["']([^"']+)["']/gm)].map((m) => m[1]);
   eq("rules.ts 的 import 只有 ./types（零依赖）", imports, ["./types"]);
 
-  eq("背包 9 格（§2.1）", R.BAG_SIZE, 9);
-  eq("类型上限 角色 4 / 场景 1 / 道具 4（§2.1）", R.TYPE_CAPS, { role: 4, scene: 1, item: 4 });
+  // ★ G4 施工单 §3：9 格与"按种类计数"整组撤了，上限落在桌面卡位与"每角色 3 张道具"上。
+  eq("背包不再有 9 格（撤掉的老规则不许长回来）", "bagUsage" in R && !("BAG_SIZE" in R), true);
+  eq("不再有按种类的上限表", "TYPE_CAPS" in R, false);
   eq("G4 桌面角色位 4 个", R.TABLE_ROLE_SLOTS, 4);
   eq("100 血起跑（§2.1）", R.START_HP, 100);
   eq("回合上限 8（§5-2 默认值）", R.MAX_ROUNDS, 8);
@@ -255,132 +256,161 @@ const source = fs.readFileSync(modPath, "utf8");
   rejects("风格阶段直接开回合", R.beginRound(R.createGame(IDS, R.createRng(22)), R.createRng(22)), "wrong-phase");
 }
 
-// ────────────────────────────── 3. 背包：9 格 / 类型上限 / 替换 / 卖卡 / 装备（§2.1） ──────────────────────────────
+// ────────────────────────────── 3. 背包 / 桌面卡位 / 卖卡 / 装备（G4 §3 改造） ──────────────────────────────
+//
+// ★ G4 第 3 步把「按种类计数」整组撤了：背包没有 9 格、也没有角色 ≤4 / 场景 ≤1 / 道具 ≤4。
+//   上限只剩两处：**桌面卡位**（4 角色 + 1 场景）与**每张角色最多 3 张道具**。
+//   所以这一节测的规矩换了：摆卡（含拖错类型 / 位子满了）、拖回背包、替换、道具 3 张上限、拆除工具。
 
 {
   const base = basePlayer();
-  // 正例：4 角色 + 1 场景 + 4 道具正好 9 格（§2.1 的 4+1+4）。
-  let player = base;
-  for (let i = 0; i < 4; i += 1) player = must(`收第 ${i + 1} 个角色`, R.addCardToBag(player, card(`r${i}`, "role"))).player;
-  player = must("收场景卡", R.addCardToBag(player, card("s0", "scene"))).player;
-  for (let i = 0; i < 4; i += 1) player = must(`收第 ${i + 1} 件道具`, R.addCardToBag(player, card(`i${i}`, "item"))).player;
-  eq("9 张塞满", R.bagUsage(player).total, 9);
-  eq("满了之后 free = 0", R.bagUsage(player).free, 0);
-  // G4 桌面 5 个卡位（4 角色 + 1 场景）：**只读派生**，按背包顺序占位。
-  // 反例都在下面：位子数不能缩（roles 恒 4 格）、超出的角色卡不能挤进场景位、顺序不能乱。
-  eq("空背包的 5 个卡位全空", R.tableSlotsOf(base), { roles: [null, null, null, null], scene: null });
-  let slotPlayer = base;
-  slotPlayer = must("卡位夹具角色 A", R.addCardToBag(slotPlayer, card("rA", "role"))).player;
-  slotPlayer = must("卡位夹具角色 B", R.addCardToBag(slotPlayer, card("rB", "role"))).player;
-  slotPlayer = must("卡位夹具场景", R.addCardToBag(slotPlayer, card("sA", "scene"))).player;
-  const slots = R.tableSlotsOf(slotPlayer);
-  eq("角色按背包顺序占前两个位", slots.roles.map((c) => c?.id ?? null), ["rA", "rB", null, null]);
-  eq("场景卡占场景位", slots.scene?.id, "sA");
-  eq("不缩数组（恒 4 格）", R.tableSlotsOf(base).roles.length, 4);
-  // 反例：坏状态里塞进 5 张角色卡时多出来的那张不能画进第 5 个角色位 / 不能挤掉场景位。
-  const overfull = { ...base, bag: ["x1", "x2", "x3", "x4", "x5"].map((id) => card(id, "role")).concat([card("sX", "scene")]) };
-  eq("超过 4 张角色卡只画前 4 个", R.tableSlotsOf(overfull).roles.map((c) => c?.id ?? null), ["x1", "x2", "x3", "x4"]);
-  eq("角色再多场景位照旧", R.tableSlotsOf(overfull).scene?.id, "sX");
-  // 反例：还能收第 10 张 = 背包条放不下（界面溢出 / 存档越界）。
-  rejects("背包 9 格再收一张", R.addCardToBag(player, card("x", "role")), "bag-full");
-  // 反例：角色能收到第 5 个 = §2.1 角色 ≤4 失守（牌组变成堆角色，场景 / 道具没位置）。
-  let roles = base;
-  for (let i = 0; i < 4; i += 1) roles = must(`角色上限正例 ${i}`, R.addCardToBag(roles, card(`r${i}`, "role"))).player;
-  rejects("第 5 个角色", R.addCardToBag(roles, card("r4", "role")), "type-cap");
-  let items = base;
-  for (let i = 0; i < 4; i += 1) items = must(`道具上限正例 ${i}`, R.addCardToBag(items, card(`i${i}`, "item"))).player;
-  rejects("第 5 件道具", R.addCardToBag(items, card("i4", "item")), "type-cap");
-  const oneScene = must("场景上限正例", R.addCardToBag(base, card("s0", "scene"))).player;
-  // 反例：场景能收到第 2 张 = §2.1 场景 ≤1 失守（出片时场景图位只能挂一张）。
-  rejects("第 2 张场景卡", R.addCardToBag(oneScene, card("s1", "scene")), "type-cap");
-  eq("收入囊中的卡不改原玩家（纯函数）", base.bag.length, 0);
+  eq("桌面卡位：角色 4 / 场景 1（施工单 §2）", [R.TABLE_ROLE_SLOTS, R.TABLE_SCENE_SLOTS], [4, 1]);
+  eq("每张角色最多挂 3 张道具（施工单 §3）", [R.ITEMS_PER_ROLE, R.itemLimitOf(basePlayer())], [3, 3]);
+  eq("空桌面 5 个位全空", R.tableSlotsOf(base), { roles: [null, null, null, null], scene: null });
 
-  // 替换（§2.1 装不上时唯一的出路）：同类型换同类型、总数不变。
-  let fourRoles = base;
-  for (let i = 0; i < 4; i += 1) fourRoles = must(`替换夹具角色 ${i}`, R.addCardToBag(fourRoles, card(`r${i}`, "role"))).player;
-  const replaced = must("角色换角色", R.replaceCardInBag(fourRoles, "r0", card("r9", "role"))).player;
-  eq("替换后仍是 4 个角色", replaced.bag.length, 4);
-  eq("被换下的卡不在了", replaced.bag.some((c) => c.id === "r0"), false);
-  eq("新卡进来了", replaced.bag.some((c) => c.id === "r9"), true);
-  rejects("替换一张不存在的卡", R.replaceCardInBag(fourRoles, "nope", card("r9", "role")), "card-not-in-bag");
-  // 反例：用场景替换角色而不查场景上限 = 出现两张场景卡（类型上限被替换这条路绕开）。
-  rejects("场景已满时用场景换角色", R.replaceCardInBag(withCards([card("r1", "role"), card("s0", "scene")]), "r1", card("s1", "scene")), "type-cap");
+  // 背包不再限量（§3 第一条）。
+  // 反例：还能按种类数上限时这里会拒 —— 那说明旧的那套（9 格 / 角色 ≤4）没有删干净。
+  let bag = base;
+  for (let i = 0; i < 8; i += 1) bag = must(`背包不再限量 ${i}`, R.addCardToBag(bag, card(`b${i}`, "role"))).player;
+  eq("背包能收 8 张角色（不再有 9 格 / 角色 ≤4）", bag.bag.length, 8);
+  eq("背包占用只报数、没有上限字段", Object.keys(R.bagUsage(bag)).sort(), ["byType", "total"]);
+  eq("收卡恒成功（canAddCard 恒 null）", R.canAddCard(bag, card("x", "role")), null);
 
-  // 卖卡：回收 1 金（§2.1），不分品质。
-  const seller = withCards([card("r1", "role", 5), card("i1", "item")], { gold: 5 });
-  const soldOne = must("卖一张 5 费角色", R.sellCardFromBag(seller, "r1"));
+  // ── 摆卡（施工单 §2：拖进 4 个角色位 + 1 个场景位） ──
+  let t = must("角色 A 进背包", R.addCardToBag(base, card("rA", "role"))).player;
+  t = must("场景进背包", R.addCardToBag(t, card("sA", "scene"))).player;
+  t = must("道具进背包", R.addCardToBag(t, card("iA", "item"))).player;
+  t = must("摆角色 A 到 1 号位", R.placeCardOnTable(t, "rA", { kind: "role", index: 0 })).player;
+  eq("摆上桌的卡离开背包", t.bag.map((c) => c.id), ["sA", "iA"]);
+  eq("桌上 1 号位是 A", R.tableSlotsOf(t).roles.map((c) => c?.id ?? null), ["rA", null, null, null]);
+  t = must("摆场景", R.placeCardOnTable(t, "sA", { kind: "scene" })).player;
+  eq("场景位是 sA", R.tableSlotsOf(t).scene?.id, "sA");
+  eq("桌面上的卡 = 角色 + 场景", R.tableCardsOf(t).map((c) => c.id).sort(), ["rA", "sA"]);
+  eq("拥有的卡 = 背包 + 桌面 + 装备（不重复计）", R.ownedCards(t).map((c) => c.id).sort(), ["iA", "rA", "sA"]);
+
+  // 反例：位子与卡种对不上（角色卡丢进场景位 / 场景卡丢进角色位 / 道具想占卡位）。
+  //   错的时候：出片时"场景那张"会挂进人物位，画面里少一个人、多一个地点。
+  rejects("场景卡丢进角色位", R.placeCardOnTable(must("再收一张场景", R.addCardToBag(base, card("sB", "scene"))).player, "sB", { kind: "role", index: 0 }), "wrong-slot-type");
+  rejects("角色卡丢进场景位", R.placeCardOnTable(must("再收一张角色", R.addCardToBag(base, card("rB", "role"))).player, "rB", { kind: "scene" }), "wrong-slot-type");
+  rejects("道具卡不占卡位", R.placeCardOnTable(must("再收一件道具", R.addCardToBag(base, card("iB", "item"))).player, "iB", { kind: "role", index: 0 }), "wrong-slot-type");
+  // 反例：位子下标越界 = 界面的号码与规则对不上（静默把卡吞掉比崩溃更难查）。
+  rejects("越界的角色位", R.placeCardOnTable(must("越界夹具", R.addCardToBag(base, card("rC", "role"))).player, "rC", { kind: "role", index: 9 }), "bad-table-slot");
+  // 反例：不在背包里的卡被摆（卖掉了 / 已经挂到角色身上）。
+  rejects("摆一张不在背包里的卡", R.placeCardOnTable(base, "nope", null), "card-not-in-bag");
+
+  // 4 个角色位都占满之后再摆第 5 张 = type-cap（这就是"type-cap 只保留桌面卡位这一层"）。
+  //   拖到桌面空处（slot=null）时由规则自己找空位；一个空位都没有才拒。
+  let full = base;
+  for (let i = 0; i < 4; i += 1) {
+    full = must(`满位角色 ${i}`, R.addCardToBag(full, card(`f${i}`, "role"))).player;
+    full = must(`摆满 ${i}`, R.placeCardOnTable(full, `f${i}`, { kind: "role", index: i })).player;
+  }
+  full = must("第 5 张角色", R.addCardToBag(full, card("f4", "role"))).player;
+  const capped = R.placeCardOnTable(full, "f4", null);
+  rejects("角色位满了再摆", capped, "type-cap");
+  eq("type-cap 报的是桌面卡位 4/4", [capped.count, capped.cap, capped.cardType], [4, 4, "role"]);
+  // 场景位同理只有 1 个。
+  let oneScene = must("场景占位", R.addCardToBag(base, card("s1", "scene"))).player;
+  oneScene = must("摆上场景 1", R.placeCardOnTable(oneScene, "s1", { kind: "scene" })).player;
+  oneScene = must("第 2 张场景", R.addCardToBag(oneScene, card("s2", "scene"))).player;
+  rejects("场景位只有一个", R.placeCardOnTable(oneScene, "s2", null), "type-cap");
+
+  // 替换：拖到**已占**的位子上 = 新卡上位、旧卡回背包（施工单「已占的位可以拖回背包/替换」）。
+  let rep = must("替换：角色进背包", R.addCardToBag(base, card("r1", "role"))).player;
+  rep = must("替换：旧卡进背包", R.addCardToBag(rep, card("r2", "role"))).player;
+  rep = must("替换：旧卡上位", R.placeCardOnTable(rep, "r1", { kind: "role", index: 0 })).player;
+  rep = must("替换：新卡顶掉旧卡", R.placeCardOnTable(rep, "r2", { kind: "role", index: 0 })).player;
+  eq("替换后位子上是新卡", R.tableSlotsOf(rep).roles[0]?.id, "r2");
+  eq("替换后旧卡回背包", rep.bag.map((c) => c.id).sort(), ["r1"]);
+  // 反例：同一张卡拖回原位当成"替换" = 旧卡（其实是它自己）被丢进背包，桌上凭空多一张。
+  const noop = must("同一张卡拖回原位", R.placeCardOnTable(rep, "r2", { kind: "role", index: 0 })).player;
+  eq("原位不动、背包不变", [R.tableSlotsOf(noop).roles[0]?.id, noop.bag.map((c) => c.id).sort()], ["r2", ["r1"]]);
+
+  // 拖回背包（施工单：已占的位可以拖回背包）。
+  const back = must("角色拖回背包", R.returnTableCardToBag(noop, { kind: "role", index: 0 })).player;
+  eq("拖回来之后位子空了", R.tableSlotsOf(back).roles[0], null);
+  eq("拖回来之后卡在背包", back.bag.map((c) => c.id).sort(), ["r1", "r2"]);
+  // 反例：空位子上"拖回背包" = 界面上拖了一张不在那儿的卡（静默成功会让玩家以为收回了）。
+  rejects("空的角色位拖回背包", R.returnTableCardToBag(base, { kind: "role", index: 0 }), "table-slot-empty");
+  rejects("空的场景位拖回背包", R.returnTableCardToBag(base, { kind: "scene" }), "table-slot-empty");
+
+  // ── 道具（施工单 §3：每个角色最多 3 张；右侧栏拖到角色卡上） ──
+  // 夹具：桌上一个角色 + 背包里 4 件道具。
+  let wearer = must("角色进背包", R.addCardToBag(base, card("role0", "role"))).player;
+  for (let i = 0; i < 4; i += 1) wearer = must(`道具进背包 ${i}`, R.addCardToBag(wearer, card(`i${i}`, "item"))).player;
+  // 反例：道具挂到**还没上桌**的角色身上 —— 右侧栏只列道具、桌面上没有那张角色，玩家看不出它属于谁。
+  rejects("挂到还没上桌的角色", R.equipItemOnRole(wearer, "role0", "i0"), "role-not-on-table");
+  let onTable = must("角色上桌", R.placeCardOnTable(wearer, "role0", { kind: "role", index: 0 })).player;
+  onTable = must("挂第 1 张道具", R.equipItemOnRole(onTable, "role0", "i0")).player;
+  onTable = must("挂第 2 张道具", R.equipItemOnRole(onTable, "role0", "i1")).player;
+  onTable = must("挂第 3 张道具", R.equipItemOnRole(onTable, "role0", "i2")).player;
+  eq("挂上之后道具离开背包", onTable.bag.map((c) => c.id).sort(), ["i3"]);
+  eq("按角色查道具（复数）", R.equippedItemsOf(onTable, "role0").map((c) => c.id), ["i0", "i1", "i2"]);
+  eq("计数 = 3", R.equippedCountOf(onTable, "role0"), 3);
+  // 反例：还能挂第 4 张 = 「每角色 3 张」失守（对齐参照游戏的那一条）。
+  rejects("第 4 张道具", R.equipItemOnRole(onTable, "role0", "i3"), "item-limit");
+  // 事件加的 +1（补给站）：上限只从 itemLimitOf 读，别处不许自己写 3。
+  eq("事件 +1 之后上限 4", R.itemLimitOf({ ...onTable, itemLimitBonus: 1 }), 4);
+  must("加成后能挂第 4 张", R.equipItemOnRole({ ...onTable, itemLimitBonus: 1 }, "role0", "i3"));
+  // 反例：道具挂到道具上 / 角色当道具挂 / 挂一件不存在的道具。
+  rejects("把道具挂到道具上", R.equipItemOnRole(onTable, "role0", "i0"), "item-equipped"); // w0 已经在身上
+  rejects("把角色当道具挂", R.equipItemOnRole(onTable, "role0", "i0"), "item-equipped");
+
+  // 反例：同一件道具挂到第二个角色上 = 一件道具被两个角色引用（拆一个时另一个指向空气）。
+  let twoRoles = must("第二个角色进背包", R.addCardToBag(onTable, card("w9", "role"))).player;
+  twoRoles = must("第二个角色上桌", R.placeCardOnTable(twoRoles, "w9", { kind: "role", index: 1 })).player;
+  rejects("同一件道具挂两个角色", R.equipItemOnRole(twoRoles, "w9", "i0"), "item-equipped");
+
+  // 拆除工具：一次卸下这张角色身上的**所有**道具（施工单 §3）。
+  const stripped = must("拆除工具一次卸光", R.unequipAllFromRole(onTable, "role0")).player;
+  eq("3 张全回背包", stripped.bag.map((c) => c.id).sort(), ["i0", "i1", "i2", "i3"]);
+  eq("装备关系清空", stripped.equipment, []);
+  // 反例：拆一张身上什么都没有的角色 = 界面上那颗工具会"点了没反应"（要说原因）。
+  rejects("拆一张没有道具的角色", R.unequipAllFromRole(stripped, "role0"), "no-equipped-item");
+
+  // 带道具的角色不能拖回背包 / 不能被替换（道具会指向一张不在桌上的卡）。
+  rejects("带道具的角色拖回背包", R.returnTableCardToBag(onTable, { kind: "role", index: 0 }), "role-equipped");
+  rejects("带道具的角色被替换", R.placeCardOnTable(must("替换夹具", R.addCardToBag(onTable, card("w8", "role"))).player, "w8", { kind: "role", index: 0 }), "role-equipped");
+
+  // 卖卡：只卖背包里的（§2.1 回收 1 金）。桌上的 / 挂在角色身上的都要先说清楚。
+  const seller = withCards([card("s1", "role", 5), card("s2", "item")], { gold: 5 });
+  const soldOne = must("卖一张 5 费角色", R.sellCardFromBag(seller, "s1"));
   eq("卖卡回收 1 金（5 费也只回 1，§2.1）", soldOne.refund, 1);
   eq("卖完金币 +1", soldOne.player.gold, 6);
-  eq("卖掉的卡不在背包里", soldOne.player.bag.map((c) => c.id), ["i1"]);
+  eq("卖掉的卡不在背包里", soldOne.player.bag.map((c) => c.id), ["s2"]);
   rejects("卖一张不在背包里的卡", R.sellCardFromBag(seller, "nope"), "card-not-in-bag");
+  // 反例：把桌上那张卖了 = 桌面留一个空位，而出片刚读过它（成片里少一个人）。
+  rejects("卖一张摆在桌上的卡", R.sellCardFromBag(noop, "r2"), "card-on-table");
+  rejects("卖一件正装备着的道具", R.sellCardFromBag(onTable, "i0"), "item-equipped");
 
-  // 装备（§2.1）：道具只能拖到角色卡上；卖角色时道具退回背包。
-  const wearer = withCards([card("r1", "role"), card("i1", "item")]);
-  const equipped = must("把道具装到角色上", R.equipItemOnRole(wearer, "r1", "i1")).player;
-  eq("装备后道具离开背包", equipped.bag.map((c) => c.id), ["r1"]);
-  eq("装备关系记在 equipment", equipped.equipment.map((e) => [e.roleCardId, e.item.id]), [["r1", "i1"]]);
-  eq("能按角色查装备", R.equippedItemOf(equipped, "r1")?.id, "i1");
-  // 反例：一个角色挂两件 = 设计稿没写死、我们拍成 1 件（见 rules.equipItemOnRole）；挂两件会让出片的参考图位对不上。
-  const twoItems = must("两件道具夹具", R.addCardToBag(wearer, card("i2", "item"))).player;
-  const oneItemOn = must("先挂一件", R.equipItemOnRole(twoItems, "r1", "i1")).player;
-  rejects("同一个角色挂第二件道具", R.equipItemOnRole(oneItemOn, "r1", "i2"), "role-already-equipped");
-  // 反例：道具挂到道具上 / 角色当道具挂 = 装备关系指向错误种类（出片翻译层会去找一张不存在的角色卡面）。
-  rejects("把道具挂到道具上", R.equipItemOnRole(twoItems, "i1", "i2"), "not-a-role");
-  const twoRoles = must("两个角色夹具", R.addCardToBag(wearer, card("r2", "role"))).player;
-  rejects("把角色当道具挂", R.equipItemOnRole(twoRoles, "r1", "r2"), "not-an-item");
-  rejects("把不存在的道具挂上去", R.equipItemOnRole(wearer, "r1", "nope"), "card-not-in-bag");
-  const unequipped = must("卸下道具", R.unequipItemFromRole(equipped, "r1")).player;
-  eq("卸下后道具回背包", unequipped.bag.map((c) => c.id).sort(), ["i1", "r1"]);
-  eq("卸下后装备清空", unequipped.equipment, []);
-  rejects("卸一个没装备的角色", R.unequipItemFromRole(wearer, "r1"), "no-equipped-item");
-  // 反例：同一件道具挂到第二个角色上 = 一件道具被两个角色引用（卖其中一个时另一个会指向空气）。
-  const twoRolesEquipped = must("两角色 + 一件道具", R.equipItemOnRole(twoRoles, "r1", "i1")).player;
-  rejects("同一件道具挂两个角色", R.equipItemOnRole(twoRolesEquipped, "r2", "i1"), "item-equipped");
-  // 卖角色时道具必须退回背包（§2.1 明文）；反例：道具跟着角色一起消失 = 玩家花两份钱只卖回 1 金。
-  const soldWearer = must("卖掉带道具的角色", R.sellCardFromBag(equipped, "r1")).player;
-  eq("道具退回背包", soldWearer.bag.map((c) => c.id), ["i1"]);
-  eq("装备关系清掉", soldWearer.equipment, []);
-  // 反例：直接卖装备中的道具 = 角色身上留一个指向空气的装备。
-  rejects("卖一件正装备着的道具", R.sellCardFromBag(equipped, "i1"), "item-equipped");
-  // 反例：替换一个带装备的角色 = 道具没地方退回（9 格可能被撑破），硬换就会静默丢卡。
-  rejects("替换带装备的角色", R.replaceCardInBag(equipped, "r1", card("r3", "role")), "role-equipped");
-  rejects("替换一件正装备着的道具", R.replaceCardInBag(equipped, "i1", card("i9", "item")), "item-equipped");
-
-  // 装备也算在 9 格与类型上限里：装备只是把卡从背包挪到角色身上，不是凭空多一格。
-  let packed = base;
-  for (let i = 0; i < 3; i += 1) packed = must(`装备计数角色 ${i}`, R.addCardToBag(packed, card(`r${i}`, "role"))).player;
-  for (let i = 0; i < 4; i += 1) packed = must(`装备计数道具 ${i}`, R.addCardToBag(packed, card(`i${i}`, "item"))).player;
-  packed = must("装上第一件", R.equipItemOnRole(packed, "r0", "i0")).player;
-  // 反例：装备不计数时这里会成功 = 拥有 5 件道具（§2.1 道具 ≤4）。
-  rejects("装上一件后仍是 4 件道具上限", R.addCardToBag(packed, card("i9", "item")), "type-cap");
-  let packed9 = base;
-  for (let i = 0; i < 2; i += 1) packed9 = must(`9 格角色 ${i}`, R.addCardToBag(packed9, card(`r${i}`, "role"))).player;
-  packed9 = must("9 格场景", R.addCardToBag(packed9, card("s0", "scene"))).player;
-  for (let i = 0; i < 4; i += 1) packed9 = must(`9 格道具 ${i}`, R.addCardToBag(packed9, card(`i${i}`, "item"))).player;
-  packed9 = must("9 格装两件", R.equipItemOnRole(must("9 格装一件", R.equipItemOnRole(packed9, "r0", "i0")).player, "r1", "i1")).player;
-  packed9 = must("9 格再收角色 1", R.addCardToBag(packed9, card("r2", "role"))).player;
-  packed9 = must("9 格再收角色 2", R.addCardToBag(packed9, card("r3", "role"))).player;
-  eq("背包 7 + 装备 2 = 9（装备计入 9 格）", R.bagUsage(packed9).total, 9);
-  // 反例：装备不计入 9 格时这里会成功 = 实际拥有 10 张卡。
-  rejects("装备计入 9 格后不能再收", R.addCardToBag(packed9, card("x", "role")), "bag-full");
-
-  // 阶段闸：卖 / 装备只准在商店阶段（§2.0 ①）。
+  // 阶段闸：卖卡只准商店阶段；**摆卡 / 装备两阶段都行**（G4 §2：出片按钮在创作阶段，
+  //   进那一阶段才发现没摆就永远补不上）。
   const match = newMatch(31);
-  const inCreate = { ...match.state, phase: "create" };
-  rejects("创作阶段卖卡", R.sellCard(inCreate, "p1", "whatever"), "wrong-phase");
-  rejects("创作阶段装备道具", R.equipItem(inCreate, "p1", "r1", "i1"), "wrong-phase");
+  rejects("创作阶段卖卡", R.sellCard({ ...match.state, phase: "create" }, "p1", "whatever"), "wrong-phase");
   rejects("展映阶段买卡", R.buyShopCard({ ...match.state, phase: "screening" }, "p1", 0), "wrong-phase");
-  // 状态级卖卡 / 装备 / 卸下（界面走这三个口子；核心逻辑仍是上面那些纯函数）。
+  rejects("展映阶段摆卡", R.placeOnTable({ ...match.state, phase: "screening" }, "p1", "r1", null), "wrong-phase");
+  let create = withBag({ ...match.state, phase: "create" }, "p1", [card("r1", "role"), card("i1", "item")]);
+  create = must("创作阶段摆卡", R.placeOnTable(create, "p1", "r1", { kind: "role", index: 0 })).state;
+  create = must("创作阶段装备", R.equipItem(create, "p1", "r1", "i1")).state;
+  eq("创作阶段也能摆 + 装备", [R.tableSlotsOf(find(create, "p1")).roles[0]?.id, find(create, "p1").equipment.length], ["r1", 1]);
+  create = must("创作阶段卸下", R.unequipAll(create, "p1", "r1")).state;
+  // 角色还摆在桌上（没跟着回背包），回来的只有那件道具
+  eq("创作阶段卸下退回背包", find(create, "p1").bag.map((c) => c.id).sort(), ["i1"]);
+  // 状态级卖卡 / 摆卡（界面走这些口子；核心逻辑仍是上面那些纯函数）。
   let shopState = newMatch(32);
   shopState = withBag(shopState.state, "p1", [card("r1", "role"), card("i1", "item")]);
+  shopState = must("状态级摆卡", R.placeOnTable(shopState, "p1", "r1", { kind: "role", index: 0 })).state;
   shopState = must("状态级装备", R.equipItem(shopState, "p1", "r1", "i1")).state;
   eq("状态级装备写回玩家", find(shopState, "p1").equipment.length, 1);
-  shopState = must("状态级卸下", R.unequipItem(shopState, "p1", "r1")).state;
-  eq("状态级卸下退回背包", find(shopState, "p1").bag.map((c) => c.id).sort(), ["i1", "r1"]);
+  shopState = must("状态级卸下", R.unequipAll(shopState, "p1", "r1")).state;
+  eq("状态级卸下退回背包", find(shopState, "p1").bag.map((c) => c.id).sort(), ["i1"]);
+  shopState = must("状态级回背包", R.returnToBag(shopState, "p1", { kind: "role", index: 0 })).state;
+  eq("状态级回背包：位子空了、卡在背包", [R.tableSlotsOf(find(shopState, "p1")).roles[0], find(shopState, "p1").bag.length], [null, 2]);
   const beforeSell = find(shopState, "p1").gold;
   shopState = must("状态级卖卡", R.sellCard(shopState, "p1", "r1")).state;
   eq("状态级卖卡到账 1 金", find(shopState, "p1").gold, beforeSell + 1);
 }
+
 
 // ────────────────────────────── 4. 经济：利息封顶 / 连胜档位 / 回合收入（§2.3） ──────────────────────────────
 
@@ -491,27 +521,12 @@ const source = fs.readFileSync(modPath, "utf8");
   // 反例：背包满还硬买 = 多扣钱、卡没有落点。
   const fullBag = withPlayer(buying, "p1", { bag: Array.from({ length: 9 }, (_, i) => card(`f${i}`, "role")) });
   const fullBefore = show(fullBag);
-  rejects("背包满时直接买", R.buyShopCard(fullBag, "p1", slot), "bag-full");
+  ok("背包没有上限时，买卡只会被钱拦住（不再有 bag-full 这条路）", "bag-full" !== (R.buyShopCard(fullBag, "p1", slot).reason ?? ""));
   unchanged("背包满买卡失败不改状态", fullBag, JSON.parse(fullBefore));
 
-  // 装不上时只能替换（§2.1）：买卡时带 replaceCardId，原子换。
-  const bagTypes = [card("r0", "role"), card("r1", "role"), card("i0", "item"), card("i1", "item"), card("s0", "scene"), card("r2", "role"), card("i2", "item"), card("r3", "role"), card("i3", "item")];
-  let replaceState = withPlayer(buying, "p1", { bag: bagTypes });
-  const incoming = replaceState.shops.p1.cards[slot];
-  const outgoing = bagTypes.find((c) => c.type === incoming.type);
-  const replacedBuy = must("买卡并替换同类型旧卡", R.buyShopCard(replaceState, "p1", slot, outgoing.id)).state;
-  eq("替换后新卡进背包", find(replacedBuy, "p1").bag.some((c) => c.id === incoming.id), true);
-  eq("替换后旧卡不在了", find(replacedBuy, "p1").bag.some((c) => c.id === outgoing.id), false);
-  eq("替换买卡照样扣钱", find(replacedBuy, "p1").gold, 20 - incoming.quality);
-  eq("替换后仍是 9 张", find(replacedBuy, "p1").bag.length, 9);
-  // 反例：替换失败还扣钱 = 玩家付了钱、卡没到手、旧卡也没了（三步全丢）。
-  const badReplace = withPlayer(buying, "p1", { bag: bagTypes });
-  const badReplaceBefore = show(badReplace);
-  rejects("替换一张不存在的卡", R.buyShopCard(badReplace, "p1", slot, "nope"), "card-not-in-bag");
-  unchanged("替换失败整笔回滚", badReplace, JSON.parse(badReplaceBefore));
-  // 反例：带装备的角色被替换 = 道具没地方退（见 §2.1 的退回规则）。
-  const armed = withPlayer(buying, "p1", { bag: [card("r0", "role"), card("i0", "item")] });
-  const armedEquipped = withPlayer(armed, "p1", { bag: [card("r0", "role")], equipment: [{ roleCardId: "r0", item: card("i0", "item") }] });  rejects("替换带装备的角色", R.buyShopCard(armedEquipped, "p1", slot, "r0"), "role-equipped");
+  // ★ G4 施工单 §3 起没有"装不下 → 替换旧卡"那条路：背包不限量，买得到买不到只看钱。
+  //   反例：`buyShopCard` 还认第四位 replaceCardId = 旧的那套没删干净（界面早就不传它了）。
+  eq("买卡不再收 replaceCardId（那条路随背包上限一起撤了）", R.buyShopCard.length, 3);
 }
 
 // ────────────────────────────── 6. 模型等级：8 金 L2 / 15 金 L3 + 3 连胜门槛（§2.3b） ──────────────────────────────
@@ -653,13 +668,12 @@ const source = fs.readFileSync(modPath, "utf8");
   const capped = must("回血封顶", R.applyEventChoice(nearlyFull.state, "p1", "heal", nearlyFull.rng));
   eq("95 + 15 封顶 100", find(capped.state, "p1").hp, 100);
 
-  // 背包上限 +1（补给站 5 金：角色 4→5，§2.3b）。
-  const cappedRoles = Array.from({ length: 4 }, (_, i) => card(`r${i}`, "role"));
-  const expand = eventState("supply-drop", { gold: 10, bag: cappedRoles });
-  rejects("角色上限 4 时收第 5 个（事件之前）", R.addCardToBag(find(expand.state, "p1"), card("r4", "role")), "type-cap");
-  const expanded = must("背包角色上限 +1", R.applyEventChoice(expand.state, "p1", "bag-expand", expand.rng));
-  eq("角色上限 4→5（§2.3b）", R.capOf(find(expanded.state, "p1"), "role"), 5);
-  must("上限 +1 之后能收第 5 个角色", R.addCardToBag(find(expanded.state, "p1"), card("r4", "role")));
+  // 道具上限 +1（补给站 5 金：每角色 3→4 张，G4 §3 起这条事件效果改挂在道具上 ——
+  // 背包不再按种类计数，桌面角色位也不会被事件撑大，只有"每角色能挂几张"还是个可改的数）。
+  const expand = eventState("supply-drop", { gold: 10 });
+  eq("事件之前：每角色 3 张（§3）", R.itemLimitOf(find(expand.state, "p1")), 3);
+  const expanded = must("道具上限 +1", R.applyEventChoice(expand.state, "p1", "bag-expand", expand.rng));
+  eq("道具上限 3→4（§2.3b）", R.itemLimitOf(find(expanded.state, "p1")), 4);
 
   // 免费刷新券 ×2（补给站免费项）。
   const coupon = eventState("supply-drop");
@@ -687,7 +701,7 @@ const source = fs.readFileSync(modPath, "utf8");
   // 反例：背包满还硬发 = 卡被静默丢掉（玩家看不到、仓库里也没有）。
   const fullForBlue = eventState("inspiration-burst", { gold: 0, bag: Array.from({ length: 9 }, (_, i) => card(`f${i}`, "item")) });
   const fullForBlueBefore = show(fullForBlue.state);
-  rejects("背包满时领随机蓝卡", R.applyEventChoice(fullForBlue.state, "p1", "free-blue-card", fullForBlue.rng), "bag-full");
+  ok("随机蓝卡不再会因为背包满失败（背包不限量）", R.applyEventChoice(fullForBlue.state, "p1", "free-blue-card", fullForBlue.rng).ok === true);
   unchanged("随机卡发不下来时整项不改状态", fullForBlue.state, JSON.parse(fullForBlueBefore));
 
   // 时效增益在「这一回合结束」时清掉；免费刷新券不过期（§2.3b 的「下一回合 / 本回合」语义）。
@@ -834,7 +848,7 @@ const source = fs.readFileSync(modPath, "utf8");
   for (const id of IDS) three = must(`选风格 ${id}`, R.pickStyleCard(three, id, find(three, id).styleChoices[0])).state;
   three = must("开第一回合", R.beginRound(three, R.createRng(103))).state;
   three = must("进创作", R.enterCreation(three)).state;
-  for (const id of ["p1", "p2", "p3"]) three = must(`交片 ${id}`, R.submitRoundEntry(three, id, { cards: [], prompt: "only three" })).state;
+  for (const id of ["p1", "p2", "p3"]) three = must(`交片 ${id}`, R.submitRoundEntry(three, id, { prompt: "only three" })).state;
   const almost = R.enterScreening(three);
   rejects("只差一个人交片也不能开始展映", almost, "entries-pending");
   eq("缺口人数报给界面（count）", almost.count, 1);
@@ -846,74 +860,80 @@ const source = fs.readFileSync(modPath, "utf8");
 {
   eq("占位视频固定 5 秒（§2.4）", R.VIDEO_SECONDS, 5);
   eq("提示词基础上限 80 字（§2.4）", R.PROMPT_BASE_MAX, 80);
-  eq("三个虚框 = 角色 / 场景 / 道具（§2.4）", R.SLOT_TYPES, ["role", "scene", "item"]);
+  // 反例：三个虚框那套（SLOT_TYPES）还在 = G4 第 3 步没删干净（摆卡改成桌面 5 个卡位了）。
+  eq("没有 SLOT_TYPES 了（虚框随桌面卡位一起撤）", "SLOT_TYPES" in R, false);
 
-  /** 4 人局走到创作阶段（每人背包里给一张各自的卡，方便试"槽位"）。 */
+  /**
+   * 4 人局走到创作阶段：p1 桌上摆好 1 角色 + 1 场景、身上挂 1 件道具（一期作品的卡从桌面派生）。
+   * ★ G4 第 3 步起**卡不由调用方递进交片接口**，所以夹具必须先把卡摆到桌上（placeCardOnTable）。
+   */
   function createPhase(seed) {
     const match = newMatch(seed);
     let state = match.state;
     state = withBag(state, "p1", [card("c-r", "role", 5), card("c-s", "scene", 3), card("c-i", "item", 2)]);
     state = withBag(state, "p2", [card("d-r", "role", 1)]);
     state = must("进创作", R.enterCreation(state)).state;
+    state = must("夹具：角色上桌", R.placeOnTable(state, "p1", "c-r", { kind: "role", index: 0 })).state;
+    state = must("夹具：场景上桌", R.placeOnTable(state, "p1", "c-s", { kind: "scene" })).state;
+    state = must("夹具：道具挂上", R.equipItem(state, "p1", "c-r", "c-i")).state;
     return { state, rng: match.rng };
   }
 
-  const { state: createA, rng: rngA } = createPhase(111);
-  const submitted = must("交片：角色 + 场景 + 道具", R.submitRoundEntry(createA, "p1", { cards: [card("c-r", "role", 5), card("c-s", "scene", 3), card("c-i", "item", 2)], prompt: "  雨夜回头  " })).state;
+  const { state: createA } = createPhase(111);
+  const submitted = must("交片：桌面的卡 + 一句提示词", R.submitRoundEntry(createA, "p1", { prompt: "  雨夜回头  " })).state;
   const mine = R.entryOfPlayer(submitted, "p1");
   eq("作品 id 是 r<回合>-<玩家>（稳定，不靠下标）", mine.id, R.roundEntryId(1, "p1"));
   eq("提示词去掉首尾空白再存", mine.prompt, "雨夜回头");
-  eq("占位视频时长 = rules 的 5 秒", mine.seconds, R.VIDEO_SECONDS);
+  eq("占位视频时长 = rules 的 5 秒（没出片时）", mine.seconds, R.VIDEO_SECONDS);
   eq("作品记下风格卡（出片整局带这套）", mine.styleCardId, find(submitted, "p1").styleCardId);
-  // ★ 卡按 id 从自己的拥有清单里取回来：调用方递进来的卡对象只是"哪一张"的指针
-  const forged = must(
-    "交片：卡按 id 认，取回的是自己的那张",
-    R.submitRoundEntry(createA, "p1", { cards: [{ id: "c-r", type: "role", quality: 1, name: "伪Card" }], prompt: "x" }),
-  ).state;
-  eq("卡按 id 取回（品质 / 名字都是自己那一张）", R.entryOfPlayer(forged, "p1").cards.map((c) => [c.id, c.quality, c.name]), [["c-r", 5, "C-R"]]);
-  eq("空镜也能交片（一张卡都不放 —— 不然没卡的玩家出不去创作阶段）", must("空镜交片", R.submitRoundEntry(createA, "p2", { cards: [], prompt: "空镜" })).entry.cards, []);
+  // ★ 一期作品的卡 = 桌面上的卡 + 挂在角色身上的道具（rules.castCardsOf 一处派生）
+  eq(
+    "作品里的卡 = 桌面（角色 + 场景）+ 装备的道具",
+    mine.cards.map((c) => c.id).sort(),
+    ["c-i", "c-r", "c-s"],
+  );
+  eq("空镜也能交片（桌上没卡 —— 不然没卡的玩家出不去创作阶段）", must("空镜交片", R.submitRoundEntry(createA, "p2", { prompt: "空镜" })).entry.cards, []);
   eq("交片后作品进了本期名单", R.entryOfPlayer(submitted, "p1") !== null, true);
   eq("别人没交就是 null（不是空对象）", R.entryOfPlayer(submitted, "p3"), null);
 
-  // 重交：作品 id 不变、名单不涨（创作阶段改卡改词不花钱）
-  const resubmitted = must("重交", R.submitRoundEntry(submitted, "p1", { cards: [card("c-r", "role", 5)], prompt: "重拍一次" })).state;
+  // 真出片那一发：videoUrl / seconds 由界面（game/gen）传进来，展映屏放的就是它。
+  const withVideo = must("交一条真出片的", R.submitRoundEntry(createA, "p1", { prompt: "出片了", videoUrl: "https://cdn.example/x.mp4", seconds: 5 })).entry;
+  eq("真出片记下地址", withVideo.videoUrl, "https://cdn.example/x.mp4");
+  eq("时长用出片那一发给的", withVideo.seconds, 5);
+
+  // 重交：作品 id 不变、名单不涨（创作阶段改词重摆不花钱）
+  const resubmitted = must("重交", R.submitRoundEntry(submitted, "p1", { prompt: "重拍一次" })).state;
   eq("重交只留一条作品（同 id 覆盖）", resubmitted.entries.length, 1);
-  eq("重交把卡换成新选的那张", R.entryOfPlayer(resubmitted, "p1").cards.map((c) => c.id), ["c-r"]);
   eq("重交把提示词换掉", R.entryOfPlayer(resubmitted, "p1").prompt, "重拍一次");
+  // 重摆卡之后重交：作品里的卡跟着桌面走（不是交片那一刻的旧快照）
+  let reTable = withBag(submitted, "p1", R.ownedCards(find(submitted, "p1")).concat([card("c-r2", "role", 4)]));
+  // 带道具的角色不能被顶掉（role-equipped）：先拆道具再换人
+  reTable = must("重交夹具：拆道具", R.unequipAll(reTable, "p1", "c-r")).state;
+  reTable = must("重交夹具：换人", R.placeOnTable(reTable, "p1", "c-r2", { kind: "role", index: 0 })).state;
+  const reSubmitted = must("重交（换过桌上的卡）", R.submitRoundEntry(reTable, "p1", { prompt: "再来一次" })).state;
+  // 道具已经拆回背包了，所以这一份只剩桌上的角色 + 场景
+  eq("重交后卡换成桌上那一份", R.entryOfPlayer(reSubmitted, "p1").cards.map((c) => c.id).sort(), ["c-r2", "c-s"]);
 
   // 反例：提示词是玩家自己写的，空着就不知道这一期拍什么（不给"默认提示词"兜底 —— 那是在替玩家做决定）
-  rejects("提示词空着不能交片", R.submitRoundEntry(createA, "p1", { cards: [], prompt: "   " }), "prompt-empty");
+  rejects("提示词空着不能交片", R.submitRoundEntry(createA, "p1", { prompt: "   " }), "prompt-empty");
   const longPrompt = "字".repeat(R.PROMPT_BASE_MAX + 1);
-  const tooLong = R.submitRoundEntry(createA, "p1", { cards: [], prompt: longPrompt });
+  const tooLong = R.submitRoundEntry(createA, "p1", { prompt: longPrompt });
   rejects("提示词超上限不能交片", tooLong, "prompt-too-long");
   eq("提示词上限报给界面（cap）", [tooLong.cap, tooLong.have], [R.PROMPT_BASE_MAX, R.PROMPT_BASE_MAX + 1]);
-  eq("正好顶到上限可以交", R.submitRoundEntry(createA, "p1", { cards: [], prompt: "字".repeat(R.PROMPT_BASE_MAX) }).ok, true);
+  eq("正好顶到上限可以交", R.submitRoundEntry(createA, "p1", { prompt: "字".repeat(R.PROMPT_BASE_MAX) }).ok, true);
   // 事件「灵感爆发」的 +50% 走 promptLimitOf 一处（别在界面里再乘一遍）
   const inspired = withPlayer(createA, "p1", { buffs: { ...find(createA, "p1").buffs, promptLimitPct: 50 } });
   eq("灵感爆发 +50% → 120 字上限（rules.promptLimitOf）", R.promptLimitOf(find(inspired, "p1")), 120);
-  // 反例：别人的卡不能放进自己的虚框（伪造一张没拥有的卡 = 画面里多一个不存在的人）
-  rejects("不是自己的卡不能进虚框", R.submitRoundEntry(createA, "p1", { cards: [card("d-r", "role", 1)], prompt: "x" }), "card-not-owned");
-  // 反例：同一个虚框放两张 = 界面槽位坏了；静默丢一张会让画面少个人
-  const dup = R.submitRoundEntry(createA, "p1", { cards: [card("c-r", "role", 5), card("c-r2", "role", 1)], prompt: "x" });
-  eq("同类型两张被拒（先补一张同类型的卡夹具）", dup.ok || dup.reason, "card-not-owned");
-  const withTwo = withBag(createA, "p1", [card("c-r", "role", 5), card("c-r2", "role", 1)]);
-  rejects("同类型两张不能交片", R.submitRoundEntry(withTwo, "p1", { cards: [card("c-r", "role", 5), card("c-r2", "role", 1)], prompt: "x" }), "duplicate-slot");
-  rejects("四张卡超过三个虚框", R.submitRoundEntry(withTwo, "p1", { cards: [card("c-r", "role", 5), card("c-r2", "role", 1), card("x", "scene", 1), card("y", "item", 1)], prompt: "x" }), "duplicate-slot");
-  rejects("商店阶段不能交片", R.submitRoundEntry(newMatch(117).state, "p1", { cards: [], prompt: "x" }), "wrong-phase");
-  rejects("已淘汰的人不能交片", R.submitRoundEntry(withPlayer(createA, "p4", { eliminated: true }), "p4", { cards: [], prompt: "x" }), "player-eliminated");
+  rejects("商店阶段不能交片", R.submitRoundEntry(newMatch(117).state, "p1", { prompt: "x" }), "wrong-phase");
+  rejects("已淘汰的人不能交片", R.submitRoundEntry(withPlayer(createA, "p4", { eliminated: true }), "p4", { prompt: "x" }), "player-eliminated");
   rejectUnknownPlayer: {
-    rejects("不在这一局的人不能交片", R.submitRoundEntry(createA, "nobody", { cards: [], prompt: "x" }), "unknown-player");
+    rejects("不在这一局的人不能交片", R.submitRoundEntry(createA, "nobody", { prompt: "x" }), "unknown-player");
   }
-  // 已装备的道具也算"自己的卡"（它只是从背包挪到了角色身上，见 rules.ownedCards）
-  const equipped = withPlayer(createA, "p1", {
-    bag: [card("c-r", "role", 5)],
-    equipment: [{ roleCardId: "c-r", item: card("c-i", "item", 2) }],
-  });
-  eq("已装备的道具可以进道具槽", must("装备着的道具交片", R.submitRoundEntry(equipped, "p1", { cards: [card("c-i", "item", 2)], prompt: "x" })).entry.cards.map((c) => c.id), ["c-i"]);
+
 
   // ── 展映顺序（§2.5：上一期综合名次倒序，落后先放） ──
   let screen = createA;
-  for (const id of IDS) screen = must(`全员交片 ${id}`, R.submitRoundEntry(screen, id, { cards: [], prompt: `shot ${id}` })).state;
+  for (const id of IDS) screen = must(`全员交片 ${id}`, R.submitRoundEntry(screen, id, { prompt: `shot ${id}` })).state;
   eq("第 1 回合没有上一期名次：按座位表", R.screeningOrderOf(screen).map((e) => e.playerId), IDS);
   screen = must("进参展", R.enterScreening(screen)).state;
   screen = must("进投票", R.enterVoting(screen)).state;
@@ -932,7 +952,7 @@ const source = fs.readFileSync(modPath, "utf8");
   eq("换回合清掉上一期的弃权", nextRound.abstained, []);
   eq("换回合保留上一期名次（展映顺序要用）", nextRound.lastRanking, settled.tally.ranking);
   let nextCreate = must("下一回合进创作", R.enterCreation(nextRound)).state;
-  for (const id of IDS) nextCreate = must(`第 2 回合交片 ${id}`, R.submitRoundEntry(nextCreate, id, { cards: [], prompt: `shot2 ${id}` })).state;
+  for (const id of IDS) nextCreate = must(`第 2 回合交片 ${id}`, R.submitRoundEntry(nextCreate, id, { prompt: `shot2 ${id}` })).state;
   eq(
     "第 2 回合按上一期名次倒序播（落后先放）",
     R.screeningOrderOf(nextCreate).map((e) => e.playerId),

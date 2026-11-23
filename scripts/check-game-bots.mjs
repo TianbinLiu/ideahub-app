@@ -84,19 +84,14 @@ const shopOf = (state, id) => state.shops[id];
   const poor = withPlayer(state, "ai-1", { gold: 0 });
   eq("没钱就收手", B.aiShopMove(poor, "ai-1"), { kind: "done" });
 
-  // 背包满（角色 4 张到上限）：用同类型里更便宜的旧卡顶掉（rules.replaceCardInBag）
-  const oldRoles = [card("old-role", "role", 1), card("old-role2", "role", 1), card("old-role3", "role", 1), card("old-role4", "role", 1)];
-  let full = withPlayer(rich, "ai-1", { bag: oldRoles, equipment: [] });
-  // 把商店换成"一张 3 费角色 + 其余买不起"，这样 AI 的下一步只可能是买或替换这一张
-  full = { ...full, shops: { ...full.shops, "ai-1": { cards: [card("new-role", "role", 3), null, null, null, null], locked: false } } };
-  const replaceMove = B.aiShopMove(full, "ai-1");
-  eq("装满时替换更便宜的同类型旧卡", replaceMove, { kind: "replace", slot: 0, outCardId: "old-role" });
-  // 反例：带装备的角色不能被顶（rules 回 role-equipped）；这张身上有道具时就不选它
-  const equipped = withPlayer(full, "ai-1", { equipment: [{ roleCardId: "old-role", item: card("it", "item", 1) }] });
-  eq("带装备的角色不选来顶（先去卸下是人的事，AI 不硬顶）", B.aiShopMove(equipped, "ai-1"), { kind: "replace", slot: 0, outCardId: "old-role2" });
-  // 反例：同价不换（replaceCardInBag 不返钱，换一张同价卡纯亏）
-  const samePrice = { ...withPlayer(rich, "ai-1", { bag: oldRoles, equipment: [] }), shops: { ...full.shops, "ai-1": { cards: [card("new-role", "role", 1), null, null, null, null], locked: false } } };
-  eq("同价不换卡（纯亏）", B.aiShopMove(samePrice, "ai-1"), { kind: "done" });
+  // ★ G4 施工单 §3：背包不再有上限，"装不下 → 顶掉一张更便宜的旧卡"那条 AI 分支整条删掉了
+  //   （见 bots.AiShopMove 的 ★）。反例：它还留着 replace 这个 kind = 旧规则没删干净。
+  const manyCards = withPlayer(rich, "ai-1", {
+    bag: [card("old-role", "role", 1), card("old-role2", "role", 1), card("old-role3", "role", 1), card("old-role4", "role", 1)],
+    equipment: [],
+  });
+  eq("手上有 4 张角色也照样买（背包不限量）", B.aiShopMove(manyCards, "ai-1").kind, "buy");
+  eq("AI 的商店棋只剩 buy / done（不再有 replace）", Object.keys({ buy: 1, done: 1 }).sort(), ["buy", "done"]);
 
   // 交片计划：三个槽位各放品质最高的那张；提示词从池子里抽（同一 seed 抽同一条）
   const withCards = withPlayer(rich, "ai-1", {
@@ -104,17 +99,23 @@ const shopOf = (state, id) => state.shops[id];
     equipment: [],
   });
   const plan = B.aiEntryPlan(withCards, "ai-1", R.createRng(1), PROMPTS);
-  eq("交片：每类取品质最高的那张", plan.cards.map((c) => c.id), ["r5", "s3", "i2"]);
   ok("交片：提示词来自池子", PROMPTS.includes(plan.prompt));
   eq("同一个 seed 的提示词一样（可复盘）", B.aiEntryPlan(withCards, "ai-1", R.createRng(1), PROMPTS).prompt, plan.prompt);
-  eq("空背包 = 空镜（照样能交，不然会把展映卡死）", B.aiEntryPlan(withPlayer(withCards, "ai-1", { bag: [] }), "ai-1", R.createRng(1), PROMPTS).cards, []);
+  // ★ G4 §2：一期作品的卡 = 桌面上的卡 + 装备的道具（rules.castCardsOf），所以 AI 的计划里只剩提示词。
+  eq("交片计划不再带卡（卡从桌面派生）", "cards" in plan, false);
+  // AI 摆卡：品质最高的角色卡进角色位、最好的场景卡进场景位、道具挂到角色上（每张到 itemLimitOf 为止）
+  const tablePlan = B.aiTablePlan(withCards, "ai-1");
+  eq("AI 摆卡：角色排前面（品质高的先）", tablePlan.place, ["r5", "r1", "s3"]);
+  eq("AI 摆卡：道具挂在品质最高的角色上", tablePlan.equip, [{ roleCardId: "r5", itemCardId: "i2" }]);
+  // 反例：一张卡都没有时计划是空的（不摆 = 空镜，照样能交，不然会把展映卡死）
+  eq("空背包时摆卡计划是空的", B.aiTablePlan(withPlayer(withCards, "ai-1", { bag: [], table: R.emptyTable() }), "ai-1"), { place: [], equip: [] });
 
   // 投票权重：卡越好越可能被投（空镜只有 1 分）
   eq("空镜的投票权重只有 1", B.entryWeightOf({ cards: [] }), 1);
   eq("三张金卡的权重 = 1 + 15", B.entryWeightOf({ cards: [card("a", "role", 5), card("b", "scene", 5), card("c", "item", 5)] }), 16);
   // 投票永远不投自己（规则也会拒，这里先保证 AI 不去挑）
   const voteCreate = must("进创作", P.toCreation(state, AI, PROMPTS, R.createRng(9))).state;
-  const voteReady = must("真人交片（空镜）", R.submitRoundEntry(voteCreate, ME, { cards: [], prompt: "mine" })).state;
+  const voteReady = must("真人交片（空镜）", R.submitRoundEntry(voteCreate, ME, { prompt: "mine" })).state;
   const votingReady = must("进展映", P.toScreening(voteReady, AI, R.createRng(10))).state;
   const voting = must("进投票", P.toVoting(votingReady, AI, R.createRng(11))).state;
   for (const id of AI) {
@@ -164,11 +165,9 @@ function playOne(seed) {
     // ② 创作：AI 自动交片 + 真人交最好的三张卡
     state = must("进创作", P.toCreation(state, AI, PROMPTS, rng)).state;
     eq(`第 ${state.round} 回合 AI 都交了片`, state.entries.length, aliveOf(state).length - 1);
-    const owned = R.ownedCards(find(state, ME));
-    const myCards = R.SLOT_TYPES.map((type) =>
-      [...owned].filter((c) => c.type === type).sort((a, b) => b.quality - a.quality)[0],
-    ).filter(Boolean);
-    state = must("真人交片", R.submitRoundEntry(state, ME, { cards: myCards, prompt: `my shot ${state.round}` })).state;
+    // ★ G4 §2：一期作品的卡从**桌面**派生（走到创作阶段时真人桌上是空的 = 空镜），
+    //   所以这里只递提示词 —— 摆卡是另一件事（真人自己拖，AI 走 aiTablePlan）。
+    state = must("真人交片", R.submitRoundEntry(state, ME, { prompt: `my shot ${state.round}` })).state;
     eq(`第 ${state.round} 回合全员都交了片`, state.entries.length, aliveOf(state).length);
 
     // ③ 展映：顺序按上一期名次倒序（第 1 回合按座位表）；真人给排片第一条点赞
@@ -215,6 +214,15 @@ function playOne(seed) {
       eliminated: settled.summary.eliminated,
       phase: state.phase,
     });
+
+    // ★ 真人在这一期被淘汰：这一局对他已经结束（store 那一拍也是这么走的），剩下的让 AI 跑完。
+    //   不加这一步的话，淘汰之后再进"真人的事件三选一"会拿到 wrong-phase（事件阶段已经不请他表态了）——
+    //   G4 第 3 步之后 AI 会摆卡、票数变了，真人更早出局，这条路才第一次被走到。
+    if (find(state, ME)?.eliminated) {
+      const played = must("真人淘汰后跑完剩下的回合", P.playOutAiOnly(state, AI, PROMPTS, rng));
+      state = played.state;
+      break;
+    }
 
     // ⑥ 事件（第 2/4/6 回合之后）：AI 先选，真人从便宜的往贵的试（落不了账就试下一个，都不行才跳过）
     if (state.phase === "event") {
@@ -289,7 +297,7 @@ function playOne(seed) {
   const created = must("进创作", P.toCreation(state, AI, PROMPTS, R.createRng(25))).state;
   eq("AI 在进创作时就把片交了（真人还没交）", created.entries.length, 3);
   rejects("真人没交片不能进展映", P.toScreening(created, AI, R.createRng(26)), "entries-pending");
-  const screened = must("真人交片后进展映", P.toScreening(must("真人交片", R.submitRoundEntry(created, ME, { cards: [], prompt: "mine" })).state, AI, R.createRng(27))).state;
+  const screened = must("真人交片后进展映", P.toScreening(must("真人交片", R.submitRoundEntry(created, ME, { prompt: "mine" })).state, AI, R.createRng(27))).state;
   // 展映阶段调 toVoting 正常；但 AI 的投票不许静默失败（这里换成"已投过"的 AI 制造一次真拒绝）
   const votedAlready = { ...screened, entries: screened.entries.map((entry) => (entry.playerId === "ai-2" ? entry : entry)) };
   const voting = must("进投票", P.toVoting(votedAlready, AI, R.createRng(28))).state;

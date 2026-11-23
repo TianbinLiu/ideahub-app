@@ -15,6 +15,7 @@ import {
   eventOptionsFor,
   gameEventById,
   incomeFor,
+  itemLimitOf,
   ownedCards,
   screeningOrderOf,
   styleCardById,
@@ -37,7 +38,7 @@ import type {
   TableSlots,
 } from "./types";
 
-/** rules.bagUsage 的返回形状（total 含已装备道具，见那里头顶的 ★） */
+/** rules.bagUsage 的返回形状（G4 §3 起只是"手上有几张"，没有上限） */
 export type BagUsage = ReturnType<typeof bagUsage>;
 
 /** HUD 一条里要显示的全部数（每一项都能在 rules 里找到出处，见各字段注释） */
@@ -47,7 +48,7 @@ export interface HudModel {
   hp: number;
   /** 下一次 beginRound 会发的钱。interest 按**现在的金币**算（rules.incomeFor 一处） */
   income: ReturnType<typeof incomeFor>;
-  /** rules.bagUsage：9 格总数 + 每类上限（角色 4 / 场景 1 / 道具 4，事件可加成） */
+  /** rules.bagUsage：背包里还有几张（没有上限；上限在桌面卡位与"每角色 3 张道具"上） */
   bag: BagUsage;
 }
 
@@ -63,26 +64,31 @@ export interface GameView {
   /** 本回合商店（不在商店阶段 / 这个人的商店还没开出来时是 null） */
   shop: ShopState | null;
   /**
-   * 背包：未装备的卡 + 已装备的道具。**9 格按"拥有的全部卡"算**，与 rules.bagUsage 同一口径
-   * （装备只是把道具从背包挪到角色身上，不是第二份卡）。
+   * 背包：手上没摆到桌上的卡。界面按用途分两处显示 ——
+   * `roles/scenes` 进底部条（拖到桌面卡位），`items` 进右侧道具栏（拖到角色卡上装备）。
    */
-  bag: { cards: GameCard[]; equipped: { item: GameCard; roleId: string }[] };
-  /** roleCardId → 挂在它身上的道具（角色卡角标） */
-  equippedOnRole: Record<string, GameCard>;
-  /** G4：3D 桌面 5 个卡位的占位状态（4 角色 + 1 场景；来自 rules.tableSlotsOf） */
+  bag: { cards: GameCard[]; roles: GameCard[]; scenes: GameCard[]; items: GameCard[] };
+  /** roleCardId → 挂在它身上的道具（G4 第 3 步起最多 rules.itemLimitOf 张） */
+  equippedOnRole: Record<string, GameCard[]>;
+  /** 每张角色能挂几张道具（事件会 +1，判据只在 rules.itemLimitOf） */
+  itemLimit: number;
+  /** G4：3D 桌面 5 个卡位的**真实状态**（4 角色 + 1 场景；来自 rules.tableSlotsOf） */
   table: TableSlots;
 }
 
 /**
  * 把一份 GameState 折成界面要的视图。找不到这个玩家 → null（上层照 null 判，不猜）。
- * ★ 每个数一次问清：incomeFor / generationTierOf / bagUsage 都只在这里被调用，面板不再各算一遍。
+ * ★ 每个数一次问清：incomeFor / bagUsage / itemLimitOf / tableSlotsOf 都只在这里被调用，
+ *   面板不再各算一遍。
  */
 export function gameViewOf(state: GameState, playerId: string): GameView | null {
   const player = state.players.find((p) => p.id === playerId);
   if (!player) return null;
 
-  const equippedOnRole: Record<string, GameCard> = {};
-  for (const entry of player.equipment) equippedOnRole[entry.roleCardId] = entry.item;
+  const equippedOnRole: Record<string, GameCard[]> = {};
+  for (const entry of player.equipment) {
+    (equippedOnRole[entry.roleCardId] ??= []).push(entry.item);
+  }
 
   const styleChoices: StyleCard[] = [];
   for (const id of player.styleChoices) {
@@ -105,9 +111,12 @@ export function gameViewOf(state: GameState, playerId: string): GameView | null 
     shop: state.shops[playerId] ?? null,
     bag: {
       cards: player.bag,
-      equipped: player.equipment.map((entry) => ({ item: entry.item, roleId: entry.roleCardId })),
+      roles: player.bag.filter((card) => card.type === "role"),
+      scenes: player.bag.filter((card) => card.type === "scene"),
+      items: player.bag.filter((card) => card.type === "item"),
     },
     equippedOnRole,
+    itemLimit: itemLimitOf(player),
     table: tableSlotsOf(player),
   };
 }

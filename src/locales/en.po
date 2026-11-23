@@ -268,6 +268,10 @@ msgstr "; "
 msgid "；制作过程也没能公开（{0}）"
 msgstr "; the process could not be made public either ({0})"
 
+#: src/studio/game/ui/CreatePanel.tsx
+msgid "：（没挂道具）"
+msgstr ": (no items)"
+
 #. placeholder {0}: quote !== o.text ? "…" : ""
 #: src/studio/canvasAgent.ts
 msgid "：「{quote}{0}」"
@@ -304,8 +308,13 @@ msgid "· {doneCount}/{total} 步"
 msgstr "· {doneCount}/{total} steps"
 
 #: src/studio/game/ui/CreatePanel.tsx
-msgid "· {pickedCount} 张卡"
-msgstr "· {pickedCount} cards"
+#~ msgid "· {pickedCount} 张卡"
+#~ msgstr "· {pickedCount} cards"
+
+#. placeholder {0}: view.table.scene ? 1 : 0
+#: src/studio/game/ui/CreatePanel.tsx
+msgid "· {roleCount} 角色 / {0} 场景 / {itemCount} 道具"
+msgstr "· {roleCount} characters / {0} scene / {itemCount} items"
 
 #. placeholder {0}: opponent.hp
 #. placeholder {1}: opponent.cards
@@ -625,9 +634,17 @@ msgstr "(Local mode) Handled the plain instructions below. {notes}"
 msgid "（没写）"
 msgstr "(not set)"
 
+#: src/studio/game/ui/GenPreview.tsx
+msgid "（没写提示词）"
+msgstr "(no prompt yet)"
+
 #: src/components/flow/GridShotsWizard.tsx
 msgid "（没有人）"
 msgstr "(nobody)"
+
+#: src/studio/game/ui/GenPreview.tsx
+msgid "（没有卡：空镜）"
+msgstr "(no cards: empty shot)"
 
 #: src/studio/canvasAgent.ts
 #: src/studio/cutAgent.ts
@@ -663,6 +680,10 @@ msgstr "(The admin didn't give a reason)"
 #: src/components/DownloadSheet.tsx
 msgid "（约 {0}）"
 msgstr " (about {0})"
+
+#: src/studio/game/ui/GenSheet.tsx
+msgid "（还没写：回创作面板写一句\"这一段拍什么\"）"
+msgstr "(not written yet: go back to the create panel and write \"what is this shot about\")"
 
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "（还没有名字）"
@@ -985,6 +1006,16 @@ msgstr "{0} segments · {1} rendered · edited {2}"
 msgid "{0} 段用了模板"
 msgstr "{0, plural, one {# segment uses a template} other {# segments use templates}}"
 
+#. placeholder {0}: Math.round(prop.durationSec)
+#: src/studio/game/ui/GenPreview.tsx
+msgid "{0} 秒"
+msgstr "{0}s"
+
+#. placeholder {0}: Math.round(seconds)
+#: src/studio/game/ui/ScreeningPanel.tsx
+msgid "{0} 秒占位片"
+msgstr "{0}s placeholder clip"
+
 #. placeholder {0}: partial.lost.slice(0, 3).join(listSep)
 #. placeholder {1}: partial.lost.length
 #. placeholder {2}: partial.reason ?? reasonUpload
@@ -1141,8 +1172,8 @@ msgstr "{0}s blockout remake · {1, plural, one {# role slot} other {# role slot
 #. placeholder {0}: cardTypeName(effect.cardType)
 #. placeholder {1}: effect.delta
 #: src/studio/game/labels.ts
-msgid "{0}卡上限 +{1}"
-msgstr "{0} card cap +{1}"
+#~ msgid "{0}卡上限 +{1}"
+#~ msgstr "{0} card cap +{1}"
 
 #. placeholder {0}: formatPlays(v.plays)
 #: src/pages/DiscoverPage.tsx
@@ -1802,8 +1833,8 @@ msgid "{rejected} 格没过内容审核"
 msgstr "{rejected, plural, one {# panel} other {# panels}} failed the content review"
 
 #: src/studio/game/ui/ScreeningPanel.tsx
-msgid "{seconds} 秒占位片"
-msgstr "{seconds}s placeholder"
+#~ msgid "{seconds} 秒占位片"
+#~ msgstr "{seconds}s placeholder"
 
 #: src/pages/ProfilePage.tsx
 msgid "{segCount} 段 · {when}"
@@ -1926,19 +1957,25 @@ msgstr "{total, plural, one {# segment} other {# segments}}<0>, {done} rendered<
 msgid "{tourName} 使用引导"
 msgstr "{tourName} guide"
 
+#. placeholder {0}: failure.count ?? 0
+#. placeholder {1}: failure.cap ?? 0
+#: src/studio/game/reasons.ts
+msgid "{typeName}位已经 {0} / {1} 个了——先把桌上一张拖回背包，或者直接拖到想换掉的那一格上"
+msgstr "All {0} / {1} {typeName} slots are taken — drag one back to the bag, or drop onto the slot you want to replace"
+
 #: src/studio/game/ui/BagBar.tsx
-msgid "{typeName}卡上限 {cap} 张（事件可以把某类 +1）"
-msgstr "{typeName} card cap: {cap} (some events raise one type by 1)"
+#~ msgid "{typeName}卡上限 {cap} 张（事件可以把某类 +1）"
+#~ msgstr "{typeName} card cap: {cap} (some events raise one type by 1)"
 
 #. placeholder {0}: failure.count ?? 0
 #. placeholder {1}: failure.cap ?? 0
 #: src/studio/game/reasons.ts
-msgid "{typeName}卡已经 {0} / {1} 张，到上限了——先卖一张，或者替换掉一张{typeName}卡"
-msgstr "You already have {0} / {1} {typeName} cards — sell one, or replace a {typeName} card"
+#~ msgid "{typeName}卡已经 {0} / {1} 张，到上限了——先卖一张，或者替换掉一张{typeName}卡"
+#~ msgstr "You already have {0} / {1} {typeName} cards — sell one, or replace a {typeName} card"
 
 #: src/studio/game/ui/CreatePanel.tsx
-msgid "{typeName}槽：点下面一张{typeName}卡放进来"
-msgstr "{typeName} slot: tap a {typeName} card below to fill it"
+#~ msgid "{typeName}槽：点下面一张{typeName}卡放进来"
+#~ msgstr "{typeName} slot: tap a {typeName} card below to fill it"
 
 #: src/studio/ui/SchemeEditorSheet.tsx
 msgid "{used}/{SCHEME_SLOT_PROMPT_MAX} · 超过 {SLOT_PROMPT_SOFT_HAN} 个汉字，模型可能顾不上后面的细节"
@@ -3835,6 +3872,10 @@ msgstr "✓ Happy with this, add a segment"
 msgid "✓ 这段满意，去下一段"
 msgstr "✓ Happy with this, next segment"
 
+#: src/studio/game/ui/GenPreview.tsx
+msgid "✕ 关掉"
+msgstr "✕ Close"
+
 #: src/studio/StudioPage.tsx
 msgid "✕ 结束对局"
 msgstr "✕ End game"
@@ -4189,8 +4230,8 @@ msgid "🎬 开始创作"
 msgstr "🎬 Start shooting"
 
 #: src/studio/game/ui/CreatePanel.tsx
-msgid "🎬 拍好了（{VIDEO_SECONDS} 秒占位片）"
-msgstr "🎬 Shot it ({VIDEO_SECONDS}s placeholder)"
+#~ msgid "🎬 拍好了（{VIDEO_SECONDS} 秒占位片）"
+#~ msgstr "🎬 Shot it ({VIDEO_SECONDS}s placeholder)"
 
 #. placeholder {0}: node.proposals.length
 #: src/components/flow/FlowCanvas.tsx
@@ -4209,8 +4250,12 @@ msgid "🎬 示例视频 {0}s · 中间帧 {1}/{CUSTOM_MID_MAX}"
 msgstr "🎬 Example video {0}s · middle frames {1}/{CUSTOM_MID_MAX}"
 
 #: src/studio/game/ui/CreatePanel.tsx
-msgid "🎬 重拍（{VIDEO_SECONDS} 秒占位片）"
-msgstr "🎬 Reshoot ({VIDEO_SECONDS}s placeholder)"
+msgid "🎬 视频生成"
+msgstr "🎬 Generate video"
+
+#: src/studio/game/ui/CreatePanel.tsx
+#~ msgid "🎬 重拍（{VIDEO_SECONDS} 秒占位片）"
+#~ msgstr "🎬 Reshoot ({VIDEO_SECONDS}s placeholder)"
 
 #: src/components/flow/LeadShotsWizard.tsx
 msgid "🎭 主角定妆 · 多镜头"
@@ -4765,6 +4810,11 @@ msgstr "① Upload a video / write a prompt"
 msgid "① 先画首帧（{0}）"
 msgstr "① Draw the first frame ({0})"
 
+#. placeholder {0}: fmtTokens(quote?.frame ?? 0)
+#: src/studio/game/ui/GenSheet.tsx
+msgid "① 先画首帧（约 {0}）"
+msgstr "① Draw the first frame (~{0})"
+
 #: src/components/flow/ModePicker.tsx
 msgid "① 先选出片模型"
 msgstr "① Pick the video model first"
@@ -4810,6 +4860,11 @@ msgstr "② Make the template"
 #: src/pages/QuickModePage.tsx
 msgid "② 出片（{0}）"
 msgstr "② Render the clip ({0})"
+
+#. placeholder {0}: fmtTokens(quote?.video ?? 0)
+#: src/studio/game/ui/GenSheet.tsx
+msgid "② 出片（约 {0}）"
+msgstr "② Generate video (~{0})"
 
 #. placeholder {0}: CARD_TYPE_LABELS[type]
 #. placeholder {1}: slots.length
@@ -5374,8 +5429,12 @@ msgid "一句话：讲谁、讲什么、什么调子。填了就在铺完之后�
 msgstr "One sentence: who, what, and the tone. If filled, after laying out you can rewrite every segment's plot into your story (the price of one chat reply; you confirm on the canvas)"
 
 #: src/studio/game/ui/CreatePanel.tsx
-msgid "一句话：这一期拍什么？（例如：雨夜里一个女孩回头）"
-msgstr "One line: what is this round's shot? (e.g. a girl turns back in the rain at night)"
+#~ msgid "一句话：这一期拍什么？（例如：雨夜里一个女孩回头）"
+#~ msgstr "One line: what is this round's shot? (e.g. a girl turns back in the rain at night)"
+
+#: src/studio/game/ui/CreatePanel.tsx
+msgid "一句话：这一段拍什么？（例如：雨夜里一个女孩回头）"
+msgstr "One line: what is this shot about? (e.g. a girl turns around in the rain at night)"
 
 #: src/components/flow/CastPicker.tsx
 msgid "一句话：长相、发型、服装、气质。例：橙色短发、绿眼睛的少女，暗红色短披肩配绿领结"
@@ -5628,8 +5687,8 @@ msgid "三个机位轮着用，一句一段，按卡上的声音说出来"
 msgstr "The three angles take turns, one line per segment, spoken in each card’s voice"
 
 #: src/studio/game/reasons.ts
-msgid "三个虚框各放一张卡（角色 / 场景 / 道具），同一个虚框不能放两张"
-msgstr "Each of the three frames holds one card (role / scene / prop); one frame can't hold two"
+#~ msgid "三个虚框各放一张卡（角色 / 场景 / 道具），同一个虚框不能放两张"
+#~ msgstr "Each of the three frames holds one card (role / scene / prop); one frame can't hold two"
 
 #: src/components/guide/tours.tsx
 #~ msgid "三个页签各管一摊"
@@ -6539,6 +6598,10 @@ msgstr "You can't vote for yourself — pick one of the others"
 msgid "不能拉黑自己。"
 msgstr "You can't block yourself."
 
+#: src/studio/game/ui/CreatePanel.tsx
+msgid "不花 token：用占位片交这一期"
+msgstr "No tokens: submit a placeholder clip"
+
 #: src/pages/ProfilePage.tsx
 msgid "不要了"
 msgstr "Discard"
@@ -6591,6 +6654,10 @@ msgstr "Both people have the same name, so the lines can’t be told apart — r
 #: src/components/flow/EffectWizard.tsx
 msgid "两人在雨中天台对峙，雷声一响同时冲向对方"
 msgstr "Two rivals face off on a rainy rooftop and charge at the crack of thunder"
+
+#: src/studio/game/ui/GenSheet.tsx
+msgid "两步：先看首帧，再出片"
+msgstr "Two steps: check the first frame, then generate"
 
 #: src/pages/tutor/TutorNewPage.tsx
 msgid "严厉度"
@@ -8359,8 +8426,8 @@ msgid "先框出哪一段"
 msgstr "First, select the part"
 
 #: src/studio/game/ui/GameLayer.tsx
-msgid "先点一件道具卡，再点一张角色卡"
-msgstr "Tap an item card first, then a role card"
+#~ msgid "先点一件道具卡，再点一张角色卡"
+#~ msgstr "Tap an item card first, then a role card"
 
 #: src/studio/game/ui/StylePick.tsx
 msgid "先点一张风格卡，再锁定"
@@ -8703,6 +8770,14 @@ msgstr "Close (saving continues)"
 #: src/pages/tutor/TutorRunPage.tsx
 msgid "关掉声音"
 msgstr "Mute"
+
+#: src/studio/game/ui/GenPreview.tsx
+msgid "关掉工作流面板"
+msgstr "Close the workflow panel"
+
+#: src/studio/game/ui/GenSheet.tsx
+msgid "关掉生成小窗"
+msgstr "Close the generation window"
 
 #: src/studio/game/ui/GameLayer.tsx
 msgid "关掉这条提示"
@@ -9386,6 +9461,10 @@ msgstr "Generate video ({0})"
 msgid "出片中…"
 msgstr "Rendering…"
 
+#: src/studio/game/ui/GenPreview.tsx
+msgid "出片了（地址是 mock）"
+msgstr "Generated (mock URL)"
+
 #: src/pages/QuickModePage.tsx
 msgid "出片会用一段更中性的画面句（只写镜头能看见的东西），剧情照旧显示在这里、台词会带进剪辑页。"
 msgstr "Rendering uses a more neutral visual prompt (only what the camera sees); the story stays here and the lines carry into the cut page."
@@ -9448,6 +9527,10 @@ msgstr "Video line (optional)"
 #: src/pages/CardDetailPage.tsx
 msgid "出片句是 AI 出片时真正读的那一句（简介只给人看，不进提示词）：写 2~3 个不会变的外形特征，别写动作、手里的东西和地点。留空 = 出片时只报卡名。"
 msgstr "The video line is what the AI actually reads when generating (the intro is just for people and never goes into prompts): give 2–3 looks that never change, and leave out actions, held objects and places. Empty means only the card name is used."
+
+#: src/studio/game/ui/GenPreview.tsx
+msgid "出片失败"
+msgstr "Generation failed"
 
 #: src/pages/CardDetailPage.tsx
 msgid "出片时<0>不是每张都会喂进模型</0>——「出片用」按单卡乐观口径标，同一段挂的卡多时可能让位。"
@@ -11568,7 +11651,6 @@ msgstr "Uses the whole frame"
 #: src/pages/RecipePage.tsx
 #: src/pages/SupportModelNewPage.tsx
 #: src/pages/SupportPage.tsx
-#: src/studio/game/ui/GameLayer.tsx
 #: src/studio/stage/StageOverlay.tsx
 #: src/studio/ui/NpcDialog.tsx
 msgid "取消"
@@ -11637,8 +11719,8 @@ msgid "取消收藏没成功：{why}"
 msgstr "Couldn't remove from favorites: {why}"
 
 #: src/studio/game/ui/GameLayer.tsx
-msgid "取消替换"
-msgstr "Cancel replacement"
+#~ msgid "取消替换"
+#~ msgstr "Cancel replacement"
 
 #: src/components/CommentSheet.tsx
 #: src/components/support/VoiceMarket.tsx
@@ -11708,6 +11790,10 @@ msgstr "Ancient style"
 #: src/components/flow/RefStrip.tsx
 msgid "句子里已经点到它了：这张图管什么，以你写的那半句为准。"
 msgstr "It's already mentioned in the prompt: what this image is for is whatever you wrote there."
+
+#: src/studio/game/reasons.ts
+msgid "另一种"
+msgstr "the other type"
 
 #: src/components/VideoCardAnnotator.tsx
 msgid "另存为我的"
@@ -12837,6 +12923,15 @@ msgstr "Scene"
 msgid "场景{0}"
 msgstr "Scene {0}"
 
+#: src/studio/game/ui/CreatePanel.tsx
+msgid "场景位"
+msgstr "Scene slot"
+
+#. placeholder {0}: gameCardName(view.table.scene)
+#: src/studio/game/ui/CreatePanel.tsx
+msgid "场景位：{0}"
+msgstr "Scene slot: {0}"
+
 #: src/types.ts
 msgid "场景信息"
 msgstr "Scene info"
@@ -12846,8 +12941,8 @@ msgid "场景卡"
 msgstr "Scene card"
 
 #: src/studio/game/ui/BagBar.tsx
-msgid "场景卡：出片时当定场参考"
-msgstr "Scene card: used as the establishing reference when filming"
+#~ msgid "场景卡：出片时当定场参考"
+#~ msgstr "Scene card: used as the establishing reference when filming"
 
 #: src/components/flow/DialogueWizard.tsx
 #: src/components/flow/GridShotsWizard.tsx
@@ -13881,6 +13976,14 @@ msgctxt "创意工坊市场第一排的种类名，与卡片 / 卡组 / 模板�
 msgid "工作流"
 msgstr "Workflows"
 
+#: src/studio/game/ui/GenPreview.tsx
+msgid "工作流 · 本局每段"
+msgstr "Workflow · every segment of this match"
+
+#: src/studio/StudioPage.tsx
+msgid "工作流：本局每段的预览（只让看不让改）"
+msgstr "Workflow: preview every segment of this match (view only)"
+
 #: src/components/WorkflowShelf.tsx
 msgid "工作流只按标题和作者名搜"
 msgstr "Workflows are searched by title and author name only"
@@ -13909,6 +14012,10 @@ msgstr "Workflow canvas: the other side of the same pipeline"
 #: src/studio/signOutGuard.ts
 msgid "工作流里有一段正在跑（出片 / 推演 / 重画 / 取回；要花钱的那几样，钱在提交那一刻已经扣了）。等它跑完再退出登录，结果才会稳稳落在这个账号里。"
 msgstr "A segment is still running in the workflow (rendering, generating options, redrawing or retrieving; the paid ones were charged when submitted). Wait for it to finish before logging out, so the result lands safely in this account."
+
+#: src/studio/StudioPage.tsx
+msgid "工作流预览"
+msgstr "Workflow preview"
 
 #: src/pages/SupportPage.tsx
 msgid "工单"
@@ -14143,6 +14250,7 @@ msgstr "Closed"
 msgid "已出样片"
 msgstr "Sample ready"
 
+#: src/studio/game/ui/GenPreview.tsx
 #: src/studio/ui/PlanBoard.tsx
 msgid "已出片"
 msgstr "Video ready"
@@ -14688,13 +14796,13 @@ msgid "已装 · 用它"
 msgstr "Installed · use it"
 
 #: src/studio/game/ui/BagBar.tsx
-msgid "已装备"
-msgstr "Equipped"
+#~ msgid "已装备"
+#~ msgstr "Equipped"
 
 #. placeholder {0}: gameCardName(equipped)
 #: src/studio/game/ui/BagBar.tsx
-msgid "已装备：{0}"
-msgstr "Equipped: {0}"
+#~ msgid "已装备：{0}"
+#~ msgstr "Equipped: {0}"
 
 #: src/studio/segmentGen.ts
 msgid "已要求不复刻示例视频里的水印 / 台标（提示词引导，不保证）"
@@ -14740,8 +14848,8 @@ msgstr "Picked"
 
 #. placeholder {0}: gameCardName(pickedItem)
 #: src/studio/game/ui/GameLayer.tsx
-msgid "已选中「{0}」——点一张角色卡装备；再点一下道具取消选中。"
-msgstr "Selected “{0}” — tap a role card to equip it; tap the item again to deselect."
+#~ msgid "已选中「{0}」——点一张角色卡装备；再点一下道具取消选中。"
+#~ msgstr "Selected “{0}” — tap a role card to equip it; tap the item again to deselect."
 
 #: src/studio/ui/PlanBoard.tsx
 msgid "已选定 · 可换首尾帧、改剧情，改完点这一套的「重新生成」"
@@ -15896,6 +16004,10 @@ msgstr "this tier's video model isn't offered in your region"
 msgid "所属卡组"
 msgstr "In decks"
 
+#: src/studio/game/ui/BagBar.tsx
+msgid "手上没有角色 / 场景卡了——去商店买一张"
+msgstr "No character / scene cards left — buy one in the shop"
+
 #: src/components/VolcCompatToggle.tsx
 msgid "手工填入"
 msgstr "Entered manually"
@@ -16094,14 +16206,24 @@ msgstr "Blend 1–3 voices into your own and publish it as a voice template."
 
 #. placeholder {0}: gameCardName(card)
 #: src/studio/game/ui/CreatePanel.tsx
-msgid "把「{0}」从{typeName}槽里拿回来"
-msgstr "Take “{0}” back out of the {typeName} slot"
+#~ msgid "把「{0}」从{typeName}槽里拿回来"
+#~ msgstr "Take “{0}” back out of the {typeName} slot"
+
+#. placeholder {0}: gameCardName(card)
+#: src/studio/game/ui/ItemRail.tsx
+msgid "把「{0}」拖到一张角色卡上装备"
+msgstr "Drag {0} onto a character card to equip it"
+
+#. placeholder {0}: gameCardName(card)
+#: src/studio/game/ui/BagBar.tsx
+msgid "把「{0}」拖到桌面空位上"
+msgstr "Drag {0} onto an empty table slot"
 
 #. placeholder {0}: gameCardName(card)
 #. placeholder {1}: cardTypeName(card.type)
 #: src/studio/game/ui/CreatePanel.tsx
-msgid "把「{0}」放进{1}槽"
-msgstr "Put “{0}” in the {1} slot"
+#~ msgid "把「{0}」放进{1}槽"
+#~ msgstr "Put “{0}” in the {1} slot"
 
 #. placeholder {0}: ask.card.name
 #. placeholder {1}: personNameOf(dropSlots[ask.slot])
@@ -16218,8 +16340,8 @@ msgid "把这张卡的样子写具体：造型、材质、配色、光线……"
 msgstr "Describe how this card looks in detail: shape, materials, colors, lighting…"
 
 #: src/studio/game/ui/BagBar.tsx
-msgid "把选中的道具装到这张角色上"
-msgstr "Put the selected item on this role"
+#~ msgid "把选中的道具装到这张角色上"
+#~ msgstr "Put the selected item on this role"
 
 #: src/components/flow/SongWizard.tsx
 msgid "抒情民谣"
@@ -16322,6 +16444,18 @@ msgstr "The shot split didn’t work: {why}. {moneyLine}"
 msgid "拆镜头要 {price} token，余额不够——去「我的」页充值"
 msgstr "Splitting into shots costs {price} tokens — not enough balance. Top up on the “Me” page"
 
+#: src/studio/game/ui/ItemRail.tsx
+msgid "拆除"
+msgstr "Remove"
+
+#: src/studio/game/ui/ItemRail.tsx
+msgid "拆除工具：拖到一张角色卡上，卸下它身上的所有道具"
+msgstr "Removal tool: drag onto a character card to take off all of its items"
+
+#: src/studio/game/ui/ItemRail.tsx
+msgid "拆除工具：拖到角色卡上一次卸下它身上的所有道具"
+msgstr "Removal tool: drop it on a character card to take off all its items at once"
+
 #: src/components/flow/SkillPanel.tsx
 msgid "拉取中…"
 msgstr "Loading…"
@@ -16392,6 +16526,18 @@ msgstr "Drag a whole deck = add every card in it"
 #: src/components/guide/tours.tsx
 msgid "拖两头的把手只取你要的那几秒。挑<0>人最齐、镜头最稳</0>的一段——切镜多的素材套用时容易换错人。"
 msgstr "Drag the handles to keep only the seconds you need. Pick the stretch where <0>everyone is in frame and the camera is steadiest</0> — footage with many cuts tends to swap the wrong person."
+
+#: src/studio/game/ui/GameDragLayer.tsx
+msgid "拖到一张角色卡上：卸下它身上的所有道具"
+msgstr "Drop on a character card: take off all of its items"
+
+#: src/studio/game/ui/GameDragLayer.tsx
+msgid "拖到一张角色卡上：装备这件道具"
+msgstr "Drop on a character card: equip this item"
+
+#: src/studio/game/ui/GameDragLayer.tsx
+msgid "拖到别的卡位：换位；拖回背包 / 松手：回背包"
+msgstr "Drop on another slot to move it; drop back on the bag / release to return it"
 
 #: src/components/guide/tours.tsx
 msgid "拖到画面上会再问一次"
@@ -16893,6 +17039,7 @@ msgid "换一套"
 msgstr "Change"
 
 #: src/pages/CustomCardPage.tsx
+#: src/studio/game/ui/GenSheet.tsx
 msgid "换一张"
 msgstr "Change"
 
@@ -16993,8 +17140,8 @@ msgid "换行"
 msgstr "line break"
 
 #: src/studio/game/ui/BagBar.tsx
-msgid "换这张"
-msgstr "Swap this"
+#~ msgid "换这张"
+#~ msgstr "Swap this"
 
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "换错人<0>不会报错</0>，成片出来才看得见 —— 请对着画面上高亮的那个人偶确认。"
@@ -17299,6 +17446,7 @@ msgstr "Hint for what image to add (optional, e.g. full-body, front view)"
 
 #: src/components/TextTemplateSheet.tsx
 #: src/pages/TemplateDetailPage.tsx
+#: src/studio/game/ui/GenSheet.tsx
 msgid "提示词"
 msgstr "Prompt"
 
@@ -17492,6 +17640,14 @@ msgstr "Search comment text / author"
 msgid "搞笑"
 msgstr "Comedy"
 
+#: src/studio/game/ui/GameLayer.tsx
+msgid "摆到桌面上了"
+msgstr "Placed on the table"
+
+#: src/studio/game/ui/CreatePanel.tsx
+msgid "摆好卡、写好提示词：点「🎬 视频生成」真出片（先看首帧）；不想花 token 就交占位片。"
+msgstr "Place your cards and write the prompt: 「🎬 Generate video」 makes a real clip (first frame first); if you do not want to spend tokens, submit a placeholder clip."
+
 #: src/studio/stage/StageOverlay.tsx
 msgid "摆站位、拧机位，截图融成这一段的开头帧"
 msgstr "Set positions and camera, then capture and fuse into this segment's opening frame"
@@ -17660,6 +17816,10 @@ msgstr "Video models that take reference pictures ({names}) and blockout-templat
 #: src/components/video/RemakeCard.tsx
 msgid "收取中…"
 msgstr "Adding…"
+
+#: src/studio/game/ui/GameLayer.tsx
+msgid "收回背包了"
+msgstr "Returned to the bag"
 
 #: src/pages/FeedPage.tsx
 #: src/pages/VideoPage.tsx
@@ -18188,8 +18348,8 @@ msgstr "{welcome} once when you join + {daily} a day (saves up to {days} days)"
 
 #. placeholder {0}: gameCardName(pendingCard)
 #: src/studio/game/ui/GameLayer.tsx
-msgid "新卡：{0}"
-msgstr "New card: {0}"
+#~ msgid "新卡：{0}"
+#~ msgstr "New card: {0}"
 
 #: src/pages/LoginPage.tsx
 msgid "新密码（至少 6 位）"
@@ -18524,8 +18684,8 @@ msgid "更新记录"
 msgstr "Update history"
 
 #: src/studio/game/ui/GameLayer.tsx
-msgid "替换不返金币，想要钱先卖。"
-msgstr "Replacing refunds nothing — sell first if you want the gold."
+#~ msgid "替换不返金币，想要钱先卖。"
+#~ msgstr "Replacing refunds nothing — sell first if you want the gold."
 
 #: src/pages/PublishPage.tsx
 msgid "替换原作品"
@@ -19526,6 +19686,14 @@ msgstr "Release to cancel"
 msgid "松手 · 交给她"
 msgstr "Release · hand it to her"
 
+#: src/studio/game/ui/GameDragLayer.tsx
+msgid "松手：放到这一格"
+msgstr "Release: place it in this slot"
+
+#: src/studio/game/ui/GameDragLayer.tsx
+msgid "松手：放到这一类卡的空位上"
+msgstr "Release: place it in the first free slot of this type"
+
 #. placeholder {0}: elapsed.toFixed(1)
 #: src/components/VoiceRecorder.tsx
 msgid "松手结束 · {0}s"
@@ -19766,6 +19934,10 @@ msgstr "No segments on the table yet — tap the dashed slot to make the first o
 #: src/studio/studioStore.ts
 #~ msgid "桌上还没有段——先点虚线卡位铸第一段，或去模板市场挑一个「用它出片」。"
 #~ msgstr "There are no segments on the table yet — tap the dashed slot to forge the first one, or pick one in the Template market and tap “Use this template”."
+
+#: src/studio/game/ui/CreatePanel.tsx
+msgid "桌面上还没有角色卡——从下面的背包条把角色卡拖进空位。"
+msgstr "No character cards on the table yet — drag one from the bag bar below into an empty slot."
 
 #: src/pages/SettingsPage.tsx
 msgid "桌面图标上的名字跟随手机系统语言，这里切换不会改它；多语言手机上两者可能不一致。"
@@ -20336,6 +20508,11 @@ msgstr "Writing the speaking style…"
 msgid "正在准备预览…"
 msgstr "Preparing the preview…"
 
+#: src/studio/game/ui/GenPreview.tsx
+#: src/studio/game/ui/GenSheet.tsx
+msgid "正在出片…"
+msgstr "Generating…"
+
 #: src/pages/EditPage.tsx
 msgid "正在删除…"
 msgstr "Deleting…"
@@ -20573,8 +20750,8 @@ msgid "正在搜…"
 msgstr "Searching…"
 
 #: src/studio/game/ui/GameLayer.tsx
-msgid "正在替换：点背包里要被顶掉的那张卡"
-msgstr "Replacing: tap the bag card to swap out"
+#~ msgid "正在替换：点背包里要被顶掉的那张卡"
+#~ msgstr "Replacing: tap the bag card to swap out"
 
 #: src/pages/PublishPage.tsx
 msgid "正在替换…"
@@ -20607,6 +20784,10 @@ msgstr "Drawing…"
 #: src/components/flow/EffectWizard.tsx
 msgid "正在画关键帧，约 20~30 秒（可以先离开，画好的图会留在这里）"
 msgstr "Drawing the keyframe, about 20–30 seconds (you can leave — the image will be here when it’s done)"
+
+#: src/studio/game/ui/GenSheet.tsx
+msgid "正在画首帧…"
+msgstr "Drawing the first frame…"
 
 #: src/components/VideoTemplateExtractor.tsx
 msgid "正在登记——这一步在跑，跑完再关：现在关掉会把已经传上去的那段素材删掉，而服务器正拿它切段。"
@@ -20891,6 +21072,20 @@ msgstr "Up to {maxSlots, plural, one {# image} other {# images}} per card — th
 msgid "每张卡出 {0} 张图：{1}"
 msgstr "{0, plural, one {# image} other {# images}} per card: {1}"
 
+#. placeholder {0}: view.itemLimit
+#: src/studio/game/ui/ItemRail.tsx
+msgid "每张角色 {0} 张"
+msgstr "{0} per character"
+
+#: src/studio/game/ui/ItemRail.tsx
+msgid "每张角色最多挂几张道具"
+msgstr "How many items each character can carry"
+
+#. placeholder {0}: effect.delta
+#: src/studio/game/labels.ts
+msgid "每张角色能挂的道具 +{0}"
+msgstr "Items per character +{0}"
+
 #. placeholder {0}: PERSONA_LIMITS.catchphrase
 #. placeholder {1}: PERSONA_LIMITS.catchphrases
 #: src/pages/SupportPersonaNewPage.tsx
@@ -21144,6 +21339,10 @@ msgstr "No render result received; the task may still be running at the video se
 msgid "没接到照片：相机那边可能没存下来——再拍一次，或选「上传本地图片」"
 msgstr "No photo came back — the camera may not have saved it. Try again, or choose “Upload from device”."
 
+#: src/studio/game/ui/GenPreview.tsx
+msgid "没接到结果"
+msgstr "No result received"
+
 #. placeholder {0}: msg.slice(0, 160)
 #: src/studio/flowStore.ts
 msgid "没接到结果：{0}"
@@ -21393,6 +21592,10 @@ msgstr "{count, plural, one {not refunded, and the # frame was charged too} othe
 #: src/data/videoDownload.ts
 msgid "没有选择去处。文件还在 App 里，随时可以再点「分享 / 另存为」。"
 msgstr "No destination chosen. The file is still in the app — tap “Share / Save as” again anytime."
+
+#: src/studio/game/ui/ItemRail.tsx
+msgid "没有道具"
+msgstr "No items"
 
 #: src/studio/ui/PlanBoard.tsx
 msgid "没画出来"
@@ -21871,8 +22074,8 @@ msgid "湿壁画质感 ＋ 伦勃朗光"
 msgstr "Fresco texture + Rembrandt light"
 
 #: src/studio/game/ui/BagBar.tsx
-msgid "满"
-msgstr "full"
+#~ msgid "满"
+#~ msgstr "full"
 
 #: src/components/guide/tours.tsx
 #~ msgid "满意了点右上角「完成视频」，去剪辑页收尾、发布。<0>简约不进草稿库</0>：中途退出这一段就不在了—— 想细做、想留草稿，回创作入口换工坊（工作流画布是它的另一面）。"
@@ -22076,8 +22279,8 @@ msgstr "<0>Use it</0> jumps to the render screen: templates <1>with roles</1> ha
 
 #. placeholder {0}: gameCardName(equipped)
 #: src/studio/game/ui/BagBar.tsx
-msgid "点一下卸下「{0}」"
-msgstr "Tap to unequip “{0}”"
+#~ msgid "点一下卸下「{0}」"
+#~ msgstr "Tap to unequip “{0}”"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "点一下选中/取消。选中的卡会当这一段的人物/场景参考，跟着提示词一起进出片。"
@@ -22117,8 +22320,8 @@ msgid "点一张卡，挂给「{0}」"
 msgstr "Tap a card to attach it to “{0}”"
 
 #: src/studio/game/ui/CreatePanel.tsx
-msgid "点一张卡放进虚框："
-msgstr "Tap a card to fill a frame:"
+#~ msgid "点一张卡放进虚框："
+#~ msgstr "Tap a card to fill a frame:"
 
 #: src/studio/StudioPage.tsx
 msgid "点一张卡看详情"
@@ -22852,6 +23055,10 @@ msgstr "Generating"
 msgid "生成中…"
 msgstr "Generating…"
 
+#: src/studio/game/ui/GenSheet.tsx
+msgid "生成中…可以关掉这个窗，进度在流水线上"
+msgstr "Generating… you can close this window, progress is on the pipeline"
+
 #. placeholder {0}: priceTag(CHAT_TURN_TOKENS)
 #: src/pages/QuickModePage.tsx
 msgid "生成剧本与分镜（{0}）"
@@ -23034,6 +23241,10 @@ msgstr "Starts from its dedicated opening frame"
 msgid "用化名，别写真实教授的名字 —— 发布到市场时服务端会拦。"
 msgstr "Use a pseudonym, not a real professor’s name — the server blocks it at publish time."
 
+#: src/studio/game/ui/CreatePanel.tsx
+msgid "用占位片交片"
+msgstr "Submit placeholder clip"
+
 #: src/components/CardModelFit.tsx
 msgid "用卡上的图起拍（白底立绘开场就是白底）"
 msgstr "Starts from the card’s image (a white-background sheet means a white opening)"
@@ -23115,6 +23326,12 @@ msgstr "User says"
 msgid "用手指沿着这件东西的边描一整圈，松手自动闭合。圈外的桌面、手和别的东西，都会换成浅灰纯色底。"
 msgstr "Trace all the way around the object's edge with your finger; lifting it closes the loop. The table, hands and anything else outside the loop become a plain light-gray background."
 
+#. placeholder {0}: view.table.roles.filter(Boolean).length
+#. placeholder {1}: view.table.scene ? 1 : 0
+#: src/studio/game/ui/GenSheet.tsx
+msgid "用桌面上的卡（{0} 角色 / {1} 场景）+ 这句提示词"
+msgstr "Uses the cards on the table ({0} characters / {1} scene) + this prompt"
+
 #: src/components/flow/CastPicker.tsx
 msgid "用照片做（真人要先认证）→ 自己传图做卡片"
 msgstr "Use a photo (real people need verification first) → Make a card from your own images"
@@ -23151,6 +23368,10 @@ msgstr "Make a teacher from your own material and take classes in the app"
 msgid "用这一帧作封面"
 msgstr "Use this frame as cover"
 
+#: src/studio/game/ui/GenSheet.tsx
+msgid "用这一条交片"
+msgstr "Submit this clip"
+
 #: src/components/cut/AutoEditSheet.tsx
 msgid "用这一版"
 msgstr "Use this draft"
@@ -23176,8 +23397,8 @@ msgstr "Use this"
 
 #. placeholder {0}: gameCardName(card)
 #: src/studio/game/ui/BagBar.tsx
-msgid "用这张「{0}」替换掉新买的卡"
-msgstr "Replace the new card with “{0}”"
+#~ msgid "用这张「{0}」替换掉新买的卡"
+#~ msgstr "Replace the new card with “{0}”"
 
 #. placeholder {0}: pageSlots.length
 #: src/pages/CustomCardPage.tsx
@@ -24268,6 +24489,11 @@ msgstr "Videos with real people go through the provider's content review and are
 #~ msgid "真人素材扫脸认证"
 #~ msgstr "Real-person face verification"
 
+#. placeholder {0}: Math.round(seconds)
+#: src/studio/game/ui/ScreeningPanel.tsx
+msgid "真出片的那一条（{0} 秒）"
+msgstr "A real generated clip ({0}s)"
+
 #: src/components/flow/SkillPanel.tsx
 msgid "真删？"
 msgstr "Really delete?"
@@ -24656,8 +24882,8 @@ msgid "程序问题"
 msgstr "Bug"
 
 #: src/studio/game/ui/BagBar.tsx
-msgid "空"
-msgstr "Empty"
+#~ msgid "空"
+#~ msgstr "Empty"
 
 #: src/pages/SimpleModePage.tsx
 msgid "空 = AI 按上面那句话补画（计费）"
@@ -24694,6 +24920,10 @@ msgstr "Empty = continue from the previous segment's actual last frame"
 #: src/components/flow/CustomFrameSlots.tsx
 msgid "空 = 用真人卡的照片起拍"
 msgstr "Empty = starts from the real-person card's photo"
+
+#: src/studio/game/ui/CreatePanel.tsx
+msgid "空位"
+msgstr "Empty"
 
 #. placeholder {0}: i + 1
 #. placeholder {1}: CARD_TYPE_LABELS[s.type]
@@ -24733,8 +24963,8 @@ msgid "空卡组不能分享：先往里放几张卡。"
 msgstr "An empty deck can't be shared. Add some cards first."
 
 #: src/studio/game/ui/BagBar.tsx
-msgid "空格子"
-msgstr "Empty slot"
+#~ msgid "空格子"
+#~ msgstr "Empty slot"
 
 #: src/pages/tutor/TutorNewPage.tsx
 msgid "空行分段；「# 标题」会自成一块"
@@ -24857,11 +25087,6 @@ msgstr "Voice {0} weight"
 #: src/components/support/VoiceMixer.tsx
 msgid "第 {0} 味音色"
 msgstr "Voice {0}"
-
-#. placeholder {0}: view.hud.round
-#: src/studio/game/ui/ShopPanel.tsx
-#~ msgid "第 {0} 回合"
-#~ msgstr "Round {0}"
 
 #. placeholder {0}: state.round
 #: src/studio/game/ui/PhaseBar.tsx
@@ -25279,9 +25504,21 @@ msgstr "Segment {partIndex} · {partTitle}"
 msgid "第 {rel} 秒"
 msgstr "{rel}s"
 
+#: src/studio/game/ui/GenSheet.tsx
+msgid "第 {round} 回合 · 视频生成"
+msgstr "Round {round} · Generate video"
+
 #: src/studio/ui/SceneRails.tsx
 #~ msgid "第 {round} 回合进行中 · 顶部看金币/血量，底部是背包与商店"
 #~ msgstr "Round {round} in progress · gold and HP up top, bag and shop below"
+
+#: src/studio/game/ui/GenPreview.tsx
+msgid "第 {roundNo} 回合"
+msgstr "Round {roundNo}"
+
+#: src/studio/game/ui/GenPreview.tsx
+msgid "第 {roundNo} 回合的首帧"
+msgstr "First frame of round {roundNo}"
 
 #: src/data/templates.ts
 msgid "第 {row} 行的人偶位置是空的——位置是\"把卡挂到这个人偶身上\"的唯一凭据，不能留空。对着画面从左往右数，选一个位置；想去掉这个角色位，请点它的「删掉」。"
@@ -25805,8 +26042,8 @@ msgid "等待火山引擎认证…"
 msgstr "Waiting for Volcengine verification…"
 
 #: src/studio/game/ui/ShopPanel.tsx
-msgid "等替换"
-msgstr "Awaiting swap"
+#~ msgid "等替换"
+#~ msgstr "Awaiting swap"
 
 #: src/components/WorkflowShelf.tsx
 msgid "等服务器更新后再来"
@@ -26076,6 +26313,10 @@ msgstr "The materials went over the limit: the first {droppedChars, plural, one 
 #: src/studio/personaWizardStore.ts
 msgid "素材超了上限，最前面的 {droppedChars} 字没有送去分析。"
 msgstr "The materials went over the limit: {droppedChars, plural, one {the first # character wasn't} other {the first # characters weren't}} sent for analysis."
+
+#: src/studio/game/ui/GenPreview.tsx
+msgid "纯预览：这里只让你看，改 / 重新生成在出片小窗里做"
+msgstr "View only: this panel just shows you the shots; edits and regenerating happen in the generation window"
 
 #: src/studio/game/labels.ts
 #~ msgid "纸片定格动画"
@@ -26549,20 +26790,25 @@ msgid "肖像同意的确认（勾了「真人」就必须勾它）"
 msgstr "likeness consent confirmation (required when “real person” is checked)"
 
 #. placeholder {0}: usage.total
+#: src/studio/game/ui/BagBar.tsx
+msgid "背包 {0} 张"
+msgstr "Bag: {0} cards"
+
+#. placeholder {0}: usage.total
 #. placeholder {1}: usage.cap
 #: src/studio/game/ui/BagBar.tsx
-msgid "背包 {0}/{1}"
-msgstr "Bag {0}/{1}"
+#~ msgid "背包 {0}/{1}"
+#~ msgstr "Bag {0}/{1}"
 
 #. placeholder {0}: failure.count ?? 0
 #. placeholder {1}: failure.cap ?? 9
 #: src/studio/game/reasons.ts
-msgid "背包满了（{0} / {1} 格）——先卖一张，或者用它替换掉背包里的一张卡"
-msgstr "Bag is full ({0} / {1}) — sell a card first, or use this one to replace a bag card"
+#~ msgid "背包满了（{0} / {1} 格）——先卖一张，或者用它替换掉背包里的一张卡"
+#~ msgstr "Bag is full ({0} / {1}) — sell a card first, or use this one to replace a bag card"
 
 #: src/studio/game/ui/CreatePanel.tsx
-msgid "背包里一张卡都没有——空镜也能交片，但没人会投给它（下回合商店阶段先买一张）"
-msgstr "Your bag is empty — an empty shot still counts, but nobody will vote for it (buy a card in the shop next round)"
+#~ msgid "背包里一张卡都没有——空镜也能交片，但没人会投给它（下回合商店阶段先买一张）"
+#~ msgstr "Your bag is empty — an empty shot still counts, but nobody will vote for it (buy a card in the shop next round)"
 
 #: src/types.ts
 msgid "背景"
@@ -27150,6 +27396,16 @@ msgstr "Specs"
 #: src/studio/game/labels.ts
 msgid "角色"
 msgstr "Cast"
+
+#: src/studio/game/ui/BagBar.tsx
+msgid "角色 / 场景卡拖到桌面空位；道具在右侧栏"
+msgstr "Drag character / scene cards onto table slots; items are in the right rail"
+
+#. placeholder {0}: index + 1
+#. placeholder {1}: gameCardName(card)
+#: src/studio/game/ui/CreatePanel.tsx
+msgid "角色位 {0}：{1}"
+msgstr "Character slot {0}: {1}"
 
 #: src/ai/real.ts
 msgid "角色卡上没有可用的形象图"
@@ -28049,8 +28305,8 @@ msgid "超出上限 {over} 字。送去分析时会从最前面截掉这一段�
 msgstr "{over, plural, one {# character} other {# characters}} over the limit. Before analysis that much is cut from the beginning, keeping the most recent {MATERIAL_TOTAL_MAX} characters (later text is closer to who they are now)."
 
 #: src/studio/game/ui/BagBar.tsx
-msgid "超过 9 格了"
-msgstr "Over 9 slots"
+#~ msgid "超过 9 格了"
+#~ msgstr "Over 9 slots"
 
 #: src/components/TextTemplateSheet.tsx
 msgid "超过 9 段：模型照不过来，合并几段再存。"
@@ -28440,6 +28696,10 @@ msgstr "This app isn't allowed to install apps yet: turn on “Install unknown a
 msgid "还没写这一段拍什么"
 msgstr "Nothing written for this segment yet"
 
+#: src/studio/game/ui/GenPreview.tsx
+msgid "还没出片"
+msgstr "Not generated yet"
+
 #: src/data/templates.ts
 msgid "还没取回的白模化结果拉取失败：{why}"
 msgstr "Couldn't load the blockout results that haven't been recovered yet: {why}"
@@ -28588,6 +28848,10 @@ msgstr "No new messages"
 #: src/pages/SupportModelNewPage.tsx
 msgid "还没有映射可以改"
 msgstr "No mapping to edit yet"
+
+#: src/studio/game/ui/GenPreview.tsx
+msgid "还没有画面"
+msgstr "No frame yet"
 
 #: src/studio/ui/FrameCard.tsx
 msgid "还没有画面——AI 会在推演时自拟首尾帧"
@@ -28842,6 +29106,12 @@ msgstr "I already have this one, don't remind me"
 msgid "这一发扣的 token 没有退回——以「我的」页的 token 余额为准。"
 msgstr "The tokens charged for this run weren't refunded — check your token balance on the “Me” page."
 
+#. placeholder {0}: fmtTokens(quote?.frame ?? 0)
+#. placeholder {1}: fmtTokens(quote?.video ?? 0)
+#: src/studio/game/ui/GenSheet.tsx
+msgid "这一发按 token 结算（游戏券还没接）：画首帧约 {0}、出片约 {1}。远端模式下以服务器结算为准。"
+msgstr "This one is billed in tokens (game tickets are not wired up yet): about {0} for the first frame and {1} for the video. In remote mode the server's settlement is authoritative."
+
 #: src/data/videoJobs.ts
 msgid "这一发没出成"
 msgstr "This run didn't come out"
@@ -29026,6 +29296,10 @@ msgstr "This match is over"
 msgid "这一局没有抽到风格卡（数据不对）——去右栏结束对局再开一局。"
 msgstr "No style cards were drawn this game (bad data) — end the game in the right rail and start again."
 
+#: src/studio/game/ui/GenPreview.tsx
+msgid "这一局还没有出过片——摆好卡，点「🎬 视频生成」先画首帧，再出片。"
+msgstr "No clips in this match yet — place your cards, hit 「🎬 Generate video」 to draw the first frame, then generate."
+
 #: src/studio/game/reasons.ts
 msgid "这一局里找不到你"
 msgstr "You're not in this game"
@@ -29107,6 +29381,14 @@ msgstr "There are no files to save in this batch."
 msgid "这一排就是出片时视频模型会收到的图，按发送顺序编号。素材卡是谁、哪几张图是他，由系统自动写进提示词；你另加的参考图没在句子里点名时，系统按「用途」替它说一句。想自己说清楚某张图管什么，就在句子里写 @名字（或点这一排上的图）——出片时会在名字后面接上模型认的编号「图片N」。"
 msgstr "This row is exactly what the video model receives when the segment is rendered, numbered in sending order. Which card is who, and which images belong to them, is written into the prompt automatically; for an extra reference image you add without mentioning it, the system describes it by its “purpose”. To say what an image is for yourself, write @name in the prompt (or tap an image in this row) — at render time the model's own number (image N) is appended after the name."
 
+#: src/studio/game/ui/GameLayer.tsx
+msgid "这一期交片了——真出片的那一条"
+msgstr "Submitted this round's shot — the real generated clip"
+
+#: src/studio/game/ui/GameLayer.tsx
+msgid "这一期交片了（占位片）——可以开始展映"
+msgstr "Submitted this round's shot (placeholder clip) — you can start the screening"
+
 #: src/studio/game/reasons.ts
 msgid "这一期你已经投过票（或者已经弃权了）——一人一票"
 msgstr "You've already voted this round (or abstained) — one vote each"
@@ -29115,13 +29397,22 @@ msgstr "You've already voted this round (or abstained) — one vote each"
 msgid "这一期你没有可选的选项（选过了，或者三选一都落不了账）。"
 msgstr "No options available for you this round (already picked, or none of the three can apply)."
 
+#: src/studio/game/ui/CreatePanel.tsx
+msgid "这一期已经交过一条占位片（{VIDEO_SECONDS} 秒）——想要真片子就点「🎬 视频生成」。"
+msgstr "This round already has a placeholder clip ({VIDEO_SECONDS}s) — hit 「🎬 Generate video」 to get a real one."
+
+#. placeholder {0}: Math.round(roundView.mine.entry.seconds)
+#: src/studio/game/ui/CreatePanel.tsx
+msgid "这一期已经交过了（真出片的那一条，{0} 秒）——改了提示词 / 重摆卡之后可以再交一次。"
+msgstr "This round already has a real generated clip ({0}s) — change the prompt or rearrange the table and submit again."
+
 #: src/studio/game/ui/GameLayer.tsx
 msgid "这一期弃权了"
 msgstr "Abstained this round"
 
 #: src/studio/game/ui/GameLayer.tsx
-msgid "这一期拍好了——可以开始展映"
-msgstr "This round's film is ready — start screening"
+#~ msgid "这一期拍好了——可以开始展映"
+#~ msgstr "This round's film is ready — start screening"
 
 #: src/studio/game/ui/EventPanel.tsx
 msgid "这一期没有抽到事件——等下一回合。"
@@ -29140,8 +29431,8 @@ msgid "这一期的事件：三选一，拿不准可以跳过"
 msgstr "This round's event: pick one of three — skip it if unsure"
 
 #: src/studio/game/ui/CreatePanel.tsx
-msgid "这一期的提示词"
-msgstr "This round's prompt"
+#~ msgid "这一期的提示词"
+#~ msgstr "This round's prompt"
 
 #: src/studio/game/reasons.ts
 msgid "这一条你已经点过赞了（同一期同一条只能点一次）"
@@ -29166,6 +29457,10 @@ msgstr "This panel is part of the previous set (charged for each picture drawn):
 #: src/studio/ui/SchemeEditorSheet.tsx
 msgid "这一格放原片裁剪本身，不调模型、不计费。"
 msgstr "This slot holds the original crop itself — no model call, no charge."
+
+#: src/studio/game/reasons.ts
+msgid "这一格是空的——拖一张卡上去才算占位"
+msgstr "This slot is empty — drag a card onto it to fill it"
 
 #: src/components/flow/GridShotsWizard.tsx
 msgid "这一格没核对上（AI 没看成），要看就自己看一眼。"
@@ -29714,6 +30009,14 @@ msgstr "This segment is generated, but auto-saving the draft failed (low storage
 msgid "这一段的做法走不了样片（样片不收参考视频，也不走真人档）——关掉「先出样片」再生成"
 msgstr "This segment's mode can't use a preview draft (drafts don't take a reference video or the Real-person tier) — turn off “Preview draft first” and generate again"
 
+#: src/studio/game/ui/GenPreview.tsx
+msgid "这一段的出片档位"
+msgstr "The generation tier of this shot"
+
+#: src/studio/game/ui/GenSheet.tsx
+msgid "这一段的出片档位（来自你的模型等级）"
+msgstr "The generation tier of this shot (from your model level)"
+
 #: src/ai/minimaxVideo.ts
 msgid "这一段的出片请求太大了（图片要先传到图床再发）——把这句话反馈给我们"
 msgstr "This segment's video request is too large (images must be uploaded before sending) — please report this message to us"
@@ -29734,6 +30037,10 @@ msgstr "This segment's video wasn't kept; it needs to be generated again (charge
 #: src/pages/CutPage.tsx
 msgid "这一段的截帧流还在取（成片有 20MB 级，稍等几秒再点圈选）"
 msgstr "This segment's frame stream is still loading (videos run around 20MB — wait a few seconds, then try circling again)"
+
+#: src/studio/game/ui/CreatePanel.tsx
+msgid "这一段的提示词"
+msgstr "Prompt for this shot"
 
 #: src/studio/flowStore.ts
 msgid "这一段的方案已经换了，融好的开头帧没处放（图钱已经花掉）"
@@ -29772,6 +30079,10 @@ msgstr "This segment's request is composed from the attached cards: the AI write
 #: src/pages/FlowPage.tsx
 msgid "这一段的要求由挂卡合成：AI 把「编号 → 你挂的角色」写成一段话填进输入框，出片前能逐字过目和修改。编号与角色名是机器按画面生成的，改错就会换错人；其余文字随便改。改挂卡会按新映射重新合成并覆盖这里的内容。"
 msgstr "This segment's request is composed from the attached cards: the AI writes “number → your character” into a paragraph in the input box, which you can review and edit word by word before rendering. The numbers and character names are generated from the picture, so getting them wrong swaps the wrong people; edit the rest freely. Changing the cards re-composes the text with the new mapping and overwrites what's here."
+
+#: src/studio/game/ui/GenSheet.tsx
+msgid "这一段的首帧"
+msgstr "First frame of this shot"
 
 #: src/studio/flowStore.ts
 msgid "这一段返修不了：{issue}"
@@ -30020,6 +30331,10 @@ msgstr "This slot was originally: "
 msgid "这个位子挂着一张本机找不到的卡（可能已被删除或属于另一个账号）——请重新挂一张， 或取下它。"
 msgstr "This slot has a card that isn't on this device (it may have been deleted or belong to another account) — attach a new one or remove it."
 
+#: src/studio/game/reasons.ts
+msgid "这个位子放的是{want}卡：{got}卡拖不进这一格"
+msgstr "This slot takes a {want} card: a {got} card cannot go here"
+
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "这个位置"
 msgstr "this position"
@@ -30109,6 +30424,10 @@ msgstr "This text template has {n, plural, one {# image slot} other {# image slo
 #: src/studio/flowStore.ts
 msgid "这个文字模板的数据不完整（正文、图位或能跑的档缺了），用不了——回「我的模板」删掉它重做一个"
 msgstr "This text template's data is incomplete (its prompt, image slots or runnable tiers are missing), so it can't be used — delete it in “My templates” and make a new one."
+
+#: src/studio/game/reasons.ts
+msgid "这个桌面卡位不存在（只有 4 个角色位 + 1 个场景位）"
+msgstr "That table slot does not exist (there are only 4 character slots + 1 scene slot)"
 
 #. placeholder {0}: rest.length
 #. placeholder {1}: rest.join(" / ")
@@ -30307,8 +30626,12 @@ msgid "这件事不能对全部片段一起办，说一个编号"
 msgstr "That can't be done to all clips at once — name one by number"
 
 #: src/studio/game/reasons.ts
-msgid "这件道具正装备在角色身上——先点那张角色卡把它卸下来"
-msgstr "That item is equipped on a role — tap that role card to take it off first"
+msgid "这件道具正装备在角色身上——先把那个角色身上的道具卸下来"
+msgstr "This item is equipped on a character — take it off that character first"
+
+#: src/studio/game/reasons.ts
+#~ msgid "这件道具正装备在角色身上——先点那张角色卡把它卸下来"
+#~ msgstr "That item is equipped on a role — tap that role card to take it off first"
 
 #: src/pages/RecipePage.tsx
 msgid "这份制作过程现在没有公开，只有你看得到；到<0>编辑页</0>可以公开。"
@@ -30836,13 +31159,17 @@ msgstr "This look's model file failed Cubism's consistency check (incomplete str
 msgid "这局没有胜者（同归于尽）"
 msgstr "No winner this match (mutual elimination)"
 
+#: src/studio/game/reasons.ts
+msgid "这张"
+msgstr "this card"
+
 #: src/studio/ui/FuseFrameSheet.tsx
 msgid "这张{label}要什么画面？例：\"他站在门口回头，半身，暖光\""
 msgstr "What should this {label} show? e.g. “he looks back at the doorway, half body, warm light”"
 
 #: src/studio/game/reasons.ts
-msgid "这张卡不在你手上（可能已经被卖掉或换掉了）"
-msgstr "That card isn't yours (it may have been sold or swapped)"
+#~ msgid "这张卡不在你手上（可能已经被卖掉或换掉了）"
+#~ msgstr "That card isn't yours (it may have been sold or swapped)"
 
 #: src/data/account.ts
 msgid "这张卡不在你的库里"
@@ -30869,8 +31196,12 @@ msgid "这张卡不在你的收藏里，改不了它的参考图"
 msgstr "This card isn't in your collection, so you can't change its reference images"
 
 #: src/studio/game/reasons.ts
-msgid "这张卡不在背包里了（可能刚被卖掉或被替换掉）"
-msgstr "That card isn't in the bag any more (it may have been sold or replaced)"
+msgid "这张卡不在背包里了（可能刚被卖掉 / 摆到桌上 / 挂到角色身上）"
+msgstr "That card is not in the bag any more (it may have been sold, placed on the table, or equipped)"
+
+#: src/studio/game/reasons.ts
+#~ msgid "这张卡不在背包里了（可能刚被卖掉或被替换掉）"
+#~ msgstr "That card isn't in the bag any more (it may have been sold or replaced)"
 
 #: src/components/WorkshopShareBar.tsx
 msgid "这张卡声明过是真实人物，不能分享到创意工坊：肖像授权只覆盖你自己使用。"
@@ -30879,6 +31210,10 @@ msgstr "This card is declared as a real person, so it can't be shared to the Wor
 #: src/data/promptSchemes.ts
 msgid "这张卡声明过是真实人物，不能拿它的产出当方案示例图（示例是给所有人看的）"
 msgstr "This card is marked as a real person, so its output can't be used as a scheme example image (examples are shown to everyone)"
+
+#: src/studio/game/reasons.ts
+msgid "这张卡已经摆在桌面上了——先把它从卡位拖回背包"
+msgstr "That card is already on the table — drag it back to the bag first"
 
 #: src/components/flow/ShotListEditor.tsx
 msgid "这张卡带着声音样本：台词会按它的声音配音"
@@ -31055,16 +31390,30 @@ msgid "这张确认卡是上一段的，已经作废——回到那一段再换�
 msgstr "This confirmation was for another segment and is no longer valid. Go back to that segment to switch tiers"
 
 #: src/studio/game/reasons.ts
-msgid "这张角色已经有一件道具了——一个角色只能挂一件，先卸下再换"
-msgstr "That role already has an item — one per role; unequip first"
+msgid "这张角色卡还没摆到桌面上——先把它拖进一个角色位，道具才挂得上去"
+msgstr "That character card is not on the table yet — drag it into a character slot before equipping items"
+
+#. placeholder {0}: failure.count ?? 0
+#. placeholder {1}: failure.cap ?? 0
+#: src/studio/game/reasons.ts
+msgid "这张角色已经挂了 {0} / {1} 张道具——上限了，先卸一张（或者拖拆除工具一次清空）"
+msgstr "This character already carries {0} / {1} items — take one off first (or drag the removal tool to clear them all)"
+
+#: src/studio/game/reasons.ts
+#~ msgid "这张角色已经有一件道具了——一个角色只能挂一件，先卸下再换"
+#~ msgstr "That role already has an item — one per role; unequip first"
 
 #: src/studio/game/reasons.ts
 msgid "这张角色身上没有道具"
 msgstr "That role has no item equipped"
 
 #: src/studio/game/reasons.ts
-msgid "这张角色身上还挂着道具——先点它卸下道具，再替换"
-msgstr "That role still has an item — tap it to unequip before replacing"
+msgid "这张角色身上还挂着道具——先卸下道具，再挪动或换掉它"
+msgstr "This character still carries items — take them off before moving or replacing it"
+
+#: src/studio/game/reasons.ts
+#~ msgid "这张角色身上还挂着道具——先点它卸下道具，再替换"
+#~ msgstr "That role still has an item — tap it to unequip before replacing"
 
 #: src/studio/game/reasons.ts
 msgid "这张风格卡不在你抽到的那三张里"
@@ -31123,6 +31472,10 @@ msgstr "What kind of material is this"
 #: src/pages/SupportPersonasPage.tsx
 msgid "这是付费人格，请先在官网购买后再使用。"
 msgstr "This is a paid persona. Buy it on the website before using it."
+
+#: src/studio/game/ui/GenSheet.tsx
+msgid "这是会发出去的开头画面——不对就再点一次「换一张」，满意了再出片（视频那一笔比图贵得多）。"
+msgstr "This is the opening frame that gets sent — tap 「换一张」 to redraw if it is wrong, and only generate once you are happy (the video costs far more than the image)."
 
 #: src/pages/RecipePage.tsx
 msgid "这是你公开的制作过程；到<0>编辑页</0>可以关闭或删除。"
@@ -31842,8 +32195,8 @@ msgid "选中第 {seg} 段：流水线只有 {total} 段"
 msgstr "Selecting segment {seg}: the pipeline only has {total, plural, one {# segment} other {# segments}}"
 
 #: src/studio/game/ui/BagBar.tsx
-msgid "选中这件道具，再去点一张角色卡"
-msgstr "Select this item, then tap a role card"
+#~ msgid "选中这件道具，再去点一张角色卡"
+#~ msgstr "Select this item, then tap a role card"
 
 #. placeholder {0}: eventOptionText(option)
 #: src/studio/game/ui/EventPanel.tsx
@@ -32098,9 +32451,15 @@ msgctxt "临时参考图的用途：没在句子里点名时，系统按它替�
 msgid "道具"
 msgstr "Prop"
 
+#. placeholder {0}: view.equippedOnRole[card.id]?.length ?? 0
+#. placeholder {1}: view.itemLimit
+#: src/studio/game/ui/CreatePanel.tsx
+msgid "道具 {0}/{1}"
+msgstr "Items {0}/{1}"
+
 #: src/studio/game/ui/BagBar.tsx
-msgid "道具：点道具再点角色 = 装备；点角色 = 卸下"
-msgstr "Items: item then role = equip; tap a role = unequip"
+#~ msgid "道具：点道具再点角色 = 装备；点角色 = 卸下"
+#~ msgstr "Items: item then role = equip; tap a role = unequip"
 
 #: src/types.ts
 msgid "道具信息"
@@ -32118,6 +32477,10 @@ msgstr "Prop card · {slotLabel}"
 msgid "道具卡 · {slotLabel} · {title}"
 msgstr "Prop card · {slotLabel} · {title}"
 
+#: src/studio/game/reasons.ts
+msgid "道具卡不占桌面卡位——它是从右边栏拖到角色卡上装备的"
+msgstr "Item cards do not take table slots — drag them from the right rail onto a character card to equip"
+
 #. 可能紧跟在上一句后面拼接，英文译文开头要留一个空格
 #: src/pages/CustomCardPage.tsx
 msgid "道具卡的图要先框出主体、描出轮廓，「{names}」那张没抠过，已经取下——点那一格重新选图。"
@@ -32126,6 +32489,10 @@ msgstr " Prop card images need the subject boxed and outlined first. The “{nam
 #: src/studio/game/reasons.ts
 msgid "道具只能装到角色卡上"
 msgstr "Items only go on role cards"
+
+#: src/studio/game/ui/ItemRail.tsx
+msgid "道具栏"
+msgstr "Item rail"
 
 #: src/components/guide/tours.tsx
 #~ msgid "那一列最下面单独一枚是全屏键，点了只留画面；<0>横屏的片子会连屏幕一起转过来</0>，所以它在横屏片上写的是「转屏」。退出点右上角那枚缩小键。"
@@ -32267,6 +32634,10 @@ msgstr "Recapture preview"
 #: src/pages/QuickModePage.tsx
 msgid "重抽（{0}）"
 msgstr "Re-roll ({0})"
+
+#: src/studio/game/ui/GenSheet.tsx
+msgid "重拍一次"
+msgstr "Regenerate"
 
 #: src/components/PhotoSubjectPicker.tsx
 msgid "重描"

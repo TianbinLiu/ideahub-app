@@ -7,9 +7,10 @@
 //   ② 这一屏在顶部只占「5 张卡 + 右列三颗键」那一块，卡缩到 2/3 高（真机 363 CSS px 高，
 //      再大就压到铸卡师的脸），收起时底部那列一点都没动。
 // ★ 这一屏只负责"把 rules 的结果画出来 + 把点击递回 store"：
-//   · 价格问 rules.cardPrice、刷新价问 rules.SHOP_REFRESH_COST、上限问 view.hud.bag —— 不自己算；
-//   · 买不成（钱不够 / 类型上限满）**不在这里编话**：store 把 rules 的失败原因记下来，GameLayer 的
-//     状态栏用 reasons.ruleFailureText 说人话；装不下的那两种还会把面板切进"替换"流程（见 GameLayer）。
+//   · 价格问 rules.cardPrice、刷新价问 rules.SHOP_REFRESH_COST —— 不自己算；
+//   · 买不成（钱不够 / 那一格空了）**不在这里编话**：store 把 rules 的失败原因记下来，GameLayer 的
+//     状态栏用 reasons.ruleFailureText 说人话。
+//   ★ G4 第 3 步起没有"装不下 → 替换旧卡"那套：背包不再有上限（施工单 §3），买不到只剩钱不够一种原因。
 // ★ 卡卖出去 / 买走的那一格显示"已买走"而不是把数组压短（rules.ShopState.cards 固定 5 格）。
 import { Trans, useLingui } from "@lingui/react/macro";
 import { SHOP_REFRESH_COST, cardPrice } from "../rules";
@@ -24,7 +25,6 @@ const CARD_W = "w-[clamp(1.8rem,3.9vw,2.85rem)]";
 
 export default function ShopPanel({ view }: { view: GameView }) {
   const { t } = useLingui();
-  const pendingBuySlot = useGame((s) => s.pendingBuySlot);
   const shop = view.shop;
   if (!shop) return null;
   const locked = shop.locked;
@@ -52,16 +52,15 @@ export default function ShopPanel({ view }: { view: GameView }) {
             }
             const price = cardPrice(card);
             const name = gameCardName(card);
-            const awaiting = pendingBuySlot === slot;
             return (
               <div key={card.id} className={`flex-none ${CARD_W}`}>
                 <button
                   type="button"
-                  // 不设 disabled：买不成要把**原因**说出来（金币不够 / 类型上限满），
+                  // 不设 disabled：买不成要把**原因**说出来（金币不够），
                   // 灰着点不动在手机上等于"点了没反应"（铁律八）。
                   onClick={() => useGame.getState().buy(slot)}
                   aria-label={t`买下「${name}」（${price} 金）`}
-                  className={`block w-full text-left ${awaiting ? "rounded-lg ring-2 ring-brand-300" : ""}`}
+                  className="block w-full text-left"
                 >
                   <GameCardTile card={card} />
                 </button>
@@ -70,12 +69,6 @@ export default function ShopPanel({ view }: { view: GameView }) {
                 <div className="text-center text-[9px] font-semibold leading-tight text-gold-200">
                   <Trans>{price} 金</Trans>
                 </div>
-                {/* 等替换的那一格要有话说：玩家已经点过它、正等一张旧卡 */}
-                {awaiting && (
-                  <div className="text-center text-[8px] leading-tight text-brand-200">
-                    <Trans>等替换</Trans>
-                  </div>
-                )}
               </div>
             );
           })}
