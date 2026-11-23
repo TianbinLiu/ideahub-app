@@ -1,16 +1,24 @@
-// 卡片工坊 3D 场景：长桌 + 中线 + NPC 铸卡师 + 卡组 + 市场平摊 + 节点链 + 拖拽层。
+// 卡片工坊 3D 场景：长桌 + 中线 + NPC 铸卡师 + 卡组 + 市场平摊 + 对局 5 个卡位 + 拖拽层。
 // 固定机位只露出双方手部/上身与桌面（NPC 不建头部模型）。
-import { Suspense, useEffect, useMemo, useRef, type ReactNode } from "react";
+// ★ G4（docs/g4-ui-revamp-spec.md §2）：桌面上的视频节点链撤了，换成对局的 4 个角色位 + 1 个场景位；
+//   节点卡搬进工作流面板是第 3 步，这一拍先把"摆卡台"的骨架立起来。
+import { Suspense, useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { ThreeEvent, advance, useFrame, useLoader, useThree } from "@react-three/fiber";
 import { useLingui } from "@lingui/react/macro";
 import { FlowNode, useFlow } from "../flowStore";
 import { chosenProposal, composable, placeholderVisible, useStudio, Flight } from "../studioStore";
+// G4：桌面 5 个卡位要读"位子上是谁"（规则派生在 rules.tableSlotsOf，界面读数在 game/view）。
+// 场景只画，不自己数：`scene → game` 这一条依赖只往规则与视图模型去，game 那边不认识 scene。
+import { useGame } from "../game/store";
+import { gameViewOf } from "../game/view";
+import { gameCardName } from "../game/labels";
+import { TABLE_ROLE_SLOTS } from "../game/rules";
+import type { GameCard, TableSlots } from "../game/types";
 import {
   CARD,
   DECK_CAM,
   LAND_CAM,
-  FLOAT_Y,
   SHOW_PLAYER_BODY,
   chainX,
   defaultCamFor,
@@ -162,8 +170,6 @@ import {
   runeRingTexture,
   cardFaceTexture,
   labelTexture,
-  placeholderTexture,
-  proposalTexture,
   ringTexture,
   tickCardFades,
 } from "./cardTexture";
@@ -177,10 +183,10 @@ import PlayerArms from "./PlayerArms";
 // 默认 = 全身版（站立↔对话俯身状态机，用户定稿）；?npc=tripo 早期全身试验版 / ?npc=vrm 回退 VRM
 const NPC_VARIANT = new URLSearchParams(window.location.search).get("npc") ?? "full";
 
-// ── 节点链布局：窗口化 + 焦点跟随 ─────────────────────────────
-// 节点多于 maxVisible 时溢出的收到左右两侧的收起堆；窗口默认贴链尾，
-// 但**聚焦中的节点必须平摊在窗口内**——聚焦窗外节点时窗口平移把它居中
-// （被挤出去的后段节点收到右侧堆）。堆里的卡可点击聚焦，窗口随之跟过去。
+// ── 节点链布局（G4 第 1 步起桌面上不再画节点卡）────────────────
+// ★ 这段现在只剩一个调用方：ui/projection.tsx 的 ‹› 换段（它要一个"如果节点卡还在桌上，
+//   这一段会摆在哪"的坐标来推镜头）。桌面上的 NodeChainView 已随 G4 第 1 步撤掉，
+//   节点卡搬进工作流面板是第 3 步 —— 那一步要把这段一起收拾掉，别把"能算但不能画"留着当功能。
 export interface ChainLayout {
   items: Array<{ node: FlowNode; x: number | null; stack: "left" | "right" | null; stackIndex: number }>;
   placeholderX: number | null;
@@ -1196,18 +1202,14 @@ function DeckSpread() {
   );
 }
 
-// ── 拖拽层：卡片跟随指针，松手落在空白卡位上则入槽 ─────────────
+// ── 拖拽层：卡片跟随指针；单击 = 看详情（G4 第 1 步还没有落点）─────────────
 function DragLayer() {
   const dragCardId = useStudio((s) => s.dragCardId);
   const deck = useStudio((s) => s.deck);
-  const nodes = useFlow((s) => s.nodes);
   const card = deck.find((c) => c.id === dragCardId) ?? null;
   const ghost = useRef<THREE.Group>(null);
-  // 拖拽落点/捕获平面都跟桌面与链走（横屏 22×9 / 7 张链）
-  const land = useIsLandscape();
-  const L = sceneLayout(land);
-
-  const phX = computeChain(nodes, null, land).placeholderX;
+  // 捕获指针的隐形平面跟桌子走（横屏 22×9 / 竖屏 16×7）
+  const L = sceneLayout(useIsLandscape());
 
   useEffect(() => {
     if (!dragCardId) return;
@@ -1215,12 +1217,7 @@ function DragLayer() {
       const st = useStudio.getState();
       const id = st.dragCardId;
       if (!id) return;
-      const nearPlaceholder =
-        phX != null && Math.abs(dragState.x - phX) < 1.0 && Math.abs(dragState.z - L.chain.rowZ) < 1.2;
-      if (dragState.moved && nearPlaceholder && phX != null) {
-        const cam = focusCam(phX, L.chain.rowZ);
-        st.dropOnPlaceholder(id, cam.pos, cam.look);
-      } else if (!dragState.moved) {
+      if (!dragState.moved) {
         // 单击（没拖动）：编辑器开着=选入素材槽；否则打开卡片详情
         if (st.editor && !st.editor.generating) {
           st.pickDeckCard(id);
@@ -1229,11 +1226,14 @@ function DragLayer() {
           if (c) st.viewCardDetail(c);
         }
       }
+      // ★ 拖到桌上松手这一步**没有落点**：桌面上的 5 个卡位是 G4 第 3 步才接拖拽的
+      //   （拖卡入位 + 每角色最多 3 件道具）。原来"松手落在虚线卡位 → 开铸段窗"那一路随
+      //   节点链一起撤了；这里不静默打开一个已经不在桌面上的编辑器。
       st.setDrag(null);
     };
     window.addEventListener("pointerup", onUp);
     return () => window.removeEventListener("pointerup", onUp);
-  }, [dragCardId, phX, L.chain.rowZ]);
+  }, [dragCardId]);
 
   useFrame(() => {
     if (ghost.current) {
@@ -1308,138 +1308,85 @@ function MarketFan() {
   );
 }
 
-// ── 节点链：光束 + 节点卡（收起/展开三方案）+ 虚线空白卡位 ─────
-function Beam({ x1, x2, z }: { x1: number; x2: number; z: number }) {
-  const mat = useRef<THREE.MeshBasicMaterial>(null);
-  useFrame(() => {
-    if (mat.current) mat.current.opacity = 0.4 + 0.3 * Math.sin(performance.now() / 320);
-  });
-  const len = Math.max(0.08, x2 - x1 - CARD.w + 0.15);
+// ── G4 桌面 5 个卡位：4 角色位一排 + 1 场景位（左上方、桌面中线玩家这一侧）─────
+//
+// ★ 位子上是谁**不在这里算**：rules.tableSlotsOf 从对局数据里派生（角色卡按背包顺序占 4 格、
+//   场景卡占 1 格），view.gameViewOf 把它挂到 view.table 上。这一层只把"空 / 已放"画出来。
+// ★ 空位画暗色牌框 + 一个「+」；放上卡就画卡名 + 青色（角色）/ 金色（场景）牌框 ——
+//   第 3 步做拖拽入位时才需要位子自己的状态，这一拍位子上的卡来自现有对局数据。
+// ★ 没有开局时五格全空（骨架照样在）：施工单要求桌面先看得出"这是摆卡台"，不是节点链。
+const EMPTY_TABLE: TableSlots = { roles: [null, null, null, null], scene: null };
+
+function SlotPlate({
+  x,
+  z,
+  scale,
+  kind,
+  card,
+}: {
+  x: number;
+  z: number;
+  scale: number;
+  kind: "role" | "scene";
+  card: GameCard | null;
+}) {
+  const w = CARD.w * scale;
+  const h = CARD.h * scale;
+  // 角色位青、场景位金；空位是同一档的暗色（空 ≠ 没有这一格，只是还没放）
+  const ink = card ? (kind === "role" ? "#67e8f9" : "#d6b26a") : "#31465c";
+  const frame = useMemo(
+    () =>
+      new THREE.MeshBasicMaterial({
+        map: ringTexture(ink),
+        transparent: true,
+        side: THREE.DoubleSide,
+        depthWrite: false,
+      }),
+    [ink]
+  );
+  useEffect(() => () => frame.dispose(), [frame]);
+  // 卡名用现有的文字纹理（512×128），铺一条扁横条压在牌框下部；空位写「+」（比牌框亮一档才看得见）
+  const name = card ? gameCardName(card) : "+";
+  const labelInk = card ? ink : "#5e8199";
+  const label = useMemo(() => labelTexture(name, labelInk), [name, labelInk]);
   return (
-    <mesh position={[(x1 + x2) / 2, 0.018, z]} rotation={[-Math.PI / 2, 0, 0]}>
-      <planeGeometry args={[len, 0.13]} />
-      <meshBasicMaterial ref={mat} color="#67e8f9" transparent blending={THREE.AdditiveBlending} depthWrite={false} />
-    </mesh>
+    <group position={[x, CARD.lift, z]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[w, h]} />
+        <meshBasicMaterial color="#0b1a2c" transparent opacity={0.5} depthWrite={false} />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.004, 0]} material={frame}>
+        <planeGeometry args={[w * 1.12, h * 1.09]} />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.008, card ? h * 0.3 : 0]}>
+        {/* 空位那个「+」比卡名放大一档（4:1 的文字纹理压进 2:1 的扁条）：不加大的话在横屏
+            真机（800×363）上只有 4~5 px，等于没画。 */}
+        <planeGeometry args={[card ? w * 0.92 : w * 1.05, card ? w * 0.23 : w * 0.5]} />
+        <meshBasicMaterial map={label} transparent depthWrite={false} />
+      </mesh>
+    </group>
   );
 }
 
-function Placeholder({ x, rowZ, scale }: { x: number; rowZ: number; scale: number }) {
-  const mat = useMemo(
-    () => new THREE.MeshBasicMaterial({ map: placeholderTexture(), transparent: true, side: THREE.DoubleSide }),
-    []
-  );
-  useEffect(() => () => mat.dispose(), [mat]);
-  const ref = useRef<THREE.Mesh>(null);
-  useFrame((_, dt) => {
-    mat.opacity = 0.6 + 0.3 * Math.sin(performance.now() / 520);
-    const m = ref.current;
-    if (!m) return;
-    // 聚焦占位卡（编辑投影打开）时悬浮
-    const st = useStudio.getState();
-    const floating = st.focus != null && st.focus.nodeId === null && st.projection != null;
-    const targetY = floating ? FLOAT_Y : CARD.lift;
-    m.position.y += (targetY - m.position.y) * (1 - Math.exp(-dt * 9));
-    m.position.x = x;
-  });
-  return (
-    <mesh
-      ref={ref}
-      rotation={[-Math.PI / 2, 0, 0]}
-      position={[x, CARD.lift, rowZ]}
-      scale={scale}
-      material={mat}
-      onClick={(e) => {
-        e.stopPropagation();
-        const cam = focusCam(x, rowZ);
-        useStudio.getState().focusPlaceholder(cam.pos, cam.look);
-      }}
-    >
-      <planeGeometry args={[CARD.w, CARD.h]} />
-    </mesh>
-  );
-}
-
-function NodeChainView() {
-  const nodes = useFlow((s) => s.nodes);
-  const focus = useStudio((s) => s.focus);
-  const projection = useStudio((s) => s.projection);
-  // 横屏 7 张 / 竖屏 5 张（layout.CHAIN_LAND）：窗口化、焦点跟随、左右收起堆都用同一套卡位
+function GameTableSlots() {
   const land = useIsLandscape();
-  const L = sceneLayout(land);
-  // 焦点跟随：聚焦节点保证平摊在窗口内（点堆中的卡时窗口平移过去）
-  const layout = computeChain(nodes, focus?.nodeId ?? null, land);
-  if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__chainDbg = layout;
-  const visibleXs: number[] = [];
-
-  const cards: ReactNode[] = [];
-  let leftCount = 0;
-  let rightCount = 0;
-  layout.items.forEach(({ node, x, stack }) => {
-    const chosen = chosenProposal(node);
-    const tex = chosen ? proposalTexture(chosen) : placeholderTexture();
-    if (x == null) {
-      // 左右收起堆：可点击——窗口平移让该节点平摊到桌面中区，镜头跟随聚焦
-      const isLeft = stack === "left";
-      const idx = isLeft ? leftCount++ : rightCount++;
-      const base = isLeft ? L.leftStack : L.rightStack;
-      cards.push(
-        <CardMesh
-          key={node.id}
-          tex={tex}
-          target={[base[0], 0.012 + idx * 0.02, base[2]]}
-          rotZ={idx * 0.05 - 0.04}
-          scale={L.chain.scale * 0.94}
-          onClick={(e) => {
-            e.stopPropagation();
-            const st = useStudio.getState();
-            if (st.projection) return; // 投影开着时与平摊卡一致：不抢焦
-            const nx = computeChain(useFlow.getState().nodes, node.id, land).items.find((it) => it.node.id === node.id)?.x;
-            if (nx == null) return;
-            const cam = focusCam(nx, L.chain.rowZ);
-            st.focusNode(node.id, cam.pos, cam.look);
-          }}
-        />
-      );
-      return;
-    }
-    visibleXs.push(x);
-    // 聚焦中的卡悬浮 + 高亮描边；选定后显示选定方案卡面，未选定（生成中/未选）显示虚框卡面
-    const floating = focus?.nodeId === node.id && projection != null;
-    const y = floating ? FLOAT_Y : CARD.lift;
-    cards.push(
-      <CardMesh
-        key={node.id}
-        tex={tex}
-        target={[x, y, L.chain.rowZ]}
-        scale={L.chain.scale}
-        hoverLift={!floating}
-        ring={floating ? "#67e8f9" : null}
-        onClick={(e) => {
-          e.stopPropagation();
-          const st = useStudio.getState();
-          const cam = focusCam(x, L.chain.rowZ);
-          st.focusNode(node.id, cam.pos, cam.look);
-        }}
-      />
-    );
-  });
-
+  const S = sceneLayout(land).slots;
+  const state = useGame((s) => s.state);
+  const meId = useGame((s) => s.meId);
+  const table = (state ? gameViewOf(state, meId)?.table : null) ?? EMPTY_TABLE;
   return (
     <group>
-      {/* 相邻可见节点之间 + 末节点到空白卡位的光束 */}
-      {visibleXs.map((x, i) => {
-        const next = i + 1 < visibleXs.length ? visibleXs[i + 1] : layout.placeholderX;
-        if (next == null) return null;
-        return <Beam key={i} x1={x} x2={next} z={L.chain.rowZ} />;
-      })}
-      {leftCount > 0 && visibleXs.length > 0 && <Beam x1={L.leftStack[0]} x2={visibleXs[0]} z={L.chain.rowZ} />}
-      {rightCount > 0 && visibleXs.length > 0 && (
-        <Beam x1={visibleXs[visibleXs.length - 1]} x2={L.rightStack[0]} z={L.chain.rowZ} />
-      )}
-      {cards}
-      {layout.placeholderX != null && (
-        <Placeholder x={layout.placeholderX} rowZ={L.chain.rowZ} scale={L.chain.scale} />
-      )}
+      {table.roles.map((card, i) => (
+        <SlotPlate
+          key={`role-${i}`}
+          x={(i - (TABLE_ROLE_SLOTS - 1) / 2) * S.roleDx}
+          z={S.roleZ}
+          scale={S.roleScale}
+          kind="role"
+          card={card}
+        />
+      ))}
+      <SlotPlate x={S.sceneX} z={S.sceneZ} scale={S.sceneScale} kind="scene" card={table.scene} />
     </group>
   );
 }
@@ -1789,7 +1736,9 @@ export default function TableScene() {
       <DeckSpread />
       <MarketFan />
       <DialogTableCards />
-      <NodeChainView />
+      {/* G4：桌面上摆的是**对局的 5 个卡位**（4 角色 + 1 场景），原来的视频节点链已撤
+          （节点卡搬进工作流面板是施工单第 3 步；这一拍只把位子与占位状态摆出来）。 */}
+      <GameTableSlots />
       <Flights />
       <DragLayer />
       <NpcScreenAnchor />

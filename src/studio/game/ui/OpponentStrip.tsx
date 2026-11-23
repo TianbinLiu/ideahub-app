@@ -17,7 +17,7 @@ export default function OpponentStrip() {
   const opponents = opponentsOf(state, meId);
   if (opponents.length === 0) return null;
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-[calc(env(safe-area-inset-top,0px)+5.5rem)] flex justify-center px-2">
+    <div className="pointer-events-none absolute inset-x-0 top-[calc(env(safe-area-inset-top,0px)+6.1rem)] flex justify-center px-2">
       <div className="flex items-center gap-2.5 overflow-x-auto whitespace-nowrap rounded-full bg-panel/70 px-2.5 py-0.5 text-[10px] text-slate-300 ring-1 ring-white/10 backdrop-blur">
         {opponents.map((opponent) => {
           const name = playerName(opponent.id);

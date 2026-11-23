@@ -33,6 +33,7 @@ import type {
   StreakEntry,
   StreakOutcome,
   StyleCard,
+  TableSlots,
 } from "./types";
 
 // ────────────────────────────── 常量（设计稿里写死的数都在这里，别在函数里现编） ──────────────────────────────
@@ -461,6 +462,25 @@ export function bagUsage(player: GamePlayer): {
   };
   const total = byType.role + byType.scene + byType.item;
   return { total, cap: BAG_SIZE, free: Math.max(0, BAG_SIZE - total), byType, caps };
+}
+
+/**
+ * G4：3D 桌面上的 5 个卡位 —— 4 个角色位一排 + 1 个场景位（施工单 docs/g4-ui-revamp-spec.md §2）。
+ *
+ * ★ 这是**只读派生**，不新增一份"桌面状态"：G4 施工单第 1 步还没有摆卡 / 拖拽，桌面摆的就是
+ *   背包里的身分卡（角色 4 + 场景 1），所以"谁占了这个位"直接按背包里的顺序读出来。
+ *   第 3 步做拖卡入位时，摆在哪一格才会变成真的状态（届时改这一个函数，3D 与背包两面跟着变）。
+ * ★ 空位用 null 占满 4 格，调用方不用自己补长度（补长度的写法一漏就是"少一个卡位"的静默空洞）。
+ */
+export const TABLE_ROLE_SLOTS = 4;
+
+export function tableSlotsOf(player: GamePlayer): TableSlots {
+  const roles = player.bag.filter((card) => card.type === "role").slice(0, TABLE_ROLE_SLOTS);
+  const scene = player.bag.find((card) => card.type === "scene") ?? null;
+  return {
+    roles: Array.from({ length: TABLE_ROLE_SLOTS }, (_, i) => roles[i] ?? null),
+    scene,
+  };
 }
 
 /** 装不下时先看总数、再看类型（两个都满时报 bag-full —— 它比 type-cap 更根本）。 */

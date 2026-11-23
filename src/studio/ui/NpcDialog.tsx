@@ -31,7 +31,6 @@ import TokenCost from "../../components/TokenCost";
 import StepDots from "../../components/StepDots";
 import { NPC_SCREEN } from "../scene/cameraOrbit";
 import { MarketSearchField } from "./MarketSearch";
-import { useIsLandscape } from "../../hooks/useIsLandscape";
 import { setVoiceEnabled, voiceEnabled, voiceStatus, voiceSupported } from "../speech";
 import { useBackGuard } from "../backGuards";
 import { routeIntent, searchKeyword } from "../npcIntent";
@@ -72,8 +71,9 @@ export default function NpcDialog() {
     return () => cancelAnimationFrame(raf);
   }, [open]);
 
-  // 退出对话的动作已经搬进 store.exitDialog()，由顶栏返回按钮统一触发——
-  // 气泡右上角那个 ✕ 只有 ~14px，手机上根本按不准，删了。
+  // 退出对话：**只认气泡上这颗 ✕**（G4 删掉了左上角那颗返回键，这里不补一颗就出不去了）。
+  // 原来那颗 ✕ 只有 ~14px、手机上按不准，所以删过；这一颗做成 28px 的圆、带 aria-label。
+  // 对话机位下铸卡师的身体本来就在画面上沿之外，**点不到她** —— 别再往"再点一下 NPC"那条路上想。
   // 记录窗/素材窗则各自压进返回栈（useBackGuard），按返回先关它们。
   // ⚠ 必须写在下面两个早返回**之前**：Hook 不能出现在条件之后，
   // 否则投影窗一开（projection → return null）本次渲染就少调两个 Hook，
@@ -81,13 +81,6 @@ export default function NpcDialog() {
   useBackGuard(historyOpen, () => setHistoryOpen(false));
   useBackGuard(forgeOpen, () => setForgeOpen(false));
   const { t } = useLingui();
-  /**
-   * ★ 横屏（G1 第 3 步）：市场搜索条搬到右侧常驻条里（SceneRails 的 MarketRail）。
-   *   宽布局里市场本来就在右栏，搜索还钉在屏幕上沿的话，手机上要在"右栏点开的市场"和
-   *   "屏幕顶上那条搜索"之间来回看；窄条也更适合横屏那点高度。
-   *   判据只读 useIsLandscape（与宽布局壳同一个），本页不另判。
-   */
-  const land = useIsLandscape();
 
   // 投影窗打开时隐藏对话层，避免遮挡
   if (projection) return null;
@@ -150,7 +143,6 @@ export default function NpcDialog() {
                 st.closeMarket();
                 st.npcSay(t`市场先收起来了。还想做点什么？`);
               }}
-              title={t`也可以按左上角的返回`}
               className="rounded-full border border-slate-600/70 bg-panel/90 px-3 py-1.5 text-xs text-slate-200 backdrop-blur hover:border-brand hover:text-brand"
             >
               <Trans>‹ 收起市场</Trans>
@@ -178,20 +170,20 @@ export default function NpcDialog() {
           >
             <Trans>💬 记录</Trans>
           </button>
-        </div>
-        {/* 去掉 ✕ 之后要补一条出口指引，否则用户会以为自己被关在对话里了。
-            **不要写死"退出对话"**——市场开着的时候顶栏那颗按钮写的是「收起市场」，
-            两边对不上反而更迷惑。这里只指路，具体做什么由按钮自己说。
-            垫一层半透明底：它正好压在角色身上，纯文字在浅色头发上会看不见 */}
-        <div className="mt-1.5 flex justify-center">
-          <span className="pointer-events-none rounded-full px-2 py-0.5 bg-black/45 text-[10px] text-slate-400 backdrop-blur">
-            <Trans>左上角的返回按钮可逐层退出</Trans>
-          </span>
+          {/* 唯一的出口（G4 删掉顶栏返回键之后）：28px 的圆，比原来那颗 14px 的准得多 */}
+          <button
+            onClick={() => useStudio.getState().exitDialog()}
+            aria-label={t`收起对话`}
+            title={t`收起对话`}
+            className="flex h-7 w-7 flex-none items-center justify-center rounded-full border border-slate-600/70 bg-panel/90 text-xs text-slate-300 backdrop-blur hover:border-brand hover:text-brand"
+          >
+            ✕
+          </button>
         </div>
       </div>
 
-      {/* ── 市场搜索条：钉在屏幕上方，桌面的卡全程可见；横屏那一份在右栏（见上面 land 的 ★） ── */}
-      {marketOpen && !land && <MarketTopBar />}
+      {/* ── 市场搜索条：钉在屏幕上方，桌面的卡全程可见（G4 删掉右侧常驻条之后横竖屏都摆这一份） ── */}
+      {marketOpen && <MarketTopBar />}
 
       {historyOpen && (
         <HistorySheet
@@ -218,7 +210,7 @@ export default function NpcDialog() {
   );
 }
 
-// ── 市场搜索条（屏幕上方；横屏改用右侧常驻条里的那一份，见 ui/MarketSearch 与 SceneRails） ──
+// ── 市场搜索条（屏幕上方；G4 起左右常驻条都删了，横竖屏共用这一份） ──
 function MarketTopBar() {
   return (
     <div className="safe-top absolute inset-x-0 top-12 z-10 px-3">

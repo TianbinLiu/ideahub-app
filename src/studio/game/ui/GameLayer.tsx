@@ -90,9 +90,9 @@ export default function GameLayer() {
 
   return (
     <div className="pointer-events-none absolute inset-0 z-30">
-      <GameHud hud={view.hud} phase={view.phase} />
+      <GameHud hud={view.hud} />
       <OpponentStrip />
-      {/* ★ 这一层挂在 StudioPage 的**舞台那一列**里（两条常驻条之间），所以 `inset-x-0` 的宽度就是舞台宽度。
+      {/* ★ 这一层挂在 StudioPage 的**舞台那一层**里，所以 `inset-x-0` 的宽度就是舞台宽度（G4 删掉左右常驻条之后 = 整窗）。
           面板一律用 `w-full max-w-[…]`，**不许**写 `96vw` 这种按视口的宽度 —— 2026-11-23 真机实测：
           创作面板按 96vw 算出来比舞台还宽，右边伸进右栏底下，那半边的「🎬 拍好了」点了没反应
           （不报错、不提交，看起来像卡住了）。桌面浏览器窗口更宽，看不出来。 */}

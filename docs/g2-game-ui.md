@@ -6,8 +6,9 @@
 
 ## 入口
 
-工坊（`/studio`）横屏时右栏最上面一组：没开局是 **「▶ 开局」**，开局后是 **「✕ 结束对局」**
-（`src/studio/ui/SceneRails.tsx` 的 `MarketRail`）。竖屏不挂右栏，也不挂对局 UI —— G1 的竖屏逐字不变。
+工坊（`/studio`）横屏时舞台右上角那一组：没开局是 **「▶ 开局」**，开局后是 **「✕ 结束对局」**。
+G4 第 1 步之前它在右栏最上面（`src/studio/ui/SceneRails.tsx` 的 `MarketRail`）。那两条常驻栏
+已按 `docs/g4-ui-revamp-spec.md` §2 删掉，入口搬进顶栏；竖屏不挂对局 UI —— G1 的竖屏逐字不变。
 
 ## 文件
 
@@ -19,9 +20,9 @@
 | `src/studio/game/art.ts` | 卡面与风格样张的图从哪来（卡面借市场卡图占位；**风格样张是真图**，路径从 `rules.STYLE_POOL.sample` 取） |
 | `src/studio/game/reasons.ts` | `RuleFailure` → 那一句人话（**唯一一处**） |
 | `src/studio/game/ui/GameLayer.tsx` | 覆盖层外壳：状态栏（失败 / 替换 / 选中道具 / 刚做完）、商店与背包的摆放 |
-| `src/studio/game/ui/GameHud.tsx` | 顶部常驻：金币 + 本回合利息、血量、连胜/连败、模型等级 + 档位名、回合、存活 |
-| `src/studio/game/ui/ShopPanel.tsx` | 5 张卡 + 买 / 刷新（2 金 / 免费券）/ 锁定（免费，状态可见）/ 收起 |
-| `src/studio/game/ui/BagBar.tsx` | 底部 9 格（含已装备道具）、类型上限、卖 +1、替换模式、点选装备 |
+| `src/studio/game/ui/GameHud.tsx` | 顶部常驻（G4 第 1 步起）：8 回合进度条 + 当前生命值。金币在背包条上、利息在商店键里，HUD 不再念回合/阶段/连胜/档位/存活 |
+| `src/studio/game/ui/ShopPanel.tsx` | 5 张卡 + 买 / 刷新（2 金 / 免费券）/ 锁定（免费，状态可见）/ 收起。G4 起标题「商店 / 第 N 回合」撤掉 |
+| `src/studio/game/ui/BagBar.tsx` | 底部 9 格（含已装备道具）、金币、类型上限、卖 +1、替换模式、点选装备；**右边是商店键**（G4：利息图标 + 数字，点它开/收商店） |
 | `src/studio/game/ui/StylePick.tsx` | 进对局前的三选一：技法 + 题材 + 预览图 + 一行说明，选定锁死 |
 | `src/studio/game/ui/GameCardTile.tsx` | 对局里一张小卡（塔罗卡面 + 品质角标），塔罗卡复用 `components/TarotCard` |
 | `src/studio/game/ui/GameBtn.tsx` | 对局面板里的键（HUD/商店/背包同一套形状） |
@@ -36,7 +37,7 @@
 | 刷新 / 锁定 | `refresh` / `toggleLock` | `refreshShop` / `toggleShopLock` |
 | 卖卡 | `sell(cardId)`（回执里的钱数问 `cardSellValue`） | `sellCard` → `sellCardFromBag` |
 | 点道具 → 点角色 | `pickItem` / `equipOn` | `equipItem` → `equipItemOnRole`（卸下走 `unequipItem` / `unequipItemFromRole`） |
-| 派生读数 | `view.gameViewOf` | `incomeFor` / `generationTierOf` / `bagUsage` / `alivePlayers` / `styleCardOf` |
+| 派生读数 | `view.gameViewOf` | `incomeFor` / `bagUsage` / `styleCardOf` / `tableSlotsOf`（G4 桌面 5 个卡位） |
 
 ## 失败原因怎么透出
 
@@ -72,6 +73,18 @@
   3D 动画+末日废土、水墨+武侠、绘本+童话森林）＋ 硬派黑白、水粉柔粉。
 - 新增一套风格要走三处：`rules.STYLE_POOL` 加一条（id = 文件名）、`design/gen-style-samples.mjs` 的
   STYLES 加一条 `look` 并跑一次、`labels.ts` 的 `styleMeta` 补中文（en.po 同 PR 补英文）。
+
+## G4 第 1 步（2026-11-23）：清理与布局骨架
+
+施工单 `docs/g4-ui-revamp-spec.md` §2 的第 1 步，只动"长什么样、从哪拿数"：
+
+- **删掉**：3D 桌面左上退出键；右上「重命名 / 问号 / 存草稿」；左右两条常驻栏（`src/studio/ui/SceneRails.tsx` 整个文件）；HUD 上的「第 N 回合 / 阶段名 / 本回合利息 / 连胜 / L1 草稿 480p / 存活 N 人」；商店面板标题「商店 / 第 N 回合」。
+- **顶栏**：只剩「▶ 开局 / ✕ 结束对局」（横屏）、工作流画布与演示模式牌。
+- **HUD**：8 回合进度条 + 当前生命值（只读 `view.hud.round/hp`，一个数都不在组件里算）。
+- **利息**：搬进背包条右侧那颗商店键（利息图标 + 数字；「商店」只在 `aria-label` / `title` 里）。金币跟着背包条走。
+- **3D 桌面**：视频节点链撤掉，换成 `layout.TABLE_SLOTS` / `TABLE_SLOTS_LAND` 的 **4 个角色位 + 1 个场景位**（场景位在角色排左上方、桌面中线玩家这一侧）。位子上是谁由 `rules.tableSlotsOf` 从玩家背包**只读派生**（角色按背包顺序、场景最多一张），3D 层（`TableScene.GameTableSlots`）只画"空 / 已放 + 卡名"。
+- **还没做（第 2/3 步）**：拖卡入位、每角色最多 3 张道具 + 右侧道具栏与拆除工具、相机拉近与商店栏上移、工作流面板改纯预览、生成小窗（卡名进提示词）。
+- 对话的出口：删掉顶栏返回键之后，NPC 气泡里补了一颗 28px 的「✕ 收起对话」（对话机位下看不到铸卡师本人，点不到她）。
 
 ## 还没做的（下一块）
 

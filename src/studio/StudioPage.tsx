@@ -8,7 +8,7 @@ import ErrorBoundary from "../components/ErrorBoundary";
 import TableScene from "./scene/TableScene";
 import { AI_REAL } from "../ai";
 import { myCards } from "../data/account";
-import { backLabelOf, composable, placeholderVisible, useStudio } from "./studioStore";
+import { useStudio } from "./studioStore";
 import { useFlow } from "./flowStore";
 import { defaultCamFor, sceneLayout } from "./scene/layout";
 import { revealIntroCam } from "./scene/introCam";
@@ -17,25 +17,19 @@ import ProjectionWindow from "./ui/projection";
 import { CardDetailModal } from "./ui/modals";
 import AvatarPicker from "./ui/AvatarPicker";
 import AvatarSwapButton from "./ui/AvatarSwapButton";
-import { DeckRail, MarketRail } from "./ui/SceneRails";
 // 对局态（G2 第二块）：HUD / 商店 / 背包 / 风格卡那一层 2D 覆盖层。只在横屏且真的开了一局时挂载，
 // 竖屏与没开局时这一行等于不存在（施工单"竖屏沿用现有布局"）。
 import GameLayer from "./game/ui/GameLayer";
 import { useGame } from "./game/store";
 import { cancelPendingStop, stopSpeakingSoon } from "./speech";
-import { useStudioBack } from "./useStudioBack";
 import { useCastReturn } from "../hooks/useCastReturn";
 import { useFlowActions } from "../hooks/useFlowActions";
 import { useIsLandscape } from "../hooks/useIsLandscape";
-import { showToast } from "../data/toast";
 // 工作流画布现在是工坊里的一层全屏浮层（2026-08-30 合并：创作入口不再有「工作流模式」）
 import FlowCanvas from "../components/flow/FlowCanvas";
 import { castEditorState } from "../pages/FlowPage";
 import { autoQualityOnFirstVisit, qualityLabel, type Quality } from "./quality";
-import DraftTitle from "../components/DraftTitle";
 import Icon from "../components/Icon";
-import HelpButton from "../components/guide/HelpButton";
-import { useAutoGuide } from "../components/guide/useAutoGuide";
 
 // 入场加载过渡：盖住模型/贴图流式加载过程（不然首页跳转进来会看到模型逐个蹦出+卡顿）。
 // 进度来自 THREE.DefaultLoadingManager；资源全命中内存缓存时无事件——1.5s 静默兜底收起。
@@ -148,15 +142,11 @@ function useHint(): string {
   //   把桌面市场接到广场是另一条工单；在那之前，这句话只说**真的能拿到卡**的那条路。
   if (marketEmpty) return t`这张桌子上还没有卡——去「创意工坊」的市场装几张，或在「我的仓库」用「从视频提取」现做`;
   if (marketOpen) return t`点桌上的市场卡放大查看，喜欢就收进卡组`;
-  if (spreadOpen) return t`拖卡片到虚线卡位做一段 · 单点看详情`;
+  if (spreadOpen) return t`点一张卡看详情`;
   if (nodes.length === 0 && deckLen === 0) return t`先把素材交给铸卡师做卡，或让 TA 摊开市场`;
-  if (nodes.length === 0) return t`点击虚线卡位，做第一段视频`;
-  // 「金色圆台」这个说法在圆台改成法阵后就对不上了（它现在暗着的时候是冷灰的）；
-  // 统一叫「法阵」，与台前铭牌上的「点亮法阵」同一套词
-  if (placeholderVisible(nodes) && composable(nodes)) return t`点虚线卡位延展下一段 · 点亮法阵去剪辑成片`;
-  // 虚线卡位没亮 = 当前段还没挑方案或还没出片：把"下一段为什么开不了"说清楚，
-  // 不然用户只会觉得桌面少了个卡位
-  return t`点击节点卡：挑定方案并生成本段视频，才能延展下一段`;
+  // G4：桌面上的卡位现在是**对局的 5 个位子**（4 角色 + 1 场景），不再是视频节点卡；
+  // 摆卡/拖卡是第 3 步，这一拍只把"卡会从哪儿来"说清楚（说"把卡拖上去"就是骗人）。
+  return t`开局后，背包里的角色卡与场景卡会摊到桌面的 5 个卡位上`;
 }
 
 // ── 市场翻页箭头：屏幕两侧竖直居中，56px 热区（比卡组那对 36px 的大一圈，
@@ -228,8 +218,6 @@ function AutoQualityHint({ q }: { q: Quality }) {
 export default function StudioPage() {
   const navigate = useNavigate();
   const { t } = useLingui();
-  // 第一次进这一屏强制放一遍引导（看过一次不再自动弹；顶栏那颗 ? 随时能重看）
-  useAutoGuide("studio");
   // 工坊的模板段面板也能发起挂卡（returnTo:"/studio"）——回程的收口与 /flow 同一份实现
   useCastReturn();
   /**
@@ -249,9 +237,6 @@ export default function StudioPage() {
   const deckLen = useStudio((s) => s.deck.length);
   const shiftSpread = useStudio((s) => s.shiftSpread);
   const hint = useHint();
-  const onBack = useStudioBack();
-  // 按钮文案随当前层级变——去掉对话气泡的 ✕ 之后，"按返回能退出什么"全靠它说
-  const backLabel = useStudio(backLabelOf);
   const notice = useStudio((s) => s.notice);
   const marketOpen = useStudio((s) => s.market.open);
   const marketLen = useStudio((s) => s.market.items.length);
@@ -281,7 +266,6 @@ export default function StudioPage() {
   }, []);
 
   // 法阵/铸段落地后的"去画布那一面"：store 里没有 router，意图记在 goFlowAt 上由这里执行
-  const flowLen = useFlow((s) => s.nodes.length);
   const goFlowAt = useStudio((s) => s.goFlowAt);
   const goFlowSeen = useRef(goFlowAt);
   useEffect(() => {
@@ -292,12 +276,13 @@ export default function StudioPage() {
 
   // 存草稿走 useFlowActions（本页已经在用它给画布浮层供状态）——此前这里还自持一份，
   // 同一颗按钮在工坊顶栏与画布顶栏各走各的实现（铁律六）
-  const hasWork = flowLen > 0; // 单一真相：桌面有没有活只看流水线
   /**
-   * 画布浮层**真的盖着**没有：与下面挂 FlowCanvas 的判据是同一个值 —— canvasOpen 为真而流水线空着时浮层并不会挂上来，
-   * 桌面还看得见，那时停帧就是让人对着一张定格的桌子（2026-10-15 教材人格评审）。
+   * 画布浮层盖着没有：与下面挂 FlowCanvas 的判据是同一个值。
+   * ★ G4 第 1 步起桌面上的节点卡撤了（换成对局卡位），**画布就是新建流水线的入口** ——
+   *   空流水线也照开（FlowCanvas 自带空态 + 「对画布说话」输入条，见 EmptyPipelineHint）。
+   *   以前 0 段时这颗键只吐一句"先点虚线卡位"，而那条虚线卡位现在不存在了。
    */
-  const canvasCovered = canvasOpen && flowLen > 0;
+  const canvasCovered = canvasOpen;
 
   /**
    * 横屏宽布局（G1 施工单 docs/g1-scene-plan.md §2 A）：左右各一条常驻条，3D 桌面留在中间。
@@ -326,14 +311,10 @@ export default function StudioPage() {
   const initCam = defaultCamFor(window.innerWidth / window.innerHeight);
 
   return (
-    <div className={`relative h-full w-full overflow-hidden bg-ink ${isLand ? "flex gap-1.5 p-1.5" : ""}`}>
-      {/* 左：背包/卡组。只在横屏挂，竖屏时这一位不存在（布局与原来一致） */}
-      {isLand && <DeckRail />}
+    <div className={`relative h-full w-full overflow-hidden bg-ink ${isLand ? "p-1.5" : ""}`}>
       {/* ★ 舞台：3D 画布 + 所有 absolute 浮层（顶栏、提示条、投影窗、对话气泡、弹层）都挂在这一层。
-          为什么要多这一层：横屏时两条常驻条要**占掉**屏幕两侧的宽度（而不是盖在画布上），
-          于是画布与浮层的坐标系要从"整窗"改成"中间那一块"——浮层本来就按画布百分比定位
-          （NPC_SCREEN / PLAYER_SCREEN 是 0~1 的投影坐标），跟着缩才对得上。
-          竖屏时它 flex-1 撑满整窗，和原来的结构等价。
+          G4 起左右两条常驻条都删了（施工单 §2），舞台重新占满整窗；这一层壳留着，是因为画布与浮层的
+          坐标系仍然是"舞台那一块"，以后加常驻栏时不用再动一两百行缩进。
           ⚠ 这一层里的缩进**刻意没有再加一层**：壳是后加的，把两百多行重新缩进会让这次 diff 变成噪音。 */}
       <div className={`relative h-full min-w-0 flex-1 overflow-hidden ${isLand ? "rounded-xl" : ""}`}>
       {/* ★ 渲染边界只包 Canvas 这一层（2026-10-15 教材人格评审，Nygard「崩溃边界」那条）：r3f 会把子树的渲染期抛错重抛到这里，
@@ -362,106 +343,37 @@ export default function StudioPage() {
         </Canvas>
       </ErrorBoundary>
 
-      {/* 顶栏。返回按钮是**层层退出**的唯一入口：有浮层先关浮层、在对话里先退对话、
-          在卡组视角先退卡组，都没有了才回首页（见 studioStore.backStepOf）。
-          热区 48px：原来的「← 首页」是 px-3 py-1.5 的小胶囊（约 24px 高），
-          手机上够不着；44px 是移动端热区下限，这里给到 48。
+      {/* 顶栏（G4 施工单 §2）：左上退出、右上重命名 / 问号 / 保存**都删了**。
+          留下的只有一件事的入口：那条流水线的另一个面（🧩 工作流画布），它在交片时有地方可去。
+          ★ 对局的「▶ 开局 / ✕ 结束对局」从被删掉的右栏搬到这里：横屏才对局 UI 挂得起来，
+            所以只在横屏摆；竖屏原样（开局入口本来就不在竖屏）。
           ⚠ safe-top 写在 @tailwind utilities 之后，同特异性下会**覆盖** p-3 的
           padding-top——所以竖排间距靠 pt-* 单独给，别指望 p-3 */}
-      <div className="safe-top pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between px-4 pb-3 pt-3">
-        <button
-          data-guide="studio-back"
-          onClick={onBack}
-          /* ★ 只留图标（2026-08-30 主人点名"顶部文案太多"）：文字去掉，但**退到哪儿**
-             这件事仍然由 backLabel 说 —— 它进了 aria-label 与 title，读屏与长按都取得到。
-             热区仍是 48px（移动端下限 44） */
-          className="pointer-events-auto flex h-12 w-12 items-center justify-center rounded-full bg-panel/85 text-slate-200 backdrop-blur active:bg-panel"
-          aria-label={backLabel}
-          title={backLabel}
-        >
-          <Icon name="back" size={20} />
-        </button>
-        {/* pt-1.5：右组是 36px 的圆，返回键是 48px 的圆，各自的中线都落在状态栏 +34px（PageHeader 那条线） */}
+      <div className="safe-top pointer-events-none absolute inset-x-0 top-0 flex items-start justify-end px-4 pb-3 pt-3">
         <div className="pointer-events-auto flex min-w-0 items-center gap-2 pt-1.5">
-          {/* 工程标题（与工作流画布同一枚 DraftTitle，2026-08-29）：多草稿并存后
-              "现在这摊活是哪条"得有名字。摆在右组最左而不是绝对居中——这一屏是 3D
-              画布，absolute 的小控件会压住法阵/卡位（量过的位置，别加新的绝对定位） */}
-          {/* ★ 空桌时**留着但点不动**（2026-08-30 主人点名"草稿/工作流都不见了"）：
-              原来是 `hasWork &&` 整个不渲染 —— 顶栏在刚进工坊时只剩返回与 ?，用户不知道
-              这两件事存在。灰着 + 一句为什么，比藏起来诚实（CLAUDE.md 那条「永远点不动
-              的选项」说的是**永远**，这两颗铺一段就亮） */}
-          {hasWork ? (
-            <DraftTitle from="studio" collapsed className="bg-panel/85 backdrop-blur" />
-          ) : (
-            // 与旁边 🧩 💾 同一套（2026-10-10）：按下用轻提示说为什么 —— 手机上看不见 title
+          {isLand && (
             <button
-              aria-disabled
-              aria-label={t`给工程起名`}
-              onClick={() => showToast(t`做出第一段之后就能给这条工程起名`)}
-              className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-panel/50 opacity-45 backdrop-blur"
+              onClick={() => (inGame ? useGame.getState().endGame() : useGame.getState().startGame())}
+              // 键面就是状态：没开局是实心主键，开局后变成"结束对局"的灰键（与删掉的那条右栏同一个动作）
+              className={`h-9 rounded-full px-3 text-xs font-bold backdrop-blur ${
+                inGame ? "bg-panel/85 text-slate-200" : "bg-brand text-ink"
+              }`}
             >
-              <Icon name="pen" size={15} className="text-slate-400" />
+              {inGame ? <Trans>✕ 结束对局</Trans> : <Trans>▶ 开局</Trans>}
             </button>
           )}
           {/* 「🧩 工作流」：同一条流水线换到画布那一面 —— 与画布顶栏「🎴 工坊」对称
               （2026-08-30 主人点名：此前只有画布→工坊单向有键，反向只剩法阵那条隐路）。
-              只在流水线上真有段时亮：0 段时 /flow 会把人弹回创作入口，摆一颗必弹走的
-              键就是"永远点不动的选项"的变体；0 段时铺流水线本来就是法阵的差事 */}
-          {/* ★ 点不动的理由要**说出来**而不是只写在 title 里（2026-10-10 浏览器走查抓到）：手机 WebView 没有悬停，title 一个字都看不见，
-              `disabled` 的键在手机上就是「点了没反应」。所以不设 disabled：空桌面时按下去用轻提示说一句为什么（画成灰的照旧） */}
+              G4 第 1 步起桌面节点卡撤了，**这颗键是新建流水线唯一的门**：空流水线也照开，
+              画布里有空态和「对画布说话」输入条（见 canvasCovered 的 ★）。 */}
           <button
-            onClick={() => (hasWork ? setCanvasOpen(true) : showToast(t`桌面还空着——先点虚线卡位做一段`))}
-            aria-disabled={!hasWork}
-            title={hasWork ? t`工作流画布：同一条流水线的另一面` : t`桌面还空着——先点虚线卡位做一段`}
+            onClick={() => setCanvasOpen(true)}
+            title={t`工作流画布：同一条流水线的另一面`}
             aria-label={t`工作流画布`}
-            className={`flex h-9 w-9 items-center justify-center rounded-full bg-panel/85 text-slate-100 backdrop-blur ${hasWork ? "" : "opacity-40"}`}
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-panel/85 text-slate-100 backdrop-blur"
           >
             <Icon name="branch" size={18} />
           </button>
-          {/* ★ 摆在浮动顶栏右侧这一组里，而不是画面角落硬定位：这一屏是 3D 画布，
-              任何 absolute 的小控件都可能压住法阵/卡位（都是量出来的位置） */}
-          {/* 圆的底色走 circleClassName：className 落在外层那个 44×44 命中区上（HelpButton 的 @param），
-              传给它的话「?」会被画成一块深色方块（2026-09-18 发版复核抓到，首页那颗早就改了） */}
-          <HelpButton tour="studio" circleClassName="bg-panel/85 backdrop-blur" />
-          {/* 存草稿：桌面上有东西才亮。工坊侧此前完全没有落盘手段——摆了半天卡、
-              推演了几炉，刷新一下全没（两个 store 都是纯内存单例） */}
-          {
-            /* 存草稿只留图标；**四种状态仍要看得出来**（保存中/成功/失败不能只靠一个静态图标
-               ——那等于把"存住了没有"藏起来，铁律八）：图标换字符 + title 说全 */
-            <button
-              // 空桌面时按下去说一句为什么（同上面 🧩 那颗的 ★：title 在手机上看不见）；保存中才是真的禁用
-              onClick={() => (hasWork ? flowActions.saveNow() : showToast(t`桌面还空着，没什么可存`))}
-              aria-disabled={!hasWork}
-              disabled={hasWork && flowActions.saveState === "saving"}
-              title={
-                !hasWork
-                  ? t`桌面还空着，没什么可存`
-                  : flowActions.saveState === "saving"
-                    ? t`保存中…`
-                    : flowActions.saveState === "saved"
-                      ? t`已保存`
-                      : flowActions.saveState === "failed"
-                        ? t`保存失败`
-                        : t`存草稿`
-              }
-              aria-label={t`存草稿`}
-              className={`flex h-9 w-9 items-center justify-center rounded-full bg-panel/85 text-sm backdrop-blur disabled:opacity-40 ${hasWork ? "" : "opacity-40"} ${
-                flowActions.saveState === "failed"
-                  ? "text-danger-300"
-                  : flowActions.saveState === "saved"
-                    ? "text-ok-300"
-                    : "text-slate-200"
-              }`}
-            >
-              {flowActions.saveState === "saving"
-                ? "…"
-                : flowActions.saveState === "saved"
-                  ? "✓"
-                  : flowActions.saveState === "failed"
-                    ? "!"
-                    : <Icon name="save" size={16} />}
-            </button>
-          }
           {/* 只在演示模式亮牌。「● 真实 AI」是常态，天天挂在那儿只是噪音；
               而没配 Key 时全程 mock——用户以为在测 Seedance、产物却全是本地占位，
               这一条必须留着。标题栏的「🎴 卡片工坊」也去掉了：画面本身就是工坊 */}
@@ -567,8 +479,6 @@ export default function StudioPage() {
         />
       )}
       </div>
-      {/* 右：市场。只在横屏挂 */}
-      {isLand && <MarketRail />}
     </div>
   );
 }

@@ -15,7 +15,7 @@
 //
 // ★★ 数字一律**插值**，不许照抄一个字面量。CLAUDE.md 已有一条「『最多出几张卡』的上限
 //   自己抄一份」的事故（界面按 6 张报价、实际铸了 8 张，两个方向都不报错）。
-//   引导里再抄一份数字就是同一个坑第三次。本文件目前插这几处（选段窗口、卡种列表、自制卡的比例上限、内置方案名与图位名），
+//   引导里再抄一份数字就是同一个坑第三次。本文件目前插这几处（选段窗口、自制卡的比例上限、内置方案名与图位名），
 //   其余各屏都是**有意不给数**：那些数界面上当下那一刻自己会报（报价行、按钮标签），
 //   引导抄哪一个都是在造第 N 个需要维护的镜像。
 //
@@ -46,7 +46,7 @@ import { listSchemes } from "../../data/promptSchemes";
 import { MAX_DRAFTS } from "../../data/drafts";
 import { HOLD_SPEED } from "../../data/feedGestures";
 import { BLOCKOUT_INPUT_RULES } from "../../data/templates";
-import { BUILTIN_SLOT_ZH, CARD_TYPES, CARD_TYPE_LABELS, builtinSlotLabel } from "../../types";
+import { BUILTIN_SLOT_ZH, builtinSlotLabel } from "../../types";
 // 自制卡那份要报比例上限：方舟的硬约束，数只能从这里取（数字一律插值，见 ★★）
 import { REF_MAX_RATIO } from "../../utils/image";
 
@@ -74,16 +74,6 @@ export interface GuideTour {
    */
   version: number;
   steps: GuideStep[];
-}
-
-/**
- * 卡种列表（「人物卡 / 场景卡 / …」）：「卡片工坊」第 1 步把它插在 <Trans> 里，成一个 <n/> 占位。
- * ★ 做成组件、别在 TOURS 里直接 map：TOURS 在模块顶层求值，CARD_TYPE_LABELS 的 getter（types.liveLabels）
- *   会在 import 那一刻就被读掉，卡种名冻结在开机语言 —— <Trans> 里直接写那个表达式也一样（它被提前求值进 values）。
- *   组件是渲染时才读，切语言跟得上。卡种名本身不进 msgid（数字 / 卡种一律插值，见文件头 ★★）。
- */
-function CardKindList() {
-  return <>{CARD_TYPES.map((k) => CARD_TYPE_LABELS[k]).join(" / ")}</>;
 }
 
 /**
@@ -339,62 +329,6 @@ export const TOURS: GuideTour[] = [
           <Trans>
             满意了点右上角「完成视频」，去剪辑页收尾、发布。
             <b className="font-bold text-slate-100">简约不进草稿库</b>：中途退出这一段就不在了。
-          </Trans>
-        ),
-      },
-    ],
-  },
-  {
-    id: "studio",
-    title: msg`卡片工坊`,
-    version: 1,
-    steps: [
-      {
-        title: msg`工坊是什么`,
-        body: (
-          <Trans>
-            这是一张铸卡桌：<b className="font-bold text-slate-100">素材炼成卡</b>，卡摆上桌铸成<b className="font-bold text-slate-100">一段视频</b>，段够了再推成成片。卡分这几种——<CardKindList />——它们决定每一段里出现谁、长什么样。
-          </Trans>
-        ),
-      },
-      {
-        title: msg`卡从哪来`,
-        body: (
-          <Trans>
-            先<b className="font-bold text-slate-100">点桌对面的铸卡师</b>：「📎 添加素材」交图或文本给她炼，「🛒 逛市场」拿现成的卡。递素材时先报这一炉花多少 token，点「收下这批卡」才进卡组。
-          </Trans>
-        ),
-      },
-      {
-        // ★ 2026-09-11 订正（未升 version）：点虚线卡位开的铸段窗，第①步是三选一（projection 的「这一段怎么拍？挑一张」：
-        //   套模板 / 自选卡片 / 自定义），原稿只讲了「自选卡片」那一条。拖卡进卡位会跳过第①步 —— 这里说的是「点」。
-        title: msg`铸一段视频`,
-        anchor: "studio-hint",
-        body: (
-          <Trans>
-            点你这一侧的<b className="font-bold text-slate-100">虚线卡位</b>，先挑这一段怎么拍：套模板给人偶挂卡换人、自选卡片让 AI 推演几套走向、自定义按你给的示例视频或首尾帧。挑定了再<b className="font-bold text-slate-100">炼出本段视频</b>。
-          </Trans>
-        ),
-      },
-      {
-        // ★ 2026-09-11 订正（未升 version）：法阵早就不「铺」了 —— 单一真相之后它只是去画布那一面的门
-        //   （studioStore.requestFlow → StudioPage 就地打开工作流画布），去剪辑要在画布终点格点「🎬 完成视频」。
-        title: msg`一段一段来`,
-        body: (
-          <Trans>
-            <b className="font-bold text-slate-100">炼出本段视频，下一段的卡位才会亮</b>：段与段靠上一段的真实尾帧承接。每段都出片后，桌子右端的<b className="font-bold text-slate-100">法阵</b>会亮起，点它去画布点「🎬 完成视频」剪辑成片。
-          </Trans>
-        ),
-      },
-      {
-        // ★ 2026-09-11 订正（未升 version）：① 返回键 2026-08-30 起只留图标，「退到哪儿」只进了 aria-label / title，
-        //   屏幕上不再「说出来」；② 💾 存草稿一直摆在顶栏（桌上还没有段时灰着），不是「铸出第一段后才出现」；
-        //   ③ 每炼出一段会自动存一次草稿（useFlowActions 的「又炼出一段 → 自动存盘」，工坊页也挂着它）。
-        title: msg`退出与存草稿`,
-        anchor: "studio-back",
-        body: (
-          <Trans>
-            左上角这颗是<b className="font-bold text-slate-100">唯一的出口</b>，一层一层往外退。<b className="font-bold text-slate-100">卡片收下就入账</b>；桌上的流水线每炼出一段自动存一次草稿，想过会儿接着做就点顶栏右侧<b className="font-bold text-slate-100">💾 存草稿</b>。
           </Trans>
         ),
       },
