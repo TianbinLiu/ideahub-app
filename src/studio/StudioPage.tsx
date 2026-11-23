@@ -11,6 +11,7 @@ import { myCards } from "../data/account";
 import { backLabelOf, composable, placeholderVisible, useStudio } from "./studioStore";
 import { useFlow } from "./flowStore";
 import { defaultCamFor, sceneLayout } from "./scene/layout";
+import { revealIntroCam } from "./scene/introCam";
 import NpcDialog from "./ui/NpcDialog";
 import ProjectionWindow from "./ui/projection";
 import { CardDetailModal } from "./ui/modals";
@@ -49,7 +50,14 @@ function StudioLoader() {
       setTimeout(() => {
         setProgress(100);
         setPhase("fading");
-        setTimeout(() => setPhase("gone"), 500);
+        setTimeout(() => {
+          setPhase("gone");
+          // ★ 开场运镜（scene/introCam，G1 施工单 §4）从**加载层撤掉的这一拍**才开始走。
+          //   在挂载那一刻就开走的话，最短 0.9 秒 + 0.5 秒淡出全盖在加载层底下，用户真正
+          //   看见桌面时俯冲已经走完一半，像"进来就已经落好了"，那一段运镜等于白做。
+          //   运镜在这之前一直停在起点（高处俯视），所以亮起来的第一帧就是那一台。
+          revealIntroCam();
+        }, 500);
       }, wait);
     };
     mgr.onProgress = (_url, loaded, total) => {
