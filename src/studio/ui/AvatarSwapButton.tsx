@@ -8,6 +8,7 @@
 // 同一套，不进 React 状态，跟随时零重渲。
 import { useEffect, useRef } from "react";
 import { PLAYER_SCREEN, deckCamArrived } from "../scene/cameraOrbit";
+import { SHOW_PLAYER_BODY } from "../scene/layout";
 import { useStudio } from "../studioStore";
 import { useLingui } from "@lingui/react/macro";
 
@@ -18,7 +19,10 @@ export default function AvatarSwapButton() {
 
   useEffect(() => {
     // 非卡组视角直接不开 rAF：这颗按钮平时零常驻开销
-    if (!deckView) return;
+    // ★ G1 施工单第 1 步（docs/g1-scene-plan.md §1）：玩家那具人偶摘掉后（layout.SHOW_PLAYER_BODY）
+    //   画面里根本没有可换装的角色 —— 按钮留着就是一颗悬空的换装键（它靠 PLAYER_SCREEN
+    //   贴"头的侧面"，而那个锚点也一起休眠了）。等身体恢复挂载再一起回来。
+    if (!deckView || !SHOW_PLAYER_BODY) return;
     let raf = 0;
     const tick = () => {
       const el = ref.current;
@@ -37,7 +41,7 @@ export default function AvatarSwapButton() {
     return () => cancelAnimationFrame(raf);
   }, [deckView]);
 
-  if (!deckView) return null;
+  if (!deckView || !SHOW_PLAYER_BODY) return null;
   return (
     <button
       ref={ref}

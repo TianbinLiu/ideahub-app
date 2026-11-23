@@ -2,10 +2,21 @@
 // 竖屏优先：俯视机位，画面内只有双方的手与桌面（NPC 躯干在画外）。
 export const TABLE = { w: 16, d: 7, thick: 0.35 };
 
+/** ★ 工坊 3D 场景里挂不挂「玩家自己」那具人偶（`PlayerArms`：手臂/上身）。
+ *
+ *  G1 施工单第 1 步（docs/g1-scene-plan.md §1）：那具模型是占位用的粗糙人偶，先摘掉。
+ *  留成开关而不是删文件，是为了**一步能单独回滚**：改回 true 时相机也要一起接回来 ——
+ *  默认机位已经改成不读玩家头骨的固定机位（见 TableScene 的 FIXED_DEFAULT_CAM）。
+ *
+ *  ⚠ 它不只是"一个模型"：卡组视角的第三人称滑梯运镜、绕上半身转、"换形象"按钮、
+ *    玩家头侧锚点都挂在这一位上，关掉之后它们一并休眠（各自有 SHOW_PLAYER_BODY 守卫）。 */
+export const SHOW_PLAYER_BODY = false;
+
 export const CARD = { w: 1.1, h: 1.65, lift: 0.02 };
 
-/** 旧的俯视机位。**默认机位已改为第一人称眼位**（CameraRig 里按玩家头骨动态求值，
- *  见 eyeCam）；这里只留作 RIG_LOOK 的初值与模型未加载完时的兜底 */
+/** 旧的俯视机位。**2026-11-22 起它重新成为工坊的默认机位**：G1 施工单第 1 步摘掉玩家人偶，
+ *  相机不再按玩家头骨求值，默认机位退回这一台（见 TableScene 的 FIXED_DEFAULT_CAM）。
+ *  页面别处还拿它当 Canvas 的初始 camera 与 RIG_LOOK 的初值。 */
 export const DEFAULT_CAM: { pos: [number, number, number]; look: [number, number, number] } = {
   pos: [0, 9.8, 3.0],
   look: [0, 0, 0.25],
