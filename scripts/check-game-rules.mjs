@@ -180,9 +180,14 @@ const source = fs.readFileSync(modPath, "utf8");
 
   eq("事件池 3 个示例（§2.3b）", R.GAME_EVENTS.map((e) => e.id), ["model-arms-race", "inspiration-burst", "supply-drop"]);
   for (const event of R.GAME_EVENTS) {
-    eq(`事件 ${event.id} 的小图路径`, event.art, `public/events/${event.id}.webp`);
     eq(`事件 ${event.id} 选项 id 唯一`, new Set(event.options.map((o) => o.id)).size, event.options.length);
+    for (const option of event.options) {
+      // 插画挂在**选项**上（G4 §5）：一个事件一张图的话，三张卡长得一样，只剩标题能认出是哪张。
+      // 文件是否存在 / 体积 / 池外残留由 scripts/check-event-art.mjs 核（那一道专管 img 资源）。
+      eq(`事件 ${event.id} 选项 ${option.id} 的插画路径`, option.art, `public/events/${option.id}.webp`);
+    }
   }
+  eq("事件本身不带 art（图已经挂到每个选项上）", R.GAME_EVENTS.every((e) => !("art" in e)), true);
   eq("模型军备有 8 金 / 15 金两条升级线（§2.3b）", [
     R.gameEventById("model-arms-race").options.find((o) => o.id === "upgrade-draft").cost,
     R.gameEventById("model-arms-race").options.find((o) => o.id === "upgrade-cinema").cost,

@@ -17,7 +17,7 @@ G4 第 1 步之前它在右栏最上面（`src/studio/ui/SceneRails.tsx` 的 `Ma
 | `src/studio/game/store.ts` | 对局状态（zustand）：一局的 `GameState` + 点选装备 / 替换流程 / 失败原因 / 轻提示。**动作全部委托 rules** |
 | `src/studio/game/view.ts` | 界面读的视图模型（HUD / 商店 / 背包的数），全部问 rules 派生 |
 | `src/studio/game/labels.ts` | 卡名 / 类型 / 品质 / 风格卡中文名与一行说明 / 档位名（规则层只有英文占位） |
-| `src/studio/game/art.ts` | 卡面与风格样张的图从哪来（卡面借市场卡图占位；**风格样张是真图**，路径从 `rules.STYLE_POOL.sample` 取） |
+| `src/studio/game/art.ts` | 卡面 / 风格样张 / 事件插画的图从哪来（卡面借市场卡图占位；**风格样张与事件插画都是真图**，路径分别从 `rules.STYLE_POOL.sample` / `options[].art` 取） |
 | `src/studio/game/reasons.ts` | `RuleFailure` → 那一句人话（**唯一一处**） |
 | `src/studio/game/ui/GameLayer.tsx` | 覆盖层外壳：状态栏（失败 / 替换 / 选中道具 / 刚做完）、商店与背包的摆放 |
 | `src/studio/game/ui/GameHud.tsx` | 顶部常驻（G4 第 1 步起）：8 回合进度条 + 当前生命值。金币在背包条上、利息在商店键里，HUD 不再念回合/阶段/连胜/档位/存活 |
@@ -599,12 +599,11 @@ tierId 的翻译在 `genTier`，写法与快速模式同源（`account.preferred
 ### 1. 长什么样
 
 - **一整块面板**（`w-full max-w-[52rem] rounded-2xl bg-panel/95`）：标题行 / 三张卡 / 底部一行；
-- **每张卡四层**：图标位（clip-path 切出来的发光六边形 + 徽记）、标题、一行收益、花费；
+- **每张卡四层**：插画位（clip-path 切出来的发光六边形 + **这张卡自己的插画**）、标题、一行收益、花费；
   - 标题在 `labels.eventOptionName`（10 个 id → 短名，如「金币大使」「双机位」「刷新补贴」），
     收益那句是现成的 `labels.eventOptionText`（数字全部来自 `rules` 的 effects，界面不另抄）；
-  - 徽记在 `labels.eventOptionGlyph`（**不是文案**、不进 Lingui 目录）：包里没有事件插画
-    （`rules.GAME_EVENTS[].art` 指向的 `public/events/<id>.webp` 至今没落过文件），所以先拿字形占位；
-    补了图之后换成插画位即可，卡的结构不用动；
+  - 插画在 `public/events/<选项 id>.webp`（10 张，见下面「事件卡插画」一节）；
+    `labels.eventOptionGlyph` 的字形徽记退到图**底下**当退路：加载中垫着它、`onError` 之后图整个撤掉露出来的也是它；
   - 花费那一格：免费项写「免费」（绿），付得起写 N 金（金），付不起标红（**不藏选项**，
     点了由状态栏说「金币不够：要 N 金，现在只有 M 金」）。
 - **选中态**：金描边（`ring-2 ring-gold-300`）+ 右上角那颗勾 + 卡面柔光转金；没选时确认键是灰的，
@@ -657,6 +656,47 @@ tierId 的翻译在 `genTier`，写法与快速模式同源（`account.preferred
   再验：点卡出选中态 → 点确认真扣钱（9 金买 3 金的项 → 6 金，进 round-end）；钱不够时点卡 + 确认会由状态栏
   说「金币不够：要 5 金，现在只有 2 金」；2 条选项时两张卡居中；选过之后是虚框 +「选好了：X」+ 确认键变灰；
 - 结算屏 / 对局结束屏在同一个 800×363 视口里过了一眼（遮挡只剩道具栏那一下，已按上面第 4 条修掉）。
+
+### 6. 事件卡插画（十张，2026-11-23 同日）
+
+上一版卡面正中只有「发光六边形 + 一个 emoji 字形」（`labels.eventOptionGlyph`），因为包里一张事件图都没有。
+这一步把它换成真插画，字形退成加载失败时的退路。
+
+- **十张 = 选项数，不是事件数**：`GAME_EVENTS` 有 3 个事件，但「模型军备」在数据里有 4 条选项
+  （L2 / L3 两条升级线按档位与连胜只出一条，见 `rules.optionsForPlayer`），另两个事件各 3 条 ⇒ 4 + 3 + 3 = 10。
+  图因此挂在**选项**上（`options[].art`），不是事件上 —— 三张卡讲的是三件不同的事，共用一张图三张卡就长得一样了。
+  原来事件上那份 `art`（`public/events/<事件 id>.webp`，3 个文件）**没有任何调用方**，随这次一起删掉。
+- **生成**：`design/gen-event-art.mjs`（离线一次性工具，`design/` 不进 App 构建）。方舟 Seedream
+  `doubao-seedream-4-0-20260415`、1536×864（16:9）出图，ffmpeg 转成 **512×288** webp 入包。
+  重跑：`node design/gen-event-art.mjs`（只补缺的）、`--force`（全重出）、`--only=heal,double-shoot`（点名）。
+  十张共用一段 `STYLE`（写实 / 电影概念艺术、暗背景、青蓝 + 琥珀双色光）与一段 `FRAME`
+  （主体居中、无人物、无文字），只换主体那句；**全是物件、没有人物**：这块图在真机上只有 ~50 CSS px，
+  人脸缩到那个尺寸只剩一团，而且方舟对含人物的提示词会整发拒。
+- **体积**：单张 ≤ 60KB、十张合计 ≤ 600KB；超 60KB 的那张自动降质重编（`WEBP_QUALITIES`，不裁小图）。
+  实测十张 **189KB**（最大 `free-gold` 25KB）。
+- **门禁**：`scripts/check-event-art.mjs`（接进 `npm run build` 与 `check:all`），**55 条断言**：
+  选项共 10 条 / 选项 id 跨事件唯一（id 就是文件名）/ 每条 `art` 恰好是 `public/events/<选项 id>.webp` /
+  事件上不再有 `art` / 每张文件存在 / 每张 ≤ 60KB / 每张 webp 宽高 = 512×288（自己按规范解 VP8 / VP8L / VP8X
+  文件头，不引图像依赖）/ 合计 ≤ 600KB / `public/events/` 里没有池子外的残留。
+  造过四种违规各试红一次：多一个 `stray.webp`、`heal.webp` 追加 50KB（66KB）、拿 4:3 的风格样张顶掉
+  `free-refresh`（512×384）、`heal.webp` 改名（缺文件）—— 四种都当场红在对应用例上。
+- **回退逻辑**：`ui/EventPanel` 的 `EventCardArt` 把字形**常驻在图底下**：图在加载时垫着它，
+  `onError` 之后不再渲染 `<img>`（露出字形，不会静默变空）。图是 16:9、图位是正六边形，
+  所以用 `object-cover` 从**中间**裁 —— 这也是每张提示词都要求"主体落在画面正中"的原因。
+- **十张分别画的是什么**（id → 主体）：
+
+| 选项 id | 卡名 | 画的主体 |
+|---|---|---|
+| `upgrade-draft` | 画质升级 | 三脚架上的老式电影摄影机，镜头射出更锐利的光，青蓝指示灯亮起 |
+| `upgrade-cinema` | 画质升级 · 顶配 | 黄铜与黑铁的大型放映机，两个胶片盘转动、一道金色光柱 |
+| `half-next` | 批量采购 | 敞开的木箱里码着成摞胶片盒与捆好的胶片，暖光从箱口打上来 |
+| `free-gold` | 金币大使 | 鼓鼓的皮质钱袋立在中央，金币从袋口涌出堆在脚边 |
+| `double-shoot` | 双机位 | 两台摄影机并排架在同一条滑轨上，两个红点同时亮着 |
+| `long-prompt` | 灵感喷涌 | 一叠稿纸翻卷成浪，翻起的一端化成墨蓝色光带冲进空中（笔迹不可辨认） |
+| `free-blue-card` | 天降蓝卡 | 一张发光蓝卡翻转着落向中央，卡面是抽象星形与胶片齿孔纹样 |
+| `bag-expand` | 道具扩容 | 敞开的复古皮质道具背包，里插胶片卷、老式话筒与亮着的灯泡 |
+| `heal` | 医疗补给 | 打开的金属医疗箱，箱盖内圈翡翠色灯光，里面是针剂与绷带 |
+| `free-refresh` | 刷新补贴 | 两张深蓝票券悬着、卡背只有抽象星形，周围环一道青蓝色旋转箭头光轨 |
 
 
 
