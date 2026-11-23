@@ -44,6 +44,7 @@ import {
   playerEye,
   addEyeLook,
   addEyeRise,
+  clampOrbitYaw,
   clampRadiusByScene,
   eyeLook,
   eyeRise,
@@ -237,15 +238,22 @@ const RIG_LOOK = new THREE.Vector3(...LAND_CAM.look);
 
 /** 解析当前轨道圆心（npc 每帧跟随头骨，node 用点击时记下的卡片坐标）。
  *  ★ "player" 这一支自 G1 施工单第 1 步（docs/g1-scene-plan.md §1）起已经没有调用方
- *    （卡组视角那趟跟着身体休眠）；保留它是为了 SHOW_PLAYER_BODY 改回 true 时一并回滚。 */
+ *    （卡组视角那趟跟着身体休眠）；保留它是为了 SHOW_PLAYER_BODY 改回 true 时一并回滚。
+ *  ★ `lift`（G4 商店，layout.SHOP_CAM.lift）：圆心比头再高一截 —— 相机看的是圆心，
+ *    所以抬圆心 = 把 NPC 整体压到屏幕下半，给顶部那条商店栏让位。只影响商店那一趟，
+ *    对话不传它，圆心仍然是头骨（一个字都没变）。 */
 export function resolveOrbitCenter(
-  o: { target: "node" | "player" | "npc"; point?: [number, number, number] } | null,
+  o: { target: "node" | "player" | "npc"; point?: [number, number, number]; lift?: number } | null,
   out: THREE.Vector3,
 ): THREE.Vector3 | null {
   if (!o) return null;
   // 玩家用**上半身**中心而不是头骨：绕头转时身体被甩到画面外，转到侧后方只剩一颗头
   if (o.target === "player") return out.copy(PLAYER_TORSO);
-  if (o.target === "npc") return out.copy(NPC_HEAD);
+  if (o.target === "npc") {
+    out.copy(NPC_HEAD);
+    if (o.lift) out.y += o.lift;
+    return out;
+  }
   return o.point ? out.set(o.point[0], o.point[1], o.point[2]) : null;
 }
 
@@ -354,6 +362,10 @@ function CameraRig() {
       if (st.camera.kind === "default") resetEyeRise();
     }
     const center = resolveOrbitCenter(st.orbit, ctr.current);
+    // 水平绕行范围（G4 商店，施工单 §2 第 3 条）：0 = 不限（NPC 对话就是这一档），
+    // 商店那趟由 studioStore.enterShopCam 把 orbit.yawLimit 设成 layout.SHOP_ORBIT_YAW。
+    // 每帧对一次 store —— 它是判据的唯一出处，这里不缓存"现在是不是商店"。
+    orbit.yawLimit = st.orbit?.yawLimit ?? 0;
     // ── 开场运镜（G1 施工单 docs/g1-scene-plan.md §4）：这一段**压过**下面所有运镜 ──
     // ★ 施工单要求的"与 cameraOrbit 互斥"就是这一个早退：运镜期间直接 return，
     //   轨道分支（orbit.active && center）、卡组滑梯、默认机位缓动全轮不到执行，
@@ -383,6 +395,10 @@ function CameraRig() {
       // 不够、远处白丢行程），解完仍在球面上，半径不变。
       const cosMax = (ORBIT_MIN_Y - center.y) / safe;
       if (cosMax < 1) orbit.phi = Math.min(orbit.phi, Math.acos(Math.max(-1, cosMax)));
+      // 商店只能绕正面 180°（施工单 §2 第 3 条）：yawLimit=0 时它是空操作，对话那一趟照旧。
+      // 放在**每帧**而不是只在拖拽里夹：接管轨道的第一帧（syncOrbitFromCamera 从当前机位
+      // 反解出来的 θ）也可能落在范围外 —— 那时若只靠拖拽那条路，画面会先歪一下再被拉回。
+      clampOrbitYaw();
       orbitToPosition(center, tmp.current);
       orbit.radius = keep; // 只在渲染时收敛，不污染用户的缩放意图
       camera.position.copy(tmp.current);
@@ -1581,6 +1597,9 @@ function TableCatcher() {
           orbit.active = true;
         }
         orbit.theta -= dx * 0.006;
+        // 商店那趟只能绕正面 180°：夹在**每一帧拖拽之后**（yawLimit=0 时是空操作）。
+        // 拖到边上再继续滑，θ 就不再增长 —— 手感是"撞到侧面停住"，而不是先转过去再弹回来。
+        clampOrbitYaw();
         // 极角夹在 [12°, 168°]：不允许翻过头顶/脚底导致画面翻转
         orbit.phi = Math.min(Math.PI - 0.21, Math.max(0.21, orbit.phi - dy * 0.006));
       } else if (s.pointers.size === 2) {

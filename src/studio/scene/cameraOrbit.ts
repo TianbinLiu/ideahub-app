@@ -81,9 +81,33 @@ export interface OrbitState {
   radius: number;
   /** 用户已接管：脚本运镜让位，改由球面参数驱动相机 */
   active: boolean;
+  /** 水平绕行的半角（弧度），0 = 不限（当前场景的默认）。
+   *  由调用点按场景塞进来 —— 商店是 layout.SHOP_ORBIT_YAW（±90° = 正面 180°），
+   *  NPC 对话不塞（0，可以绕到背后看她，那是今天的行为，别一起锁住）。 */
+  yawLimit: number;
 }
 
-export const orbit: OrbitState = { theta: 0, phi: Math.PI / 2, radius: 3, active: false };
+export const orbit: OrbitState = { theta: 0, phi: Math.PI / 2, radius: 3, active: false, yawLimit: 0 };
+
+/**
+ * 把水平方位角夹进「正面 ± yawLimit」。
+ *
+ * ★ 为什么是 ±90°（线在 layout.SHOP_ORBIT_YAW 上）：施工单 §2 第 3 条点名"只能 NPC 正面 180°，
+ *   不能转到背后看后背"。θ=0 就是正面 —— `orbitToPosition` 的 +z 一侧正是玩家/NPC_CAM/SHOP_CAM
+ *   站的那一侧，NPC 朝这边看；±90° 正好从她的左侧面扫到右侧面，合计 180°，再过去就上后背了。
+ *   模型后背没有细节（Tripo 档后发糊成一片），而且"看摊子"本来也不该绕到背面去。
+ * ★ 与 NPC 对话**共用同一条球面轨道**（orbit.target === "npc"），但**不共用这条限制**：
+ *   yawLimit 为 0 时这个函数是空操作，对话那一趟一次都不夹（今天能绕到背后，改完还是能）。
+ *   所以限制是 OrbitState 上一个由调用点给的数，不是写进 ORBIT_LIMITS.npc 的硬限。
+ * ★ 归一化用 atan2(sin, cos) 而不是取模：θ 是拖出来的累加量（能累到 ±10π），
+ *   而"离正面多远"看的是方位差 —— 取模会把 -350° 读成 +10° 之外的另一个数，夹出跳变。
+ */
+export function clampOrbitYaw(): void {
+  const lim = orbit.yawLimit;
+  if (!(lim > 0)) return;
+  const t = Math.atan2(Math.sin(orbit.theta), Math.cos(orbit.theta));
+  orbit.theta = t > lim ? lim : t < -lim ? -lim : t;
+}
 
 /** 第一人称环视：相对"正对 NPC"基准方向的偏航/俯仰（弧度）。
  *  同时驱动相机朝向与角色头骨旋转——滑屏 = 转头看向别处 */
@@ -158,6 +182,7 @@ if (import.meta.env.DEV) {
     ORBIT_MIN_Y,
     pitchDownAt,
     EYE_YAW_LIMIT,
+    clampOrbitYaw,
   };
 }
 

@@ -3,7 +3,10 @@ import { create } from "zustand";
 import { shotLineOf, V3_CARD_WIPE_MS, BranchNodeData, BranchTree, Card, CardType, DEFAULT_ASPECT, DEFAULT_VIDEO_CATEGORY, DraftVideo, NodeSlot, Proposal, VideoAspect, VideoSegment, VideoTemplate, uid } from "../types";
 import { AI_REAL, MaterialFile, chargeNote, chargeOnFail, deriveCharacterModels, deriveDeckCards, generateCards, generateFrame, generateProposals, joinNotes, npcChat, npcChatOffline, prepareMaterialRefs } from "../ai";
 import { frameMoment, momentCards } from "../data/shotScript";
-import { DECK_CAM, MARKET, NPC_CAM, SHOW_PLAYER_BODY } from "./scene/layout";
+import { DECK_CAM, MARKET, NPC_CAM, SHOP_CAM, SHOP_ORBIT_YAW, SHOW_PLAYER_BODY } from "./scene/layout";
+// 商店机位要"贴着她"摆，所以得读她**当前**的头骨世界坐标（TripoNpc 每帧写，换身形会动）。
+// cameraOrbit 只 import three 与自身常量，不认识任何 store —— 这里 import 它不会成环。
+import { NPC_HEAD } from "./scene/cameraOrbit";
 import type { PlayerAvatar } from "./quality";
 import { acquireCard, addCards as saveCardsToAccount, canAfford, frozenNote, myCards, myDecks, plazaCards, realFaceIssue, spendTokens, tierBlockReason, tierRegionGate, tierRegionIssue, tierRegionRecheck, usableTierId, walletOf, type AddCardsResult } from "../data/account";
 import { refreshVideoZone } from "../data/videoZone";
@@ -538,10 +541,23 @@ interface StudioState {
   pickDeck: (deckId: string | null, name: string) => boolean;
   /** 相机轨道中心：非 null 时，在投影窗之外的画布上拖拽 = 绕该中心做球面运动
    *  （相机始终看向圆心）。node=节点卡坐标；player/npc=对应角色头部（每帧动态解析）。
-   *  取代了旧的"自由视角平移"——球面运动更可控且天然不会飞出场景 */
-  orbit: { target: "node" | "player" | "npc"; point?: [number, number, number] } | null;
+   *  取代了旧的"自由视角平移"——球面运动更可控且天然不会飞出场景。
+   *  ★ `lift`（米）：圆心再抬高多少。商店用它把铸卡师压到屏幕下半，给顶部商店栏让位
+   *    （见 scene/layout.SHOP_CAM）；不传 = 圆心就是头骨。
+   *  ★ `yawLimit`（弧度）：水平绕行半角，0/不传 = 不限。商店 ±90°（正面 180°，施工单 §2），
+   *    对话**不传** —— 两条路共用同一套轨道，限制只挂在商店上。判定见 cameraOrbit.clampOrbitYaw。 */
+  orbit: { target: "node" | "player" | "npc"; point?: [number, number, number]; lift?: number; yawLimit?: number } | null;
   /** 点击 3D 场景里的 NPC：切对话机位 + 弹出对话框（对话框默认隐藏） */
   openNpcDialog: () => void;
+  /**
+   * 商店机位（G4 施工单 docs/g4-ui-revamp-spec.md §2）：点商店键 → 相机**走近**铸卡师，
+   * 并允许绕她转（只能正面 180°）；收起商店时 exitShopCam 把进店前那一台原样放回去。
+   * ★ 复用的就是 openNpcDialog 那套（同一个 orbit.target="npc"、同一套拖拽/缩放），
+   *   区别只有两点：机位换成更近的 layout.SHOP_CAM、水平范围挂上 SHOP_ORBIT_YAW。
+   */
+  enterShopCam: () => void;
+  /** 收商店：机位回到 enterShopCam 记下的那一台（相机/轨道原样放回，由 CameraRig 缓动过去，不瞬移） */
+  exitShopCam: () => void;
   editor: EditorState | null;
   dragCardId: string | null;
   /** 对话视角（底部抽屉展开）：NPC 抬手面向用户 */
@@ -1024,6 +1040,18 @@ function isSegPlaceholderTitle(title: string): boolean {
   // 占位参数写成表达式（不是裸标识符），抽出来才与 blankProposal 同一条 msgid「第 {0} 段」
   return title === t`第 ${Number(m[1])} 段`;
 }
+
+/**
+ * 进商店前的那台相机（G4 施工单 §2「点商店栏外面或再点商店键 → 收起商店栏 + 相机恢复原位」）。
+ *
+ * ★ 为什么是模块级变量、不进 state：它只有 exitShopCam 一个人读，写它的时候商店正开着、
+ *   界面已经按"在商店里"渲染过了 —— 放进 state 只会让每次开商店多一次整页重渲。
+ * ★ 为什么记 `camera` **对象本身**而不是坐标：CameraRig 判"要不要交还脚本运镜"用的是引用相等
+ *   （TableScene 的 lastCamObj），所以恢复必须放回**同一个** camera 对象；自己拼一份
+ *   `{kind:"default"}` 也行，但那就变成"回默认机位"而不是"回进店前那一台"。
+ * ★ 记 orbit 同理：进店前可能正停在某个聚焦机位上（orbit 非 null），一并放回才叫复位。
+ */
+let shopCamBack: { camera: CamView; orbit: StudioState["orbit"] } | null = null;
 
 export const useStudio = create<StudioState>()((set, get) => ({
   deck: [],
@@ -1536,6 +1564,48 @@ export const useStudio = create<StudioState>()((set, get) => ({
       camera: { kind: "pos", pos: NPC_CAM.pos, look: NPC_CAM.look },
       orbit: { target: "npc" },
     });
+  },
+  /**
+   * 商店机位：相机**走近铸卡师**（G4 施工单 §2 第 1 条）。
+   *
+   * ★ 复用的就是上面 openNpcDialog 那一套：同一个 orbit.target="npc"、同一套拖拽绕模型
+   *   （cameraOrbit 的球面轨道）。这里只换机位（layout.SHOP_CAM，比对话那台近得多）并挂上
+   *   ±90° 的水平限制（SHOP_ORBIT_YAW）；没有第二套轨道控制。
+   * ★ 机位按她**当前**的头骨坐标现算（SHOP_CAM 是相对偏移）：换身形 / 换 rig 之后仍然是
+   *   "与头同高、正面 3 米"，而写死的世界坐标会变成对着胸口或头顶。
+   * ★ 视线落点 = 轨道圆心：两者都是"头 + lift"，所以用户第一次拖拽时 syncOrbitFromCamera
+   *   反解出来的 θ 就是正面 0，画面不会先歪一下再被 clampOrbitYaw 拉回。
+   * ★ 进店前那台记进 shopCamBack（含 orbit），exitShopCam 原样放回 —— 恢复的缓动在
+   *   TableScene 的 CameraRig（位置与视线各一条 lerp），这里不写任何动画。
+   */
+  enterShopCam: () => {
+    if (shopCamBack) return; // 幂等：商店已经开着（连点商店键 / StrictMode 的双跑）不再记一次
+    const s = get();
+    shopCamBack = { camera: s.camera, orbit: s.orbit };
+    const eyeY = NPC_HEAD.y + SHOP_CAM.lift;
+    set({
+      focus: null,
+      editor: null,
+      // 对话框 / 卡组窗 / 摊开排都和"站在柜台前"打架，一并收起（与 openNpcDialog 同一个做法）
+      spreadOpen: false,
+      deckView: false,
+      dialogView: false,
+      camera: {
+        kind: "pos",
+        pos: [NPC_HEAD.x, NPC_HEAD.y + SHOP_CAM.up, NPC_HEAD.z + SHOP_CAM.back],
+        look: [NPC_HEAD.x, eyeY, NPC_HEAD.z],
+      },
+      // 水平范围只在这一档挂上（clampOrbitYaw 读它）；对话那条路不传 = 0 = 不限
+      orbit: { target: "npc", lift: SHOP_CAM.lift, yawLimit: SHOP_ORBIT_YAW },
+    });
+  },
+  exitShopCam: () => {
+    const back = shopCamBack;
+    if (!back) return;
+    shopCamBack = null;
+    // 原样放回：camera 是**进店前那个对象**（CameraRig 的引用相等判据靠它），orbit 是那时的
+    // 值（通常是 null = 默认机位）。位置/视线的过渡交给 CameraRig 的 lerp，这里不碰。
+    set({ camera: back.camera, orbit: back.orbit });
   },
   shiftSpread: (dir) =>
     set((s) => ({ spreadCenter: Math.min(Math.max(0, s.spreadCenter + dir), Math.max(0, s.deck.length - 1)) })),

@@ -1,17 +1,26 @@
 // 商店面板（施工单第 2 条）：一排 5 张卡 + 买 / 刷新（2 金）/ 锁定（免费）。
 //
+// ★ 位置（G4 施工单 §2 第 2 条）：**屏幕上方**，由 GameLayer 摆在顶部那一条（不是底部那列）。
+//   第 1 步之后它还在底部居中，真机实测正好盖住桌面的角色位 2~4 —— 上面是 HUD/对手条、
+//   下面是桌面 5 个空位，只有顶部那一条是空的。配套的两件事：
+//   ① 开商店时相机会贴着铸卡师（studioStore.enterShopCam），桌面那 5 个空位全在镜头背后；
+//   ② 这一屏在顶部只占「5 张卡 + 右列三颗键」那一块，卡缩到 2/3 高（真机 363 CSS px 高，
+//      再大就压到铸卡师的脸），收起时底部那列一点都没动。
 // ★ 这一屏只负责"把 rules 的结果画出来 + 把点击递回 store"：
 //   · 价格问 rules.cardPrice、刷新价问 rules.SHOP_REFRESH_COST、上限问 view.hud.bag —— 不自己算；
-//   · 买不成（钱不够 / 类型上限满）**不在这里编话**：store 把 rules 的失败原因记下来，GameLayer 上方那条
+//   · 买不成（钱不够 / 类型上限满）**不在这里编话**：store 把 rules 的失败原因记下来，GameLayer 的
 //     状态栏用 reasons.ruleFailureText 说人话；装不下的那两种还会把面板切进"替换"流程（见 GameLayer）。
 // ★ 卡卖出去 / 买走的那一格显示"已买走"而不是把数组压短（rules.ShopState.cards 固定 5 格）。
 import { Trans, useLingui } from "@lingui/react/macro";
 import { SHOP_REFRESH_COST, cardPrice } from "../rules";
 import { useGame } from "../store";
-import { gameCardName, qualityClass, qualityName } from "../labels";
+import { gameCardName } from "../labels";
 import type { GameView } from "../view";
 import GameBtn from "./GameBtn";
 import GameCardTile from "./GameCardTile";
+
+/** 一张商店卡的宽度（卡面是 2:3，高度由它带出来）。顶部那一条要压矮，所以比背包条那张还小一档 */
+const CARD_W = "w-[clamp(1.8rem,3.9vw,2.85rem)]";
 
 export default function ShopPanel({ view }: { view: GameView }) {
   const { t } = useLingui();
@@ -23,19 +32,19 @@ export default function ShopPanel({ view }: { view: GameView }) {
 
   return (
     <div
-      className={`pointer-events-auto w-fit rounded-xl bg-panel/90 p-1.5 ring-1 backdrop-blur ${
+      className={`pointer-events-auto w-fit max-w-full rounded-xl bg-panel/95 p-1 ring-1 backdrop-blur ${
         locked ? "ring-gold/50" : "ring-white/10"
       }`}
     >
-      <div className="flex items-end gap-2">
+      <div className="flex items-end gap-1.5">
         {/* 5 张卡：买走的那格留一个空位（不缩排，价格与位置都对得上） */}
-        <div className="flex gap-1.5">
+        <div className="flex gap-1">
           {shop.cards.map((card, slot) => {
             if (!card) {
               return (
                 <div
                   key={`slot-${slot}`}
-                  className="flex h-[clamp(3.9rem,8.1vw,5.7rem)] w-[clamp(2.6rem,5.4vw,3.8rem)] items-center justify-center rounded-lg border border-dashed border-white/10 text-[9px] text-slate-500"
+                  className={`flex aspect-[2/3] items-center justify-center rounded-lg border border-dashed border-white/10 text-[8px] text-slate-500 ${CARD_W}`}
                 >
                   <Trans>已买走</Trans>
                 </div>
@@ -45,7 +54,7 @@ export default function ShopPanel({ view }: { view: GameView }) {
             const name = gameCardName(card);
             const awaiting = pendingBuySlot === slot;
             return (
-              <div key={card.id} className="w-[clamp(2.6rem,5.4vw,3.8rem)] flex-none">
+              <div key={card.id} className={`flex-none ${CARD_W}`}>
                 <button
                   type="button"
                   // 不设 disabled：买不成要把**原因**说出来（金币不够 / 类型上限满），
@@ -56,15 +65,14 @@ export default function ShopPanel({ view }: { view: GameView }) {
                 >
                   <GameCardTile card={card} />
                 </button>
-                <div className="flex items-center justify-between text-[10px] leading-tight">
-                  <span className={qualityClass(card.quality)}>{qualityName(card.quality)}</span>
-                  <span className="font-semibold text-gold-200">
-                    <Trans>{price} 金</Trans>
-                  </span>
+                {/* 价钱一行就够：品质已经在卡面右上角那枚角标上（GameCardTile），这里再排一列
+                    "White | 1 金" 在真机 31px 宽的小卡上会折成两行，把整个顶部条顶高一截。 */}
+                <div className="text-center text-[9px] font-semibold leading-tight text-gold-200">
+                  <Trans>{price} 金</Trans>
                 </div>
                 {/* 等替换的那一格要有话说：玩家已经点过它、正等一张旧卡 */}
                 {awaiting && (
-                  <div className="text-center text-[9px] leading-tight text-brand-200">
+                  <div className="text-center text-[8px] leading-tight text-brand-200">
                     <Trans>等替换</Trans>
                   </div>
                 )}
@@ -75,12 +83,13 @@ export default function ShopPanel({ view }: { view: GameView }) {
 
         {/* 右侧那列：锁定状态、三颗键。
             ★ G4 施工单 §2 点名的「商店 / 第 N 回合」两句**从面板上撤了**（HUD 那条也一起撤）：
-              进来时底部就是商店那 5 张卡，再用一个标题说一遍只是噪音；回合数在顶部进度条上。 */}
-        <div className="flex w-[clamp(5.6rem,13vw,7rem)] flex-col gap-1">
-          {/* 锁定状态必须看得见（施工单第 2 条）：锁着时面板描边变金色 + 这行字 + 键本身变成"解锁"。
-              不锁的时候**不占一行**（横屏真机只有 363 CSS px 高，这一行会把 HUD 顶掉）。 */}
+              进来时就是那 5 张卡，再用一个标题说一遍只是噪音；回合数在顶部进度条上。
+            ★ 顶部这一条不能高：宽度给足让每颗键排成**一行**（"🔄 Refresh (2 gold)" 在 11px 下
+              要 ~112px，窄了就折成两行 —— 三颗键各折一行能把面板顶到铸卡师脸上，800×363 量过）。 */}
+        <div className="flex w-[clamp(7rem,14.5vw,8rem)] flex-col gap-0.5">
+          {/* 锁定状态必须看得见（施工单第 2 条）：锁着时面板描边变金色 + 这行字 + 键本身变成"解锁" */}
           {locked && (
-            <span className="text-[10px] leading-tight text-gold-200">
+            <span className="text-[9px] leading-tight text-gold-200">
               🔒 <Trans>已锁定</Trans>
             </span>
           )}
