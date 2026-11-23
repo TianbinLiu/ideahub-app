@@ -21,6 +21,8 @@ import {
 // ★ 朝向判据只有一份（hooks/useIsLandscape）：桌子与卡位在横屏下换另一套（layout.sceneLayout），
 //   与 StudioPage 的宽布局壳、defaultCamFor 的机位选择读的是同一个 `(orientation: landscape)`。
 import { useIsLandscape } from "../../hooks/useIsLandscape";
+// 开场运镜（G1 施工单 §4）：起点/时长/缓动/跳过/只播一次都在那个模块里，这里每帧只问一次位姿。
+import { abandonIntroCam, skipIntroCam, stepIntroCam } from "./introCam";
 import { npcModelUrl } from "../quality";
 import {
   NPC_HEAD,
@@ -300,6 +302,24 @@ function CameraRig() {
   const deckAnim = useRef<{ p: number; start: THREE.Vector3 } | null>(null);
   const prevDeck = useRef(false);
   const lastCamObj = useRef<unknown>(null);
+  /** 开场运镜的"可跳过"（G1 施工单 docs/g1-scene-plan.md §4）：运镜期间**点一下屏幕/触摸拖动**
+   *  就立刻落到终点。
+   *  ★ 监听常驻，不随"在播没在播"挂/摘：那个状态活在 introCam 的模块单例里、**不进 React**
+   *    （跟着它挂/摘就要每帧重渲整页），而 skipIntroCam 没在播时本来就是空操作。
+   *  ★ 捕获阶段：手指落在顶栏、卡组条、投影窗上也得算"点了一下屏幕"，不能只有画布上的点击算。
+   *   滚轮一并算 —— 浏览器里它是"动了一下相机"的同义动作。 */
+  useEffect(() => {
+    const onSkip = () => skipIntroCam();
+    window.addEventListener("pointerdown", onSkip, true);
+    window.addEventListener("wheel", onSkip, { capture: true, passive: true });
+    return () => {
+      window.removeEventListener("pointerdown", onSkip, true);
+      window.removeEventListener("wheel", onSkip, { capture: true });
+      // 运镜没走完就被卸了（切路由）：收成"演过了"。不收的话下次进工坊会一直停在高处
+      // ——本会话"已经播过"不重播，可状态还停在 holding（见 introCam.abandonIntroCam）。
+      abandonIntroCam();
+    };
+  }, []);
   useFrame(({ camera, scene, clock }, dt) => {
     const st = useStudio.getState();
     /** 摘掉玩家模型后的默认机位（`SHOW_PLAYER_BODY=false` 时求值）。
@@ -328,6 +348,22 @@ function CameraRig() {
       if (st.camera.kind === "default") resetEyeRise();
     }
     const center = resolveOrbitCenter(st.orbit, ctr.current);
+    // ── 开场运镜（G1 施工单 docs/g1-scene-plan.md §4）：这一段**压过**下面所有运镜 ──
+    // ★ 施工单要求的"与 cameraOrbit 互斥"就是这一个早退：运镜期间直接 return，
+    //   轨道分支（orbit.active && center）、卡组滑梯、默认机位缓动全轮不到执行，
+    //   也就没有"拖拽/陀螺仪把镜头抢回去"这回事；syncOrbitFromCamera 一次都不调
+    //   （只在 ended 那一帧调一次，把手感交回去 —— 见下面）。
+    // ★ 位姿每帧现算（终点按当前 aspect 取 defaultCamFor），播放途中转屏也落在对的机位。
+    const intro = stepIntroCam(dt, (camera as THREE.PerspectiveCamera).aspect);
+    if (intro) {
+      camera.position.set(intro.pose.pos[0], intro.pose.pos[1], intro.pose.pos[2]);
+      // RIG_LOOK 必须跟着走：收工后的第一帧走的是下面那条 lerp（k≈7%），它若还停在旧值，
+      // 镜头会先看歪一帧再慢慢掰回来（"落定那一下愣一下"）。
+      RIG_LOOK.set(intro.pose.look[0], intro.pose.look[1], intro.pose.look[2]);
+      camera.lookAt(RIG_LOOK);
+      if (intro.ended && center) syncOrbitFromCamera(camera.position, center);
+      return;
+    }
     // ── 用户已接管：纯球面轨道驱动，脚本运镜让位 ──
     if (orbit.active && center) {
       const lim = ORBIT_LIMITS[st.orbit!.target] ?? ORBIT_LIMITS.node;
