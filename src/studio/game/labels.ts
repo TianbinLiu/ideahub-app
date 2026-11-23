@@ -358,9 +358,10 @@ export function eventOptionName(option: GameEventOption): string {
  * 卡面图标位里的那个徽记（§5 参照图每张卡正中一个发光六边形 + 一个符号）。
  *
  * ★ 不是文案：不随界面语言变，所以**不进** Lingui 目录（这里是按 id 认的符号表）。
- * ★ 为什么先用字形：包里一个事件插画都没有 —— `rules.GAME_EVENTS[].art` 指向的
- *   `public/events/<id>.webp` 至今没落过文件（art.ts 也没有事件这一档）。真补了图之后，
- *   这个函数换成返回 `<img src={…}>` 的插画位即可，卡的结构不用动。
+ * ★ 现在它是**退路**，不是主视觉：十张事件插画已经落进 `public/events/`（G4 §5 之后），
+ *   卡面正中显示的是 `<img>`（ui/EventPanel 的 EventCardArt）。字形留在图**底下**：
+ *   加载中垫着它、`onError` 之后图整个撤掉露出来的也是它 —— 真机上少一张图只会表现为
+ *   一块空六边形，与"样式写错"没法区分，所以失败必须看得见是"退回字形"、而不是静默变空。
  * ★ 认不出 id 时回那颗骰子：事件选项都是"抽一下 / 涨一点"，骰子不会说错话。
  */
 export function eventOptionGlyph(option: GameEventOption): string {

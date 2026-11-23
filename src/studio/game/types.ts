@@ -244,12 +244,21 @@ export interface GameEventOption {
   /** 金币花费，0 = 免费（§2.3b：三选一里永远有一个免费兜底）。 */
   cost: number;
   effects: readonly EventEffect[];
+  /**
+   * 这张卡的插画（§5 参照图每张卡正中那块图位）：`public/events/<选项 id>.webp`，离线打进包。
+   * ★★ 图挂在**选项**上、不在事件上（原来 `GameEvent.art` 是"一个事件一张"）：三选一里三张卡
+   *   讲的是三件不同的事（画质升级 / 批量采购 / 金币大使），共用一张图等于三张卡长得一样，
+   *   玩家扫读时只能靠标题 —— 而参照图里那张图就是用来"先认卡、再看字"的。
+   *   事件本身没有自己的图位（标题行只写事件名），所以事件上那份 art 随这次一起删了。
+   * ★ `id` 同时是文件名（同 STYLE_POOL.sample 的规矩）：改了 id 不重命名图片就是一块碎图，
+   *   而 vite build 对"public/ 里少一个文件"零意见 —— 所以大小与存在性由
+   *   `scripts/check-event-art.mjs` 逐个核。
+   */
+  art: string;
 }
 
 export interface GameEvent {
   id: string;
-  /** 事件卡面小图（§2.3b ★）：public/events/<id>.webp，离线打进包。 */
-  art: string;
   /** 3 个选项（§2.3b 表格；模型军备的 L2/L3 两条升级线按档位与连胜只出一条，见 rules.optionsForPlayer）。 */
   options: readonly GameEventOption[];
 }

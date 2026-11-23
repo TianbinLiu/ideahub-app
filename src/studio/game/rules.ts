@@ -237,34 +237,35 @@ export const STYLE_POOL: readonly StyleCard[] = [
  *   「5 金下一回合半价」「免费 +4 金」。任何时刻**只有一条升级线出现**（见 optionsForPlayer /
  *   modelUpgradeOffer），所以玩家看到的仍是三选一；升到顶或连胜不够时只剩后两条。
  * ★ L2 / L3 两条升级线的价格直接引用 MODEL_LEVEL_UP_COST，不在数据里再抄一份 8 / 15。
+ * ★★ 插画挂在**选项**上（`option.art`，10 张，G4 §5 之后）：面板上那三张卡是三个不同的东西，
+ *   共用一张图三张卡就长得一样了。图离线生成、打进包（design/gen-event-art.mjs），
+ *   选事件那一屏绝不实时出图；`<id>` 就是文件名，check-event-art.mjs 逐个核存在与体积。
+ *   原来事件上那份 `art`（"一个事件一张"）没有任何调用方，随这次一起删掉。
  */
 export const GAME_EVENTS: readonly GameEvent[] = [
   {
     id: "model-arms-race", // 模型军备
-    art: "public/events/model-arms-race.webp",
     options: [
-      { id: "upgrade-draft", cost: MODEL_LEVEL_UP_COST[2], effects: [{ kind: "model-level", to: 2 }] },
-      { id: "upgrade-cinema", cost: MODEL_LEVEL_UP_COST[3], effects: [{ kind: "model-level", to: 3 }] },
-      { id: "half-next", cost: 5, effects: [{ kind: "next-round-cost-half" }] },
-      { id: "free-gold", cost: 0, effects: [{ kind: "gold", delta: 4 }] },
+      { id: "upgrade-draft", cost: MODEL_LEVEL_UP_COST[2], effects: [{ kind: "model-level", to: 2 }], art: "public/events/upgrade-draft.webp" },
+      { id: "upgrade-cinema", cost: MODEL_LEVEL_UP_COST[3], effects: [{ kind: "model-level", to: 3 }], art: "public/events/upgrade-cinema.webp" },
+      { id: "half-next", cost: 5, effects: [{ kind: "next-round-cost-half" }], art: "public/events/half-next.webp" },
+      { id: "free-gold", cost: 0, effects: [{ kind: "gold", delta: 4 }], art: "public/events/free-gold.webp" },
     ],
   },
   {
     id: "inspiration-burst", // 灵感爆发
-    art: "public/events/inspiration-burst.webp",
     options: [
-      { id: "double-shoot", cost: 6, effects: [{ kind: "next-round-segments", value: 2 }] },
-      { id: "long-prompt", cost: 3, effects: [{ kind: "prompt-limit-pct", pct: 50 }] },
-      { id: "free-blue-card", cost: 0, effects: [{ kind: "random-card", quality: 3 }] },
+      { id: "double-shoot", cost: 6, effects: [{ kind: "next-round-segments", value: 2 }], art: "public/events/double-shoot.webp" },
+      { id: "long-prompt", cost: 3, effects: [{ kind: "prompt-limit-pct", pct: 50 }], art: "public/events/long-prompt.webp" },
+      { id: "free-blue-card", cost: 0, effects: [{ kind: "random-card", quality: 3 }], art: "public/events/free-blue-card.webp" },
     ],
   },
   {
     id: "supply-drop", // 补给站
-    art: "public/events/supply-drop.webp",
     options: [
-      { id: "bag-expand", cost: 5, effects: [{ kind: "item-limit", delta: 1 }] },
-      { id: "heal", cost: 3, effects: [{ kind: "hp", delta: 15 }] },
-      { id: "free-refresh", cost: 0, effects: [{ kind: "free-refresh", count: 2 }] },
+      { id: "bag-expand", cost: 5, effects: [{ kind: "item-limit", delta: 1 }], art: "public/events/bag-expand.webp" },
+      { id: "heal", cost: 3, effects: [{ kind: "hp", delta: 15 }], art: "public/events/heal.webp" },
+      { id: "free-refresh", cost: 0, effects: [{ kind: "free-refresh", count: 2 }], art: "public/events/free-refresh.webp" },
     ],
   },
 ];

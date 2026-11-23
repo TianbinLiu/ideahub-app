@@ -10,7 +10,7 @@
  *   `sample` 取 —— 规则层的 id 就是文件名，不在这里抄第二份映射（抄一份就多一处会忘记改的地方）。
  */
 import { STYLE_POOL } from "./rules";
-import type { GameCard } from "./types";
+import type { GameCard, GameEventOption } from "./types";
 
 /** 打包在安装包里的 18 张市场卡图（根相对路径，见 data/cardViews 里同一批素材的用法） */
 const CARD_ART = Array.from({ length: 18 }, (_, i) => `/cards/market/mkt_${i}.webp`);
@@ -35,6 +35,20 @@ export function stylePreviewUrl(styleId: string): string {
   const card = STYLE_POOL.find((style) => style.id === styleId);
   // rules 里的 sample 是仓库相对路径（public/styles/…），装进包之后同一个文件在站点根下
   return card ? card.sample.replace(/^public/, "") : "/create/workflow.jpg";
+}
+
+/**
+ * 事件选项的插画地址（G4 §5：每张事件卡正中的那块图位）。
+ *
+ * ★ 图**离线生成、打进包**（public/events/<选项 id>.webp，512×288，见 design/gen-event-art.mjs）：
+ *   事件屏是"点一下就要图"的地方，绝不在这里实时出图（同 stylePreviewUrl 的理由）。
+ * ★ 路径仍从 rules 的 `option.art` 取，这里只做一次 `public/` → 站点根的换算 —— 不抄第二份
+ *   映射（抄一份就多一处会忘记改的地方；`scripts/check-event-art.mjs` 核的是 rules 那一份）。
+ * ★ 不做"认不出就回一张中性图"的兜底：`art` 是必填字段、10 条都在 rules 里写死，
+ *   走到这里就是有值。真加载失败的那条路在 ui/EventPanel 的 onError（回退字形，不留空）。
+ */
+export function eventArtUrl(option: GameEventOption): string {
+  return option.art.replace(/^public/, "");
 }
 
 // ────────────────────────────── 占位视频（G3，§2.4 / §2.5） ──────────────────────────────

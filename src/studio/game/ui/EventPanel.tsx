@@ -2,7 +2,7 @@
 //
 // ★ 参照图上的四件事，逐条落在这一屏：
 //   ① **一整块面板**（不是三颗并排的按钮）—— 标题行 / 三张卡 / 底部确认各占一行；
-//   ② 每张卡三层：**图标位（发光六边形 + 徽记）+ 标题 + 一行收益 + 花费**；
+//   ② 每张卡三层：**插画位（发光六边形 + 真图）+ 标题 + 一行收益 + 花费**；
 //   ③ **选中态明显**：金描边 + 右上角那颗勾（参照图靠描边 + 角标认选中）；
 //   ④ 确认键在**面板底部正中**（跳过排在它右边，见下面 ★ 跳过）。
 // ★ 「免费/跳过那一项」跟另外两张**同一排版**：免费项是 rules 数据里 cost 0 的那一条
@@ -26,11 +26,13 @@
 //   800×363 上"背包条 + 阶段条 + 三张卡"叠起来只有 ~115px 给卡，图标和收益都挤没了。
 import { useState } from "react";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { eventArtUrl } from "../art";
 import { eventName, eventOptionGlyph, eventOptionName, eventOptionText, playerName } from "../labels";
 import { EVENT_SKIP_PICK } from "../rules";
 import { useGame } from "../store";
 import { eventViewOf } from "../view";
 import type { GameView } from "../view";
+import type { GameEventOption } from "../types";
 
 /**
  * 图标位那个六边形：clip-path 一刀切出正六边形（参照图每张卡正中就是它）。
@@ -38,6 +40,67 @@ import type { GameView } from "../view";
  *   内层向内缩 2px 换成暗底 —— clip-path 会把 box-shadow / ring 一起裁掉，所以描边只能靠叠出来。
  */
 const HEX = "polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%)";
+
+/**
+ * 一张卡的插画位（G4 §5 之后）：六边形裁切里放**真图**，图没出来时垫着原来的字形徽记。
+ *
+ * ★ 图是十张离线生成、打进包的插画（`public/events/<选项 id>.webp`，512×288）——
+ *   选事件这一屏绝不实时出图（同风格样张：真人真机上要等 30 秒、还会被审核拦）。
+ *   地址从 `rules.GAME_EVENTS[].options[].art` 取（`art.eventArtUrl` 只做 public/ → 站点根换算）。
+ * ★★ **加载失败必须看得见是"退回到字"，不是静默变空**：`onError` 记 broken，之后不再渲染 <img>，
+ *   露出底下那颗字形徽记 —— 真机上 public/ 下少一张图只表现为一块空六边形，与"样式写错"没法区分；
+ *   而这类"少一个文件"正是 vite build 零意见、`scripts/check-event-art.mjs` 才拦得住的东西。
+ *   所以写法是**字形常驻在底下、图盖在上面**：加载中也不是空的，失败时图整个撤掉。
+ * ★ 六边形是正六边形（近似正方形），图是 16:9 —— 用 object-cover 从中间裁，主体必须居中，
+ *   这也是生成脚本每张提示词都写"主体居中、占画面中央大部分"的原因。
+ * ★ 独立成组件是为了 broken 这份状态：放在 EventPanel 里就是一个数组下标的状态，三张卡会串。
+ */
+function EventCardArt({ option, active }: { option: GameEventOption; active: boolean }) {
+  const [broken, setBroken] = useState(false);
+  return (
+    // 底下垫一层径向柔光 —— 纯底色在深面板上看起来是一块死黑，加了光才像"图"（选中时转金）
+    <span
+      className="relative flex w-full flex-1 items-center justify-center"
+      style={{
+        background: active
+          ? "radial-gradient(60% 62% at 50% 46%, rgba(251,191,36,0.20), transparent 72%)"
+          : "radial-gradient(60% 62% at 50% 46%, rgba(56,189,248,0.16), transparent 72%)",
+      }}
+    >
+      <span className="relative flex h-[clamp(2.6rem,6.2vw,3.5rem)] w-[clamp(2.6rem,6.2vw,3.5rem)] items-center justify-center">
+        <span
+          aria-hidden
+          className="absolute inset-0"
+          style={{
+            clipPath: HEX,
+            background: active ? "linear-gradient(160deg,#fde68a,#38bdf8)" : "linear-gradient(160deg,#7dd3fc,#fcd34d)",
+          }}
+        />
+        <span
+          aria-hidden
+          className="absolute inset-[2px] overflow-hidden"
+          style={{ clipPath: HEX, background: "linear-gradient(160deg,#16223c,#0b1020)" }}
+        >
+          {/* 字形徽记：图加载出来就被盖住；加载失败时它就是退路（见文件头 ★★） */}
+          <span className="absolute inset-0 flex items-center justify-center text-[clamp(0.95rem,2.4vw,1.3rem)] leading-none">
+            {eventOptionGlyph(option)}
+          </span>
+          {!broken && (
+            <img
+              // 装饰性的图：这张卡的语义已经在按钮的 aria-label（选项名）里了
+              alt=""
+              src={eventArtUrl(option)}
+              draggable={false}
+              decoding="async"
+              onError={() => setBroken(true)}
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+          )}
+        </span>
+      </span>
+    </span>
+  );
+}
 
 export default function EventPanel({ view }: { view: GameView }) {
   const { t } = useLingui();
@@ -68,7 +131,9 @@ export default function EventPanel({ view }: { view: GameView }) {
         ? t`跳过`
         : pickedOption
           ? eventOptionName(pickedOption)
-          : eventOptionText({ id: picked, cost: 0, effects: [] });
+          : // 认不出的 id（规则层加了新选项、界面还没跟上）：只借它把 effects 念成句子。
+            // `art` 给空串 —— 这条合成选项只进 eventOptionText，不会被画到卡上（卡只画 eventView.options）。
+            eventOptionText({ id: picked, cost: 0, effects: [], art: "" });
   // 上一期的结算就压在事件屏上：事件是"结算之后、下一回合之前"出现的（§2.3b），
   // 玩家在这个屏上必须先看见自己扣了多少、谁被打出局了 —— 否则淘汰提示只闪一下结算屏就没了。
   const mineDamage = report?.summary.damages.find((damage) => damage.playerId === meId) ?? null;
@@ -163,36 +228,8 @@ export default function EventPanel({ view }: { view: GameView }) {
                 </span>
               )}
               {/* 图标 / 插画位：上面这一块是卡面（参照图每张卡上 2/3 是那张发光六边形），
-                  底下垫一层径向柔光 —— 纯底色在深面板上看起来是一块死黑，加了光才像"图"。 */}
-              <span
-                className="relative flex w-full flex-1 items-center justify-center"
-                style={{
-                  background: active
-                    ? "radial-gradient(60% 62% at 50% 46%, rgba(251,191,36,0.20), transparent 72%)"
-                    : "radial-gradient(60% 62% at 50% 46%, rgba(56,189,248,0.16), transparent 72%)",
-                }}
-              >
-                <span className="relative flex h-[clamp(2.6rem,6.2vw,3.5rem)] w-[clamp(2.6rem,6.2vw,3.5rem)] items-center justify-center">
-                  <span
-                    aria-hidden
-                    className="absolute inset-0"
-                    style={{
-                      clipPath: HEX,
-                      background: active
-                        ? "linear-gradient(160deg,#fde68a,#38bdf8)"
-                        : "linear-gradient(160deg,#7dd3fc,#fcd34d)",
-                    }}
-                  />
-                  <span
-                    aria-hidden
-                    className="absolute inset-[2px]"
-                    style={{ clipPath: HEX, background: "linear-gradient(160deg,#16223c,#0b1020)" }}
-                  />
-                  <span aria-hidden className="relative text-[clamp(0.95rem,2.4vw,1.3rem)] leading-none">
-                    {eventOptionGlyph(option)}
-                  </span>
-                </span>
-              </span>
+                  里面是这张卡自己的插画（G4 §5 换掉字形占位，见 EventCardArt）。 */}
+              <EventCardArt option={option} active={active} />
               {/* 文字块钉在卡的下半截（mt-auto）：三张卡的收益有长有短，花费那一行仍然对齐 */}
               <span className="mt-auto flex w-full flex-col items-center gap-0.5">
                 {/* 标题（规则层只有 id 与 effects，名字在 labels.eventOptionName）*/}
