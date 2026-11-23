@@ -18,6 +18,7 @@ import {
   MARKET,
   marketSlot,
   RIGHT_STACK,
+  SHOW_PLAYER_BODY,
   SPREAD,
   TABLE,
   chainX,
@@ -223,7 +224,25 @@ export function computeChain(path: FlowNode[], focusId?: string | null): ChainLa
 // RIG_LOOK 提到模块级：手势层需要读取当前视线锚点
 const RIG_LOOK = new THREE.Vector3(...DEFAULT_CAM.look);
 
-/** 解析当前轨道圆心（player/npc 每帧跟随头骨，node 用点击时记下的卡片坐标） */
+/** 摘掉玩家模型后的默认机位（`SHOW_PLAYER_BODY=false` 时求值）。
+ *
+ *  ★ G1 施工单第 1 步（docs/g1-scene-plan.md §1）：人偶摘掉，第一人称眼位就没有骨骼
+ *    可跟了 —— `eyeCam` 读的 `PLAYER_HEAD` 只会停在"模型没加载完"的占位值上（低、近、
+ *    还朝着一个不存在的头），画面不对却零报错。这里改用 layout 现成的**俯视兜底机位**
+ *    `DEFAULT_CAM`（它本来就是为"模型未加载完"准备的那一台），整条求值不再碰任何玩家
+ *    骨骼/眼位。
+ *  ★ 为什么不用 `NPC_CAM`（对坐机位更好看）：它站在 z=2.45，而卡组堆 / 展开排 / 桌面
+ *    卡位都在 z=2.75 —— 会跑到相机**背后**，而 3D 桌面上的卡组堆是 openDeckView 的
+ *    唯一入口（点不到就开不了卡组小窗）。当前竖屏 UI 的卡面全在桌面近侧，只有俯视
+ *    这一台能一屏看全。
+ *  ★ G1 第 4 步会把默认机位换成"从高处俯冲下来"的新机位（§4，落点比这一台更靠后、
+ *    能看全铸卡师）；在那之前这里就是过渡用的固定机位。
+ *  ★ 别把它接回任何骨骼 / `PLAYER_HEAD` —— 那就等于把要摘掉的那根依赖又装回去了。 */
+const FIXED_DEFAULT_CAM = DEFAULT_CAM;
+
+/** 解析当前轨道圆心（npc 每帧跟随头骨，node 用点击时记下的卡片坐标）。
+ *  ★ "player" 这一支自 G1 施工单第 1 步（docs/g1-scene-plan.md §1）起已经没有调用方
+ *    （卡组视角那趟跟着身体休眠）；保留它是为了 SHOW_PLAYER_BODY 改回 true 时一并回滚。 */
 export function resolveOrbitCenter(
   o: { target: "node" | "player" | "npc"; point?: [number, number, number] } | null,
   out: THREE.Vector3,
@@ -235,7 +254,10 @@ export function resolveOrbitCenter(
   return o.point ? out.set(o.point[0], o.point[1], o.point[2]) : null;
 }
 
-/** 第一人称眼位：站在玩家头部，基准朝向 NPC，再叠加环视偏航/俯仰（滑屏转头） */
+/** 第一人称眼位：站在玩家头部，基准朝向 NPC，再叠加环视偏航/俯仰（滑屏转头）。
+ *  ★ G1 施工单第 1 步（docs/g1-scene-plan.md §1）之后只在 `SHOW_PLAYER_BODY` 为真时求值；
+ *    人偶摘掉时默认机位走 FIXED_DEFAULT_CAM，这条函数**读的是每帧由 PlayerArms 写入的
+ *    PLAYER_HEAD**，没人写它就是一个假机位 —— 别在恢复挂载之前把它接回来。 */
 function eyeCam(pos: THREE.Vector3, look: THREE.Vector3) {
   // 基准方向：头 → NPC，压平到水平面（否则俯仰会被基准的上下分量污染）
   _dirTmp.copy(NPC_HEAD).sub(PLAYER_HEAD);
@@ -331,49 +353,70 @@ function CameraRig() {
     }
     let target: { pos: readonly [number, number, number] | number[]; look: readonly [number, number, number] | number[] };
     if (st.camera.kind === "default") {
-      // 升空到门限之上就把环视角衰减回正——**与环视闸门同一个门限、无条件执行**。
-      // 理由见 EYE_RISE_LOOK_OFF：两个门限留缝就是"滑一下松手视角自己弹回去"。
-      // dt 故意不夹：指数衰减对任意 dt 无条件稳定（本文件别处夹 dt 是别的原因，
-      // 别顺手"修好"它）。
-      if (eyeRise.v >= EYE_RISE_LOOK_OFF) {
-        const decay = Math.exp(-dt * 6);
-        eyeLook.yaw *= decay;
-        eyeLook.pitch *= decay;
+      if (!SHOW_PLAYER_BODY) {
+        // ★ G1 施工单第 1 步（docs/g1-scene-plan.md §1）：玩家那具人偶已经摘掉，
+        //   下面那条第一人称眼位的**整段求值都没有骨骼可跟**了 —— eyeCam 读的
+        //   PLAYER_HEAD 只会停在"模型没加载完"的占位值上（低、近、还朝着一个不存在
+        //   的头），画面不对却零报错。所以默认机位直接读 layout 的固定常量，
+        //   这一支不再碰任何玩家骨骼/眼位（环视与升空那套手势同来源，见 TableCatcher）。
+        target = FIXED_DEFAULT_CAM;
+      } else {
+        // 升空到门限之上就把环视角衰减回正——**与环视闸门同一个门限、无条件执行**。
+        // 理由见 EYE_RISE_LOOK_OFF：两个门限留缝就是"滑一下松手视角自己弹回去"。
+        // dt 故意不夹：指数衰减对任意 dt 无条件稳定（本文件别处夹 dt 是别的原因，
+        // 别顺手"修好"它）。
+        if (eyeRise.v >= EYE_RISE_LOOK_OFF) {
+          const decay = Math.exp(-dt * 6);
+          eyeLook.yaw *= decay;
+          eyeLook.pitch *= decay;
+        }
+        eyeCam(eyeP.current, eyeL.current);
+        // 升空俯瞰混合：双指捏合把 eyeRise 从 0（眼位）推到 1（头顶正上方俯瞰全桌），
+        // 平滑插值——捏合过程中相机沿"眼位→头顶"的弧线缓缓升起
+        const r = eyeRise.v;
+        if (r > 0.001) {
+          const e2 = r * r * (3 - 2 * r);
+          _riseP.set(PLAYER_HEAD.x * (1 - e2), 8.6, PLAYER_HEAD.z * (1 - e2) + 0.9 * e2);
+          _riseL.set(0, 0, 0.35);
+          eyeP.current.lerp(_riseP, e2);
+          eyeL.current.lerp(_riseL, e2);
+        }
+        target = { pos: [eyeP.current.x, eyeP.current.y, eyeP.current.z], look: [eyeL.current.x, eyeL.current.y, eyeL.current.z] };
       }
-      eyeCam(eyeP.current, eyeL.current);
-      // 升空俯瞰混合：双指捏合把 eyeRise 从 0（眼位）推到 1（头顶正上方俯瞰全桌），
-      // 平滑插值——捏合过程中相机沿"眼位→头顶"的弧线缓缓升起
-      const r = eyeRise.v;
-      if (r > 0.001) {
-        const e2 = r * r * (3 - 2 * r);
-        _riseP.set(PLAYER_HEAD.x * (1 - e2), 8.6, PLAYER_HEAD.z * (1 - e2) + 0.9 * e2);
-        _riseL.set(0, 0, 0.35);
-        eyeP.current.lerp(_riseP, e2);
-        eyeL.current.lerp(_riseL, e2);
-      }
-      target = { pos: [eyeP.current.x, eyeP.current.y, eyeP.current.z], look: [eyeL.current.x, eyeL.current.y, eyeL.current.z] };
     } else {
-      // ★ 机位来路不明就退回眼位，别信任 st.camera 的形状。
+      // ★ 机位来路不明就退回兜底机位，别信任 st.camera 的形状。
       //   下面直接取 target.pos[0..2]：只要有谁产出一个缺坐标或带 NaN 的 kind:"pos"
       //   （少传 focusNode 的 pos/look、算 x 时拿到 undefined、草稿里存进过脏值……），
       //   这里每帧抛一次错，整个 3D 页白屏且**自己好不了**——渲染循环挂了就没人再去
       //   改状态。一次 isFinite 换掉一类不可恢复的崩溃，很划算。
-      target = camOk(st.camera) ? st.camera : { pos: [eyeP.current.x, eyeP.current.y, eyeP.current.z], look: [eyeL.current.x, eyeL.current.y, eyeL.current.z] };
+      //   ★ 兜底分两种：有玩家身体时退回眼位；摘掉之后（G1 §1）eyeCam 不再求值、
+      //     eyeP 一直是 (0,0,0)（原点在桌板里，等于黑屏），所以退回固定机位。
+      target = camOk(st.camera)
+        ? st.camera
+        : SHOW_PLAYER_BODY
+          ? { pos: [eyeP.current.x, eyeP.current.y, eyeP.current.z], look: [eyeL.current.x, eyeL.current.y, eyeL.current.z] }
+          : FIXED_DEFAULT_CAM;
     }
     // 第一人称把近裁剪面从 0.1 收到 0.03：眼点就在自己领口上方 6cm，0.1 的近面
     // 会把领口整片切掉——想"低头看见自己身体"就必须让它更近。实测 Tsumire 领口顶
     // 距眼 0.062，0.1 切、0.03 不切。只在眼位切换，其他视角维持 0.1 保住远景深度
     // 精度（far=80，0.03 会把比值推到 2667）。
-    const wantNear = st.camera.kind === "default" && eyeRise.v < 0.5 ? 0.03 : 0.1;
+    // ★ G1 §1：人偶摘掉后没有"自己的身体"要防切，固定机位一律 0.1（0.03 只会白丢远景精度）。
+    const wantNear = SHOW_PLAYER_BODY && st.camera.kind === "default" && eyeRise.v < 0.5 ? 0.03 : 0.1;
     const persp = camera as THREE.PerspectiveCamera;
     if (persp.near !== wantNear) {
       persp.near = wantNear;
       persp.updateProjectionMatrix();
     }
+    // ★ G1 §1：卡组视角是"绕玩家上半身"的第三人称特写，人偶摘掉后没有可拍的角色；
+    //   openDeckView 也不再设 DECK_CAM / orbit:"player"，所以整段滑梯与绕身运镜跟着
+    //   身体一起休眠（下面用到 PLAYER_HEAD 的两处 lerp 也在这段里）。deckView 仍在，
+    //   只负责开投影窗，镜头留在默认固定机位。
+    const deckCamOn = SHOW_PLAYER_BODY && st.deckView;
     // 手机竖屏（aspect<0.62）垂直 FOV 固定→水平视野变窄→卡组机位下人脸过大：自动后撤一档
     const narrowPull =
-      st.deckView && (camera as THREE.PerspectiveCamera).aspect < 0.62 ? -0.3 : 0;
-    if (st.deckView && !prevDeck.current) {
+      deckCamOn && (camera as THREE.PerspectiveCamera).aspect < 0.62 ? -0.3 : 0;
+    if (deckCamOn && !prevDeck.current) {
       deckAnim.current = { p: 0, start: camera.position.clone() };
       deckCamArrived.v = false; // 滑梯起飞：按钮先撤，落位再出
     }
@@ -383,7 +426,7 @@ function CameraRig() {
       deckCamArrived.v = false; // 离开卡组视角
     }
     const anim = deckAnim.current;
-    if (anim && st.deckView) {
+    if (anim && deckCamOn) {
       // 滑梯运镜：从眼位出发，绕到玩家左外侧拉远 → 一路下滑 → 收进玩家正前方、
       // 悬停在桌面高度。三次贝塞尔 + quintic 缓动；全程 lookAt 角色头部（而非固定点，
       // 这样她的头随姿势动镜头也始终盯着她）
@@ -410,7 +453,7 @@ function CameraRig() {
       syncOrbitFromCamera(camera.position, center ?? PLAYER_HEAD);
       return;
     }
-    if (st.deckView) deckCamArrived.v = true;
+    if (deckCamOn) deckCamArrived.v = true;
     const k = 1 - Math.exp(-dt * 4.5);
     camera.position.lerp(tmp.current.set(target.pos[0], target.pos[1], target.pos[2] + narrowPull), k);
     RIG_LOOK.lerp(tmp.current.set(target.look[0], target.look[1], target.look[2]), k);
@@ -1476,10 +1519,12 @@ function TableCatcher() {
     // 轨道手势只在"投影小窗之外的画布"上起效：HTML 面板的 target 不是 canvas，天然滤掉；
     // 互动点的点按走 click 通道不受影响（几乎无位移的拖拽照常触发 click）
     // 两种拖拽语义：有轨道中心 → 绕圆心球面运动；第一人称眼位 → 转角色的头环视
+    // ★ G1 §1：玩家模型摘掉后默认机位是**固定**的，没有"转头"这件事可做 —— 手势直接不接，
+    //   否则拖动会攒 eyeLook 却什么都不动（看着像坏了）。轨道拖拽/缩放照 ORBIT_LIMITS 走。
     const mode = () => {
       const st = useStudio.getState();
       if (st.orbit) return "orbit" as const;
-      return st.camera.kind === "default" ? ("eye" as const) : null;
+      return SHOW_PLAYER_BODY && st.camera.kind === "default" ? ("eye" as const) : null;
     };
     const onDown = (e: PointerEvent) => {
       if (!mode() || e.target !== el) return;
@@ -1553,7 +1598,8 @@ function TableCatcher() {
       const st = useStudio.getState();
       const o = st.orbit;
       if (!o) {
-        if (st.camera.kind === "default") {
+        // ★ G1 §1：固定机位没有"升空俯瞰"（那是从眼位抬头顶的同一件事），滚轮不再改机位
+        if (SHOW_PLAYER_BODY && st.camera.kind === "default") {
           e.preventDefault();
           addEyeRise(e.deltaY * 0.0011);
         }
@@ -1673,7 +1719,10 @@ export default function TableScene() {
           <TripoNpc url="/models/protected/milltina-opt.glbx?v=m16" cfg={MILLTINA_CFG} face={MILLTINA_FACE} />
         )}
       </Suspense>
-      <PlayerHandsSwitch />
+      {/* ★ G1 施工单第 1 步（docs/g1-scene-plan.md §1）：「玩家自己」那具粗糙人偶摘掉。
+          开关在 layout.SHOW_PLAYER_BODY；组件与相机兜底一起留着，改回 true 即可整条回滚。
+          相机侧见 FIXED_DEFAULT_CAM —— 默认机位已经不再读玩家头骨。 */}
+      {SHOW_PLAYER_BODY && <PlayerHandsSwitch />}
       <DeckStack />
       <DeckSpread />
       <MarketFan />
@@ -1682,7 +1731,9 @@ export default function TableScene() {
       <Flights />
       <DragLayer />
       <NpcScreenAnchor />
-      <PlayerScreenAnchor />
+      {/* ★ G1 §1：这个锚点只给「换形象」按钮定位（PLAYER_SCREEN）；人偶摘掉后
+          没有"头侧"可标，按钮本身也一起休眠（AvatarSwapButton 里有同一道守卫）。 */}
+      {SHOW_PLAYER_BODY && <PlayerScreenAnchor />}
       {import.meta.env.DEV && <CaptureHook />}
     </>
   );

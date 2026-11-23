@@ -1,14 +1,21 @@
 // 相机轨道系统：第一人称眼位 + 绕互动点的球面运动 + 防穿模收敛。
 //
-// 为什么独立成模块：玩家/NPC 的头部世界坐标由各自组件每帧写入，CameraRig 每帧读取；
-// 直接互相 import 会成环（TableScene→PlayerArms→TripoNpc→…），放这里所有人都只依赖它。
+// 为什么独立成模块：NPC（以及 SHOW_PLAYER_BODY=true 时的玩家）头部世界坐标由各自组件
+// 每帧写入，CameraRig 每帧读取；直接互相 import 会成环（TableScene→PlayerArms→TripoNpc→…），
+// 放这里所有人都只依赖它。
 import * as THREE from "three";
 
-/** 玩家头骨世界坐标（PlayerArms 每帧写入） */
+/** 玩家头骨世界坐标（PlayerArms 每帧写入）。
+ *  ★ G1 施工单第 1 步（docs/g1-scene-plan.md §1）起工坊不再挂 PlayerArms
+ *    （layout.SHOW_PLAYER_BODY=false）→ **没人再写它**，停在初值。相机的默认机位
+ *    已经改走 layout 的固定常量（TableScene 的 FIXED_DEFAULT_CAM），不再读它；
+ *    改回 SHOW_PLAYER_BODY=true 之前别把任何机位接到这个"头"上。 */
 export const PLAYER_HEAD = new THREE.Vector3(0, 0.7, 3.6);
 /** 玩家**上半身**中心 = spine1 与头骨的中点（PlayerArms 每帧写入）。
  *  轨道圆心用它而不是头骨：绕头顶转时身体被甩到画面下缘外，转到侧后方就只剩一颗
- *  头飘着；以上半身为心则整个胸像始终居中，正是"围着角色上半身转"的观感。 */
+ *  头飘着；以上半身为心则整个胸像始终居中，正是"围着角色上半身转"的观感。
+ *  ★ 同上：G1 §1 之后停在初值；orbit 只剩 node / npc 两个目标（卡组视角那支
+ *    "player" 目标已经跟着身体休眠，见 studioStore.openDeckView）。 */
 export const PLAYER_TORSO = new THREE.Vector3(0, 0.45, 3.6);
 /** 轨道相机的最低高度（世界 Y）。桌面 TABLE 顶在 y=0，低于它相机就钻到桌板下面，
  *  画面被木头糊死；留 12cm 余量避免贴着桌面产生 z-fighting 般的擦边。 */
@@ -98,7 +105,9 @@ export const EYE_PITCH_UP = 0.73;
 export const eyeLimits = { pitchDown: EYE_PITCH_DOWN };
 
 /** 第一人称眼点相对**头骨**的偏移（世界单位），由 PlayerArms 按当前 rig 写入。
- *  见 TableScene.eyeCam 的注释：头骨不在眼睛处，前移量必须按角色体型标定。 */
+ *  见 TableScene.eyeCam 的注释：头骨不在眼睛处，前移量必须按角色体型标定。
+ *  ★ G1 施工单第 1 步（docs/g1-scene-plan.md §1）之后没人写它：人偶不挂，
+ *    第一人称眼位整条求值都不再跑（默认机位见 TableScene 的 FIXED_DEFAULT_CAM）。 */
 export const playerEye = { forward: 0.12, up: 0.04 };
 
 /** 偏航与俯仰**不是两个独立的限幅**，可用范围是一个锥形而不是矩形。

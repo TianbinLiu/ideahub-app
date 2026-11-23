@@ -3,7 +3,7 @@ import { create } from "zustand";
 import { shotLineOf, V3_CARD_WIPE_MS, BranchNodeData, BranchTree, Card, CardType, DEFAULT_ASPECT, DEFAULT_VIDEO_CATEGORY, DraftVideo, NodeSlot, Proposal, VideoAspect, VideoSegment, VideoTemplate, uid } from "../types";
 import { AI_REAL, MaterialFile, chargeNote, chargeOnFail, deriveCharacterModels, deriveDeckCards, generateCards, generateFrame, generateProposals, joinNotes, npcChat, npcChatOffline, prepareMaterialRefs } from "../ai";
 import { frameMoment, momentCards } from "../data/shotScript";
-import { DECK_CAM, MARKET, NPC_CAM } from "./scene/layout";
+import { DECK_CAM, MARKET, NPC_CAM, SHOW_PLAYER_BODY } from "./scene/layout";
 import type { PlayerAvatar } from "./quality";
 import { acquireCard, addCards as saveCardsToAccount, canAfford, frozenNote, myCards, myDecks, plazaCards, realFaceIssue, spendTokens, tierBlockReason, tierRegionGate, tierRegionIssue, tierRegionRecheck, usableTierId, walletOf, type AddCardsResult } from "../data/account";
 import { refreshVideoZone } from "../data/videoZone";
@@ -1480,14 +1480,23 @@ export const useStudio = create<StudioState>()((set, get) => ({
       );
       return;
     }
+    // ★ G1 施工单第 1 步（docs/g1-scene-plan.md §1）：玩家那具人偶摘掉之后
+    //   （layout.SHOW_PLAYER_BODY=false），卡组视角原来那趟"滑到玩家身旁拍上半身"
+    //   就没有可拍的角色了 —— 滑过去只对着一片空座。镜头留在默认固定机位，只开投影窗；
+    //   DECK_CAM 与 orbit:"player" 跟着身体一起休眠（TableScene 的滑梯分支另有同一道守卫）。
+    //   改回 SHOW_PLAYER_BODY=true 时这一支原样恢复。
     set({
       deckView: true,
       projection: "decks",
       spreadOpen: false,
       focus: null,
-      camera: { kind: "pos", pos: DECK_CAM.pos, look: DECK_CAM.look },
-      // 滑梯运镜落位后绕玩家头部球面运动
-      orbit: { target: "player" },
+      ...(SHOW_PLAYER_BODY
+        ? {
+            camera: { kind: "pos" as const, pos: DECK_CAM.pos, look: DECK_CAM.look },
+            // 滑梯运镜落位后绕玩家头部球面运动
+            orbit: { target: "player" as const },
+          }
+        : {}),
     });
   },
   activeDeck: null,
