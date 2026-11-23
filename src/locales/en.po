@@ -4856,6 +4856,10 @@ msgstr "③ Use it to generate"
 msgid "3D 动画"
 msgstr "3D animation"
 
+#: src/studio/game/labels.ts
+msgid "3D 动画 ＋ 体积光"
+msgstr "3D animation + volumetric light"
+
 #: src/studio/studioStore.ts
 msgid "3D 建模需 {price} token，余额不足，跳过"
 msgstr "3D models need {price} tokens — not enough balance, skipping"
@@ -10454,8 +10458,8 @@ msgstr "Upgrade to {finLabel}"
 #~ msgstr "Upgrade to 1080p"
 
 #: src/studio/game/labels.ts
-msgid "半调印刷 ＋ 镀铬高光"
-msgstr "Halftone print + chrome highlights"
+#~ msgid "半调印刷 ＋ 镀铬高光"
+#~ msgstr "Halftone print + chrome highlights"
 
 #: src/pages/SettingsPage.tsx
 msgid "协议与须知"
@@ -12689,6 +12693,10 @@ msgstr "The images are ready, but the character info wasn't written. {moneyLine}
 msgid "图生成好了，但人物信息没写成（这一半没扣钱）——下一步自己填就行"
 msgstr "The images are ready, but the character info wasn't written (that half wasn't charged) — just fill it in yourself in the next step"
 
+#: src/studio/game/labels.ts
+msgid "圆润的立体造型、橙黄与铁锈色的废墟，歪掉的霓虹还亮着。"
+msgstr "Rounded forms, orange-and-rust ruins, and neon still glowing askew."
+
 #: src/pages/WorkshopMinePage.tsx
 msgid "圈一张就走"
 msgstr "Circle one and go"
@@ -12957,8 +12965,8 @@ msgid "复刻 · 同款"
 msgstr "Remix · same style"
 
 #: src/studio/game/labels.ts
-msgid "复古未来太空歌剧"
-msgstr "Retro-future space opera"
+#~ msgid "复古未来太空歌剧"
+#~ msgstr "Retro-future space opera"
 
 #: src/studio/game/labels.ts
 msgid "复古相机"
@@ -13826,8 +13834,8 @@ msgid "局部细节"
 msgstr "Close-up detail"
 
 #: src/studio/game/labels.ts
-msgid "层叠纸片的手工感，每一帧都有一点点手抖的错位。"
-msgstr "Layered paper cutouts with a tiny hand-shake misalignment in every frame."
+#~ msgid "层叠纸片的手工感，每一帧都有一点点手抖的错位。"
+#~ msgstr "Layered paper cutouts with a tiny hand-shake misalignment in every frame."
 
 #: src/components/support/SafetyCard.tsx
 #: src/pages/FlowPage.tsx
@@ -19253,6 +19261,10 @@ msgstr "ARK_API_KEY isn't configured: output is simulated locally, for demoing t
 #~ msgid "未锁定 · 每回合自动刷新"
 #~ msgstr "Not locked · auto-refreshes each round"
 
+#: src/studio/game/labels.ts
+msgid "末日废土"
+msgstr "Post-apocalyptic wasteland"
+
 #. placeholder {0}: fmtTokens(partPrice)
 #: src/pages/VideoPage.tsx
 msgid "本 P 为付费内容 · <0>{0} token</0>"
@@ -20926,6 +20938,10 @@ msgstr "e.g. “a listening ear”, “practice partner”, “writing buddy”"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "比如「认识很久的朋友」"
 msgstr "e.g. “a friend of many years”"
+
+#: src/studio/game/labels.ts
+msgid "水彩晕染的柔和边缘、暖黄与苔绿，雨丝里飘着萤火般的光点。"
+msgstr "Soft watercolor edges, warm yellows and moss greens, firefly-like glints in the rain."
 
 #: src/studio/game/labels.ts
 msgid "水粉 ＋ 柔粉调"
@@ -24776,6 +24792,10 @@ msgstr "Blocking"
 msgid "站在演唱会舞台中央，跟着节拍跳一段"
 msgstr "Center stage at a concert, dancing to the beat"
 
+#: src/studio/game/labels.ts
+msgid "童话森林"
+msgstr "Fairytale forest"
+
 #. placeholder {0}: index + 1
 #. placeholder {1}: playlist.length
 #: src/studio/game/ui/ScreeningPanel.tsx
@@ -26042,8 +26062,8 @@ msgid "素材超了上限，最前面的 {droppedChars} 字没有送去分析。
 msgstr "The materials went over the limit: {droppedChars, plural, one {the first # character wasn't} other {the first # characters weren't}} sent for analysis."
 
 #: src/studio/game/labels.ts
-msgid "纸片定格动画"
-msgstr "Stop-motion paper cutout"
+#~ msgid "纸片定格动画"
+#~ msgstr "Stop-motion paper cutout"
 
 #: src/studio/game/labels.ts
 msgid "纸片小镇的清晨"
@@ -26157,8 +26177,12 @@ msgid "绘本"
 msgstr "Picture book"
 
 #: src/studio/game/labels.ts
-msgid "绘本小镇"
-msgstr "Storybook town"
+#~ msgid "绘本小镇"
+#~ msgstr "Storybook town"
+
+#: src/studio/game/labels.ts
+msgid "绘本水彩 ＋ 柔边勾线"
+msgstr "Picture-book watercolor + soft outlines"
 
 #. placeholder {0}: tpl!.roles!.length
 #. placeholder {0}: tpl.roles!.length
@@ -26341,8 +26365,8 @@ msgid "缩放"
 msgstr "Zoom"
 
 #: src/studio/game/labels.ts
-msgid "网点印刷的颗粒配上镀铬反光，七十年代的未来感。"
-msgstr "Halftone print grain with chrome highlights — 70s futurism."
+#~ msgid "网点印刷的颗粒配上镀铬反光，七十年代的未来感。"
+#~ msgstr "Halftone print grain with chrome highlights — 70s futurism."
 
 #: src/api/client.ts
 #: src/api/uploads.ts

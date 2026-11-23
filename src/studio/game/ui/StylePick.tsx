@@ -1,10 +1,13 @@
-// 风格卡选择屏（施工单第 5 条）：进对局前弹一屏，3 张风格卡（技法名词 + 题材 + 预览图 + 一行说明）。
+// 风格卡选择屏（施工单第 5 条）：进对局前弹一屏，3 张风格卡（技法名词 + 题材 + 样张 + 一行说明）。
 //
 // ★ "选定后锁死"这件事由 rules.pickStyleCard 保证（会回 style-locked）；这里只把 3 张画出来、
 //   让玩家先点一张看中、再按「锁定这张风格」——不做成"点一下就锁"，误触一次整局风格就定了。
-// ★ 预览图现在是**占位**（art.stylePreviewUrl 拿仓库里现成的卡面/封面顶着），真实样张是下一块
-//   G2-c 的事：离线批量生成、打进包（public/styles/<id>.webp），选风格这一步绝不实时生成
-//   （docs/workshop-game-design.md §2.2「每张风格卡必须带预览图」）。TODO 那一行在 art.ts 里。
+// ★ 预览图是**真实样张**（G2-c）：public/styles/<id>.webp，离线生成、打进包，路径经
+//   art.stylePreviewUrl 从 rules.STYLE_POOL 取。选风格这一步绝不实时生成
+//   （docs/workshop-game-design.md §2.2「每张风格卡必须带预览图」）。
+// ★ 样张是 4:3 出的（design/gen-style-samples.mjs），卡的图位也是 aspect-[4/3] —— 两边必须一致：
+//   换成 16:9 的图这里会 object-cover 裁掉人脸，而那正是玩家用来比较的那一部分。
+// ★ img 的 alt 留空是刻意的：技法与题材就在下面两行字里念得到，再念一遍"某某风格样张"只是噪音。
 // ★ 选完风格之后 AI 陪玩各自挑一张、rules 把阶段推到 ready、beginRound 开第一回合商店 —— 整串在
 //   store.pickStyle / finishStyle 里（那是编排，不是规则；规则只管一人一次、选定锁死）。
 import { useState } from "react";
@@ -66,8 +69,13 @@ export default function StylePick({ view }: { view: GameView }) {
                   active ? "bg-raised ring-2 ring-gold-300" : "bg-panel/80 ring-white/10 active:bg-raised"
                 }`}
               >
-                {/* 占位样张：仓库里现成的卡面 / 封面（真实样张见文件头 ★） */}
-                <img src={stylePreviewUrl(style.id)} alt="" className="aspect-[4/3] w-full object-cover" />
+                {/* 真实样张（4:3，与 aspect-[4/3] 对齐；见文件头 ★） */}
+                <img
+                  src={stylePreviewUrl(style.id)}
+                  alt=""
+                  draggable={false}
+                  className="aspect-[4/3] w-full bg-ink object-cover"
+                />
                 <div className="flex flex-1 flex-col gap-1 p-2">
                   <div className="text-[12px] font-semibold leading-tight text-slate-100">{technique}</div>
                   <div className="text-[10px] font-semibold text-brand-200">{topic}</div>

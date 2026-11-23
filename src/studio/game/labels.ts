@@ -175,17 +175,23 @@ function styleMeta(id: string): StyleMeta | null {
         topic: t`文艺复兴奇幻`,
         line: t`墙面斑驳的矿物色，一束侧光只照亮脸的一侧。`,
       };
+    case "toon-wasteland":
+      return {
+        technique: t`3D 动画 ＋ 体积光`,
+        topic: t`末日废土`,
+        line: t`圆润的立体造型、橙黄与铁锈色的废墟，歪掉的霓虹还亮着。`,
+      };
     case "ink-wuxia":
       return {
         technique: t`水墨留白`,
         topic: t`武侠山水`,
         line: t`墨色分层、大片留白，风与雾气比人物更抢戏。`,
       };
-    case "paper-stopmotion":
+    case "picturebook-forest":
       return {
-        technique: t`纸片定格动画`,
-        topic: t`绘本小镇`,
-        line: t`层叠纸片的手工感，每一帧都有一点点手抖的错位。`,
+        technique: t`绘本水彩 ＋ 柔边勾线`,
+        topic: t`童话森林`,
+        line: t`水彩晕染的柔和边缘、暖黄与苔绿，雨丝里飘着萤火般的光点。`,
       };
     case "noir-alley":
       return {
@@ -198,12 +204,6 @@ function styleMeta(id: string): StyleMeta | null {
         technique: t`水粉 ＋ 柔粉调`,
         topic: t`海边夏日`,
         line: t`粉橘色的天空、笔触松软，像夏天午后的甜味。`,
-      };
-    case "halftone-space":
-      return {
-        technique: t`半调印刷 ＋ 镀铬高光`,
-        topic: t`复古未来太空歌剧`,
-        line: t`网点印刷的颗粒配上镀铬反光，七十年代的未来感。`,
       };
     default:
       return null;

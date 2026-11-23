@@ -168,20 +168,27 @@ export const CARD_LIBRARY: readonly GameCard[] = [
 ];
 
 /**
- * 风格卡池（§2.2）：8 个占位条目，一局抽 3 张。技法名词 × 题材 + 离线样张文件名。
- * ★ 样张按 §2.2 的规定离线批量生成、打进包（public/styles/<id>.webp），选风格那一步**绝不实时生成**；
- *   今天仓里还没有 public/styles/（图要走「不许提交 .png」之外的素材流程），这里先把文件名占住。
- * ★ 中文的技法名词 / 题材名等界面那一步随样张一起走 Lingui，规则层只留英文占位。
+ * 风格卡池（§2.2）：8 套，一局抽 3 张。技法名词 × 题材 + 离线样张文件名。
+ *
+ * ★★ `id` 同时是**文件名**：`public/styles/<id>.webp`。三处必须一致 —— `id`、这一行的 `sample`、
+ *    仓库里的那张图（`art.stylePreviewUrl` 直接读 `sample`，不另抄一份映射）。改了 id 不同时
+ *    重命名图片，界面就是一张碎图，而 build 不会报错；`scripts/check-game-rules.mjs` 因此逐个核文件。
+ * ★ 样张按 §2.2 离线批量生成、打进包，选风格那一步**绝不实时生成**（真人真机上要等 30 秒以上，
+ *   还会被审核拦）。生成脚本 `design/gen-style-samples.mjs`（同一句话、只换风格，幂等可重跑）。
+ * ★ 为什么是这 8 套：§2.2 点名的六套（赛璐璐+赛博朋克、胶片颗粒+九十年代香港霓虹、湿壁画+文艺复兴奇幻、
+ *   3D 动画+末日废土、水墨+武侠、绘本+童话森林）一套不少，另加两套调子差异明显的（硬派黑白、水粉柔粉）——
+ *   一局抽 3 张，池子越窄越容易三张看起来像同一套。
+ * ★ 中文的技法名词 / 题材名在界面那一步（labels.ts，随 Lingui 目录走），规则层只留英文占位。
  */
 export const STYLE_POOL: readonly StyleCard[] = [
   { id: "cel-cyberpunk", technique: "Cel-shading + 3D-to-2D", topic: "Cyberpunk", sample: "public/styles/cel-cyberpunk.webp" },
   { id: "film-hk-neon", technique: "Film grain + 50mm shallow DOF", topic: "90s Hong Kong neon", sample: "public/styles/film-hk-neon.webp" },
   { id: "fresco-renaissance", technique: "Fresco texture + Rembrandt light", topic: "Renaissance fantasy", sample: "public/styles/fresco-renaissance.webp" },
+  { id: "toon-wasteland", technique: "3D animated feature + volumetric light", topic: "Post-apocalyptic wasteland", sample: "public/styles/toon-wasteland.webp" },
   { id: "ink-wuxia", technique: "Ink wash + negative space", topic: "Wuxia mountains", sample: "public/styles/ink-wuxia.webp" },
-  { id: "paper-stopmotion", technique: "Stop-motion paper cutout", topic: "Storybook town", sample: "public/styles/paper-stopmotion.webp" },
+  { id: "picturebook-forest", technique: "Picture-book watercolor + soft linework", topic: "Fairytale forest", sample: "public/styles/picturebook-forest.webp" },
   { id: "noir-alley", technique: "Hard-boiled chiaroscuro", topic: "Neon noir alley", sample: "public/styles/noir-alley.webp" },
   { id: "gouache-seaside", technique: "Gouache + soft pastel palette", topic: "Seaside summer", sample: "public/styles/gouache-seaside.webp" },
-  { id: "halftone-space", technique: "Halftone print + chrome highlights", topic: "Retro-future space opera", sample: "public/styles/halftone-space.webp" },
 ];
 
 /**
