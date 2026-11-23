@@ -723,8 +723,8 @@ msgid "（通知内容缺失）"
 msgstr "（通知内容缺失）"
 
 #: src/studio/game/ui/EventPanel.tsx
-msgid "（钱不够，会说明差多少）"
-msgstr "（钱不够，会说明差多少）"
+#~ msgid "（钱不够，会说明差多少）"
+#~ msgstr "（钱不够，会说明差多少）"
 
 #. 铸卡师的失败台词。括号里是动作旁白，英文也要放在括号里
 #: src/studio/npcPersona.ts
@@ -7742,6 +7742,14 @@ msgstr "你来点头"
 msgid "你标的那几帧都落在选中的这一段外面了（选段后来被拖动过）——回去把标记删掉重标，或者切回「自动」。"
 msgstr "你标的那几帧都落在选中的这一段外面了（选段后来被拖动过）——回去把标记删掉重标，或者切回「自动」。"
 
+#: src/studio/game/ui/EventPanel.tsx
+msgid "你现在有多少金"
+msgstr "你现在有多少金"
+
+#: src/studio/game/ui/EventPanel.tsx
+msgid "你现在的血量"
+msgstr "你现在的血量"
+
 #: src/pages/CardDetailPage.tsx
 msgid "你现在能用的出片模型都不参考声音样本（样本先留着，换了能用的模型还用得上）。样本只存在这台设备上，分享卡片不带它。"
 msgstr "你现在能用的出片模型都不参考声音样本（样本先留着，换了能用的模型还用得上）。样本只存在这台设备上，分享卡片不带它。"
@@ -8446,6 +8454,10 @@ msgstr "先框出哪一段"
 #: src/studio/game/ui/GameLayer.tsx
 #~ msgid "先点一件道具卡，再点一张角色卡"
 #~ msgstr "先点一件道具卡，再点一张角色卡"
+
+#: src/studio/game/ui/EventPanel.tsx
+msgid "先点一张卡，再按确认"
+msgstr "先点一张卡，再按确认"
 
 #: src/studio/game/ui/StylePick.tsx
 msgid "先点一张风格卡，再锁定"
@@ -10266,6 +10278,10 @@ msgstr "刷新 5 张新卡。有免费刷新券时先用券"
 #~ msgid "刷新中…"
 #~ msgstr "刷新中…"
 
+#: src/studio/game/labels.ts
+msgid "刷新补贴"
+msgstr "刷新补贴"
+
 #: src/ai/failCharge.ts
 msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief 嵌进括号：英文小写开头、不带句号）"
 msgid "券会退回"
@@ -10582,6 +10598,10 @@ msgstr "包里没有一个我们认识的文件。Live2D 包至少要有 *.model
 #: src/live2d/bundlePreview.ts
 msgid "包里没有找到 *.model3.json。它是 Cubism 4（Version 3）导出的入口文件，缺了它我们不知道该加载什么。"
 msgstr "包里没有找到 *.model3.json。它是 Cubism 4（Version 3）导出的入口文件，缺了它我们不知道该加载什么。"
+
+#: src/studio/game/labels.ts
+msgid "医疗补给"
+msgstr "医疗补给"
 
 #: src/components/support/VoiceMarket.tsx
 #: src/data/videos.ts
@@ -11367,6 +11387,10 @@ msgstr "双人镜头画好了，正在画两个过肩…"
 #: src/components/flow/DialogueWizard.tsx
 msgid "双人镜头重画之后，两个过肩会标成过期（它们是照着双人镜头画的），要不要跟着重画你来定。画完 AI 会看一遍（价钱里含这一次）。"
 msgstr "双人镜头重画之后，两个过肩会标成过期（它们是照着双人镜头画的），要不要跟着重画你来定。画完 AI 会看一遍（价钱里含这一次）。"
+
+#: src/studio/game/labels.ts
+msgid "双机位"
+msgstr "双机位"
 
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "发"
@@ -13187,6 +13211,10 @@ msgstr "大纲里关于 AI 使用的那几句，原样贴过来"
 #: src/studio/game/labels.ts
 msgid "天台上的最后一支烟"
 msgstr "天台上的最后一支烟"
+
+#: src/studio/game/labels.ts
+msgid "天降蓝卡"
+msgstr "天降蓝卡"
 
 #: src/components/support/HoldToTalk.tsx
 msgid "太短了，按住多说一会儿再松手。"
@@ -15945,8 +15973,8 @@ msgstr "我已逐个核对，编号无误"
 
 #. placeholder {0}: eventView.gold
 #: src/studio/game/ui/EventPanel.tsx
-msgid "我有 {0} 金"
-msgstr "我有 {0} 金"
+#~ msgid "我有 {0} 金"
+#~ msgstr "我有 {0} 金"
 
 #: src/components/support/VoiceMarket.tsx
 #: src/components/TabBar.tsx
@@ -16205,6 +16233,10 @@ msgstr "执行中…"
 #: src/components/VolcCompatToggle.tsx
 msgid "扫脸认证新的"
 msgstr "扫脸认证新的"
+
+#: src/studio/game/labels.ts
+msgid "批量采购"
+msgstr "批量采购"
 
 #: src/studio/flowStore.ts
 msgid "找不到这一段"
@@ -22310,6 +22342,10 @@ msgid "灰着的运镜插进去会超过字数上限，想用就先删几个字"
 msgstr "灰着的运镜插进去会超过字数上限，想用就先删几个字"
 
 #: src/studio/game/labels.ts
+msgid "灵感喷涌"
+msgstr "灵感喷涌"
+
+#: src/studio/game/labels.ts
 msgid "灵感爆发"
 msgstr "灵感爆发"
 
@@ -23612,6 +23648,14 @@ msgstr "画成了 {got} 格拼图"
 msgid "画质"
 msgstr "画质"
 
+#: src/studio/game/labels.ts
+msgid "画质升级"
+msgstr "画质升级"
+
+#: src/studio/game/labels.ts
+msgid "画质升级 · 顶配"
+msgstr "画质升级 · 顶配"
+
 #. placeholder {0}: done + 1
 #: src/components/CardModelFit.tsx
 msgid "画起拍画面 {0}/{total}…"
@@ -24649,6 +24693,10 @@ msgstr "知道了，继续"
 msgid "硬派明暗对照"
 msgstr "硬派明暗对照"
 
+#: src/studio/game/ui/EventPanel.tsx
+msgid "确认"
+msgstr "确认"
+
 #: src/pages/SimpleModePage.tsx
 msgid "确认一下就出片"
 msgstr "确认一下就出片"
@@ -24673,6 +24721,11 @@ msgstr "确认删除"
 #: src/components/PhotoSubjectPicker.tsx
 msgid "确认卡面"
 msgstr "确认卡面"
+
+#. placeholder {0}: gold - chosen.cost
+#: src/studio/game/ui/EventPanel.tsx
+msgid "确认后剩 {0} 金"
+msgstr "确认后剩 {0} 金"
 
 #: src/pages/AdminPage.tsx
 msgid "确认封禁"
@@ -25172,6 +25225,11 @@ msgstr "第 {0} 味权重"
 #: src/components/support/VoiceMixer.tsx
 msgid "第 {0} 味音色"
 msgstr "第 {0} 味音色"
+
+#. placeholder {0}: view.hud.round
+#: src/studio/game/ui/EventPanel.tsx
+msgid "第 {0} 回合"
+msgstr "第 {0} 回合"
 
 #. placeholder {0}: state.round
 #: src/studio/game/ui/PhaseBar.tsx
@@ -28716,6 +28774,11 @@ msgstr "还存不了草稿（空白工程或写盘失败）"
 msgid "还差 {0} 个人表态——全员表态之后才能结算"
 msgstr "还差 {0} 个人表态——全员表态之后才能结算"
 
+#. placeholder {0}: chosen.cost - gold
+#: src/studio/game/ui/EventPanel.tsx
+msgid "还差 {0} 金"
+msgstr "还差 {0} 金"
+
 #: src/pages/SupportPage.tsx
 msgid "还想补充什么？任务号、大概时间、屏幕上的提示…"
 msgstr "还想补充什么？任务号、大概时间、屏幕上的提示…"
@@ -31328,6 +31391,10 @@ msgstr "这张"
 msgid "这张{label}要什么画面？例：\"他站在门口回头，半身，暖光\""
 msgstr "这张{label}要什么画面？例：\"他站在门口回头，半身，暖光\""
 
+#: src/studio/game/ui/EventPanel.tsx
+msgid "这张不要金"
+msgstr "这张不要金"
+
 #: src/studio/game/reasons.ts
 #~ msgid "这张卡不在你手上（可能已经被卖掉或换掉了）"
 #~ msgstr "这张卡不在你手上（可能已经被卖掉或换掉了）"
@@ -32359,7 +32426,7 @@ msgstr "选中第 {seg} 段：流水线只有 {total} 段"
 #~ msgid "选中这件道具，再去点一张角色卡"
 #~ msgstr "选中这件道具，再去点一张角色卡"
 
-#. placeholder {0}: eventOptionText(option)
+#. placeholder {0}: eventOptionName(option)
 #: src/studio/game/ui/EventPanel.tsx
 msgid "选事件选项：{0}"
 msgstr "选事件选项：{0}"
@@ -32406,8 +32473,8 @@ msgid "选好了：{pickedLabel}"
 msgstr "选好了：{pickedLabel}"
 
 #: src/studio/game/ui/EventPanel.tsx
-msgid "选完自动进回合结算"
-msgstr "选完自动进回合结算"
+#~ msgid "选完自动进回合结算"
+#~ msgstr "选完自动进回合结算"
 
 #: src/components/blockout/DetectRolesEntry.tsx
 msgid "选定场景/人物数量变化的特定帧，让 AI 分析每一段视频中的人物。"
@@ -32650,6 +32717,10 @@ msgstr "道具卡的图要先框出主体、描出轮廓，「{names}」那张�
 #: src/studio/game/reasons.ts
 msgid "道具只能装到角色卡上"
 msgstr "道具只能装到角色卡上"
+
+#: src/studio/game/labels.ts
+msgid "道具扩容"
+msgstr "道具扩容"
 
 #: src/studio/game/ui/ItemRail.tsx
 msgid "道具栏"
@@ -33078,6 +33149,10 @@ msgstr "金币：买卡与刷新都要花它"
 #: src/studio/game/reasons.ts
 msgid "金币不够：要 {0} 金，现在只有 {1} 金"
 msgstr "金币不够：要 {0} 金，现在只有 {1} 金"
+
+#: src/studio/game/labels.ts
+msgid "金币大使"
+msgstr "金币大使"
 
 #: src/studio/game/labels.ts
 msgid "金色麦克风"

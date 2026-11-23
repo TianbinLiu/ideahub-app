@@ -317,6 +317,79 @@ export function eventOptionText(option: GameEventOption): string {
   return option.effects.map((effect) => eventEffectText(effect)).join("；");
 }
 
+/**
+ * 一个事件选项的**卡名**（G4 §5 参照图：每张卡是"标题 + 一行收益 + 花费"三层）。
+ *
+ * ★ 为什么标题不直接用 `eventOptionText`：那句话是要念的**收益**（带数字、可能两句），
+ *   当标题用就变成"立刻 +4 金"这种指令句 —— 参照图里标题是一个名字（金币大使叽米），
+ *   收益那句在它下面。两层分开，扫读时才先认出"这是哪张卡"、再看代价。
+ * ★ 名字里不重复数字（数字全在 eventOptionText 里，且都来自 rules 的 effects）：
+ *   两处各写一遍就会漂 —— 改规则时忘了改卡名，屏幕上就是"多出一条片"配"能出 2 段"。
+ * ★ 认不出 id 时回 id（同 gameCardName）：事件数据加了新选项、这里还没写，卡上也有字。
+ */
+export function eventOptionName(option: GameEventOption): string {
+  switch (option.id) {
+    case "upgrade-draft":
+      return t`画质升级`;
+    case "upgrade-cinema":
+      return t`画质升级 · 顶配`;
+    case "half-next":
+      return t`批量采购`;
+    case "free-gold":
+      return t`金币大使`;
+    case "double-shoot":
+      return t`双机位`;
+    case "long-prompt":
+      return t`灵感喷涌`;
+    case "free-blue-card":
+      return t`天降蓝卡`;
+    case "bag-expand":
+      return t`道具扩容`;
+    case "heal":
+      return t`医疗补给`;
+    case "free-refresh":
+      return t`刷新补贴`;
+    default:
+      return option.id;
+  }
+}
+
+/**
+ * 卡面图标位里的那个徽记（§5 参照图每张卡正中一个发光六边形 + 一个符号）。
+ *
+ * ★ 不是文案：不随界面语言变，所以**不进** Lingui 目录（这里是按 id 认的符号表）。
+ * ★ 为什么先用字形：包里一个事件插画都没有 —— `rules.GAME_EVENTS[].art` 指向的
+ *   `public/events/<id>.webp` 至今没落过文件（art.ts 也没有事件这一档）。真补了图之后，
+ *   这个函数换成返回 `<img src={…}>` 的插画位即可，卡的结构不用动。
+ * ★ 认不出 id 时回那颗骰子：事件选项都是"抽一下 / 涨一点"，骰子不会说错话。
+ */
+export function eventOptionGlyph(option: GameEventOption): string {
+  switch (option.id) {
+    case "upgrade-draft":
+      return "🎞️";
+    case "upgrade-cinema":
+      return "🎥";
+    case "half-next":
+      return "🏷️";
+    case "free-gold":
+      return "🪙";
+    case "double-shoot":
+      return "🎬";
+    case "long-prompt":
+      return "✍️";
+    case "free-blue-card":
+      return "🎴";
+    case "bag-expand":
+      return "🎒";
+    case "heal":
+      return "💊";
+    case "free-refresh":
+      return "🔄";
+    default:
+      return "🎲";
+  }
+}
+
 // ────────────────────────────── AI 陪玩的提示词（§2.4） ──────────────────────────────
 
 /**

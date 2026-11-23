@@ -103,6 +103,25 @@ export default function GameLayer() {
   if (state.phase === "style") return <StylePick view={view} />;
 
   const inShop = state.phase === "shop";
+  /**
+   * 事件屏（G4 施工单 §5）：这一屏是一次决策，不是"桌上再加一块面板"。
+   * ★ 为什么 HUD / 对手条 / 道具栏 / 背包条要在这一个阶段让位：真机横屏只有 363 CSS px 高，
+   *   背包条 67 + 阶段条 22 一占，再给"图标 + 标题 + 一行收益 + 花费 + 确认键"的三张卡只剩 ~115px ——
+   *   图标和收益都被挤没了，而那三样正是施工单点名的。让位之后三张卡有 ~140px 起（卡高 clamp）。
+   * ★ 事件阶段这一屏里能点的只有卡与确认/跳过：卖卡、买卡、摆卡、拖道具在 rules 里全是 wrong-phase，
+   *   商店键打开的那个面板也只在商店阶段挂 —— 所以让位不拿走任何还能用的操作。
+   * ★ 血量 / 金币 / 回合不跟着没：它们由事件面板自己念（数还是从同一份 view 来，见 EventPanel）。
+   * ★ 阶段条**留着**：它在这一阶段写的是「三选一，拿不准可以跳过 · AI 已经选好了」。
+   */
+  const inEvent = state.phase === "event";
+  /**
+   * 结算 / 对局结束那一屏（G4 收尾）：结算面板是**满宽**的（`w-full max-w-[48rem]`，真机 776px），
+   * 它一立起来就把右侧道具栏吃掉一半——真机 800×363 上表现为"🧹 拆除"那颗键被面板上沿切掉，
+   * 看着像坏了。而那一栏在这一阶段**没有一个能用的动作**（装备/卸下只在商店与创作两个阶段，
+   * rules.PLACE_PHASES），所以干脆收起来，下一个阶段原样回来。
+   * ★ 只收道具栏：背包条与阶段条在结算面板**下面**，没有被压住（施工单：结算屏只修遮挡/溢出）。
+   */
+  const inResult = state.phase === "round-end" || state.phase === "over";
 
   /** 动作成功的那一句（种类在 store，话在这里；两条都带数字时数字来自 store 记的 rules 值） */
   const noticeText = (n: GameNotice): string => {
@@ -143,9 +162,9 @@ export default function GameLayer() {
       {/* 纯预览的工作流面板（施工单 §2 第三条）：整屏盖住，只让看不让改 */}
       {previewOpen && <GenPreview />}
 
-      {/* ★ 商店开着时 HUD 与对手条让位（理由见文件头那段 ★） */}
-      {!shopVisible && <GameHud hud={view.hud} />}
-      {!shopVisible && <OpponentStrip />}
+      {/* ★ 商店开着时 HUD 与对手条让位（理由见文件头那段 ★）；事件阶段也一起让位（见 inEvent） */}
+      {!shopVisible && !inEvent && <GameHud hud={view.hud} />}
+      {!shopVisible && !inEvent && <OpponentStrip />}
       {/* ── 商店栏：**屏幕上方**（施工单 §2 第 2 条） ── */}
       {shopVisible && (
         <div className="absolute inset-x-0 top-[calc(env(safe-area-inset-top,0px)+0.5rem)] flex justify-center px-1.5">
@@ -153,10 +172,12 @@ export default function GameLayer() {
         </div>
       )}
 
-      {/* ── 右侧道具栏（施工单 §3 第三条）：道具卡 + 拆除工具，一直挂着 ──
+      {/* ── 右侧道具栏（施工单 §3 第三条）：道具卡 + 拆除工具 ──
           位置在屏幕右侧、竖直正中偏下：横屏真机（800×363）上桌面卡位在中间那一带，
-          右侧这一列避开它们、也不压 HUD 与背包条。 */}
-      {!shopVisible && (
+          右侧这一列避开它们、也不压 HUD 与背包条。
+          ★ 事件屏与结算屏两个阶段收起来（见 inEvent / inResult）：那两屏的面板都是满宽的，
+            它会有一半被面板压住（拆除工具被切掉半颗），而它在这两个阶段没有一个能用的动作。 */}
+      {!shopVisible && !inEvent && !inResult && (
         <div className="absolute right-1 top-1/2 -translate-y-1/2">
           <ItemRail view={view} />
         </div>
@@ -196,11 +217,12 @@ export default function GameLayer() {
         {state.phase === "create" && <CreatePanel view={view} />}
         {!inShop && state.phase === "screening" && <ScreeningPanel />}
         {!inShop && state.phase === "voting" && <VotingPanel />}
-        {!inShop && state.phase === "event" && <EventPanel />}
+        {!inShop && state.phase === "event" && <EventPanel view={view} />}
         {!inShop && (state.phase === "round-end" || state.phase === "over") && <RoundResultPanel />}
 
-        {/* 背包条 + 商店键：商店阶段 = 买完就地摆；创作阶段出片前还能改摆法（见 rules.PLACE_PHASES） */}
-        <BagBar view={view} />
+        {/* 背包条 + 商店键：商店阶段 = 买完就地摆；创作阶段出片前还能改摆法（见 rules.PLACE_PHASES）。
+            ★ 事件阶段让位（见 inEvent）：那一条在这一阶段没有一个能用的动作，却要占掉 67px。 */}
+        {!inEvent && <BagBar view={view} />}
 
         <PhaseBar view={view} />
       </div>
