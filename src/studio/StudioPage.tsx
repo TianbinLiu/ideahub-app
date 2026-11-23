@@ -460,9 +460,17 @@ export default function StudioPage() {
       </div>
 
 
-      {/* 提示条（NPC 气泡栏上方） */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-16 flex justify-center px-4">
-        <div data-guide="studio-hint" className="rounded-full bg-panel/75 px-4 py-1.5 text-center text-xs text-slate-300 backdrop-blur">{hint}</div>
+      {/* 提示条（NPC 气泡栏上方）。横屏：屏幕矮（462 CSS px）、这句话在窄舞台里折成两行，
+          bottom-16 会正好压在摊开排那三张卡上（真机 3C15CJ00C8V00000 实测）—— 落到贴底 8px。 */}
+      <div className={`pointer-events-none absolute inset-x-0 flex justify-center ${isLand ? "bottom-2 px-3" : "bottom-16 px-4"}`}>
+        <div
+          data-guide="studio-hint"
+          className={`rounded-full bg-panel/75 text-center text-slate-300 backdrop-blur ${
+            isLand ? "px-3 py-1 text-[11px]" : "px-4 py-1.5 text-xs"
+          }`}
+        >
+          {hint}
+        </div>
       </div>
 
       {/* 市场翻页箭头：市场种子有 19 张，一页摆 6 张 → 4 页。放在屏幕两侧竖直居中，
