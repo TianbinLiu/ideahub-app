@@ -120,6 +120,8 @@ import { useLang } from "../../i18n/useLang";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { captureFirstLast } from "../../utils/videoFrames";
 import { requestLandscape } from "../../hooks/useOrientationLock";
+// 朝向判据只有一份（hooks/useIsLandscape）：工坊的宽布局也问它，别再在这里抄一个 matchMedia
+import { useIsLandscape } from "../../hooks/useIsLandscape";
 // ★ VIDEO_PROMPT_MAX 与出片那一侧（segmentGen）、工坊投影窗取自同一处（ai 层是提示词硬顶的唯一出处）：
 //   在这里另抄一个 400，改上限时画布就开始说假话
 import { AI_REAL, VIDEO_PROMPT_MAX } from "../../ai";
@@ -137,26 +139,6 @@ const ZOOM_MAX = 2;
 const ZOOM_STEP = 1.25;
 function clampZoom(k: number): number {
   return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, k));
-}
-
-/** 实际朝向（不是"请求的"朝向）：编辑窗上下/左右分窗按它切。
- *  ★ 除了 MQL 的 change 还得订 window 的 resize：仿真视口（CDP/DevTools 设备模式）只改
- *    `matches` **不派发 change**（2026-08-21 实测：翻转后 matches 已变、监听计数恒 0），
- *    真机转屏两个都发。快照没变时 useSyncExternalStore 不重渲，多订这一条零成本。 */
-function useIsLandscape(): boolean {
-  return useSyncExternalStore(
-    (cb) => {
-      const mq = window.matchMedia("(orientation: landscape)");
-      mq.addEventListener("change", cb);
-      window.addEventListener("resize", cb);
-      return () => {
-        mq.removeEventListener("change", cb);
-        window.removeEventListener("resize", cb);
-      };
-    },
-    () => window.matchMedia("(orientation: landscape)").matches,
-    () => false,
-  );
 }
 
 export default function FlowCanvas({

@@ -492,6 +492,7 @@ msgid "‹ 换一种做法"
 msgstr "‹ 换一种做法"
 
 #: src/studio/ui/NpcDialog.tsx
+#: src/studio/ui/SceneRails.tsx
 msgid "‹ 收起市场"
 msgstr "‹ 收起市场"
 
@@ -4538,6 +4539,7 @@ msgid "🛒 方案市场"
 msgstr "🛒 方案市场"
 
 #: src/studio/ui/NpcDialog.tsx
+#: src/studio/ui/SceneRails.tsx
 msgid "🛒 逛市场"
 msgstr "🛒 逛市场"
 
@@ -10288,6 +10290,7 @@ msgstr "卡种"
 #: src/pages/WorkshopMinePage.tsx
 #: src/pages/WorkshopPage.tsx
 #: src/studio/ui/projection.tsx
+#: src/studio/ui/SceneRails.tsx
 msgid "卡组"
 msgstr "卡组"
 
@@ -10353,6 +10356,10 @@ msgstr "卡组详情"
 #: src/data/account.ts
 msgid "卡组还没同步到服务器，请稍后再试"
 msgstr "卡组还没同步到服务器，请稍后再试"
+
+#: src/studio/ui/SceneRails.tsx
+msgid "卡组还空着——把素材交给铸卡师，或者去右边逛市场。"
+msgstr "卡组还空着——把素材交给铸卡师，或者去右边逛市场。"
 
 #: src/components/VideoCardAnnotator.tsx
 #~ msgid "卡铸好了，但「火山引擎适用」没存住（本机存储写入失败）——去卡片详情页再勾一次。"
@@ -14256,6 +14263,7 @@ msgid "已驳回"
 msgstr "已驳回"
 
 #: src/pages/SupportModelsPage.tsx
+#: src/studio/ui/SceneRails.tsx
 msgid "市场"
 msgstr "市场"
 
@@ -15602,6 +15610,10 @@ msgstr "把构图示意融成开头帧…"
 msgid "把样片升成 1080p 成片（{finSec} 秒，画面、动作、声音都照样片）…"
 msgstr "把样片升成 1080p 成片（{finSec} 秒，画面、动作、声音都照样片）…"
 
+#: src/studio/ui/SceneRails.tsx
+#~ msgid "把现成的卡摊到桌上"
+#~ msgstr "把现成的卡摊到桌上"
+
 #: src/pages/SupportCreatePage.tsx
 msgid "把自己的课件交给 AI，做一位按你的材料讲课的老师，在 App 里上课；勾了「同时发布为启梦人格」的老师还会开口说话。"
 msgstr "把自己的课件交给 AI，做一位按你的材料讲课的老师，在 App 里上课；勾了「同时发布为启梦人格」的老师还会开口说话。"
@@ -16877,6 +16889,10 @@ msgstr "摇滚"
 msgid "摇篮曲"
 msgstr "摇篮曲"
 
+#: src/studio/ui/SceneRails.tsx
+msgid "摊开在桌上"
+msgstr "摊开在桌上"
+
 #: src/studio/ui/projection.tsx
 msgid "摘掉"
 msgstr "摘掉"
@@ -17076,6 +17092,10 @@ msgstr "收起市场"
 #: src/components/FeedActionSheet.tsx
 msgid "收起按钮和文字"
 msgstr "收起按钮和文字"
+
+#: src/studio/ui/SceneRails.tsx
+msgid "收起摊开排"
+msgstr "收起摊开排"
 
 #: src/studio/studioStore.ts
 msgid "收起方案"
@@ -21513,8 +21533,13 @@ msgid "点桌上的卡放大查看 · 喜欢就收进卡组"
 msgstr "点桌上的卡放大查看 · 喜欢就收进卡组"
 
 #: src/studio/StudioPage.tsx
+#: src/studio/ui/SceneRails.tsx
 msgid "点桌上的市场卡放大查看，喜欢就收进卡组"
 msgstr "点桌上的市场卡放大查看，喜欢就收进卡组"
+
+#: src/studio/ui/SceneRails.tsx
+#~ msgid "点桌面的卡组堆也可以"
+#~ msgstr "点桌面的卡组堆也可以"
 
 #: src/studio/StudioPage.tsx
 msgid "点虚线卡位延展下一段 · 点亮法阵去剪辑成片"
@@ -23975,6 +24000,12 @@ msgstr "第 {0} / {1} 步"
 #~ msgid "第 {0} / {1} 步 · {stepLabel}"
 #~ msgstr "第 {0} / {1} 步 · {stepLabel}"
 
+#. placeholder {0}: page + 1
+#. placeholder {1}: Math.ceil(count / MARKET.perPage)
+#: src/studio/ui/SceneRails.tsx
+msgid "第 {0} / {1} 页 · 翻页用桌面两侧的箭头"
+msgstr "第 {0} / {1} 页 · 翻页用桌面两侧的箭头"
+
 #. placeholder {0}: i + 1
 #: src/data/promptSchemes.ts
 msgid "第 {0} 个图位还没起名字（这个名字会显示在卡片详情页上）"
@@ -25523,6 +25554,10 @@ msgstr "网页端功能更全"
 #: src/pages/CreatePage.tsx
 msgid "翻到{otherTitle}"
 msgstr "翻到{otherTitle}"
+
+#: src/studio/ui/SceneRails.tsx
+msgid "翻开卡组"
+msgstr "翻开卡组"
 
 #: src/pages/tutor/TutorNewPage.tsx
 #: src/pages/tutor/TutorRunPage.tsx

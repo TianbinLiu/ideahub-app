@@ -12,7 +12,7 @@ import {
   COMPOSE_POS,
   DECK_CAM,
   DECK_POS,
-  DEFAULT_CAM,
+  LAND_CAM,
   FLOAT_Y,
   LEFT_STACK,
   MARKET,
@@ -22,6 +22,7 @@ import {
   SPREAD,
   TABLE,
   chainX,
+  defaultCamFor,
   focusCam,
 } from "./layout";
 import { npcModelUrl } from "../quality";
@@ -221,24 +222,10 @@ export function computeChain(path: FlowNode[], focusId?: string | null): ChainLa
 }
 
 // ── 相机：朝目标位姿缓动（transient 直读 store，避免订阅延迟一帧） ──
-// RIG_LOOK 提到模块级：手势层需要读取当前视线锚点
-const RIG_LOOK = new THREE.Vector3(...DEFAULT_CAM.look);
-
-/** 摘掉玩家模型后的默认机位（`SHOW_PLAYER_BODY=false` 时求值）。
- *
- *  ★ G1 施工单第 1 步（docs/g1-scene-plan.md §1）：人偶摘掉，第一人称眼位就没有骨骼
- *    可跟了 —— `eyeCam` 读的 `PLAYER_HEAD` 只会停在"模型没加载完"的占位值上（低、近、
- *    还朝着一个不存在的头），画面不对却零报错。这里改用 layout 现成的**俯视兜底机位**
- *    `DEFAULT_CAM`（它本来就是为"模型未加载完"准备的那一台），整条求值不再碰任何玩家
- *    骨骼/眼位。
- *  ★ 为什么不用 `NPC_CAM`（对坐机位更好看）：它站在 z=2.45，而卡组堆 / 展开排 / 桌面
- *    卡位都在 z=2.75 —— 会跑到相机**背后**，而 3D 桌面上的卡组堆是 openDeckView 的
- *    唯一入口（点不到就开不了卡组小窗）。当前竖屏 UI 的卡面全在桌面近侧，只有俯视
- *    这一台能一屏看全。
- *  ★ G1 第 4 步会把默认机位换成"从高处俯冲下来"的新机位（§4，落点比这一台更靠后、
- *    能看全铸卡师）；在那之前这里就是过渡用的固定机位。
- *  ★ 别把它接回任何骨骼 / `PLAYER_HEAD` —— 那就等于把要摘掉的那根依赖又装回去了。 */
-const FIXED_DEFAULT_CAM = DEFAULT_CAM;
+// RIG_LOOK 提到模块级：手势层需要读取当前视线锚点。
+// 初值取落点机位（横屏那台）：它只影响**第一帧**的 lookAt，而第一帧被 StudioLoader 盖着；
+// 竖屏窗口由 CameraRig 在头一帧就把视线带到 defaultCamFor() 给的那台上（不到 1 秒的缓动）。
+const RIG_LOOK = new THREE.Vector3(...LAND_CAM.look);
 
 /** 解析当前轨道圆心（npc 每帧跟随头骨，node 用点击时记下的卡片坐标）。
  *  ★ "player" 这一支自 G1 施工单第 1 步（docs/g1-scene-plan.md §1）起已经没有调用方
@@ -256,8 +243,8 @@ export function resolveOrbitCenter(
 
 /** 第一人称眼位：站在玩家头部，基准朝向 NPC，再叠加环视偏航/俯仰（滑屏转头）。
  *  ★ G1 施工单第 1 步（docs/g1-scene-plan.md §1）之后只在 `SHOW_PLAYER_BODY` 为真时求值；
- *    人偶摘掉时默认机位走 FIXED_DEFAULT_CAM，这条函数**读的是每帧由 PlayerArms 写入的
- *    PLAYER_HEAD**，没人写它就是一个假机位 —— 别在恢复挂载之前把它接回来。 */
+ *    人偶摘掉时默认机位走 layout.defaultCamFor（横屏落点 / 竖屏俯视），这条函数**读的是每帧由
+ *    PlayerArms 写入的 PLAYER_HEAD**，没人写它就是一个假机位 —— 别在恢复挂载之前把它接回来。 */
 function eyeCam(pos: THREE.Vector3, look: THREE.Vector3) {
   // 基准方向：头 → NPC，压平到水平面（否则俯仰会被基准的上下分量污染）
   _dirTmp.copy(NPC_HEAD).sub(PLAYER_HEAD);
@@ -315,6 +302,20 @@ function CameraRig() {
   const lastCamObj = useRef<unknown>(null);
   useFrame(({ camera, scene, clock }, dt) => {
     const st = useStudio.getState();
+    /** 摘掉玩家模型后的默认机位（`SHOW_PLAYER_BODY=false` 时求值）。
+     *
+     *  ★ G1 施工单第 1 步（docs/g1-scene-plan.md §1）：人偶摘掉，第一人称眼位就没有骨骼可跟了
+     *    —— eyeCam 读的 PLAYER_HEAD 只会停在"模型没加载完"的占位值上（低、近、还朝着一个不存在的头），
+     *    画面不对却零报错。所以这一支整段不再碰任何玩家骨骼/眼位，只读 layout 的固定常量。
+     *  ★ G1 第 2 步（2026-11-22）：常量从俯视的 DEFAULT_CAM 换成 §4 的**落点机位** LAND_CAM ——
+     *    俯视那台把铸卡师的头顶压到画面 y=1.4%（顶栏一盖就"只露胸以下"），落点机位头顶在 26%、
+     *    卡组堆仍在 y 67~80% 且没有甩到镜头背后。取景依据与量出来的数都在 layout.LAND_CAM 的注释里
+     *    （**改机位先改那一处**）。
+     *  ★ 按**画布宽高比**选（layout.defaultCamFor）：竖屏水平视野只有 ±12°，落点机位在竖屏下会把卡组堆
+     *    甩出画外，而它是 openDeckView 的唯一入口。判据只在 layout 一处，这里只调用 —— 转屏时这一行
+     *    就跟着换成另一台，CameraRig 的缓动负责把它平滑带过去，不需要额外的 resize 监听。
+     *  ★ 别把机位接回任何骨骼 / PLAYER_HEAD —— 那就等于把要摘掉的那根依赖又装回去了。 */
+    const defCam = defaultCamFor((camera as THREE.PerspectiveCamera).aspect);
     // 节点卡卡面的首尾帧轮播（渐变期才真重绘，停留期内部直接返回）
     tickCardFades(clock.elapsedTime * 1000);
     // 新机位落位（点击互动点）→ 交还脚本运镜控制权
@@ -354,12 +355,9 @@ function CameraRig() {
     let target: { pos: readonly [number, number, number] | number[]; look: readonly [number, number, number] | number[] };
     if (st.camera.kind === "default") {
       if (!SHOW_PLAYER_BODY) {
-        // ★ G1 施工单第 1 步（docs/g1-scene-plan.md §1）：玩家那具人偶已经摘掉，
-        //   下面那条第一人称眼位的**整段求值都没有骨骼可跟**了 —— eyeCam 读的
-        //   PLAYER_HEAD 只会停在"模型没加载完"的占位值上（低、近、还朝着一个不存在
-        //   的头），画面不对却零报错。所以默认机位直接读 layout 的固定常量，
-        //   这一支不再碰任何玩家骨骼/眼位（环视与升空那套手势同来源，见 TableCatcher）。
-        target = FIXED_DEFAULT_CAM;
+        // ★ G1 §1 + §2 第 2 步：这一支不再碰任何玩家骨骼/眼位，只读上面算出来的默认机位
+        //   （横屏落点 / 竖屏俯视，见 defCam 的注释）。
+        target = defCam;
       } else {
         // 升空到门限之上就把环视角衰减回正——**与环视闸门同一个门限、无条件执行**。
         // 理由见 EYE_RISE_LOOK_OFF：两个门限留缝就是"滑一下松手视角自己弹回去"。
@@ -390,12 +388,12 @@ function CameraRig() {
       //   这里每帧抛一次错，整个 3D 页白屏且**自己好不了**——渲染循环挂了就没人再去
       //   改状态。一次 isFinite 换掉一类不可恢复的崩溃，很划算。
       //   ★ 兜底分两种：有玩家身体时退回眼位；摘掉之后（G1 §1）eyeCam 不再求值、
-      //     eyeP 一直是 (0,0,0)（原点在桌板里，等于黑屏），所以退回固定机位。
+      //     eyeP 一直是 (0,0,0)（原点在桌板里，等于黑屏），所以退回上面那台默认机位。
       target = camOk(st.camera)
         ? st.camera
         : SHOW_PLAYER_BODY
           ? { pos: [eyeP.current.x, eyeP.current.y, eyeP.current.z], look: [eyeL.current.x, eyeL.current.y, eyeL.current.z] }
-          : FIXED_DEFAULT_CAM;
+          : defCam;
     }
     // 第一人称把近裁剪面从 0.1 收到 0.03：眼点就在自己领口上方 6cm，0.1 的近面
     // 会把领口整片切掉——想"低头看见自己身体"就必须让它更近。实测 Tsumire 领口顶
@@ -1721,7 +1719,7 @@ export default function TableScene() {
       </Suspense>
       {/* ★ G1 施工单第 1 步（docs/g1-scene-plan.md §1）：「玩家自己」那具粗糙人偶摘掉。
           开关在 layout.SHOW_PLAYER_BODY；组件与相机兜底一起留着，改回 true 即可整条回滚。
-          相机侧见 FIXED_DEFAULT_CAM —— 默认机位已经不再读玩家头骨。 */}
+          相机侧见 CameraRig 的 defCam（layout.defaultCamFor）—— 默认机位已经不再读玩家头骨。 */}
       {SHOW_PLAYER_BODY && <PlayerHandsSwitch />}
       <DeckStack />
       <DeckSpread />

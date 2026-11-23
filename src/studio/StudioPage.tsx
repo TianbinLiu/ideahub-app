@@ -10,16 +10,18 @@ import { AI_REAL } from "../ai";
 import { myCards } from "../data/account";
 import { backLabelOf, composable, placeholderVisible, useStudio } from "./studioStore";
 import { useFlow } from "./flowStore";
-import { DEFAULT_CAM, SPREAD } from "./scene/layout";
+import { SPREAD, defaultCamFor } from "./scene/layout";
 import NpcDialog from "./ui/NpcDialog";
 import ProjectionWindow from "./ui/projection";
 import { CardDetailModal } from "./ui/modals";
 import AvatarPicker from "./ui/AvatarPicker";
 import AvatarSwapButton from "./ui/AvatarSwapButton";
+import { DeckRail, MarketRail } from "./ui/SceneRails";
 import { cancelPendingStop, stopSpeakingSoon } from "./speech";
 import { useStudioBack } from "./useStudioBack";
 import { useCastReturn } from "../hooks/useCastReturn";
 import { useFlowActions } from "../hooks/useFlowActions";
+import { useIsLandscape } from "../hooks/useIsLandscape";
 import { showToast } from "../data/toast";
 // 工作流画布现在是工坊里的一层全屏浮层（2026-08-30 合并：创作入口不再有「工作流模式」）
 import FlowCanvas from "../components/flow/FlowCanvas";
@@ -275,8 +277,33 @@ export default function StudioPage() {
    */
   const canvasCovered = canvasOpen && flowLen > 0;
 
+  /**
+   * 横屏宽布局（G1 施工单 docs/g1-scene-plan.md §2 A）：左右各一条常驻条，3D 桌面留在中间。
+   * ★ 判据只有一份（hooks/useIsLandscape）：`(orientation: landscape)`，也就是画布宽 > 高。
+   *   原生侧进这一页就把 Activity 钉成 landscape（hooks/useOrientationLock），浏览器里把窗口
+   *   拖成横的也走同一条 —— 两种环境同一套判据，不需要两套布局。
+   * ★ 竖屏分支必须**逐字节保持不变**：所有横屏样式都挂在 isLand 这个条件后面（多出来的只有
+   *   flex 容器、gutter 与两条边栏），竖屏时这层 div 就是原来那个 relative/inset 全屏壳。
+   */
+  const isLand = useIsLandscape();
+  /**
+   * 首帧相机用哪台：与 CameraRig 每帧求值的判据同一个（layout.defaultCamFor）。
+   * 不这么做的话，横屏窗口会从俯视那台"飞"到落点机位（r3f 的 camera 初值就是 DEFAULT_CAM.pos），
+   * 而竖屏窗口反过来 —— 两种情况都只在 StudioLoader 底下，但没必要。
+   */
+  const initCam = defaultCamFor(window.innerWidth / window.innerHeight);
+
   return (
-    <div className="relative h-full w-full overflow-hidden bg-ink">
+    <div className={`relative h-full w-full overflow-hidden bg-ink ${isLand ? "flex gap-1.5 p-1.5" : ""}`}>
+      {/* 左：背包/卡组。只在横屏挂，竖屏时这一位不存在（布局与原来一致） */}
+      {isLand && <DeckRail />}
+      {/* ★ 舞台：3D 画布 + 所有 absolute 浮层（顶栏、提示条、投影窗、对话气泡、弹层）都挂在这一层。
+          为什么要多这一层：横屏时两条常驻条要**占掉**屏幕两侧的宽度（而不是盖在画布上），
+          于是画布与浮层的坐标系要从"整窗"改成"中间那一块"——浮层本来就按画布百分比定位
+          （NPC_SCREEN / PLAYER_SCREEN 是 0~1 的投影坐标），跟着缩才对得上。
+          竖屏时它 flex-1 撑满整窗，和原来的结构等价。
+          ⚠ 这一层里的缩进**刻意没有再加一层**：壳是后加的，把两百多行重新缩进会让这次 diff 变成噪音。 */}
+      <div className={`relative h-full min-w-0 flex-1 overflow-hidden ${isLand ? "rounded-xl" : ""}`}>
       {/* ★ 渲染边界只包 Canvas 这一层（2026-10-15 教材人格评审，Nygard「崩溃边界」那条）：r3f 会把子树的渲染期抛错重抛到这里，
           受保护模型解不开 / hook 排在早退之后 / chosenOf(n).plot 空指针都接得住（2.51–2.55 那种「一进工坊整页白屏」就落在这一层）；
           useFrame 里抛的不经 React 树、接不到 —— 那一类仍只靠 camOk 式的先校验再用（CLAUDE.md「渲染循环里别信任外部状态的形状」）。
@@ -292,7 +319,11 @@ export default function StudioPage() {
              盖着的时候这里仍每帧画 NPC、弹簧骨、卡面轮播 —— 一帧都看不见、电却照烧。只关 frameloop、不卸场景（主人「画布是
              工坊里的浮层」那条决定不动：卸了再装要重解模型、镜头归位）；时钟由 SceneClockKeeper 接住（r3f 切 frameloop 会归零）。 */
           frameloop={canvasCovered ? "never" : "always"}
-          camera={{ fov: 50, position: DEFAULT_CAM.pos, near: 0.1, far: 80 }}
+          /* ★ 画布的尺寸与 aspect **跟着这一层容器走**，不是跟着 window：r3f 9.6.1 用 react-use-measure
+             （ResizeObserver）量容器，尺寸变了就走 updateCamera → camera.aspect = w/h + updateProjectionMatrix
+             （node_modules/@react-three/fiber/dist/events-*.esm.js 的 updateCamera）。所以转屏、两条常驻条
+             把中间挤窄，这里都不用手工重算；CameraRig 每帧按 camera.aspect 选机位也在同一拍跟上。 */
+          camera={{ fov: 50, position: initCam.pos, near: 0.1, far: 80 }}
         >
           <SceneClockKeeper />
           <TableScene />
@@ -488,6 +519,9 @@ export default function StudioPage() {
           }}
         />
       )}
+      </div>
+      {/* 右：市场。只在横屏挂 */}
+      {isLand && <MarketRail />}
     </div>
   );
 }
