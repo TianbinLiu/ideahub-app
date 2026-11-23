@@ -4810,7 +4810,7 @@ msgstr "① Upload a video / write a prompt"
 msgid "① 先画首帧（{0}）"
 msgstr "① Draw the first frame ({0})"
 
-#. placeholder {0}: fmtTokens(quote?.frame ?? 0)
+#. placeholder {0}: fmtTokens(quote.frame)
 #: src/studio/game/ui/GenSheet.tsx
 msgid "① 先画首帧（约 {0}）"
 msgstr "① Draw the first frame (~{0})"
@@ -4861,7 +4861,7 @@ msgstr "② Make the template"
 msgid "② 出片（{0}）"
 msgstr "② Render the clip ({0})"
 
-#. placeholder {0}: fmtTokens(quote?.video ?? 0)
+#. placeholder {0}: fmtTokens(quote.video)
 #: src/studio/game/ui/GenSheet.tsx
 msgid "② 出片（约 {0}）"
 msgstr "② Generate video (~{0})"
@@ -6926,8 +6926,12 @@ msgid "买下「{name}」（{price} 金）"
 msgstr "Buy “{name}” ({price} gold)"
 
 #: src/studio/game/ui/PhaseBar.tsx
-msgid "买卡、换卡、把道具装到角色上，然后开始创作"
-msgstr "Buy or swap cards, equip props on roles, then start shooting"
+msgid "买卡、换卡、把卡拖到桌面卡位、把道具从右侧栏拖到角色上，然后开始创作"
+msgstr "Buy cards, drag them onto the table slots, drag items from the right rail onto a character, then start shooting"
+
+#: src/studio/game/ui/PhaseBar.tsx
+#~ msgid "买卡、换卡、把道具装到角色上，然后开始创作"
+#~ msgstr "Buy or swap cards, equip props on roles, then start shooting"
 
 #: src/studio/game/ui/GameLayer.tsx
 msgid "买好了"
@@ -7014,6 +7018,12 @@ msgstr "Submit"
 #: src/pages/CutPage.tsx
 msgid "交回自动"
 msgstr "Back to auto"
+
+#. placeholder {0}: roundView.mine.entry.cards.length
+#. placeholder {1}: Math.round(roundView.mine.entry.seconds)
+#: src/studio/game/ui/PhaseBar.tsx
+msgid "交片了：{0} 张卡 + 一句提示词（{1} 秒）"
+msgstr "Submitted: {0} cards + one prompt ({1}s)"
 
 #: src/studio/ui/NpcDialog.tsx
 msgid "交给铸卡师炼卡"
@@ -16254,8 +16264,8 @@ msgid "把包交给服务器看一眼"
 msgstr "Let the server take a look"
 
 #: src/studio/game/ui/PhaseBar.tsx
-msgid "把卡放进三个虚框、写一句提示词，再点「拍好了」"
-msgstr "Put cards in the three frames, write one line, then tap “Shot it”"
+#~ msgid "把卡放进三个虚框、写一句提示词，再点「拍好了」"
+#~ msgstr "Put cards in the three frames, write one line, then tap “Shot it”"
 
 #: src/components/guide/tours.tsx
 msgid "把卡组分享出去"
@@ -16504,8 +16514,8 @@ msgstr "Take a photo and AI fills in the name and summary (identify: {recogPrice
 #. placeholder {0}: roundView.mine.entry.cards.length
 #. placeholder {1}: roundView.mine.entry.seconds
 #: src/studio/game/ui/PhaseBar.tsx
-msgid "拍好了：{0} 张卡 + 一句提示词（{1} 秒占位片）"
-msgstr "Shot: {0} cards + one line ({1}s placeholder)"
+#~ msgid "拍好了：{0} 张卡 + 一句提示词（{1} 秒占位片）"
+#~ msgstr "Shot: {0} cards + one line ({1}s placeholder)"
 
 #: src/pages/CustomCardPage.tsx
 msgid "拍摄识别"
@@ -19934,6 +19944,10 @@ msgstr "No segments on the table yet — tap the dashed slot to make the first o
 #: src/studio/studioStore.ts
 #~ msgid "桌上还没有段——先点虚线卡位铸第一段，或去模板市场挑一个「用它出片」。"
 #~ msgstr "There are no segments on the table yet — tap the dashed slot to forge the first one, or pick one in the Template market and tap “Use this template”."
+
+#: src/studio/game/ui/PhaseBar.tsx
+msgid "桌面上摆好卡、写一句提示词，点「🎬 视频生成」真出片（或交占位片）"
+msgstr "Place your cards on the table, write a prompt, and hit 「🎬 Generate video」 for a real clip (or submit a placeholder)"
 
 #: src/studio/game/ui/CreatePanel.tsx
 msgid "桌面上还没有角色卡——从下面的背包条把角色卡拖进空位。"
@@ -29106,8 +29120,8 @@ msgstr "I already have this one, don't remind me"
 msgid "这一发扣的 token 没有退回——以「我的」页的 token 余额为准。"
 msgstr "The tokens charged for this run weren't refunded — check your token balance on the “Me” page."
 
-#. placeholder {0}: fmtTokens(quote?.frame ?? 0)
-#. placeholder {1}: fmtTokens(quote?.video ?? 0)
+#. placeholder {0}: fmtTokens(quote.frame)
+#. placeholder {1}: fmtTokens(quote.video)
 #: src/studio/game/ui/GenSheet.tsx
 msgid "这一发按 token 结算（游戏券还没接）：画首帧约 {0}、出片约 {1}。远端模式下以服务器结算为准。"
 msgstr "This one is billed in tokens (game tickets are not wired up yet): about {0} for the first frame and {1} for the video. In remote mode the server's settlement is authoritative."
