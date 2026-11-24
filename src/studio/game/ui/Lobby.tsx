@@ -1,4 +1,4 @@
-// 对局大厅（2026-11-23）：进对局之前的那一屏 —— 4 人匹配 / 8 人匹配 / 自定义房间。
+// 对局大厅（2026-11-23）：进对局之前的那一屏 —— 4 人匹配 / 8 人匹配 / 自定义房间 / 凭码加入。
 //
 // ★ 流程：StudioPage 顶栏的「▶ 开局」不再直接开一局，而是先开这一屏（lobbyStore.openLobby）。
 //   玩家选一种开局方式 → 建局（`ui/startFromLobby`，人数由大厅给）→ 大厅收掉、对局 UI 顶上来。
@@ -9,19 +9,21 @@
 //   大厅里没有任何一张卡、一个桌面 —— 它只是一张三选一的入口卡。
 // ★ 不摆金币 / 券 / 血量（主人点名"别塞"）：大厅要回答的只有"这一局怎么开"，
 //   那些数是**对局中**的读数，摆在这里既没用又要跟着对局状态走（大厅和局之间就会开始漂）。
-// ★ 联机还没接通：三条路现在都靠 AI 补位（api/game/rooms.ts 的桩全回 unavailable）——
-//   所以每一屏都照实说"AI 补位"，不假装在等真人。
+// ★ 联机（2026-11-24）：4/8 人匹配与自定义房间都先问能力位（api/game/rooms.roomsAvailable）；
+//   接通了就进服务端队列 / 房间，没接通 / 超时 / 被拒一律自动退回本机 AI 补位，底栏留一句话。
+//   轮询在 ui/useLobbyOnline（组件卸载 / 换屏就停）。
 import { useEffect, useState } from "react";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { aiSeatIds, type MatchSize } from "../lobby";
-import { useLobby } from "../lobbyStore";
-import { lobbyFailureText } from "../lobbyReasons";
+import { aiSeatIds, normalizeServerCode, type MatchSize } from "../lobby";
+import { useLobby, type LobbyNote } from "../lobbyStore";
+import { lobbyFailureText, lobbyNoteText } from "../lobbyReasons";
 import { useGame } from "../store";
 import { ruleFailureText } from "../reasons";
 import { playerName } from "../labels";
 import GameBtn from "./GameBtn";
 import RoomScreen from "./RoomScreen";
 import { startFromLobby } from "./startFromLobby";
+import { useLobbyOnline } from "./useLobbyOnline";
 
 export default function Lobby() {
   const { t } = useLingui();
@@ -30,11 +32,20 @@ export default function Lobby() {
   const room = useLobby((s) => s.room);
   const matchSize = useLobby((s) => s.matchSize);
   const rejection = useLobby((s) => s.rejection);
+  const online = useLobby((s) => s.online);
+  const remoteRoom = useLobby((s) => s.remoteRoom);
+  const queue = useLobby((s) => s.queue);
+  const note = useLobby((s) => s.note);
+  const busy = useLobby((s) => s.busy);
+  const serverOnline = useLobby((s) => s.serverOnline);
+  const joinCode = useLobby((s) => s.joinCode);
   // 对局开着的时候大厅不出现（结束对局那一下会重新开它，见 StudioPage 的顶栏）
   const inGame = useGame((s) => s.state !== null);
   // 开局失败时的原因由对局 store 记着（rules 的失败原因，说人话在 reasons 一处）
   const gameRejection = useGame((s) => s.rejection);
   const [startFailed, setStartFailed] = useState(false);
+  // 联机轮询（等匹配 / 房间快照 / 服务端开局 → 本机建局）
+  const onlineRun = useLobbyOnline();
 
   // 换一屏就把"上一屏开局失败"那句话收掉：不然回到首屏还挂着一条已经无关的红字
   useEffect(() => {
@@ -43,10 +54,26 @@ export default function Lobby() {
 
   if (!open || inGame) return null;
 
-  /** 这一局开起来没有：开不起来时留在这一屏，把对局 store 记下的原因摆出来（不先收大厅） */
+  /**
+   * 「开始」那一下：联机房间先问服务端（房主 / 全员准备由服务端判），本机房间直接建局。
+   * ★ 联机房间不在这里 startFromLobby：服务端开局成功之后 `remoteRoom.status` 变 playing，
+   *   由 useLobbyOnline 统一建局（房主 / 非房主两个入口同一条路，不会一个先建一个后建）。
+   */
   const startMatch = (playerCount: number) => {
+    if (online && remoteRoom) {
+      void useLobby.getState().beginStart();
+      return;
+    }
     setStartFailed(!startFromLobby(playerCount));
   };
+
+  /** 联机房间人不够时，房主可以直接按 AI 补位开：先换成本机房间，再走原来的建局 */
+  const startWithAi = (playerCount: number) => {
+    useLobby.getState().toLocalRoom({ kind: "not-enough-players" }, playerCount);
+    setStartFailed(!startFromLobby(playerCount));
+  };
+
+  const join = () => useLobby.getState().joinByCode();
 
   return (
     <div className="absolute inset-0 z-40 flex flex-col bg-ink text-slate-100">
@@ -94,25 +121,74 @@ export default function Lobby() {
               badge={t`房主开局`}
               onClick={() => useLobby.getState().chooseRoom()}
             />
+            {/* ── 凭房间码加入（联机接通之后才有意义：本机房间的码只在本机） ──
+                ★ 联机没接通时也摆着：点了会在底栏说"没连上房间服务"，比藏起来更诚实
+                  （藏起来的话，拿到码的人会以为 App 没有这个功能）。 */}
+            <form
+              className="flex w-full items-center justify-center gap-1.5"
+              onSubmit={(e) => {
+                e.preventDefault();
+                join();
+              }}
+            >
+              <input
+                value={joinCode}
+                onChange={(e) => useLobby.getState().setJoinCode(e.target.value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase().slice(0, 6))}
+                placeholder={t`输入 6 位房间码`}
+                aria-label={t`房间码`}
+                inputMode="text"
+                autoCapitalize="characters"
+                autoComplete="off"
+                spellCheck={false}
+                maxLength={6}
+                className="h-8 w-32 rounded-lg bg-white/[0.06] px-2 text-center font-mono text-[13px] tracking-[0.2em] text-slate-100 ring-1 ring-white/10 placeholder:font-sans placeholder:tracking-normal placeholder:text-slate-500"
+              />
+              <GameBtn onClick={join} disabled={busy || !normalizeServerCode(joinCode)}>
+                <Trans>加入房间</Trans>
+              </GameBtn>
+            </form>
           </div>
         )}
 
         {screen === "matching" && matchSize !== null && (
-          <MatchingScreen size={matchSize} onStart={() => startMatch(matchSize)} />
+          <MatchingScreen
+            size={matchSize}
+            online={online}
+            queue={queue}
+            note={note}
+            busy={busy}
+            onStart={() => startMatch(matchSize)}
+          />
         )}
 
-        {screen === "room" && room && <RoomScreen room={room} onStart={() => startMatch(room.size)} />}
+        {screen === "room" && room && (
+          <RoomScreen room={room} remote={online ? remoteRoom : null} onStart={() => startMatch(room.size)} onStartWithAi={() => startWithAi(room.size)} />
+        )}
       </div>
 
-      {/* ── 底栏：一次只显示一件事（开局失败 > 大厅被拒 > 联机现状） ── */}
+      {/* ── 底栏：一次只显示一件事（开局失败 > 退回本机/服务端原因 > 本机规矩 > 联机现状 > 正在连） ── */}
       <footer className="flex min-h-[1.5rem] items-center justify-center px-3 pb-1">
-        {startFailed && gameRejection ? (
+        {(startFailed || onlineRun.startFailed) && gameRejection ? (
           <p className="text-center text-[10px] leading-snug text-danger-200">{ruleFailureText(gameRejection.failure)}</p>
         ) : rejection ? (
           <p className="text-center text-[10px] leading-snug text-danger-200">{lobbyFailureText(rejection)}</p>
+        ) : note ? (
+          <p className="text-center text-[10px] leading-snug text-slate-300">{lobbyNoteText(note)}</p>
+        ) : busy ? (
+          <p className="text-center text-[10px] leading-snug text-slate-300">
+            <Trans>正在连接房间服务…</Trans>
+          </p>
+        ) : serverOnline === true ? (
+          <p className="text-center text-[10px] leading-snug text-slate-400">
+            <Trans>联机已接通：匹配会等真人，空位开局时由 AI 补位。</Trans>
+          </p>
+        ) : serverOnline === false ? (
+          <p className="text-center text-[10px] leading-snug text-slate-400">
+            <Trans>没连上房间服务：现在开局一律由 AI 陪玩补位。</Trans>
+          </p>
         ) : (
           <p className="text-center text-[10px] leading-snug text-slate-400">
-            <Trans>联机还没接通：现在开局一律由 AI 陪玩补位，真人匹配要等服务端房间。</Trans>
+            <Trans>正在连房间服务…</Trans>
           </p>
         )}
       </footer>
@@ -153,31 +229,96 @@ function EntryCard({
   );
 }
 
-/** 4 人 / 8 人匹配那一屏：座位先按"我 + AI"摆出来，明说这一局是 AI 补齐的。 */
-function MatchingScreen({ size, onStart }: { size: MatchSize; onStart: () => void }) {
+/**
+ * 4 人 / 8 人匹配那一屏。
+ * ★ 联机接通时摆"我 + 等真人"并显示队列人数；没接通 / 超时退回时摆"我 + AI 补位"，
+ *   底下明说这一局是 AI 补齐的（与接联机之前那一屏一致）。
+ */
+function MatchingScreen({
+  size,
+  online,
+  queue,
+  note,
+  busy,
+  onStart,
+}: {
+  size: MatchSize;
+  online: boolean;
+  queue: { queued: number; need: number; etaSec: number | null } | null;
+  note: LobbyNote | null;
+  busy: boolean;
+  onStart: () => void;
+}) {
   const { t } = useLingui();
   const aiIds = aiSeatIds(size - 1);
+  const timedOut = note?.kind === "queue-timeout";
+  const canStartLocal = !online && !busy;
+
   return (
     // ★ 宽度按"一排 4 个座位"封顶（4×88 + 3×6 ≈ 370px）：8 人桌正好摆成 4+4，
     //   4 人桌一排，2 人桌两个；不封顶的话 800 宽的横屏会摆成 6+2（看着像漏了两个座位）。
     <div className="flex w-full max-w-[24rem] flex-col items-center gap-1.5">
       <div className="flex flex-wrap items-center justify-center gap-1.5">
         <SeatChip name={t`我`} mine />
-        {aiIds.map((id) => (
-          <SeatChip key={id} name={playerName(id)} />
-        ))}
+        {online
+          ? Array.from({ length: size - 1 }, (_, i) => <WaitChip key={i} />)
+          : aiIds.map((id) => <SeatChip key={id} name={playerName(id)} />)}
       </div>
-      <p className="text-center text-[10px] leading-snug text-slate-300">
-        <Trans>联机还没接通：这一局 {size - 1} 个座位由 AI 陪玩补齐。</Trans>
-      </p>
-      <div className="flex items-center justify-center gap-2">
-        <GameBtn tone="primary" className="px-4 py-1.5 text-[12px]" onClick={onStart}>
-          <Trans>用 AI 开局</Trans>
-        </GameBtn>
-        <GameBtn onClick={() => useLobby.getState().backHome()}>
-          <Trans>取消</Trans>
-        </GameBtn>
-      </div>
+      {online ? (
+        <>
+          <p className="text-center text-[10px] leading-snug text-slate-300">
+            {queue && queue.queued > 0 ? (
+              <Trans>
+                正在等真人：这一池 {queue.queued}/{queue.need || size} 人。
+              </Trans>
+            ) : (
+              <Trans>正在进匹配队列…</Trans>
+            )}
+          </p>
+          <p className="text-center text-[10px] leading-snug text-slate-400">
+            <Trans>最多等 60 秒，没等到真人就先用 AI 开局。</Trans>
+          </p>
+          <div className="flex items-center justify-center gap-2">
+            <GameBtn onClick={() => useLobby.getState().backHome()}>
+              <Trans>取消匹配</Trans>
+            </GameBtn>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="text-center text-[10px] leading-snug text-slate-300">
+            {busy ? (
+              <Trans>正在连接房间服务…</Trans>
+            ) : timedOut ? (
+              <Trans>没匹配到真人，先用 AI 开局。</Trans>
+            ) : (
+              <Trans>没连上房间服务：这一局 {size - 1} 个座位由 AI 陪玩补齐。</Trans>
+            )}
+          </p>
+          <div className="flex items-center justify-center gap-2">
+            <GameBtn tone="primary" className="px-4 py-1.5 text-[12px]" onClick={onStart} disabled={!canStartLocal}>
+              <Trans>用 AI 开局</Trans>
+            </GameBtn>
+            <GameBtn onClick={() => useLobby.getState().backHome()}>
+              <Trans>取消</Trans>
+            </GameBtn>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** 联机等匹配时"还没坐到人"的那一格（与 SeatChip 同一个长相，不假装是 AI）。 */
+function WaitChip() {
+  return (
+    <div className="flex w-[clamp(4.6rem,11vw,6.5rem)] flex-col items-center gap-0.5 rounded-lg bg-white/[0.02] px-1.5 py-1 ring-1 ring-white/5">
+      <span aria-hidden className="text-[11px] font-semibold text-slate-500">
+        —
+      </span>
+      <span className="rounded-full bg-white/[0.04] px-1.5 text-[9px] leading-[1.7] text-slate-500">
+        <Trans>等真人</Trans>
+      </span>
     </div>
   );
 }
