@@ -176,7 +176,8 @@ function toVoting(state, rng) {
   ok("商店阶段不动状态", filledShop.state === state);
 }
 
-// ── 5. 联机结算之后的本机事件（事件只在本机跑；服务端没有事件端点） ──
+// ── 5. 退回本机事件的那条路（服务端出题不可用时的兜底）：抽事件 + AI 选掉 ──
+//    ★ 服务端出题是另一条路（第 9 节）；这里断言的是"能力位为假 / 接口不可用"时仍能打完这一期。
 {
   const { state, rng } = freshGame();
   // 第 1 回合：没有事件
@@ -224,7 +225,10 @@ function toVoting(state, rng) {
   eq("已经结束的屏上没有推进键", H.phaseKeyOf(becameHost, "over", { votesPending: 0 }), null);
 }
 
-// ── 7. 平局 / 结束：服务端没给 winners 时非房主也能在同一拍判出结束（§7.7 的缺口） ──
+// ── 7. 结束 / 平局：只读房间快照的 `state` / `winners`（2026-11-23 服务端补齐之后）──
+//    ★ 老服务端没有 `state` 时才走过渡分支（按 gameOverOf 同口径从 hp 推），那段是兼容不是第二份规则。
+//    ★ 症状（收口前）：平局时服务端省掉 `winners`，非房主要等房主点下一回合才知道结束 ——
+//      现在 `GET /rooms/:code` 就有 `state:"over"` + `winners: []`，任何端都在同一拍读到。
 {
   const four = {
     memberCount: 4,
@@ -235,19 +239,58 @@ function toVoting(state, rng) {
       { userId: "u4", hp: 0 },
     ],
   };
-  eq("4 人局剩 2 人、这一回合已结算 → 结束且按血量给胜者", H.roomOverOf(four, "settled"), {
+  // ① 服务端给了 state：照读，与阶段无关（任何阶段 / 任何端拿到的是同一份快照）
+  eq("state:over + winners → 直接读（房主 / 非房主同一份）", H.roomOverOf({ ...four, state: "over", winners: ["u1", "u3"] }, "creating"), {
+    winners: ["u1", "u3"],
+    source: "server",
+  });
+  eq("state:over + winners 在结算之后也是同一份", H.roomOverOf({ ...four, state: "over", winners: ["u1", "u3"] }, "settled"), {
+    winners: ["u1", "u3"],
+    source: "server",
+  });
+  eq(
+    "winners: [] = 平局 / 同归于尽（界面那一屏按「胜者名单为空」画「平局（同归于尽）」）",
+    H.roomOverOf({ ...four, state: "over", winners: [] }, "settled"),
+    { winners: [], source: "server" },
+  );
+  eq("state:over 但没带 winners → 同样是平局", H.roomOverOf({ ...four, state: "over" }, "settled"), { winners: [], source: "server" });
+  eq("state:playing：**不再按 hp 猜**（读协议字段，存活已达标也不是结束）", H.roomOverOf({ ...four, state: "playing" }, "settled"), null);
+  eq("state:waiting 同理", H.roomOverOf({ ...four, state: "waiting" }, "settled"), null);
+  // ② 过渡分支：老服务端没有 state（docs/game-lobby.md §7.7 的缺口）
+  eq("老服务端（没有 state）：已结算时按 hp 推（同 gameOverOf 口径）", H.roomOverOf(four, "settled"), {
     winners: ["u1", "u3"],
     source: "derived",
   });
-  eq("还没结算时不判结束（中途有人退房也会让存活数达标）", H.roomOverOf(four, "voting"), null);
-  eq("4 人局还剩 3 人 → 没结束", H.roomOverOf({ ...four, members: [{ userId: "u1", hp: 95 }, { userId: "u2", hp: 0 }, { userId: "u3", hp: 90 }, { userId: "u4", hp: 80 }] }, "settled"), null);
-  eq("2 人局剩 1 人 → 结束", H.roomOverOf({ memberCount: 2, members: [{ userId: "u1", hp: 95 }, { userId: "u2", hp: 0 }] }, "settled"), { winners: ["u1"], source: "derived" });
-  eq("2 人局两人都活着 → 没结束", H.roomOverOf({ memberCount: 2, members: [{ userId: "u1", hp: 95 }, { userId: "u2", hp: 90 }] }, "settled"), null);
-  eq("同归于尽 → 结束但胜者为空（界面说平局）", H.roomOverOf({ memberCount: 2, members: [{ userId: "u1", hp: 0 }, { userId: "u2", hp: 0 }] }, "settled"), { winners: [], source: "derived" });
-  // 服务端哪天把结束位放进房间快照：直接照读，不再看 hp / 阶段
-  eq("服务端带了 over + winners → 直接读", H.roomOverOf({ memberCount: 2, members: [], over: true, winners: ["u2"] }, "creating"), { winners: ["u2"], source: "server" });
-  eq("服务端说 over 但没带 winners → 平局", H.roomOverOf({ memberCount: 2, members: [], over: true }, "creating"), { winners: [], source: "server" });
-  eq("服务端明说 over:false → 不推（不知道 ≠ 没结束，但服务端说了没结束就听它）", H.roomOverOf({ ...four, over: false }, "settled"), null);
+  eq("老服务端：还没结算时不推（中途退房也会让存活数达标）", H.roomOverOf(four, "voting"), null);
+  eq("老服务端：4 人局还剩 3 人 → 没结束", H.roomOverOf({ ...four, members: [{ userId: "u1", hp: 95 }, { userId: "u2", hp: 0 }, { userId: "u3", hp: 90 }, { userId: "u4", hp: 80 }] }, "settled"), null);
+  eq("老服务端：2 人局剩 1 人 → 结束", H.roomOverOf({ memberCount: 2, members: [{ userId: "u1", hp: 95 }, { userId: "u2", hp: 0 }] }, "settled"), { winners: ["u1"], source: "derived" });
+  eq("老服务端：2 人局两人都活着 → 没结束", H.roomOverOf({ memberCount: 2, members: [{ userId: "u1", hp: 95 }, { userId: "u2", hp: 90 }] }, "settled"), null);
+  eq("老服务端：同归于尽 → 空胜者（界面说平局）", H.roomOverOf({ memberCount: 2, members: [{ userId: "u1", hp: 0 }, { userId: "u2", hp: 0 }] }, "settled"), { winners: [], source: "derived" });
+  eq("更老的一版兼容位 over:true 仍然照读（服务端今天的快照里是 state）", H.roomOverOf({ memberCount: 2, members: [], over: true, winners: ["u2"] }, "creating"), { winners: ["u2"], source: "server" });
+  eq("over:true 但没带 winners → 平局", H.roomOverOf({ memberCount: 2, members: [], over: true }, "creating"), { winners: [], source: "server" });
+  eq("over:false 明说没结束 → 不推（不知道 ≠ 没结束，但服务端说了没结束就听它）", H.roomOverOf({ ...four, over: false }, "settled"), null);
+  // ③ 「结束」这一位与胜者**有几个**无关：`[]` = 平局也是结束（界面据此进 over 屏）。
+  //    ★ 陷阱：`[]` 在 JS 里是真的、`.length` 是 0 —— 判据只能问 overDecidedOf（唯一一处），
+  //      写成 `if (!winners.length) return` 的话同归于尽那一局永远停在结算屏。
+  const tie = H.roomOverOf({ ...four, state: "over", winners: [] }, "settled");
+  ok("平局（winners: []）也是结束 → 进 over 屏（判据是 overDecidedOf，不是「有几个胜者」）", H.overDecidedOf(tie.winners));
+  eq("还没结束（null）不进 over 屏", H.overDecidedOf(null), false);
+  ok("有胜者当然也是结束", H.overDecidedOf(["u1"]));
+  ok(
+    "老服务端推出来的平局同样是结束",
+    H.overDecidedOf(H.roomOverOf({ memberCount: 2, members: [{ userId: "u1", hp: 0 }, { userId: "u2", hp: 0 }] }, "settled").winners),
+  );
+  // ④ 所有端：同一份快照 → 同一个判定（客户端不看 isHost，也不看自己是不是房主）
+  ok(
+    "房主换人（hostId 不同）读到的判定逐字一样 —— 结束不看是谁在读",
+    show(H.roomOverOf({ ...four, hostId: "u1", state: "over", winners: ["u1", "u3"] }, "creating")) ===
+      show(H.roomOverOf({ ...four, hostId: "u4", state: "over", winners: ["u1", "u3"] }, "voting")),
+  );
+  eq(
+    "state:over 就算全员还活着也是结束（有协议字段就不再按 hp 猜）",
+    H.roomOverOf({ ...four, members: [{ userId: "u1", hp: 95 }, { userId: "u2", hp: 90 }, { userId: "u3", hp: 85 }, { userId: "u4", hp: 80 }], state: "over", winners: [] }, "creating"),
+    { winners: [], source: "server" },
+  );
 }
 
 // ── 8. 重连：把本机直接放到服务端当前回合，且只补一次收入（刷新不能变成刷金币） ──
@@ -266,6 +309,123 @@ function toVoting(state, rng) {
   const back = P.resumeOnlineRound(jumped.state, 1, rng);
   must("服务端回合比本机小", back);
   ok("回合不回退", back.state === jumped.state);
+}
+
+// ── 9. 事件走服务端（2026-11-23 G5 第三块）：**只落 effects.client，hp 不重复应用** ──
+//    ★ 症状（收口前）：事件只在本机跑，四个人各抽各的；而"回血"这一半一旦两边都应用，
+//      一次回 15 会变成回 30（下一次结算又被服务端的 hp 盖回去，屏幕上闪一下像亏了）。
+//    ★ 这里断言的就是那条分界：server 那一半**只念不用**，client 那一半原样落，金币由 App 扣。
+{
+  const { state, rng } = freshGame();
+  const settled1 = must("第 1 回合结算", R.settleRoundFromVotes(toVoting(state, rng), rng));
+  const round2 = must("开第 2 回合", P.openRound(settled1.state, aiIds, rng)).state;
+  const settled2 = must("第 2 回合结算", R.settleRoundFromVotes(toVoting(round2, rng), rng));
+  eq("夹具：第 2 回合结算之后就在事件屏", settled2.state.phase, "event");
+  // 这个夹具只改事件屏要用的那两格（钱 / 血）—— 规则照样是线上那一份
+  const atEvent = {
+    ...settled2.state,
+    players: settled2.state.players.map((player) =>
+      player.id === "me" ? { ...player, gold: 20, hp: 60, modelLevel: 1 } : player,
+    ),
+  };
+
+  // ① 协议 → 本地要落的那一份：hp 不在里面
+  const heal = { id: "heal", cost: 3, effects: { server: { hp: 15 }, client: [] } };
+  eq("服务端那一半（hp）**不进**本地效果数组", H.onlineChoiceOf(heal).clientEffects, []);
+  eq("服务端已落库的回血只念不用（serverHp）", [H.onlineChoiceOf(heal).serverHp, H.onlineServerHpOf(heal)], [15, 15]);
+  const freeGold = { id: "free-gold", cost: 0, effects: { server: {}, client: [{ kind: "gold", delta: 4 }] } };
+  eq("client 那一半原样翻译（与 rules.EventEffect 同形）", H.onlineChoiceOf(freeGold).clientEffects, [{ kind: "gold", delta: 4 }]);
+
+  // ② 选「医疗补给」（只有 server hp）：血一点没动，钱照扣
+  const healed = must("选「医疗补给」", R.applyOnlineEventChoice(atEvent, "me", H.onlineChoiceOf(heal), rng, R.MODEL_GATE_OPEN));
+  const afterHeal = healed.state.players.find((player) => player.id === "me");
+  eq("hp 一点没动（回血由服务端落库，本机不再加一次）", afterHeal.hp, 60);
+  eq("金币照扣（花费由 App 扣，服务端没有金币账户）", afterHeal.gold, 17);
+  eq("本机记下这次表态", healed.state.eventPicks["me"], "heal");
+  eq("联机事件选完就进 round-end（服务端刻意不拦 allChosen，也不等我）", healed.state.phase, "round-end");
+
+  // ③ client 那一半真的落（金币 + 档位），且落完还在 round-end
+  const gained = must("选「金币大使」", R.applyOnlineEventChoice(atEvent, "me", H.onlineChoiceOf(freeGold), rng, R.MODEL_GATE_OPEN));
+  eq("client 的金币效果真落了", gained.state.players.find((player) => player.id === "me").gold, 24);
+  eq("这条不动血", gained.state.players.find((player) => player.id === "me").hp, 60);
+  const upgrade = { id: "upgrade-draft", cost: 8, effects: { server: {}, client: [{ kind: "model-level", to: 2 }] } };
+  const upgraded = must("L1 + 已付费档 → 升 L2", R.applyOnlineEventChoice(atEvent, "me", H.onlineChoiceOf(upgrade), rng, R.MODEL_GATE_OPEN));
+  eq("client 的档位效果真落了", upgraded.state.players.find((player) => player.id === "me").modelLevel, 2);
+  rejects(
+    "免费账号（gate 关）选升级线被拒 —— 与摆选项同一个 gate",
+    R.applyOnlineEventChoice(atEvent, "me", H.onlineChoiceOf(upgrade), rng, { upgrade: false }),
+    "option-unavailable",
+  );
+  const broke = { ...atEvent, players: atEvent.players.map((player) => (player.id === "me" ? { ...player, gold: 1 } : player)) };
+  rejects(
+    "钱不够整项拒（不先扣钱）",
+    R.applyOnlineEventChoice(broke, "me", H.onlineChoiceOf(heal), rng, R.MODEL_GATE_OPEN),
+    "not-enough-gold",
+  );
+
+  // ④ 本机效果只落一次：`eventPicks` 是那道闸（双击 / 重放 / 服务端幂等回同一份都靠它）
+  const alreadyPicked = { ...atEvent, eventPicks: { me: "heal" } };
+  rejects(
+    "同一回合再选一次被拒（本机只落一次，钱与血都不再动）",
+    R.applyOnlineEventChoice(alreadyPicked, "me", H.onlineChoiceOf(heal), rng, R.MODEL_GATE_OPEN),
+    "event-already-picked",
+  );
+
+  // ⑤ 契约变坏（hp 混进 client）时当场响，绝不静默加两次血
+  let threw = false;
+  try {
+    R.applyOnlineEventChoice(atEvent, "me", { optionId: "heal", cost: 0, clientEffects: [{ kind: "hp", delta: 15 }] }, rng);
+  } catch {
+    threw = true;
+  }
+  ok("client 里带 hp → 当场抛错（编程错误，不静默重复加血）", threw);
+}
+
+// ── 10. 服务端给的是**全量**选项：升级线按本机档位 / 连胜筛（判据仍是 rules.optionAvailable）──
+{
+  const player = { ...freshGame().state.players[0], modelLevel: 1, winStreak: 0 };
+  const ids = (list) => list.map((option) => option.id);
+  const arms = [
+    { id: "upgrade-draft", cost: 8, effects: { server: {}, client: [{ kind: "model-level", to: 2 }] } },
+    { id: "upgrade-cinema", cost: 15, effects: { server: {}, client: [{ kind: "model-level", to: 3 }] } },
+    { id: "half-next", cost: 5, effects: { server: {}, client: [{ kind: "next-round-cost-half" }] } },
+    { id: "free-gold", cost: 0, effects: { server: {}, client: [{ kind: "gold", delta: 4 }] } },
+  ];
+  eq("L1：只摆升到 L2 那条（服务端给的是 4 条全量）", ids(H.onlineOptionsFor(player, arms, R.MODEL_GATE_OPEN)), [
+    "upgrade-draft",
+    "half-next",
+    "free-gold",
+  ]);
+  eq(
+    "L2 + 3 连胜：换成 L3 那条",
+    ids(H.onlineOptionsFor({ ...player, modelLevel: 2, winStreak: 3 }, arms, R.MODEL_GATE_OPEN)),
+    ["upgrade-cinema", "half-next", "free-gold"],
+  );
+  eq("免费账号：两条升级线都不摆", ids(H.onlineOptionsFor(player, arms, { upgrade: false })), ["half-next", "free-gold"]);
+  eq(
+    "补给站三条原样摆（回血那条也在，hp 不参与「能不能摆」）",
+    ids(
+      H.onlineOptionsFor(
+        player,
+        [
+          { id: "bag-expand", cost: 5, effects: { server: {}, client: [{ kind: "item-limit", delta: 1 }] } },
+          { id: "heal", cost: 3, effects: { server: { hp: 15 }, client: [] } },
+          { id: "free-refresh", cost: 0, effects: { server: {}, client: [{ kind: "free-refresh", count: 2 }] } },
+        ],
+        R.MODEL_GATE_OPEN,
+      ),
+    ),
+    ["bag-expand", "heal", "free-refresh"],
+  );
+}
+
+// ── 11. 事件从哪儿来：能力位为假 / 接口不可用 → 退回本机事件（界面要写明「只在本机生效」）──
+{
+  eq("能力位为真 → 服务端出题（同一房间同一回合同一道题）", H.onlineEventSourceOf(true), "server");
+  eq("能力位为假（老服务端）→ 退回本机事件", H.onlineEventSourceOf(false), "local");
+  eq("能力位还没探到 → 先不定（下一拍再问，不急着判成本机）", H.onlineEventSourceOf(null), "unknown");
+  eq("能力位为真但那一发失败（超时 / 5xx / 形状不认识）→ 退回本机事件", H.onlineEventSourceOf(true, true), "local");
+  eq("能力位为假 + 那一发也失败 → 同样是本机", H.onlineEventSourceOf(false, true), "local");
 }
 
 if (problems.length) {

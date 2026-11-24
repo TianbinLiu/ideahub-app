@@ -84,6 +84,15 @@ export interface ServerCaps {
    *   不按 404 猜：真机上不存在的路径会回 200 + index.html（SPA 回退），状态码说不了这件事。
    */
   gameRooms: boolean;
+  /**
+   * 回合间事件由**服务端出题**（2026-11-23 G5 联机第三块）：有
+   * `GET/POST /api/game/rooms/:code/rounds/events[/choice]`（同一房间同一回合所有人看到同一道题）。
+   * ★ 读不到这一位 = 老服务端：联机局里的事件**退回本机那一套**（各抽各的，界面会写明「事件只在本机生效」）。
+   *   与 gameRooms 同一条纪律：不按 404 猜（真机上不存在的路径回 200 + index.html），只认这一位。
+   * ★ 这一位为真、但事件那一发**接口本身**失败（超时 / 5xx / 形状不认识）时也退回本机事件
+   *   （判据在 `studio/game/onlineHost.onlineEventSourceOf`：能力位 + 那一发的结果）。
+   */
+  gameEvents: boolean;
 }
 
 /** 布尔的那几位（serverSupports 只答这几样） */
@@ -101,7 +110,8 @@ export type BoolCap =
   | "minimaxV2"
   | "minimaxV2FreeTextOnly"
   | "gameTickets"
-  | "gameRooms";
+  | "gameRooms"
+  | "gameEvents";
 
 /** 健康端点的 JSON → ServerCaps（形状不对的位一律按「没有」）。**唯一解析处** */
 function capsOf(j: Record<string, unknown>): ServerCaps {
@@ -127,6 +137,7 @@ function capsOf(j: Record<string, unknown>): ServerCaps {
     minimaxV2FreeTextOnly: j.minimaxV2FreeTextOnly !== false,
     gameTickets: j.gameTickets === true,
     gameRooms: j.gameRooms === true,
+    gameEvents: j.gameEvents === true,
   };
 }
 
@@ -151,6 +162,7 @@ const NONE: ServerCaps = {
   minimaxV2FreeTextOnly: true,
   gameTickets: false,
   gameRooms: false,
+  gameEvents: false,
 };
 /**
  * 直连 / 离线：没有服务端那一层，能力全在；免费档清单按档位表（freeVideo null）。
@@ -159,6 +171,7 @@ const NONE: ServerCaps = {
  *   videoZone 同理（data/videoZone 本来也不在直连 / 离线时问）：dev 的出片不经服务端、没有地区门禁，地区当「不知道」照老样子摆。
  *   minimaxV2 同理（2026-10-26）：H3 只经服务端的 /api/minimax/v2 出片（MiniMax 的 key 在服务端），dev 直连方舟、离线走 mock 都没有它 —— 三档不摆。
  *   gameTickets 同理（G4 收尾）：dev 的 /api/ark 由 vite 代理直连方舟、不经服务端计费，也没有 /api/game/tickets —— 券没有可扣的地方。
+ *   gameEvents / gameRooms 同理（联机对局）：dev 里没有 /api/game/rooms*，事件只能走本机那一套。
  */
 const ALL: ServerCaps = {
   res480: true,
@@ -177,6 +190,7 @@ const ALL: ServerCaps = {
   minimaxV2FreeTextOnly: true,
   gameTickets: false,
   gameRooms: false,
+  gameEvents: false,
 };
 const listeners = new Set<() => void>();
 
@@ -196,10 +210,10 @@ export function subscribeServerCaps(fn: () => void): () => void {
 /**
  * 探一次（整场会话记住结果：服务端不会在会话中途升级）。探测本身失败（断网）回 null 且不记，下次再问。
  * ★ 直连 / 离线时不发请求，直接回「全在」。
- * ★ `force`：跳过「dev / 没配 API_BASE 当没有服务端」这一条，照常去问。唯一的调用方是
- *   `serverGameRooms`（工坊对局的房间服务）：本轮联机验证的环境就是 `npm run dev` + 本地 server，
- *   而 `noServerLayer()` 的「dev = 直连方舟」只在**没配** `VITE_API_BASE` 时才成立 ——
- *   配了地址的 dev 是一个真客户端，房间服务那一位不能因此永远读成「没有」。
+ * ★ `force`：跳过「dev / 没配 API_BASE 当没有服务端」这一条，照常去问。调用方是
+ *   `serverGameRooms` / `serverGameEvents`（工坊对局的房间与回合间事件）：本轮联机验证的环境就是
+ *   `npm run dev` + 本地 server，而 `noServerLayer()` 的「dev = 直连方舟」只在**没配** `VITE_API_BASE`
+ *   时才成立 —— 配了地址的 dev 是一个真客户端，这两位不能因此永远读成「没有」。
  *   别的能力位不受影响（仍然走上面那条早退）。
  */
 export function probeServerCaps(force = false): Promise<ServerCaps | null> {
@@ -282,6 +296,21 @@ export function serverFreeVideo(): ServerCaps["freeVideo"] {
 export function serverGameRooms(): boolean | null {
   if (!API_ON) return ALL.gameRooms;
   if (caps) return caps.gameRooms;
+  if (!probe && Date.now() - failedAt >= RETRY_MS) void probeServerCaps(true);
+  return null;
+}
+
+/**
+ * 这台服务端的回合间事件是不是**服务端出题**（`rounds/events*`，同一房间同一回合同一道题）。
+ * ★ 唯一读法是 `studio/game/onlineHost.onlineEventSourceOf(serverGameEvents())`：
+ *   能力位为假 / 读不到（老服务端）→ 退回本机事件，界面写明「事件只在本机生效」。
+ * ★ 与 serverGameRooms 同一份理由单开一个读法（force 探测：dev + 本地服务端要能问到这一位）。
+ * ★ 这一位没有「不知道就放行」的余地：老服务端上真发出去的 events 请求只会吃 SPA 的 200 + HTML，
+ *   而更要紧的是——两端各抽各的事件，屏幕上就不再是"同一道题"了（这正是本轮要收口的那件事）。
+ */
+export function serverGameEvents(): boolean | null {
+  if (!API_ON) return ALL.gameEvents;
+  if (caps) return caps.gameEvents;
   if (!probe && Date.now() - failedAt >= RETRY_MS) void probeServerCaps(true);
   return null;
 }

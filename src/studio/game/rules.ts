@@ -16,6 +16,7 @@ import type {
   CardType,
   DamageEntry,
   EntryTally,
+  EventEffect,
   GameBuffs,
   GameCard,
   GameEvent,
@@ -362,6 +363,15 @@ export type StateResult = { ok: true; state: GameState } | RuleFailure;
 export type SellResult = { ok: true; player: GamePlayer; refund: number } | RuleFailure;
 export type EventOptionsResult = { ok: true; options: GameEventOption[] } | RuleFailure;
 export type EventApplyResult = { ok: true; state: GameState; option: GameEventOption } | RuleFailure;
+/**
+ * 联机版一次事件选择（服务端出题）的落地结果。
+ * ★ `effectFailure`：前置闸过了、选择也记下了，但某条 `client` 效果没落上（例如随机卡把背包撑破）。
+ *   这时**不整项回滚** —— 服务端那边这一次选择已经落库（幂等、第一选作数），本机回滚只会跟服务端
+ *   各说各话；状态照常前进，原因由调用方说出来（铁律八：不静默）。
+ */
+export type OnlineEventApplyResult =
+  | { ok: true; state: GameState; effectFailure?: RuleFailure }
+  | RuleFailure;
 export type SettleResult = { ok: true; state: GameState; summary: RoundSettlement } | RuleFailure;
 /** 交片：回执里带上刚写进去的那条作品（界面要立刻显示"拍好了"）。 */
 export type EntryResult = { ok: true; state: GameState; entry: RoundEntry } | RuleFailure;
@@ -1239,6 +1249,87 @@ export function skipEventChoice(state: GameState, playerId: string): StateResult
 
 /** 跳过在 eventPicks 里记的 optionId（与事件数据里的选项 id 不可能撞：事件 id 里没有 "skip" 这种短词）。 */
 export const EVENT_SKIP_PICK = "skip";
+
+/**
+ * 联机版的事件选择落地（2026-11-23 服务端出题）：**只落 `effects.client` 那一半**。
+ *
+ * ★★ 为什么不能走 applyEventChoice：那一条按 `state.currentEventId` 在本地 `GAME_EVENTS` 里查选项，
+ *   会把 `{kind:"hp", delta}` 也应用一遍 —— 而联机版的回血**服务端已经落库**（它是判淘汰 / 胜者的
+ *   唯一依据，写在这一次选择同一次原子更新里）。本地再来一次就是"回 15 变回 30"，
+ *   而且下一次结算会被服务端的 hp 盖回去（屏幕上闪一下、看起来像亏了）。
+ *   所以这里的 `events` 只来自服务端下发的 `effects.client`（`onlineHost.onlineChoiceOf` 翻译）。
+ *   `effects.server` 那一半**不经过这里**：新血量由调用方从房间快照 `members[].hp` 读回来。
+ * ★ 金币花费照旧由 App 扣（服务端没有金币账户）：先扣钱、再落 client 效果，与 applyEventChoice 同序。
+ * ★ 联机事件只有"我"一个真人在选：选完就进 `round-end`（服务端刻意**不**用 allChosen 拦 next，
+ *   也不等别人）—— 所以这里不按"全员选完"判阶段，与单机那条 `allPicked` 分叉。
+ * ★ `eventPicks` 那一道闸是"本机效果只落一次"的唯一保证：双击 / 重试 / 服务端幂等回同一份时，
+ *   第二次到这里会被 event-already-picked 拒（钱与卡都不会再动一遍）。
+ *
+ * @param choice 由 `onlineHost.onlineChoiceOf(服务端选项)` 翻译好的一份（只有 client 效果）
+ */
+export function applyOnlineEventChoice(
+  state: GameState,
+  playerId: string,
+  choice: OnlineEventChoice,
+  rng: Rng,
+  gate: ModelGate = MODEL_GATE_OPEN,
+): OnlineEventApplyResult {
+  if (state.phase !== "event") return reject("wrong-phase");
+  if (state.currentEventId === null) return reject("event-not-drawn");
+  const found = findPlayer(state, playerId);
+  if (!found) return reject("unknown-player");
+  if (found.player.eliminated) return reject("player-eliminated");
+  if (state.eventPicks[playerId] !== undefined) return reject("event-already-picked");
+  // ★ 编程错误而不是输入错误：hp 只走服务端那一半。真混进来就当场响（与 applyEventEffects 的
+  //   unknown effect 同一条纪律），别静默把血加两遍。
+  if (choice.clientEffects.some((effect) => effect.kind === "hp")) {
+    throw new Error("online event effects must not carry hp (the server already applied it)");
+  }
+  // 与 applyEventChoice 同一条：「摆出来的」和「真扣钱的」用同一个 gate 判（免费账号升不了档）。
+  // ★ 界面已经用 onlineHost.onlineOptionsFor 筛过一遍，这里再判一次是防线而不是重复：
+  //   手快 / 旧版界面真点下去时，宁可回 option-unavailable 也不能把 8 金扣成一次升级。
+  const option = { id: choice.optionId, cost: choice.cost, effects: choice.clientEffects, art: "" };
+  if (!optionAvailable(found.player, option, gate)) return reject("option-unavailable");
+  if (found.player.gold < choice.cost) {
+    return reject("not-enough-gold", { need: choice.cost, have: found.player.gold });
+  }
+
+  const paid: GamePlayer = { ...found.player, gold: found.player.gold - choice.cost };
+  const applied = applyEventEffects(
+    paid,
+    { id: choice.optionId, cost: choice.cost, effects: choice.clientEffects, art: "" },
+    rng,
+    state.cardSerial,
+  );
+  const eventPicks = { ...state.eventPicks, [playerId]: choice.optionId };
+  if (!applied.ok) {
+    // 选已经记下（服务端那一份也记了）、阶段照常前进；只是这一条效果没落上，原因原样带出去
+    return { ok: true, state: { ...state, eventPicks, phase: "round-end" }, effectFailure: applied };
+  }
+  return {
+    ok: true,
+    state: {
+      ...replacePlayerInState(state, applied.player),
+      cardSerial: applied.serial,
+      eventPicks,
+      phase: "round-end",
+    },
+  };
+}
+
+/**
+ * 联机事件选择的输入：**只有本地该落的那一半**（见 applyOnlineEventChoice）。
+ * ★ `serverHp` 不参与任何计算，只留给界面念一句「服务端已经回 X 血」/ 排查时对上数。
+ */
+export interface OnlineEventChoice {
+  optionId: string;
+  /** 金币花费（服务端只下发，扣钱在 App） */
+  cost: number;
+  /** 交给 App 本地应用的效果（服务端下发的 `effects.client`；**不含 hp**） */
+  clientEffects: readonly EventEffect[];
+  /** 服务端已经落库的回血（只念，不应用） */
+  serverHp?: number;
+}
 
 // ────────────────────────────── 回合结算与胜负（§2.5） ──────────────────────────────
 /**

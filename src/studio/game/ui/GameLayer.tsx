@@ -31,6 +31,7 @@ import GameDragLayer from "./GameDragLayer";
 import GenPreview from "./GenPreview";
 import GameHud from "./GameHud";
 import ItemRail from "./ItemRail";
+import OnlineEventPanel from "./OnlineEventPanel";
 import OnlineScreeningPanel from "./OnlineScreeningPanel";
 import OnlineVotingPanel from "./OnlineVotingPanel";
 import OpponentStrip from "./OpponentStrip";
@@ -50,6 +51,7 @@ export default function GameLayer() {
   const notice = useGame((s) => s.notice);
   const previewOpen = useGame((s) => s.previewOpen);
   const online = useGame((s) => s.online);
+  const onlineLocalEvents = useGame((s) => s.onlineLocalEvents);
   const roundsNote = useRounds((s) => s.note);
   const { t } = useLingui();
   // 联机回合的轮询与对账（**唯一一处**定时器；单机局里这个 hook 什么都不做）
@@ -252,7 +254,11 @@ export default function GameLayer() {
         {state.phase === "create" && <CreatePanel view={view} />}
         {!inShop && state.phase === "screening" && (online ? <OnlineScreeningPanel /> : <ScreeningPanel />)}
         {!inShop && state.phase === "voting" && (online ? <OnlineVotingPanel /> : <VotingPanel />)}
-        {!inShop && state.phase === "event" && <EventPanel view={view} />}
+        {/* ★ 事件屏两块牌子：服务端出题时渲染服务端那一份（OnlineEventPanel，[id] 同一张卡）；
+            退回本机事件（能力位为假 / 接口不可用）时才用单机那一屏，并由它写明「事件只在本机生效」。 */}
+        {!inShop &&
+          state.phase === "event" &&
+          (online && !onlineLocalEvents ? <OnlineEventPanel /> : <EventPanel view={view} />)}
         {!inShop && (state.phase === "round-end" || state.phase === "over") && <RoundResultPanel />}
 
         {/* 背包条 + 商店键：商店阶段 = 买完就地摆；创作阶段出片前还能改摆法（见 rules.PLACE_PHASES）。

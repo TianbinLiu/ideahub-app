@@ -288,9 +288,13 @@ export function resumeOnlineRound(state: GameState, serverRound: number, rng: Rn
 }
 
 /**
- * 结算之后（服务端给完 hp / 名次）本机的事件：抽事件 + 替 AI 选掉，剩下真人那一屏。
- * ★ 事件**只在本机**（服务端没有事件端点，这一版也不打算有）：它改的是本机的金币 / 档位，
- *   不改服务端记的 hp —— 下一次结算服务端的 hp 会把本地这一格盖回去（界面不暗示它影响别人）。
+ * 结算之后（服务端给完 hp / 名次）**退回本机**的事件：抽事件 + 替 AI 选掉，剩下真人那一屏。
+ * ★★ 这条是**退路**，不是联机局的主路：服务端出题（`health.gameEvents` 为真、`rounds/events` 读得到）时
+ *   走 `store.applyOnlineEvent` + `ui/OnlineEventPanel`（题面来自服务端、同房间同回合同一道题），
+ *   效果只落 `effects.client`（`rules.applyOnlineEventChoice`）。
+ *   走到这里只有三种情况：老服务端没有事件端点、能力位为假、或者那一发不可用（超时 / 5xx / 形状不认识 /
+ *   `GAME_EVENTS_OFF`）—— 这时事件**只改本机的金币 / 档位**，不改服务端记的 hp，界面也明写
+ *   「事件只在本机生效（不会影响别人）」（`store.onlineLocalEvents`）。
  * ★ 被淘汰的人不再弹事件（他已经不在这一局里了，选什么都影响不到后面）。
  */
 export function onlineEventPhase(state: GameState, aiIds: readonly string[], rng: Rng): PhaseResult {

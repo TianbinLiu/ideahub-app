@@ -273,10 +273,12 @@ damage  = max(5, floor(base(r) × 人数 / 4 / 5) × 5)
 - **对局中的「✕ 结束对局」在选风格那一屏点不到**：`StylePick` 是 z-40 全屏（G2 就有，不是这一轮引入的），
   盖住了顶栏。要回大厅得先把风格选完。这一轮没动它 —— 真要修就是给风格屏补一颗退出键。
 
-## 七、联机回合：房间里的这一局跟服务端走（2026-11-24）
+## 七、联机回合：房间里的这一局跟服务端走（2026-11-24；2026-11-23 接事件与结束状态）
 
 服务端回合引擎的契约正本在 `ideahub-server` 的 `routes/gameRoom.routes.js` + `services/gameRound.service.js`
-（本轮**没改服务端一行**）。App 这一侧只做"把服务端的事实接回本机状态"，榜与扣血**一个数都不重算**。
+（2026-11-24 那一轮**没改服务端一行**；2026-11-23 这一轮的服务器一侧改动在 `ideahub-server` #158：
+`rounds/events*` 两个端点 + 房间快照的 `state` / `winners` / `finishedAt`，App 只照契约接）。
+App 这一侧只做"把服务端的事实接回本机状态"，榜与扣血**一个数都不重算**。
 
 ### 7.1 两条路的判据：什么时候联机、什么时候退回单机
 
@@ -349,21 +351,35 @@ damage  = max(5, floor(base(r) × 人数 / 4 / 5) × 5)
 - 结算里带 `winners` = 这一局结束 → 本机直接进 `over`（所有人同一拍看到胜者）；**不带不代表没结束**
   （平局时服务端会把空数组省掉 → 靠下面那条房间快照的判定）。
   `rounds/next` 回 `GAME_OVER` 时（只有房主会收到，带顶层 `winners`）也进 `over`。
-- **平局 / 结束的非房主感知（2026-11-24 收口）**：`rounds/next` 只许房主发、且服务端**先判房主再看胜负**，
-  非房主永远拿不到那个 `GAME_OVER`；平局时服务端连 `settlement.winners` 都省掉（空数组被
-  `gameRound.settlementOf` 丢掉）。所以结束判定改成**两档**（`onlineHost.roomOverOf` 一处）：
-  ① 房间快照哪天带上 `over:true` / `state:"over"` / `winners` / `finishedAt` → 直接照读（客户端已经这么解，
-  服务端补字段即生效）；② **今天服务端没有这几位**：在**当前回合已经结算**（`phase === "settled"`）时，
-  按服务端 `gameOverOf` 的同一口径（存活人数 ≤ `winnerTargetOf(当前房间成员数)`）从房间快照的
-  `members[].hp` 推胜者（同血按 userId，与服务端同序；0 人存活 = 胜者空数组 = **平局**）。
-  ★ 为什么卡 settled：中途有人退房也会让存活数提前达标，但那时还没结算，服务端 next 也不会回 `GAME_OVER`。
-  ★ **服务端字段缺口（本轮没改服务端）**：`GET /rooms/:code` 今天只有 `hostId` / `members[].hp` / `status`，
-  没有 `state` / `winners` / `finishedAt`；`status` 在结束后也一直是 `playing`。建议服务端在结算回包里
-  保留空 `winners`、并在房间快照加一个 `over` 位 —— 客户端两处都已经是"有就读"。
+- **平局 / 结束的非房主感知（2026-11-24 收口；2026-11-23 改成读协议字段）**：`rounds/next` 只许房主发、
+  且服务端**先判房主再看胜负**，非房主永远拿不到那个 `GAME_OVER`；平局时服务端连 `settlement.winners`
+  都省掉（空数组被 `gameRound.settlementOf` 丢掉）。所以结束判定归到 `onlineHost.roomOverOf` 一处，
+  今天**首读房间快照的 `state` / `winners`**（服务端 2026-11-23 起给了，见下面那条）。
+  ★ 老服务端（没有 `state`）才走那条过渡分支：在当前回合**已结算**时按服务端 `gameOverOf` 的同一口径
+  （存活人数 ≤ `winnerTargetOf(当前房间成员数)`）从 `members[].hp` 推胜者（同血按 userId，与服务端同序；
+  0 人存活 = 空胜者 = **平局**）；为什么卡 settled：中途有人退房也会让存活数提前达标，但那时还没结算，
+  服务端 next 也不会回 `GAME_OVER`。
 - 结束时所有端（房主 / 非房主）都在同一拍进 `over` 屏，显示服务端名单；平局显示「平局（同归于尽）」。
-- **事件仍然只在本机跑**（服务端没有事件端点，这一版也不加）：结算后按回合数抽事件 + AI 选掉，剩真人那一屏。
-  事件改的是本机金币 / 档位 / 本地 hp；**下一回合服务端结算会用服务端的 hp 盖回本地**。
-  界面上写的是一句「事件只在本机生效」，不暗示它影响别人。这一条是本轮**明确的限制**（见 §7.7）。
+- **结束 / 平局改读服务端字段（2026-11-23 服务端补齐，`ideahub-server` #158）**：
+  `GET /rooms/:code` 现在带 `state`（`waiting | playing | over`）+ `winners`（`[]` = 平局）+ `finishedAt`，
+  判结束**只看 `state`**（`onlineHost.roomOverOf` 一处）：`"over"` → 进 over（`winners` 空 = 平局）；
+  `waiting` / `playing` → **没结束**（有协议字段之后就不再按 hp 猜）。落库时机是房主 `rounds/next` 遇
+  `GAME_OVER` 那一发（`markRoomOver`），所以房主 / 非房主在**同一拍**从同一份快照读到它，不需要谁点下一回合。
+  ★ 老服务端没有 `state` 时只剩**一条过渡分支**：按服务端 `gameOverOf` 同口径从 `members[].hp` 推、
+  只在 `settled` 时认（注释写明是过渡）；服务端补字段之后它永远走不到，攒到下线老服务端就整段删。
+- **回合间事件由服务端出题（2026-11-23，G5 联机第三块）**：`health.gameEvents` 为真时，结算后读
+  `GET rounds/events`（同一房间同一回合同一道题，**两端的 `eventId` 一样**），面板用服务端给的 `title` /
+  `options`；选择写 `POST rounds/events/choice {optionId}`（幂等，第一选作数；跳过 = `"skip"`）。
+  ★★ **只落 `effects.client`**（金币 / 档位 / 道具上限 / 免费刷新 / 随机卡）：`effects.server.hp` 在服务端
+  这一次原子更新里就已经落库，本机**一个数都不再应用** —— 新血量从房间快照 `members[].hp` 读回来
+  （`rules.applyOnlineEventChoice` 见到 client 里带 hp 会当场抛错：那是契约变了，不是"少加一次"）。
+  金币仍然由 App 扣（服务端没有金币账户），扣钱与"摆不摆得起"都问 `rules.optionAvailable` 同一个 gate。
+  ★ `allChosen` **只用来念一句**「全员都选好了 / 还有人没选」，**不拦下一回合**（服务端刻意不拦：
+  效果在 App 本地落，卡在事件屏对整桌没有好处）。回包只有布尔、没有人数，所以没有 `x/y` 那个数
+  （要它得服务端多给两个字段；本轮不改契约）。
+  ★ 能力位为假 / 这一发不可用（超时 / 5xx / 形状不认识 / `GAME_EVENTS_OFF`）→ **退回本机事件**，
+  界面明写「事件只在本机生效（不会影响别人）」；能力位还没探到时先停在结算屏、下一拍再问
+  （不当服务端，也不急着判成本机）。
 
 ### 7.6 定时器与失败
 
@@ -380,13 +396,16 @@ damage  = max(5, floor(base(r) × 人数 / 4 / 5) × 5)
 ### 7.7 已知限制
 
 - **没有推送**：仍然是 2 秒轮询（服务端契约就是这么设计的）；换回合 / 结算 / 房主换手 / 结束最多慢 2 秒。
-- **事件不跨端**：见 7.5，服务端没有事件端点；事件只在本机，hp 以服务端为准。
-- **结束位的服务端缺口（本轮没改服务端）**：`GET /rooms/:code` 没有 `state:"over"` / `winners` / `finishedAt`，
-  `status` 结束后仍是 `playing`；结算回包在平局时也省掉 `winners`。App 的兜底是
-  `onlineHost.roomOverOf`：**只在回合已结算时**按服务端 `gameOverOf` 的同一口径（存活 ≤ 胜者名额）
-  从房间快照 `members[].hp` 推。口径与服务端一致（同血按 userId、名额按当前成员数），
-  但这是**镜像规则**不是协议字段：服务端若改 `gameOverOf`（名额 / 排序 / 提前收局），这里必须同 PR 跟着改。
-  服务端补上 `over` / `winners` 后，客户端自动改读字段（解析在 `api/game/rooms.ts` 一处）。
+- **事件只在"服务端出题"那一档才跨端**（见 7.5）：`health.gameEvents` 为假的老服务端上仍退回本机那一套
+  ——那时各人抽各人的题，界面明写「事件只在本机生效（不会影响别人）」。`GAME_EVENTS_API=off`
+  急停的那一发也会落到这条路（503 → 本地事件），所以它不是"老服务端专属"的退路。
+- **老服务端的结束位（过渡分支，待下线）**：没有 `state` / `winners` / `finishedAt` 的服务器上，
+  `onlineHost.roomOverOf` **只在回合已结算时**按服务端 `gameOverOf` 的同一口径（存活 ≤ 胜者名额）从
+  `members[].hp` 推。口径与服务端一致（同血按 userId、名额按当前成员数），但这是**镜像规则**不是协议字段：
+  老服务端若改 `gameOverOf`（名额 / 排序 / 提前收局），这里必须同 PR 跟着改。新服务端给了 `state` 之后
+  这条分支永远走不到（`state` 有值就照读），攒到老服务端下线可以整段删掉。
+- **事件回包只有布尔 `allChosen`、没有「几个人选了」**：所以事件屏念的是「全员都选好了 / 还有人没选」，
+  不是 `x/y`。要那个数得服务端在回包里多给两个字段（本轮不改契约）。
 - **重连是轻量的**：只找回"同一局、同一回合、同一批对手"，**卡组 / 金币 / 商店 / 已摆的卡不恢复**
   （服务端不存本机牌桌）；`phases.resumeOnlineRound` 只补发**一回合**收入（重连那一回合要有钱买东西，
   也不能靠刷新刷金币）。记录在 `localStorage`（按账号对），超过 6 小时不再尝试（playing 房寿命 2 小时）。
@@ -436,3 +455,40 @@ damage  = max(5, floor(base(r) × 人数 / 4 / 5) × 5)
      `ui/useOnlineRounds` 的去重键从"回合号"改成"**房间码:回合号**"；修完第二局的结算正常应用。
 4. 真机这一轮**没跑**（这台机器没有连着已登录的 release 包）；上面是 dev 两个来源 + 本机服务端的真凭据。
    真机观感要主人在已登录的 release 上补看一眼。
+
+### 7.9 怎么验的（2026-11-23 事件与结束状态接到服务端）
+
+1. `node scripts/check-game-online.mjs` → **190 条**（正例 185 / 反例 5）。新增/改写的是三块：
+   第 7 节改读 `state`（`winners: []` = 平局也进 over，判据 `overDecidedOf`；老服务端那条过渡分支单独断言）；
+   第 9 节钉住"服务端事件**只落 `effects.client`**"（hp 一点不动、金币照扣、`eventPicks` 只落一次、
+   client 里带 hp 当场抛错）；第 10 节钉住"服务端给全量选项、按本机档位 / 连胜筛"；
+   第 11 节钉住"能力位为假 / 那一发失败 → 退回本机事件"。
+2. `npm run build` 绿（tsc + lingui extract + 全部 check + vite build）；`check-i18n` → **en 缺译 0**
+   （本轮新增 8 条：服务端出题那一句 / 全员选好 / 还有人没选 / 正在读服务端事件 / 服务端回血 /
+   事件只在本机生效 / 服务端给的 hp / 档位不够那一句）。
+3. 本机服务端（`ideahub-server` #158；`MONGO_URI` = 本机 Mongo 的测试库 `ideahub-g5events`，
+   `GAME_ROOMS` / `GAME_ROUNDS` / `GAME_EVENTS_API` 全开，`/api/ark/health` 的三个能力位都是 true）
+   + `npm run dev`（这一轮 dev 在 **5178**，服务端 4000）。两个来源（`localhost:5178` / `127.0.0.1:5178`，
+   localStorage 按源隔离）各登一个新建测试账号（g5a 房主 / g5b 客人），custom 4 座房
+   （服务端 `requiredPlayers` 只看真人 = 2），用 `window.__lobby / __game / __rounds` 驱动（与上一轮同一条
+   自动化路子），**事件那一屏两次都是真的去点了卡 + 确认**：
+   - 房间 `AG425B`：第 1 回合结算后 `eventState:"none"`（第 1 回合本来就不是事件回合）；
+     第 2 回合结算后**两边** `__rounds.event.eventId === "model-arms-race"`、`eventState:"server"`、
+     `onlineLocalEvents:false`，面板上是服务端的题面（「事件 · 模型军备」），两条升级线已按本机档位筛掉。
+   - 各选一项：g5b 点「金币大使」（client `gold+4`）→ 金币 9→13、hp 80→80；g5a 点「批量采购」
+     （client `next-round-cost-half`、cost 5）→ 金币 9→4、hp 90→90；两边的 `myChoice` 都写回服务端，
+     而且**没等对方选完**就进了 round-end（`allChosen` 不拦下一回合）。
+   - 房间 `EZ2SU3`（第 2 回合事件 = 补给站）：g5b 点「医疗补给」（`effects.server.hp = 15`、client 空）→
+     金币 9→6、**hp 80→95**（只加了一次 15；两边都应用会是 110，封顶也会是 100）；
+     服务端库里 `members[].hp = 95`、`eventPicks` 只有这一条；本机那个 ❤ 也是 95（从房间快照
+     `members[].hp` 读回来的），g5a 那边看到对手血量同样是 95。
+   - **平局**：房间 `AG425B` 第 3 回合先把库里 `members[].hp` 改成 5（"打空 hp"的等价做法，与上一轮同一条），
+     双方照常交片 / 投票 / 结算 → `ranking` 两行 `hp:0 / eliminated:true`、结算回包**不带** `winners`；
+     房主点「下一回合」拿 `GAME_OVER` 那一发之后房间落成 `state:"over"` + `winners: []` + `finishedAt`，
+     **非房主那一端（全程没点过下一回合）在下一拍（≤2 秒）也进了 over 屏**，屏幕上是
+     「🏁 本局结束 / 共 3 回合（联机）/ **平局（同归于尽）** / 胜者由服务端判定」，
+     `__rounds.winners === []`、`__game.onlineWinners === []`。
+4. 真机这一轮**没跑**；上面是 dev 两个来源 + 本机服务端的真凭据（`AG425B` / `EZ2SU3` 两个房）。
+   「能力位为假 → 退回本机事件」只有 `check-game-online` 第 11 节的正反例，**没有**真的把
+   `GAME_EVENTS_API` 关掉再打一局（下一轮要验就在起服务端时不带上这个开关）。
+

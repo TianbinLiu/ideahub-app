@@ -14,20 +14,24 @@
 import { create } from "zustand";
 import { leaveRoom, readRoom, type RemoteRoom } from "../../api/game/rooms";
 import {
+  chooseRoundEvent,
   likeRoundEntry,
   nextRound,
   readRound,
+  readRoundEvent,
   settleRound as settleRemoteRound,
   setRoundPhase,
   submitRoundEntry,
   voteRoundEntry,
   type RemoteRound,
   type RemoteRoundEntryInput,
+  type RemoteRoundEvent,
   type RemoteSettlement,
   type RemoteWinner,
   type RoundsFailure,
 } from "../../api/game/rounds";
-import { hostIdOfRoom, roomOverOf, withRoomHost } from "./onlineHost";
+import { serverGameEvents } from "../../data/serverCaps";
+import { hostIdOfRoom, onlineEventSourceOf, roomOverOf, withRoomHost } from "./onlineHost";
 import { clearOnlineResume } from "./onlineResume";
 
 /** 回合屏的轮询间隔（服务端契约：轮询路径按 2 秒一次算，240 次/分钟够两台设备同时开着）。 */
@@ -61,6 +65,15 @@ export type RoundNote =
   | { kind: "unavailable" }
   | { kind: "code"; code: string };
 
+/**
+ * 这一回合的事件读到哪一步了（服务端出题那一条路）。
+ *   `idle`   = 还没问（不是结算阶段 / 能力位还没探到 → 下一拍再问）
+ *   `server` = 服务端给了一份事件（见 `event`）—— 同一房间同一回合，所有人是同一道题
+ *   `none`   = 这一回合我不该弹事件（第 1/3/5… 回合、这局已经结束、我已被淘汰、已经翻篇）
+ *   `local`  = **退回本机事件**（能力位为假 / 接口不可用）：界面要写明「事件只在本机生效」
+ */
+export type RoundEventState = "idle" | "server" | "none" | "local";
+
 export interface RoundsStore {
   /** null = 这一局不是联机回合（单机 / 已经退回单机） */
   session: OnlineRoundSession | null;
@@ -76,6 +89,13 @@ export interface RoundsStore {
   settlement: RemoteSettlement | null;
   /** 胜者；null = 还没结束（缺省） / [] = 结束但平局 */
   winners: RemoteWinner[] | null;
+  /**
+   * 服务端出的这一回合事件（`gameEvents` 能力位为真、这一回合已 `settled` 时才读）。
+   * ★ 同一房间同一回合，每个人的 `eventId` 一样 —— 这是"跨端同一道题"的唯一来源。
+   * ★ null + eventState=local 时，事件走本机那一套（各抽各的，界面写明只在本机生效）。
+   */
+  event: RemoteRoundEvent | null;
+  eventState: RoundEventState;
   note: RoundNote | null;
   /** 一个动作在飞（按钮灰掉用） */
   busy: boolean;
@@ -114,6 +134,14 @@ export interface RoundsStore {
   vote: (targetUserId: string | null) => Promise<boolean>;
   settle: () => Promise<boolean>;
   next: () => Promise<"round" | "over" | "waiting">;
+  /**
+   * 记下我的事件选择（`"skip"` = 跳过；服务端幂等、第一选作数）。
+   * ★ 这里**只写服务端那一份**：本地效果（扣金币 + `effects.client`）由 game store 落
+   *   （见 ui/OnlineEventPanel → store.chooseOnlineEvent）—— 两个 store 互不认识，界面那一层对账。
+   */
+  chooseEvent: (optionId: string) => Promise<boolean>;
+  /** 只刷新房间快照（事件回血之后立刻读回服务端那份 hp，别等 2 秒那一拍） */
+  refreshRoom: () => Promise<void>;
 }
 
 function noteOfFailure(failure: RoundsFailure): RoundNote {
@@ -136,6 +164,34 @@ function hpOfSettlement(settlement: RemoteSettlement): Record<string, number> {
   return hp;
 }
 
+/**
+ * 房间快照的 `members[].hp` → memberHp 那一份。
+ * ★ 这是联机局里 hp 的**服务端真相**（结算回包只是它在结算那一刻的同一份）：事件回血由服务端落库，
+ *   本机不应用 —— 新血量就从这里读回来（docs/game-lobby.md §7.5）。
+ */
+function hpOfRoom(room: RemoteRoom): Record<string, number> {
+  const hp: Record<string, number> = {};
+  for (const member of room.members) hp[member.userId] = member.hp;
+  return hp;
+}
+
+/**
+ * 事件 GET 的哪些业务码算"这一回合我不该有事件"（**不是失败**，收手即可）。
+ * ★ `ROUND_NOT_SETTLED` 也在这里：读到它说明房主已经点了下一回合（或者这一拍晚了一步）——
+ *   这一回合的事件作废，等新回合。真正的失败只有 `unavailable`（超时 / 5xx / 形状不认识）。
+ */
+function isEventAbsent(code: string): boolean {
+  return (
+    code === "NO_EVENT" ||
+    code === "GAME_OVER" ||
+    code === "ROUND_NOT_SETTLED" ||
+    code === "PLAYER_ELIMINATED" ||
+    code === "NOT_IN_ROOM" ||
+    code === "ROOM_NOT_FOUND" ||
+    code === "ROUND_NOT_FOUND"
+  );
+}
+
 export const useRounds = create<RoundsStore>((set, get) => {
   /**
    * 放弃这一局联机：**先把话说出来**（note 留着），再把状态收掉，最后尽力退房。
@@ -150,6 +206,8 @@ export const useRounds = create<RoundsStore>((set, get) => {
       snapshot: null,
       settlement: null,
       winners: null,
+      event: null,
+      eventState: "idle",
       memberHp: {},
       note,
       busy: false,
@@ -197,6 +255,51 @@ export const useRounds = create<RoundsStore>((set, get) => {
   };
 
   /**
+   * 读这一回合的**服务端事件**（2026-11-23 服务端出题）。
+   * ★ 只问一次：读回来就把 `eventState` 定下来，2 秒一拍不会再问同一道题（服务端限流够，但没必要）。
+   * ★ 三分支（**这三分支决定界面上"是不是同一道题"**）：
+   *   · 能力位为假（老服务端）→ `local`：退回本机事件，界面写明「事件只在本机生效」；
+   *   · 能力位还没探到（null）→ `idle`：下一拍再问，别急着把这一回合判成"本机"；
+   *   · 接口这一发失败（超时 / 5xx / 形状不认识）→ 也是 `local`（退回本机，并明说）；
+   *     业务码说这一回合我没有事件（非事件回合 / 已结束 / 已淘汰 / 已翻篇）→ `none`（照常 round-end）。
+   */
+  const pullEvent = async (
+    roomCode: string,
+    round: number,
+  ): Promise<{ event: RemoteRoundEvent | null; eventState: RoundEventState }> => {
+    const capability = serverGameEvents();
+    const source = onlineEventSourceOf(capability);
+    // 能力位还没探到（健康端点慢半拍）：这一拍什么都不定，下一拍再问 —— 别急着判成本机
+    if (source === "unknown") return { event: null, eventState: "idle" };
+    if (source === "local") return { event: null, eventState: "local" };
+    const res = await readRoundEvent(roomCode);
+    if (!res.ok) {
+      const absent = res.reason === "code" && isEventAbsent(res.code);
+      return { event: null, eventState: absent ? "none" : "local" };
+    }
+    // 读回来的时候回合可能已经翻篇（房主恰好在读的那一拍点了下一回合）：这一份事件作废
+    if (get().snapshot?.round !== round) return { event: null, eventState: "none" };
+    return { event: res.value, eventState: "server" };
+  };
+
+  /**
+   * 结算已经拿到、事件还没问（手动结算那条路 / 能力位第一次还是 null）：补问一次。
+   * ★ 幂等：`eventState !== "idle"` 直接返回 —— 轮询每 2 秒都会叫它一次。
+   */
+  const ensureEvent = async (): Promise<void> => {
+    const session = get().session;
+    const snapshot = get().snapshot;
+    if (!session || !snapshot) return;
+    if (snapshot.phase !== "settled" || !get().settlement) return;
+    if (get().eventState !== "idle" || get().winners !== null) return;
+    const part = await pullEvent(session.roomCode, snapshot.round);
+    if (!sessionNow(session.roomCode)) return;
+    // await 之间可能已经翻篇 / 已经有人把这一回合问过了：这一份作废
+    if (get().snapshot?.round !== snapshot.round || get().eventState !== "idle") return;
+    set(part);
+  };
+
+  /**
    * 动作被服务端按"你不再是房主 / 这一步已经晚了一步"拒了：拉一拍快照再回来，**不把这句话留在底栏**。
    * ★ 房主转移之后的竞态：旧房主的键还亮着的那一拍点下去，服务端先判房主 → 回 NOT_HOST；
    *   界面若照实写"这一步只有房主能做"，玩家会以为自己被踢了；其实下一拍新房的键就出来了。
@@ -233,18 +336,22 @@ export const useRounds = create<RoundsStore>((set, get) => {
         return;
       }
       const remoteWinners = winnersOf(res.value.settlement);
-      if (remoteWinners !== null) {
-        set({ winners: remoteWinners });
-        clearOnlineResume();
-      }
+      // ★ 事件与结算**同一拍读回来**：界面拿到结算的那一刻就有题（不必先停一屏 round-end，
+      //   也就没有"房主在这一拍抢先点了下一回合、事件还没弹过"的窗口）。
+      const eventPart = await pullEvent(session.roomCode, snapshot.round);
+      if (!sessionNow(session.roomCode)) return;
       set({
+        ...(remoteWinners !== null ? { winners: remoteWinners } : {}),
         settlement: res.value.settlement,
         // 结算行的 hp 是服务端的真相：覆盖进跨回合记录（对手条 / 交片的 x/y 都读它）
         memberHp: { ...get().memberHp, ...hpOfSettlement(res.value.settlement) },
         note: null,
         // 结算回包确认了阶段：把快照的 phase 对齐（entries 还是上一份的 entries）
         snapshot: get().snapshot ? { ...(get().snapshot as RemoteRound), phase: "settled" } : null,
+        event: eventPart.event,
+        eventState: eventPart.eventState,
       });
+      if (remoteWinners !== null) clearOnlineResume();
     } finally {
       set({ settling: false });
     }
@@ -256,6 +363,8 @@ export const useRounds = create<RoundsStore>((set, get) => {
     snapshot: null,
     settlement: null,
     winners: null,
+    event: null,
+    eventState: "idle",
     note: null,
     busy: false,
     settling: false,
@@ -269,10 +378,12 @@ export const useRounds = create<RoundsStore>((set, get) => {
         // room 由轮询的第一拍（≤ 2 秒）从 GET /rooms/:code 灌进来；开局这一份只带座位 / 血，
         // 不逼调用方多传一个参数（host 身份在 poll 里也会再对一次，房间快照是真相）。
         snapshot,
-        // 开局时房间快照里的 hp 就是起点；之后每次结算再覆盖（见 memberHp 的 ★）
+        // 开局时房间快照里的 hp 就是起点；之后每次结算 / 每拍房间快照再覆盖（见 memberHp 的 ★）
         memberHp: Object.fromEntries(session.members.map((member) => [member.userId, member.hp])),
         settlement: null,
         winners: null,
+        event: null,
+        eventState: "idle",
         note: null,
         busy: false,
         settling: false,
@@ -289,6 +400,8 @@ export const useRounds = create<RoundsStore>((set, get) => {
         snapshot: null,
         settlement: null,
         winners: null,
+        event: null,
+        eventState: "idle",
         note: null,
         busy: false,
         settling: false,
@@ -345,21 +458,26 @@ export const useRounds = create<RoundsStore>((set, get) => {
         session: nextSession,
         room: nextRoom,
         snapshot: nextSnapshot,
+        // 同桌血量每拍都对一次房间快照（`members[].hp` 是服务端的真相）：事件回血由服务端落库，
+        // 本机不应用 —— 对手条 / 存活人数从这里读到它（结算那一份仍是结算时刻的同一份数）。
+        memberHp: nextRoom ? { ...get().memberHp, ...hpOfRoom(nextRoom) } : get().memberHp,
         // 只清"这一拍没连上"那种临时原因：服务端的业务拒绝（NOT_HOST / CANNOT_LIKE_SELF …）要留在屏上
         // 让人看清，下一次动作成功 / 玩家点 ✕ 才收 —— 别让 2 秒一次的轮询把它一闪就擦掉。
         note: note?.kind === "unavailable" ? null : note,
-        // 新回合：上一回合的结算 / 弃权全部作废（服务端每一回合都是新的一份）
+        // 新回合：上一回合的结算 / 弃权 / 事件全部作废（服务端每一回合都是新的一份）
         ...(roundChanged
-          ? { settlement: null, winners: null, abstainedRound: null, autoSettleTriedRound: null }
+          ? { settlement: null, winners: null, abstainedRound: null, autoSettleTriedRound: null, event: null, eventState: "idle" as const }
           : {}),
       });
       // ── 这局结束了吗（房主 / 非房主都在这一拍知道）──────────────────────────
-      // 服务端今天没有把"over"放进房间快照（§7.7 缺口）：onlineHost 按服务端 gameOverOf 的同一口径、
-      // 只在**这一回合已结算**时从 members[].hp 推。推出来的名单与 next 的 GAME_OVER 同序同名。
+      // 服务端 2026-11-23 起在房间快照里给了 state / winners（结束那一刻由 rounds/next 落库），
+      // 读不到才走 onlineHost 的过渡分支（老服务端按 hp 推）。判据只有一处。
       const over = roomOverOf(nextRoom, nextSnapshot.phase);
       if (over) markOver(over.winners);
       if (nextSnapshot.phase === "settled" || (nextSnapshot.phase === "voting" && nextSnapshot.votesPending === 0)) {
         await pullSettlement();
+        // 结算已经拿到、事件还没问（手动结算那条路 / 能力位刚探到）：补问一次
+        await ensureEvent();
       }
       return "ok";
     },
@@ -465,15 +583,19 @@ export const useRounds = create<RoundsStore>((set, get) => {
           return false;
         }
         const remoteWinners = winnersOf(res.value.settlement);
-        if (remoteWinners !== null) {
-          set({ winners: remoteWinners });
-          clearOnlineResume();
-        }
+        // 事件与结算同一拍读回（理由见 pullSettlement 的同名注释）
+        const snapshot = get().snapshot;
+        const eventPart = snapshot ? await pullEvent(session.roomCode, snapshot.round) : { event: null, eventState: "idle" as const };
+        if (!sessionNow(session.roomCode)) return false;
         set({
+          ...(remoteWinners !== null ? { winners: remoteWinners } : {}),
           settlement: res.value.settlement,
           memberHp: { ...get().memberHp, ...hpOfSettlement(res.value.settlement) },
           note: null,
+          event: eventPart.event,
+          eventState: eventPart.eventState,
         });
+        if (remoteWinners !== null) clearOnlineResume();
         return true;
       } finally {
         set({ settling: false });
@@ -528,11 +650,48 @@ export const useRounds = create<RoundsStore>((set, get) => {
         snapshot: res.value.round,
         settlement: null,
         winners: null,
+        event: null,
+        eventState: "idle",
         note: null,
         abstainedRound: null,
         autoSettleTriedRound: null,
       });
       return "round";
+    },
+
+    chooseEvent: async (optionId) => {
+      const session = get().session;
+      const event = get().event;
+      if (!session || !event) return false;
+      set({ busy: true });
+      const res = await chooseRoundEvent(session.roomCode, optionId);
+      if (!sessionNow(session.roomCode)) {
+        set({ busy: false });
+        return false;
+      }
+      set({ busy: false });
+      if (!res.ok) {
+        set({ note: noteOfFailure(res) });
+        return false;
+      }
+      // ★ 只更新服务端那一份表态（幂等：重复点回来的是第一次那一份）：
+      //   本地效果由 game store 落（`effects.client` + 金币），两边谁都不替谁改数。
+      const current = get().event;
+      set({
+        ...(current ? { event: { ...current, myChoice: res.value.myChoice, allChosen: res.value.allChosen } } : {}),
+        note: null,
+      });
+      return true;
+    },
+
+    refreshRoom: async () => {
+      const session = get().session;
+      if (!session) return;
+      const res = await readRoom(session.roomCode);
+      if (!sessionNow(session.roomCode)) return;
+      // 只刷新：失败的下一拍轮询会再问（那一拍会说），这里不叠一句话
+      if (!res.ok) return;
+      set({ room: res.value, memberHp: { ...get().memberHp, ...hpOfRoom(res.value) } });
     },
   };
 });

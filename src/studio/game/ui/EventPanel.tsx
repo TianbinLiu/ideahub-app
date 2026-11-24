@@ -24,89 +24,26 @@
 //   面板 776 里居中；卡高 44vh≈160（min-h，内容多时自己长高）；确认键 93×35。
 // ★ 这一屏占满舞台的下半截：HUD / 对手条 / 右侧道具栏 / 背包条在事件阶段**让位**（见 ui/GameLayer）——
 //   800×363 上"背包条 + 阶段条 + 三张卡"叠起来只有 ~115px 给卡，图标和收益都挤没了。
+// ★★ 联机局里这一屏只出现在**退回本机事件**那条路上（能力位为假 / 事件接口不可用，见
+//   ui/OnlineEventPanel 文件头）：那时它必须写明「事件只在本机生效」—— 否则玩家会以为别人也在选同一道题。
+//   服务端出题时渲染的是 OnlineEventPanel（题面来自服务端，[id] 与这一屏同一张卡）。
+// ★ 卡本身的皮（插画位 / 标题 / 收益 / 花费）在 ui/EventCard，单机与联机共用那一份。
 import { useState } from "react";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { eventArtUrl } from "../art";
-import { eventName, eventOptionGlyph, eventOptionName, eventOptionText, playerName } from "../labels";
+import { eventName, eventOptionName, eventOptionText, playerName } from "../labels";
 import { EVENT_SKIP_PICK } from "../rules";
 import { useGame } from "../store";
 import { eventViewOf } from "../view";
 import type { GameView } from "../view";
-import type { GameEventOption } from "../types";
-
-/**
- * 图标位那个六边形：clip-path 一刀切出正六边形（参照图每张卡正中就是它）。
- * ★ 用 clip-path 而不是图：一个形状 3 个 span 就够，不给安装包加字节；外层是"描边"（稍大一圈的渐变），
- *   内层向内缩 2px 换成暗底 —— clip-path 会把 box-shadow / ring 一起裁掉，所以描边只能靠叠出来。
- */
-const HEX = "polygon(50% 0%, 93% 25%, 93% 75%, 50% 100%, 7% 75%, 7% 25%)";
-
-/**
- * 一张卡的插画位（G4 §5 之后）：六边形裁切里放**真图**，图没出来时垫着原来的字形徽记。
- *
- * ★ 图是十张离线生成、打进包的插画（`public/events/<选项 id>.webp`，512×288）——
- *   选事件这一屏绝不实时出图（同风格样张：真人真机上要等 30 秒、还会被审核拦）。
- *   地址从 `rules.GAME_EVENTS[].options[].art` 取（`art.eventArtUrl` 只做 public/ → 站点根换算）。
- * ★★ **加载失败必须看得见是"退回到字"，不是静默变空**：`onError` 记 broken，之后不再渲染 <img>，
- *   露出底下那颗字形徽记 —— 真机上 public/ 下少一张图只表现为一块空六边形，与"样式写错"没法区分；
- *   而这类"少一个文件"正是 vite build 零意见、`scripts/check-event-art.mjs` 才拦得住的东西。
- *   所以写法是**字形常驻在底下、图盖在上面**：加载中也不是空的，失败时图整个撤掉。
- * ★ 六边形是正六边形（近似正方形），图是 16:9 —— 用 object-cover 从中间裁，主体必须居中，
- *   这也是生成脚本每张提示词都写"主体居中、占画面中央大部分"的原因。
- * ★ 独立成组件是为了 broken 这份状态：放在 EventPanel 里就是一个数组下标的状态，三张卡会串。
- */
-function EventCardArt({ option, active }: { option: GameEventOption; active: boolean }) {
-  const [broken, setBroken] = useState(false);
-  return (
-    // 底下垫一层径向柔光 —— 纯底色在深面板上看起来是一块死黑，加了光才像"图"（选中时转金）
-    <span
-      className="relative flex w-full flex-1 items-center justify-center"
-      style={{
-        background: active
-          ? "radial-gradient(60% 62% at 50% 46%, rgba(251,191,36,0.20), transparent 72%)"
-          : "radial-gradient(60% 62% at 50% 46%, rgba(56,189,248,0.16), transparent 72%)",
-      }}
-    >
-      <span className="relative flex h-[clamp(2.6rem,6.2vw,3.5rem)] w-[clamp(2.6rem,6.2vw,3.5rem)] items-center justify-center">
-        <span
-          aria-hidden
-          className="absolute inset-0"
-          style={{
-            clipPath: HEX,
-            background: active ? "linear-gradient(160deg,#fde68a,#38bdf8)" : "linear-gradient(160deg,#7dd3fc,#fcd34d)",
-          }}
-        />
-        <span
-          aria-hidden
-          className="absolute inset-[2px] overflow-hidden"
-          style={{ clipPath: HEX, background: "linear-gradient(160deg,#16223c,#0b1020)" }}
-        >
-          {/* 字形徽记：图加载出来就被盖住；加载失败时它就是退路（见文件头 ★★） */}
-          <span className="absolute inset-0 flex items-center justify-center text-[clamp(0.95rem,2.4vw,1.3rem)] leading-none">
-            {eventOptionGlyph(option)}
-          </span>
-          {!broken && (
-            <img
-              // 装饰性的图：这张卡的语义已经在按钮的 aria-label（选项名）里了
-              alt=""
-              src={eventArtUrl(option)}
-              draggable={false}
-              decoding="async"
-              onError={() => setBroken(true)}
-              className="absolute inset-0 h-full w-full object-cover"
-            />
-          )}
-        </span>
-      </span>
-    </span>
-  );
-}
+import EventCard from "./EventCard";
 
 export default function EventPanel({ view }: { view: GameView }) {
   const { t } = useLingui();
   const state = useGame((s) => s.state);
   const meId = useGame((s) => s.meId);
   const report = useGame((s) => s.report);
+  const online = useGame((s) => s.online);
+  const onlineLocalEvents = useGame((s) => s.onlineLocalEvents);
   // ★ 选中态住在这里（点卡 → 确认才扣钱，见文件头）。hook 必须排在下面两个早退之前（check-hook-order）。
   const [selected, setSelected] = useState<string | null>(null);
   if (!state) return null;
@@ -171,7 +108,12 @@ export default function EventPanel({ view }: { view: GameView }) {
           <Trans>第 {view.hud.round} 回合</Trans>
         </span>
         <span className="min-w-0 flex-1 truncate text-[clamp(0.55rem,1.35vw,0.66rem)] text-slate-400">
-          <Trans>三选一（拿不准可以跳过）</Trans>
+          {online && onlineLocalEvents ? (
+            // ★ 联机局里走的是"退回本机事件"这条路：**必须写明只在本机生效**（不清不楚比不说更坏）
+            <Trans>事件只在本机生效（不会影响别人）</Trans>
+          ) : (
+            <Trans>三选一（拿不准可以跳过）</Trans>
+          )}
         </span>
         <span className="flex flex-none items-center gap-2 text-[clamp(0.62rem,1.55vw,0.76rem)] font-semibold">
           <span className="text-danger-200" title={t`你现在的血量`}>
@@ -203,68 +145,18 @@ export default function EventPanel({ view }: { view: GameView }) {
 
       {/* ── 卡：横排、同一宽度、同一高度（行 items-stretch，花费那行 mt-auto 钉在底部对齐）── */}
       <div className="mt-1.5 flex items-stretch justify-center gap-[clamp(0.35rem,1.1vw,0.7rem)]">
-        {eventView.options.map((option) => {
-          const active = selected === option.id;
-          const affordable = option.cost <= gold;
-          return (
-            <button
-              key={option.id}
-              type="button"
-              // 不设 disabled：钱不够点了要说原因（差多少金），灰着点不动在手机上等于没反应。
-              onClick={() => setSelected(option.id)}
-              aria-pressed={active}
-              aria-label={t`选事件选项：${eventOptionName(option)}`}
-              className={`relative flex min-h-[clamp(7.5rem,44vh,12rem)] w-[clamp(9.5rem,29vw,15rem)] flex-none flex-col items-center overflow-hidden rounded-xl px-2 pb-1.5 pt-1.5 text-center ring-1 transition-colors ${
-                active ? "bg-gold/[0.08] ring-2 ring-gold-300" : "bg-white/[0.04] ring-white/10 active:bg-white/[0.09]"
-              }`}
-            >
-              {/* 选中角标：参照图靠左上/右上那颗徽记认选中，这里就在右上角打一个勾 */}
-              {active && (
-                <span
-                  aria-hidden
-                  className="absolute right-1 top-1 flex h-[clamp(0.9rem,2.1vw,1.1rem)] w-[clamp(0.9rem,2.1vw,1.1rem)] items-center justify-center rounded-full bg-gold-400 text-[clamp(0.5rem,1.2vw,0.62rem)] font-bold leading-none text-ink"
-                >
-                  ✓
-                </span>
-              )}
-              {/* 图标 / 插画位：上面这一块是卡面（参照图每张卡上 2/3 是那张发光六边形），
-                  里面是这张卡自己的插画（G4 §5 换掉字形占位，见 EventCardArt）。 */}
-              <EventCardArt option={option} active={active} />
-              {/* 文字块钉在卡的下半截（mt-auto）：三张卡的收益有长有短，花费那一行仍然对齐 */}
-              <span className="mt-auto flex w-full flex-col items-center gap-0.5">
-                {/* 标题（规则层只有 id 与 effects，名字在 labels.eventOptionName）*/}
-                <span className="text-[clamp(0.66rem,1.6vw,0.8rem)] font-semibold leading-tight text-slate-100">
-                  {eventOptionName(option)}
-                </span>
-                {/* 一行收益（effects 念成句子，见 labels.eventOptionText）*/}
-                <span className="line-clamp-2 text-[clamp(0.55rem,1.35vw,0.66rem)] leading-[1.35] text-slate-400">
-                  {eventOptionText(option)}
-                </span>
-                {/* 花费：**免费那一档也占同一行**（施工单 §5「跟另外两张同样排版」）；钱不够时标红说差多少 */}
-                <span
-                  className={`mt-0.5 flex items-center gap-1 rounded-full px-2 py-0.5 text-[clamp(0.58rem,1.4vw,0.7rem)] font-semibold ring-1 ${
-                    option.cost === 0
-                      ? "bg-ok/15 text-ok-200 ring-ok/30"
-                      : affordable
-                        ? "bg-gold/15 text-gold-200 ring-gold/30"
-                        : "bg-danger/20 text-danger-200 ring-danger/40"
-                  }`}
-                >
-                  {option.cost === 0 ? (
-                    <Trans>免费</Trans>
-                  ) : (
-                    <>
-                      <span aria-hidden className="opacity-80">
-                        🪙
-                      </span>
-                      <Trans>{option.cost} 金</Trans>
-                    </>
-                  )}
-                </span>
-              </span>
-            </button>
-          );
-        })}
+        {eventView.options.map((option) => (
+          <EventCard
+            key={option.id}
+            option={option}
+            name={eventOptionName(option)}
+            text={eventOptionText(option)}
+            gold={gold}
+            active={selected === option.id}
+            ariaLabel={t`选事件选项：${eventOptionName(option)}`}
+            onSelect={() => setSelected(option.id)}
+          />
+        ))}
         {eventView.options.length === 0 && (
           <div className="flex min-h-[clamp(6rem,26vh,9rem)] w-full items-center justify-center rounded-xl border border-dashed border-white/15 px-3 text-center text-[clamp(0.58rem,1.4vw,0.7rem)] text-slate-400">
             <Trans>这一期你没有可选的选项（选过了，或者三选一都落不了账）。</Trans>

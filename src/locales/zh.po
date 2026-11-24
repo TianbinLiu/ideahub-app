@@ -1046,7 +1046,7 @@ msgstr "{0} 粉丝"
 #~ msgstr "{0} 连败"
 
 #. placeholder {0}: option.cost
-#: src/studio/game/ui/EventPanel.tsx
+#: src/studio/game/ui/EventCard.tsx
 msgid "{0} 金"
 msgstr "{0} 金"
 
@@ -7005,8 +7005,13 @@ msgid "事件"
 msgstr "事件"
 
 #: src/studio/game/ui/EventPanel.tsx
+#: src/studio/game/ui/OnlineEventPanel.tsx
 msgid "事件 · {title}"
 msgstr "事件 · {title}"
+
+#: src/studio/game/ui/EventPanel.tsx
+msgid "事件只在本机生效（不会影响别人）"
+msgstr "事件只在本机生效（不会影响别人）"
 
 #: src/data/danmaku.ts
 msgid "二刷来了"
@@ -7878,12 +7883,17 @@ msgid "你标的那几帧都落在选中的这一段外面了（选段后来被�
 msgstr "你标的那几帧都落在选中的这一段外面了（选段后来被拖动过）——回去把标记删掉重标，或者切回「自动」。"
 
 #: src/studio/game/ui/EventPanel.tsx
+#: src/studio/game/ui/OnlineEventPanel.tsx
 msgid "你现在有多少金"
 msgstr "你现在有多少金"
 
 #: src/studio/game/ui/EventPanel.tsx
 msgid "你现在的血量"
 msgstr "你现在的血量"
+
+#: src/studio/game/ui/OnlineEventPanel.tsx
+msgid "你现在的血量（服务端给的数）"
+msgstr "你现在的血量（服务端给的数）"
 
 #: src/pages/CardDetailPage.tsx
 msgid "你现在能用的出片模型都不参考声音样本（样本先留着，换了能用的模型还用得上）。样本只存在这台设备上，分享卡片不带它。"
@@ -8597,6 +8607,7 @@ msgstr "先框出哪一段"
 #~ msgstr "先点一件道具卡，再点一张角色卡"
 
 #: src/studio/game/ui/EventPanel.tsx
+#: src/studio/game/ui/OnlineEventPanel.tsx
 msgid "先点一张卡，再按确认"
 msgstr "先点一张卡，再按确认"
 
@@ -8725,7 +8736,7 @@ msgstr "光影铸造者"
 msgid "光线改成黄昏"
 msgstr "光线改成黄昏"
 
-#: src/studio/game/ui/EventPanel.tsx
+#: src/studio/game/ui/EventCard.tsx
 msgid "免费"
 msgstr "免费"
 
@@ -12812,6 +12823,10 @@ msgstr "四条路里<0>只有工坊铸卡一定花 token</0>；圈选提取、�
 #: src/components/guide/tours.tsx
 #~ msgid "四条路里<0>只有工坊铸卡一定花 token</0>。从视频圈选提取、自己传图本身<1>不花</1>，只有窗口里那几颗带 AI 的键要钱（价印在键上）；从市场拿也不花。 提取是拖到某一帧、亲手圈出要的人或物，圈出来的画面就是参考图。"
 #~ msgstr "四条路里<0>只有工坊铸卡一定花 token</0>。从视频圈选提取、自己传图本身<1>不花</1>，只有窗口里那几颗带 AI 的键要钱（价印在键上）；从市场拿也不花。 提取是拖到某一帧、亲手圈出要的人或物，圈出来的画面就是参考图。"
+
+#: src/studio/game/labels.ts
+msgid "回 {hp} 血（服务端结算）"
+msgstr "回 {hp} 血（服务端结算）"
 
 #: src/studio/ui/projection.tsx
 msgid "回上一步写一句视频要求，这颗键才亮"
@@ -19679,6 +19694,14 @@ msgstr "服务端最近的几组里没找到上一组，多半是没收到。{mo
 msgid "服务端出错"
 msgstr "服务端出错"
 
+#: src/studio/game/ui/OnlineEventPanel.tsx
+msgid "服务端出题（同一道题）· 全员都选好了"
+msgstr "服务端出题（同一道题）· 全员都选好了"
+
+#: src/studio/game/ui/OnlineEventPanel.tsx
+msgid "服务端出题（同一道题）· 还有人没选，不挡下一回合"
+msgstr "服务端出题（同一道题）· 还有人没选，不挡下一回合"
+
 #: src/pages/NotificationsPage.tsx
 msgid "服务端升级后即可使用，App 不用重装"
 msgstr "服务端升级后即可使用，App 不用重装"
@@ -21344,6 +21367,10 @@ msgstr "正在读你给的素材…"
 #: src/pages/ProfilePage.tsx
 msgid "正在读取余额…"
 msgstr "正在读取余额…"
+
+#: src/studio/game/ui/OnlineEventPanel.tsx
+msgid "正在读取服务端的事件…"
+msgstr "正在读取服务端的事件…"
 
 #: src/studio/game/ui/RoundResultPanel.tsx
 msgid "正在读取服务端的结算…（榜与扣血以服务端为准）"
@@ -25118,6 +25145,7 @@ msgid "硬派明暗对照"
 msgstr "硬派明暗对照"
 
 #: src/studio/game/ui/EventPanel.tsx
+#: src/studio/game/ui/OnlineEventPanel.tsx
 msgid "确认"
 msgstr "确认"
 
@@ -25148,6 +25176,7 @@ msgstr "确认卡面"
 
 #. placeholder {0}: gold - chosen.cost
 #: src/studio/game/ui/EventPanel.tsx
+#: src/studio/game/ui/OnlineEventPanel.tsx
 msgid "确认后剩 {0} 金"
 msgstr "确认后剩 {0} 金"
 
@@ -25659,8 +25688,10 @@ msgstr "第 {0} 味权重"
 msgid "第 {0} 味音色"
 msgstr "第 {0} 味音色"
 
+#. placeholder {0}: event.round
 #. placeholder {0}: view.hud.round
 #: src/studio/game/ui/EventPanel.tsx
+#: src/studio/game/ui/OnlineEventPanel.tsx
 msgid "第 {0} 回合"
 msgstr "第 {0} 回合"
 
@@ -29020,6 +29051,7 @@ msgstr "跳到第 {at} 秒"
 
 #: src/pages/tutor/TutorRunPage.tsx
 #: src/studio/game/ui/EventPanel.tsx
+#: src/studio/game/ui/OnlineEventPanel.tsx
 msgid "跳过"
 msgstr "跳过"
 
@@ -29310,6 +29342,7 @@ msgstr "还差 {0} 个人表态——全员表态之后才能结算"
 
 #. placeholder {0}: chosen.cost - gold
 #: src/studio/game/ui/EventPanel.tsx
+#: src/studio/game/ui/OnlineEventPanel.tsx
 msgid "还差 {0} 金"
 msgstr "还差 {0} 金"
 
@@ -30204,6 +30237,10 @@ msgstr "这一期你已经投过票（或者已经弃权了）——一人一票
 msgid "这一期你没有可选的选项（选过了，或者三选一都落不了账）。"
 msgstr "这一期你没有可选的选项（选过了，或者三选一都落不了账）。"
 
+#: src/studio/game/ui/OnlineEventPanel.tsx
+msgid "这一期你没有可选的选项（选过了，或者档位不够）。"
+msgstr "这一期你没有可选的选项（选过了，或者档位不够）。"
+
 #: src/studio/game/ui/CreatePanel.tsx
 msgid "这一期已经交过一条占位片（{VIDEO_SECONDS} 秒）——想要真片子就点「🎬 视频生成」。"
 msgstr "这一期已经交过一条占位片（{VIDEO_SECONDS} 秒）——想要真片子就点「🎬 视频生成」。"
@@ -30240,6 +30277,10 @@ msgstr "这一期的事件：三选一，拿不准可以跳过"
 #: src/studio/game/ui/PhaseBar.tsx
 msgid "这一期的事件：三选一，拿不准可以跳过（事件只在本机生效）"
 msgstr "这一期的事件：三选一，拿不准可以跳过（事件只在本机生效）"
+
+#: src/studio/game/ui/PhaseBar.tsx
+msgid "这一期的事件由服务端出题：同一房间同一回合，所有人是同一道题"
+msgstr "这一期的事件由服务端出题：同一房间同一回合，所有人是同一道题"
 
 #: src/studio/game/ui/CreatePanel.tsx
 #~ msgid "这一期的提示词"
@@ -32027,6 +32068,7 @@ msgid "这张{label}要什么画面？例：\"他站在门口回头，半身，�
 msgstr "这张{label}要什么画面？例：\"他站在门口回头，半身，暖光\""
 
 #: src/studio/game/ui/EventPanel.tsx
+#: src/studio/game/ui/OnlineEventPanel.tsx
 msgid "这张不要金"
 msgstr "这张不要金"
 
@@ -32669,6 +32711,7 @@ msgid "这次不公开，直接发"
 msgstr "这次不公开，直接发"
 
 #: src/studio/game/ui/EventPanel.tsx
+#: src/studio/game/ui/OnlineEventPanel.tsx
 msgid "这次不要（跳过）"
 msgstr "这次不要（跳过）"
 
@@ -33074,7 +33117,9 @@ msgstr "选中第 {seg} 段：流水线只有 {total} 段"
 #~ msgstr "选中这件道具，再去点一张角色卡"
 
 #. placeholder {0}: eventOptionName(option)
+#. placeholder {0}: nameOf(option)
 #: src/studio/game/ui/EventPanel.tsx
+#: src/studio/game/ui/OnlineEventPanel.tsx
 msgid "选事件选项：{0}"
 msgstr "选事件选项：{0}"
 
@@ -33116,6 +33161,7 @@ msgstr "选好（或现做）主角，写一场戏，AI 拆成 2~4 个镜头带�
 #~ msgstr "选好了：{0}"
 
 #: src/studio/game/ui/EventPanel.tsx
+#: src/studio/game/ui/OnlineEventPanel.tsx
 msgid "选好了：{pickedLabel}"
 msgstr "选好了：{pickedLabel}"
 

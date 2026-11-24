@@ -13,6 +13,8 @@
  *       likeRank,voteRank,composite,damage,hp,eliminated}], winners? } }`（`winners` 是 userId 数组，
  *     只在「剩到胜者名额」时出现；没有这一位 = 还没结束）
  *   · next → 新回合快照；已结束回 409 `GAME_OVER` + **顶层 `winners`**
+ *   · events → `{ ok, round, eventId, title, options:[{ id, cost, label, effects:{ server, client } }],
+ *      myChoice, allChosen }`；events/choice → `{ ok, myChoice, allChosen }`（2026-11-23 服务端出题）
  * ★ `likes` / `votes` 只有计数、`likedByMe` / `votedByMe` 是「我」视角：谁投给谁是服务端的秘密，别指望客户端能拼出来。
  * ★ `GAME_OVER` 的 winners 在**错误回包顶层**（不在 `details` 里）：`api/client` 只把 `details` 挂到
  *   ApiError 上，所以这一版给 ApiError 补了 `payload`（整份回包）——这是唯一能读到 winners 的地方。
@@ -89,6 +91,66 @@ export interface RemoteSettlementResult {
 
 /** `POST /rounds/next` 的两种结局：新回合，或者这局已经结束。 */
 export type RemoteNextOutcome = { kind: "round"; round: RemoteRound } | { kind: "over"; winners: string[] };
+
+/**
+ * 事件效果里**交给 App 本地应用**的那一半（`effects.client`）。
+ * ★ 与 `studio/game/rules.EventEffect` **同形**，但不 import 它（api 这一层不依赖对局规则）：
+ *   两边形状对不上时 TS 会在调用点（`onlineHost.onlineChoiceOf`）当场报错，不会静默漏一项。
+ * ★ **没有 hp**：今天 hp 是服务端唯一落库的效果（`effects.server.hp`），App 若再应用一次就是回两次血。
+ *   服务端哪天把 hp 放进 client，这一层的解析会整份不认（认不出的 kind → 这份事件不可用 → 退回本机事件），
+ *   宁可说"这一版对不上"也不重复加血。
+ */
+export type RemoteEventEffect =
+  | { kind: "gold"; delta: number }
+  | { kind: "model-level"; to: 1 | 2 | 3 }
+  | { kind: "next-round-cost-half" }
+  | { kind: "next-round-segments"; value: number }
+  | { kind: "prompt-limit-pct"; pct: number }
+  | { kind: "item-limit"; delta: number }
+  | { kind: "free-refresh"; count: number }
+  | { kind: "random-card"; quality: 1 | 2 | 3 };
+
+/** 服务端下发的**已落库**效果（今天只有回血；只念一句，不应用）。 */
+export interface RemoteEventServerEffects {
+  /** 回血 delta（没有这一位 = 这个选项没动血） */
+  hp: number | null;
+}
+
+/** 一个事件选项（服务端给全量：App 只按档位 / 连胜筛掉升不动的升级线，见 onlineHost.onlineOptionsFor）。 */
+export interface RemoteEventOption {
+  id: string;
+  /** 金币花费（服务端不下发金币账户，**仍然由 App 本地扣**） */
+  cost: number;
+  /** 服务端给的中文卡名（App `labels.eventOptionName` 的同一份文案；id 认不出时它就是兜底） */
+  label: string | null;
+  effects: {
+    server: RemoteEventServerEffects;
+    client: RemoteEventEffect[];
+  };
+}
+
+/** 当前回合的待选事件（同一房间同一回合，所有人拿到的是同一道题）。 */
+export interface RemoteRoundEvent {
+  round: number;
+  eventId: string;
+  /** 服务端给的事件名（App `labels.eventName` 的同一份文案；缺省时界面按 id 认） */
+  title: string | null;
+  options: RemoteEventOption[];
+  /** 我选过哪个选项（`"skip"` = 跳过）；null = 还没选 */
+  myChoice: string | null;
+  /**
+   * 存活的人都表态了没有。
+   * ★ **只用来念一句「x/y 已选」**：服务端刻意**不**拿它拦 `next`（事件效果在 App 本地落，
+   *   卡在这里对整桌没有好处），所以界面也绝不许用它禁用「下一回合」。
+   */
+  allChosen: boolean;
+}
+
+/** `POST .../rounds/events/choice` 的回包（幂等：第一选作数，重复点回第一次那一份）。 */
+export interface RemoteEventChoice {
+  myChoice: string | null;
+  allChosen: boolean;
+}
 
 /** 交片请求体（与服务端 `entryInputOf` 的白名单一致）。 */
 export interface RemoteRoundEntryInput {
@@ -209,6 +271,109 @@ function roundOf(raw: unknown): RemoteRound | null {
     likesPending: numOf(r.likesPending) ?? 0,
     votesPending: numOf(r.votesPending) ?? 0,
   };
+}
+
+/**
+ * 事件效果解析（`effects.client` 的每一项）。
+ * ★ 认不出的 `kind` → 整份事件解析失败（**不是**跳过这一项）：事件效果会改金币 / 卡组 / 档位，
+ *   跳过一项等于悄悄少给一次收益（铁律八：不静默）；而退回本机事件那条路会明说「事件只在本机生效」。
+ */
+function eventEffectOf(raw: unknown): RemoteEventEffect | null {
+  const e = asRecord(raw);
+  if (!e) return null;
+  switch (e.kind) {
+    case "gold": {
+      const delta = numOf(e.delta);
+      return delta === null ? null : { kind: "gold", delta };
+    }
+    case "model-level": {
+      const to = numOf(e.to);
+      return to === 1 || to === 2 || to === 3 ? { kind: "model-level", to } : null;
+    }
+    case "next-round-cost-half":
+      return { kind: "next-round-cost-half" };
+    case "next-round-segments": {
+      const value = numOf(e.value);
+      return value === null ? null : { kind: "next-round-segments", value };
+    }
+    case "prompt-limit-pct": {
+      const pct = numOf(e.pct);
+      return pct === null ? null : { kind: "prompt-limit-pct", pct };
+    }
+    case "item-limit": {
+      const delta = numOf(e.delta);
+      return delta === null ? null : { kind: "item-limit", delta };
+    }
+    case "free-refresh": {
+      const count = numOf(e.count);
+      return count === null ? null : { kind: "free-refresh", count };
+    }
+    case "random-card": {
+      const quality = numOf(e.quality);
+      return quality === 1 || quality === 2 || quality === 3 ? { kind: "random-card", quality } : null;
+    }
+    default:
+      // 含 `hp`：hp 只走 effects.server（服务端已落库），出现在 client 里就是契约变了，整份不认。
+      return null;
+  }
+}
+
+/** 一个事件选项；`effects.client` 缺或有一项认不出 → 整份不认。 */
+function eventOptionOf(raw: unknown): RemoteEventOption | null {
+  const o = asRecord(raw);
+  if (!o) return null;
+  const id = strOf(o.id);
+  if (!id) return null;
+  const effectsRaw = asRecord(o.effects);
+  if (!effectsRaw) return null;
+  const clientRaw = Array.isArray(effectsRaw.client) ? effectsRaw.client : null;
+  if (!clientRaw) return null;
+  const client: RemoteEventEffect[] = [];
+  for (const one of clientRaw) {
+    const effect = eventEffectOf(one);
+    if (!effect) return null;
+    client.push(effect);
+  }
+  const serverRaw = asRecord(effectsRaw.server) ?? {};
+  return {
+    id,
+    // 花费缺省按 0（服务端 data 里每条都带 cost；缺了当免费比当"收不起"更安全 —— 界面会念「免费」）
+    cost: numOf(o.cost) ?? 0,
+    label: strOf(o.label),
+    effects: { server: { hp: numOf(serverRaw.hp) }, client },
+  };
+}
+
+/** 事件回包解析（`{ ok, round, eventId, title, options, myChoice, allChosen }`）。 */
+function roundEventOf(raw: unknown): RemoteRoundEvent | null {
+  const r = asRecord(raw);
+  if (!r) return null;
+  const round = numOf(r.round);
+  const eventId = strOf(r.eventId);
+  const optionsRaw = Array.isArray(r.options) ? r.options : null;
+  if (round === null || round < 1 || !eventId || !optionsRaw) return null;
+  const options: RemoteEventOption[] = [];
+  for (const one of optionsRaw) {
+    const option = eventOptionOf(one);
+    if (!option) return null;
+    options.push(option);
+  }
+  // `skip` 也是一个表态（服务端记成 optionId:"skip"）；它不在 options 里，所以这里只当字符串读
+  return {
+    round,
+    eventId,
+    title: strOf(r.title),
+    options,
+    myChoice: strOf(r.myChoice),
+    allChosen: boolOf(r.allChosen),
+  };
+}
+
+/** 选择回包（`{ ok, myChoice, allChosen }`）；缺 `myChoice` 这一位 = 形状不认识（别当"还没选"）。 */
+function eventChoiceOf(raw: unknown): RemoteEventChoice | null {
+  const r = asRecord(raw);
+  if (!r || !("myChoice" in r)) return null;
+  return { myChoice: strOf(r.myChoice), allChosen: boolOf(r.allChosen) };
 }
 
 function settlementRowOf(raw: unknown): RemoteSettlementRow | null {
@@ -355,4 +520,37 @@ export async function nextRound(code: string): Promise<RoundsResult<RemoteNextOu
     }
     return failureOf(err);
   }
+}
+
+/**
+ * 读当前回合的**待选事件**（服务端出题：同一房间同一回合，所有人是同一道题）。
+ * `GET …/rounds/events` → `{ round, eventId, title, options, myChoice, allChosen }`。
+ *
+ * ★ 只在「这一回合已 `settled` 且还没 `next`」时可读：
+ *   409 `ROUND_NOT_SETTLED`（没结算 / 已经翻到下一回合）、409 `GAME_OVER`（已打完）、
+ *   404 `NO_EVENT`（第 1/3/5… 回合不是事件回合）、409 `PLAYER_ELIMINATED`（淘汰的人不再弹事件）、
+ *   503 `GAME_EVENTS_OFF`（运维急停）。
+ * ★ 这些码都**不是失败**（没有事件 / 现在不能读），调用方据此收手；只有 `unavailable`
+ *   （超时 / 5xx / 形状不认识）才退回本机事件 —— 判据在 `onlineHost.onlineEventSourceOf` 的调用点。
+ * ★ 轮询路径（服务端 240/分钟）：这一端只在"结算之后"读一次，不每拍读。
+ */
+export function readRoundEvent(code: string): Promise<RoundsResult<RemoteRoundEvent>> {
+  return call(() => apiGet<unknown>(`/api/game/rooms/${encodeURIComponent(code)}/rounds/events`, opts), roundEventOf);
+}
+
+/**
+ * 记下我的事件选择（`optionId`；`"skip"` = 跳过，服务端也只记一个表态）。
+ * `POST …/rounds/events/choice { optionId }` → `{ myChoice, allChosen }`。
+ *
+ * ★ **幂等、第一选作数**：重复点 / 两个设备同时点都回第一次那一份，不报错也不改票 ——
+ *   所以这里的调用点（ui/OnlineEventPanel）不需要自己防双击，真正要防的是"本机效果别落两次"
+ *   （那条在 `rules.applyOnlineEventChoice` 的 `eventPicks` 闸，与这里无关）。
+ * ★ 回包**不带 hp**：回血是服务端在这一次更新里落库的，新血量读房间快照 `members[].hp`。
+ * ★ 坏选项回 400 `BAD_OPTION`（带可选的 options）；其余前置闸同 readRoundEvent。
+ */
+export function chooseRoundEvent(code: string, optionId: string): Promise<RoundsResult<RemoteEventChoice>> {
+  return call(
+    () => apiPost<unknown>(`/api/game/rooms/${encodeURIComponent(code)}/rounds/events/choice`, { optionId }, opts),
+    eventChoiceOf,
+  );
 }
