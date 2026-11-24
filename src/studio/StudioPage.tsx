@@ -294,6 +294,29 @@ export default function StudioPage() {
    */
   const lobbyOpen = useLobby((s) => s.open);
   /**
+   * 离开 `/studio`（路由卸载）时把大厅收掉（2026-11-24 视觉 P0，docs/game-lobby-ui-benchmark.md §1.4 顺手修）：
+   * ★ 症状：`lobbyStore.open` 是个**持久值**（store 活在整场会话里）。带 `?lobby=1` 进来后按系统返回键
+   *   离开 `/studio` 时，StudioPage 卸载了、大厅那层却还开着 —— 下次从「我的仓库 / 回炉重做 / 发布后回工坊」
+   *   不带标记进来，屏幕直接盖着大厅，3D 桌面永远见不到。
+   * ★ 为什么是"卸载"而不是"关大厅"：关大厅那条路（closeLobby）本来就清；漏的是**没点关就离开**。
+   *   这里调 closeLobby 而不是只把 open 置 false —— 离开页面时队列 / 服务端房间也该收掉，
+   *   否则下一次进来会撞 ALREADY_IN_ROOM（`release()` 做这件事）。
+   * ★★ 为什么要延迟一拍再判：React StrictMode 在 dev 里把 effect 走一遍「挂载 → 卸载 → 挂载」，
+   *   直接在 cleanup 里 close 会把刚用 `?lobby=1` 打开的大厅当场收掉（dev 里表现为"点了入口没反应"）。
+   *   定时器跑的时候若已经重新挂上（alive 又变 true）就什么都不做。
+   */
+  const studioAlive = useRef(false);
+  useEffect(() => {
+    studioAlive.current = true;
+    return () => {
+      studioAlive.current = false;
+      window.setTimeout(() => {
+        if (studioAlive.current) return;
+        if (useLobby.getState().open) useLobby.getState().closeLobby();
+      }, 0);
+    };
+  }, []);
+  /**
    * 对局内的设置页（2026-11-24）：只在横屏且开着一局时才有入口（顶栏那颗 ⚙）。
    * ★ 放页面本地 state、不进 game store：它同时决定两件事 —— 盖不盖这一屏、以及 3D 桌面停不停帧
    *   （canvasCovered 与大厅同一条理由）。搬进 store 只会多出一份"结束对局时要记得清"的值。

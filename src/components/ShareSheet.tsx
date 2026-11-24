@@ -53,6 +53,101 @@ export async function copyText(text: string): Promise<void> {
 }
 
 /**
+ * 分享面板的外壳：遮罩 + 底部圆角面板 + 标题 + 「取消」。
+ * ★ 两个分享面共用这一层：视频分享（`ShareSheet`）与房间邀请（`TextShareSheet`）。
+ *   抽出来是为了"返回键先关这一层"（useBackLayer）、portal、底部安全区这些**只写一次** ——
+ *   复制一遍就是两处会漂的弹层（一个挂了返回键、另一个忘了，症状是返回键直接把页面退掉）。
+ */
+function SheetShell({
+  title,
+  onClose,
+  layer,
+  children,
+}: {
+  title: React.ReactNode;
+  onClose: () => void;
+  /** 返回键层栈里的名字（只为读代码时认得出是哪一层） */
+  layer: string;
+  children: React.ReactNode;
+}) {
+  useBackLayer(true, onClose, layer);
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50"
+      onPointerDown={(e) => e.stopPropagation()}
+      onPointerUp={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
+      <div
+        className="absolute inset-x-0 bottom-0 rounded-t-2xl border-t border-slate-700 bg-ink px-4 pt-4"
+        style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+      >
+        <p className="text-sm font-bold text-slate-100">{title}</p>
+        {children}
+        <button onClick={onClose} className="mt-3 w-full rounded-xl border border-slate-700 py-2.5 text-sm text-slate-300">
+          <Trans>取消</Trans>
+        </button>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+/**
+ * 纯文案分享（2026-11-24，对局房间的邀请）：只有一段字要传出去，没有视频 / 链接可发。
+ * ★ 与 `ShareSheet` 同一层壳、同一套剪贴板退路（`copyText`）；QQ / 微信那两颗**不摆** ——
+ *   它们要求一个能打开的 targetUrl，而房间邀请今天没有深链（编码一条死链比不给更坏）。
+ * ★ 系统分享只在浏览器支持 `navigator.share` 时摆（安卓 WebView 多半没有，不摆也不影响）。
+ *   复制失败时把整段文案亮在面板里（用户能长按选中），不弹一句"失败"就完。
+ */
+export function TextShareSheet({ title, text, onClose }: { title: React.ReactNode; text: string; onClose: () => void }) {
+  const { t } = useLingui();
+  const [note, setNote] = useState("");
+  const [err, setErr] = useState("");
+  const canSystemShare = typeof navigator !== "undefined" && typeof navigator.share === "function";
+  const copy = async () => {
+    setNote("");
+    setErr("");
+    try {
+      await copyText(text);
+      setNote(t`邀请文案已复制，去粘给朋友吧`);
+    } catch {
+      // 复制被拒时把正文亮出来，用户还能长按选中 —— 比一句"失败"有用（与视频分享面板同一条退路）
+      setErr(t`复制失败：长按下面这段字手动复制`);
+    }
+  };
+  return (
+    <SheetShell title={title} onClose={onClose} layer="share-text">
+      <p className="mt-2 select-all whitespace-pre-wrap rounded-lg bg-white/[0.06] px-2.5 py-2 text-[11px] leading-relaxed text-slate-200 ring-1 ring-white/10">
+        {text}
+      </p>
+      {(note || err) && <p className={`mt-2 text-xs leading-relaxed ${err ? "text-red-400" : "text-ok-300"}`}>{note || err}</p>}
+      <div className="mt-2 flex gap-2">
+        <button
+          type="button"
+          onClick={() => void copy()}
+          className="flex-1 rounded-xl bg-brand py-2 text-sm font-bold text-ink active:scale-[0.98] motion-reduce:transform-none"
+        >
+          <Trans>复制邀请文案</Trans>
+        </button>
+        {canSystemShare && (
+          <button
+            type="button"
+            onClick={() => {
+              void navigator.share({ text }).catch(() => {});
+            }}
+            className="flex-1 rounded-xl border border-slate-700 py-2 text-sm text-slate-200 active:scale-[0.98] motion-reduce:transform-none"
+          >
+            <Trans>系统分享</Trans>
+          </button>
+        )}
+      </div>
+    </SheetShell>
+  );
+}
+
+/**
  * `saveLocal` = 第四项「保存到本地」。**必填**（铁律 5b）：
  *   · 传对象 —— 这个入口在这里存在。`blocked` 非空时那颗键灰着并把原因写在上面。
  *   · 传 `null` —— 这个入口**在这里不存在**（首页视频流那颗分享键就是：它没有
@@ -73,8 +168,7 @@ export default function ShareSheet({
   const [err, setErr] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
-  // 手机返回键先关这一层（hooks/useBackLayer），与点遮罩 / 「取消」同一个 onClose
-  useBackLayer(true, onClose, "share");
+  // 手机返回键先关这一层（hooks/useBackLayer），与点遮罩 / 「取消」同一个 onClose —— 现在由 SheetShell 统一挂
   const url = previewUrlOf(video.id);
   /** 还没传上服务器：这时候的 id 是本机 id，发出去是一条永远打不开的死链（见 videos.isShareable 的 ★★） */
   const notUploaded = !isShareable(video);
@@ -222,74 +316,61 @@ export default function ShareSheet({
     //   （2026-09-18 发版复核抓到：首页那颗分享键拿到的正是 null，面板里第四项恒灰 —— 界面上摆一个永远点不动的选项）
   ].filter((o) => o.key !== "save" || saveLocal !== null);
 
-  return createPortal(
-    <div
-      className="fixed inset-0 z-50"
-      onPointerDown={(e) => e.stopPropagation()}
-      onPointerUp={(e) => e.stopPropagation()}
-      onClick={(e) => e.stopPropagation()}
+  return (
+    <SheetShell
+      title={saveLocal ? <Trans>分享或保存这条作品</Trans> : <Trans>分享这条作品</Trans>}
+      onClose={onClose}
+      layer="share"
     >
-      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
-      <div
-        className="absolute inset-x-0 bottom-0 rounded-t-2xl border-t border-slate-700 bg-ink px-4 pt-4"
-        style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
-      >
-        <p className="text-sm font-bold text-slate-100">{saveLocal ? <Trans>分享或保存这条作品</Trans> : <Trans>分享这条作品</Trans>}</p>
-        {takenDown && (
-          <Warn className="mt-1">
-            <Trans>这条已被平台下架，链接别人打不开，所以先不能分享。</Trans>
-            {video.takedown?.reason ? t`原因：${takedownReasonText(video.takedown.reason)}` : ""}
-          </Warn>
-        )}
-        {notUploaded && (
-          <Warn className="mt-1">
-            <Trans>这条还在上传中（或没连上服务器）——现在分享出去的链接别人打不开。等它传完再分享。</Trans>
-          </Warn>
-        )}
-        {isPrivate && (
-          <Warn className="mt-1">
-            <Trans>这是私密作品：链接只有你自己打得开。想给别人看，去编辑里改成「凭链接可见」或「公开」。</Trans>
-          </Warn>
-        )}
-        {/* ★ 这一档要说清**代价**：链接是可转发的。用户选它多半是"只想给几个人看"，
-            而链接一旦被转出去，我们拦不住 —— 这句话必须在他分享**之前**出现。 */}
-        {isUnlisted && (
-          <p className="mt-1 text-xs text-slate-400">
-            <Trans>凭链接可见：不进首页和搜索，但<span className="text-warn-300">拿到链接的人都能看，也能转给别人</span>。</Trans>
-          </p>
-        )}
+      {takenDown && (
+        <Warn className="mt-1">
+          <Trans>这条已被平台下架，链接别人打不开，所以先不能分享。</Trans>
+          {video.takedown?.reason ? t`原因：${takedownReasonText(video.takedown.reason)}` : ""}
+        </Warn>
+      )}
+      {notUploaded && (
+        <Warn className="mt-1">
+          <Trans>这条还在上传中（或没连上服务器）——现在分享出去的链接别人打不开。等它传完再分享。</Trans>
+        </Warn>
+      )}
+      {isPrivate && (
+        <Warn className="mt-1">
+          <Trans>这是私密作品：链接只有你自己打得开。想给别人看，去编辑里改成「凭链接可见」或「公开」。</Trans>
+        </Warn>
+      )}
+      {/* ★ 这一档要说清**代价**：链接是可转发的。用户选它多半是"只想给几个人看"，
+          而链接一旦被转出去，我们拦不住 —— 这句话必须在他分享**之前**出现。 */}
+      {isUnlisted && (
+        <p className="mt-1 text-xs text-slate-400">
+          <Trans>凭链接可见：不进首页和搜索，但<span className="text-warn-300">拿到链接的人都能看，也能转给别人</span>。</Trans>
+        </p>
+      )}
 
-        {/* 「保存到本地」被就地拒时把原因写在这里（面板盖住谁就自带一份） */}
-        {saveLocal?.blocked && <Warn className="mt-1">{saveLocal.blocked}</Warn>}
+      {/* 「保存到本地」被就地拒时把原因写在这里（面板盖住谁就自带一份） */}
+      {saveLocal?.blocked && <Warn className="mt-1">{saveLocal.blocked}</Warn>}
 
-        {/* ★ gap 必须是 5 不是 7：四项 × w-16(64px) + 3 × 28px = 340px，而 360dp 屏减去
-            px-4 两侧 32px 只剩 328px —— 会溢出。gap-5(20px) ⇒ 4×64+3×20 = 316px，刚好。 */}
-        <div className="mt-4 flex items-start gap-5">
-          {options.map((o) => (
-            // ★★ `disabled` 以前**只改了字的颜色**，按钮照样点得动 —— 那不叫禁用，
-            //   叫"看着像禁用"。真按下去照样会发出一条打不开的链接（2026-08-30 修）。
-            <button
-              key={o.key}
-              onClick={o.onTap}
-              disabled={o.disabled}
-              className={`flex w-16 flex-col items-center gap-1.5 active:scale-95 ${o.disabled ? "opacity-40" : ""}`}
-              aria-label={o.label}
-            >
-              {o.render}
-              <span className={`text-[11px] ${o.disabled ? "text-slate-500" : "text-slate-300"}`}>{o.label}</span>
-            </button>
-          ))}
-        </div>
-
-        {(err || note) && (
-          <p className={`mt-3 break-all text-xs leading-relaxed ${err ? "text-red-400" : "text-ok-300"}`}>{err || note}</p>
-        )}
-
-        <button onClick={onClose} className="mt-3 w-full rounded-xl border border-slate-700 py-2.5 text-sm text-slate-300">
-          <Trans>取消</Trans>
-        </button>
+      {/* ★ gap 必须是 5 不是 7：四项 × w-16(64px) + 3 × 28px = 340px，而 360dp 屏减去
+          px-4 两侧 32px 只剩 328px —— 会溢出。gap-5(20px) ⇒ 4×64+3×20 = 316px，刚好。 */}
+      <div className="mt-4 flex items-start gap-5">
+        {options.map((o) => (
+          // ★★ `disabled` 以前**只改了字的颜色**，按钮照样点得动 —— 那不叫禁用，
+          //   叫"看着像禁用"。真按下去照样会发出一条打不开的链接（2026-08-30 修）。
+          <button
+            key={o.key}
+            onClick={o.onTap}
+            disabled={o.disabled}
+            className={`flex w-16 flex-col items-center gap-1.5 active:scale-95 ${o.disabled ? "opacity-40" : ""}`}
+            aria-label={o.label}
+          >
+            {o.render}
+            <span className={`text-[11px] ${o.disabled ? "text-slate-500" : "text-slate-300"}`}>{o.label}</span>
+          </button>
+        ))}
       </div>
-    </div>,
-    document.body,
+
+      {(err || note) && (
+        <p className={`mt-3 break-all text-xs leading-relaxed ${err ? "text-red-400" : "text-ok-300"}`}>{err || note}</p>
+      )}
+    </SheetShell>
   );
 }

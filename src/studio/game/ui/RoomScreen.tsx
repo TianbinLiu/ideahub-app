@@ -15,7 +15,14 @@
 // ★ 横屏 800×363 的视口里这一屏要塞下：房间码一行 + 最多 8 个座位 + 人数增减 + 两颗键。
 //   座位用小方块（`clamp(4.6rem,11vw,6.5rem)`、两行 4 个也能折行），不写 `vw` 的宽度给整块
 //   —— 真机上整块按视口算会伸到舞台外面（docs/g3-round-loop.md 那条坑：面板一律 w-full max-w-[…]）。
-import { useEffect, useState } from "react";
+// ★ 2026-11-24 视觉 P0（docs/game-lobby-ui-benchmark.md #22 / #23）：房间码旁边多了「复制 / 二维码 / 分享」。
+//   · 二维码复用 components/QrCode；**编码的是邀请文案本身**（房号 + 打开 App → 开工坊对局 → 加入房间），
+//     不是 `#/room/CODE` —— 今天没有"扫一下直接进房"的路由，编码一条死链比编码一段能照做的文字更坏。
+//     等房间深链落地时只换这一处的 payload。
+//   · 分享复用 components/ShareSheet 的纯文案变体（`TextShareSheet`）：同一层底部面板外壳 + 同一套
+//     剪贴板退路（`copyText`，老 WebView 上 clipboard 整个 undefined 时退 execCommand）。
+//   · 复制成功给浮字轻反馈（一次性；prefers-reduced-motion 下只淡入淡出，见 index.css）。
+import { useEffect, useRef, useState } from "react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import {
   hostStartDataFresh,
@@ -31,6 +38,8 @@ import {
 import { useLobby } from "../lobbyStore";
 import { playerName } from "../labels";
 import type { RemoteRoom } from "../../../api/game/rooms";
+import QrCode from "../../../components/QrCode";
+import { copyText, TextShareSheet } from "../../../components/ShareSheet";
 import GameBtn from "./GameBtn";
 
 export default function RoomScreen({
@@ -51,6 +60,17 @@ export default function RoomScreen({
   const inviteOpen = useLobby((s) => s.inviteOpen);
   const roomSyncedAt = useLobby((s) => s.roomSyncedAt);
   const [copied, setCopied] = useState<"idle" | "ok" | "manual">("idle");
+  /** 「分享」那一层（ShareSheet 的纯文案变体） */
+  const [shareOpen, setShareOpen] = useState(false);
+  /** 复制成功的轻反馈（浮字）：1.4 秒后自己收掉；`ok:false` = 剪贴板不可用、改走长按选中 */
+  const [copyNote, setCopyNote] = useState<{ text: string; ok: boolean } | null>(null);
+  const copyTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(copyTimer.current), []);
+  /**
+   * 邀请文案：分享 / 二维码 / 复制用的是**同一段字**（房号 + 打开 App 之后怎么走）。
+   * ★ 刻意不写「点链接」：没有房间深链路由，写"点开链接"就是一句做不到的话。
+   */
+  const inviteText = t`一起开局吧：打开 App → 开工坊对局 → 加入房间，房间码 ${room.code}。`;
   /**
    * 「这份房间数据还新不新鲜」要在**时间走过**之后自己重算一次（判据 hostStartDataFresh）。
    * ★ 这里不轮询网络（那在 useLobbyOnline，一处定时器）：只是让 label / 提示在"数据变旧"那一刻
@@ -81,24 +101,53 @@ export default function RoomScreen({
   const startDisabled = online && !!remote && fresh && remote.memberCount >= remote.requiredPlayers && remote.startBlockedBy === "not-all-ready";
   const shortOfHumans = online && label === "ai";
 
-  /** 复制房间码：老 WebView 上 navigator.clipboard 可能整个 undefined（同 ShareSheet 的退路），
-   *  拿不到就把码摆在那里让人长按选中 —— 不假装"已复制"。 */
+  /** 复制成功 / 失败都给一下浮字（"点了没反应"和"复制失败"在用户看来是同一件事）。
+   *  ★ 剪贴板退路只有 components/ShareSheet 的 `copyText` 一处（铁律六）：老 WebView 上
+   *    `navigator.clipboard` 可能整个 undefined，那里会退 execCommand。 */
+  const flashCopy = (text: string, ok: boolean) => {
+    setCopyNote({ text, ok });
+    window.clearTimeout(copyTimer.current);
+    copyTimer.current = window.setTimeout(() => {
+      setCopyNote(null);
+      // 成功那一句 1.4 秒后连按钮上的「已复制」一起收掉；失败那一格留着 ——
+      // 它是"剪贴板不可用，请长按选中"的静态说明，不该自己消失。
+      setCopied((value) => (value === "ok" ? "idle" : value));
+    }, 1_400);
+  };
+
   const copyCode = () => {
-    const clip = navigator.clipboard;
-    if (!clip?.writeText) {
-      setCopied("manual");
-      return;
-    }
-    void clip.writeText(room.code).then(
-      () => setCopied("ok"),
-      () => setCopied("manual"),
+    void copyText(room.code).then(
+      () => {
+        setCopied("ok");
+        flashCopy(t`房间码已复制`, true);
+      },
+      () => {
+        setCopied("manual");
+        flashCopy(t`剪贴板不可用：长按房间码手动选中`, false);
+      },
     );
   };
 
   return (
     <div className="relative flex w-full max-w-[42rem] flex-col items-center gap-1.5">
-      {/* ── 房间码 + 邀请 ── */}
-      <div className="flex items-center justify-center gap-2">
+      {/* 复制成功的浮字：盖在这一屏顶上一小块，1.4 秒后自己消失（不占布局、不挡操作）。
+          ★ 邀请卡开着时不画：那张卡自己就有「已复制」与失败说明，两层字叠在一起会糊成一片。 */}
+      {copyNote && !inviteOpen && (
+        <div className="pointer-events-none absolute inset-x-0 -top-7 z-[60] flex justify-center">
+          <span
+            className={`lobby-copy-pop rounded-full px-2.5 py-1 text-[10px] font-semibold ring-1 ${
+              copyNote.ok ? "bg-ok/20 text-ok-100 ring-ok/40" : "bg-warn/15 text-warn-100 ring-warn/40"
+            }`}
+          >
+            {copyNote.text}
+          </span>
+        </div>
+      )}
+
+      {/* ── 房间码 + 复制 / 二维码 / 分享 ──
+          ★ 「复制」把码复制走（复制成功有浮字）；「二维码」开邀请卡（码 + 二维码 + 怎么进房）；
+            「分享」开 ShareSheet 的纯文案变体（同一段邀请文案）。 */}
+      <div className="flex flex-wrap items-center justify-center gap-2">
         <span className="text-[10px] text-slate-400">
           <Trans>房间码</Trans>
         </span>
@@ -108,8 +157,12 @@ export default function RoomScreen({
         >
           {room.code}
         </span>
+        <GameBtn onClick={copyCode}>{copied === "ok" ? <Trans>已复制</Trans> : <Trans>复制</Trans>}</GameBtn>
         <GameBtn onClick={() => useLobby.getState().toggleInvite(true)}>
-          <Trans>邀请</Trans>
+          <Trans>二维码</Trans>
+        </GameBtn>
+        <GameBtn onClick={() => setShareOpen(true)}>
+          <Trans>分享</Trans>
         </GameBtn>
       </div>
 
@@ -194,7 +247,9 @@ export default function RoomScreen({
         )}
       </p>
 
-      {/* ── 邀请卡：联机接通之后这个码真的能进房；没接通时只能给可复制的码 ── */}
+      {/* ── 邀请卡：联机接通之后这个码真的能进房；没接通时只能给可复制的码 ──
+          ★ 2026-11-24 加了二维码（复用 components/QrCode）与「分享邀请」：
+            扫出来的是邀请文案本身，不是一条打不开的房间链接（今天没有房间深链路由）。 */}
       {inviteOpen && (
         <div
           className="absolute inset-0 z-50 flex items-center justify-center bg-ink/85 p-3"
@@ -207,8 +262,14 @@ export default function RoomScreen({
             <h3 className="text-[12px] font-semibold text-slate-100">
               <Trans>邀请别人进这间房</Trans>
             </h3>
-            <div className="my-2 select-all font-mono text-[24px] tracking-[0.3em] text-gold-200">{room.code}</div>
-            <p className="text-left text-[10px] leading-snug text-slate-300">
+            <div className="my-1.5 select-all font-mono text-[20px] tracking-[0.3em] text-gold-200">{room.code}</div>
+            <div className="flex justify-center">
+              <QrCode text={inviteText} size={88} label={t`房间二维码`} />
+            </div>
+            <p className="mt-1 text-center text-[9px] leading-snug text-slate-400">
+              <Trans>扫这张码能拿到同一段邀请文案（房号 + 怎么进房）</Trans>
+            </p>
+            <p className="mt-1 text-left text-[10px] leading-snug text-slate-300">
               {online ? (
                 <Trans>把房间码念给朋友：他们在大厅的「加入房间」里输入就能进来。服务端的回合只算真人，空位不参加。</Trans>
               ) : (
@@ -224,12 +285,26 @@ export default function RoomScreen({
               <GameBtn tone="gold" onClick={copyCode}>
                 {copied === "ok" ? <Trans>已复制</Trans> : <Trans>复制房间码</Trans>}
               </GameBtn>
+              {/* 先收邀请卡再开分享面板：两层弹层永不同时叠着（返回键一次只关一层） */}
+              <GameBtn
+                onClick={() => {
+                  useLobby.getState().toggleInvite(false);
+                  setShareOpen(true);
+                }}
+              >
+                <Trans>分享邀请</Trans>
+              </GameBtn>
               <GameBtn onClick={() => useLobby.getState().toggleInvite(false)}>
                 <Trans>关闭</Trans>
               </GameBtn>
             </div>
           </div>
         </div>
+      )}
+
+      {/* 分享面板：与视频分享同一个底壳 / 同一套剪贴板退路（components/ShareSheet.TextShareSheet） */}
+      {shareOpen && (
+        <TextShareSheet title={t`邀请朋友进这间房`} text={inviteText} onClose={() => setShareOpen(false)} />
       )}
     </div>
   );
