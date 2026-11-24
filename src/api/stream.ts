@@ -9,10 +9,14 @@
  *   200 + index.html（CLAUDE.md 坑表），不判 Content-Type 的话老服务端上表现为"流开着但一个字都不来"。
  * ★ 事件的**语义**仍归各自的调用方：这里只管把 `{event, data}` 原样交出去，不认识 sentence / handoff 这些名字。
  * ★ `error` 事件与非 2xx 都 reject；正常读完 resolve。abort 由调用方给 signal，原样抛 AbortError。
+ * ★ 2026-11-24：`getReader` → TextDecoder → 喂解析器 → flush 那一段**搬去了 `api/sseBody`**
+ *   （联机对局的推送流要用逐字相同的一段，照抄就是"跨 chunk 半帧"两处实现）。
+ *   这里只留自己的那半：看门狗（`SSE_STALL_MS` 的 90 秒耐心）、非 2xx、Content-Type、`error` 事件 → throw。
  */
 import { t } from "@lingui/core/macro";
 import { API_BASE, ApiError, getToken, withAppVersion } from "./client";
-import { createSseParser, type SseEvent } from "../companion/sse";
+import { readSseBody } from "./sseBody";
+import type { SseEvent } from "../companion/sse";
 
 /** 有 token 就带上（游客只拿服务端默认）。与 client.ts 同一个 token 来源 */
 export function authHeaders(extra: Record<string, string> = {}): Record<string, string> {
@@ -121,38 +125,27 @@ export async function streamSseRequest(
     if (!ctype.includes("text/event-stream")) throw new ApiError(opts.unsupported, 501, "UNSUPPORTED");
 
     let failure = "";
-    const parser = createSseParser((e) => {
-      const f = failureOf(e);
-      if (f) {
-        failure = f;
-        return;
-      }
-      onEvent(e);
-    });
-
-    if (!res.body) {
-      // 老 WebView / 测试替身没有 ReadableStream：整份读回来再切，结果一样（只是没有"逐句到达"）
-      parser.push(await res.text());
-    } else {
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      for (;;) {
-        let chunk: ReadableStreamReadResult<Uint8Array>;
-        try {
-          // eslint-disable-next-line no-await-in-loop -- 就是要一块一块读
-          chunk = await reader.read();
-        } catch (e) {
-          const secs = Math.round(SSE_STALL_MS / 1000);
-          if (stalled) throw new ApiError(t`回话说到一半停住了（${secs} 秒没有新内容），先停下了。`, 0, "TIMEOUT");
-          throw e;
-        }
-        if (chunk.done) break;
-        arm(); // 有新字节 = 还活着，重新计时（按"停了多久"算，见 SSE_STALL_MS 的 ★★）
-        parser.push(decoder.decode(chunk.value, { stream: true }));
-      }
-      parser.push(decoder.decode());
+    try {
+      await readSseBody(
+        res.body,
+        // 老 WebView / 测试替身没有 ReadableStream：整份读回来再切，结果一样（只是没有"逐句到达"）
+        () => res.text(),
+        (e) => {
+          const f = failureOf(e);
+          if (f) {
+            failure = f;
+            return;
+          }
+          onEvent(e);
+        },
+        // 有新字节 = 还活着，重新计时（按"停了多久"算，见 SSE_STALL_MS 的 ★★）
+        { onChunk: arm },
+      );
+    } catch (e) {
+      const secs = Math.round(SSE_STALL_MS / 1000);
+      if (stalled) throw new ApiError(t`回话说到一半停住了（${secs} 秒没有新内容），先停下了。`, 0, "TIMEOUT");
+      throw e;
     }
-    parser.flush();
     if (failure) throw new ApiError(failure, 502, "SSE_UPSTREAM");
   } finally {
     disarm();

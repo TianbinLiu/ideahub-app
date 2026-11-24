@@ -13913,6 +13913,14 @@ msgstr "You can't finalize and reshoot at the same time — finalize first, then
 msgid "实习生导演"
 msgstr "Intern Director"
 
+#: src/studio/game/roundsReasons.ts
+msgid "实时连接中"
+msgstr "Live connection active"
+
+#: src/studio/game/roundsReasons.ts
+msgid "实时连接断了，正在用轮询"
+msgstr "Live connection lost — polling instead"
+
 #: src/components/support/AdminTicketsView.tsx
 #: src/pages/SupportPage.tsx
 msgid "客服"

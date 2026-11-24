@@ -253,7 +253,8 @@ damage  = max(5, floor(base(r) × 人数 / 4 / 5) × 5)
 ## 六、还没做 / 剩下的风险
 
 - ~~**对局本身没有联机**~~：2026-11-24 接上服务端回合引擎之后，**交片 / 展映 / 点赞 / 投票 / 结算 / 下一回合**
-  已经是服务端在推进（§七）。仍然**没有**的是：WebSocket 推送（还是 2 秒轮询）、回合级断线重连、
+  已经是服务端在推进（§七）。**推送**也已接上（§7.10：`GET /rooms/:code/stream` 的 SSE，2026-11-24）——
+  "WebSocket"这句从此不成立，剩下的仍然没有：回合级断线重连（流断了是**退回 2 秒轮询**继续打，不是找回失去的那几秒）、
   服务端事件端点（事件仍只在本机跑）。
 - **空位 AI 的口径（2026-11-24 改口）**：联机房间的空座位**不参加服务端回合**（服务端的回合只算真人成员，
   结算榜里没有 AI）。房间里只有 2 个真人时，这一局就是 2 人局。旧文档里"空位由 AI 补齐"那句
@@ -383,10 +384,13 @@ App 这一侧只做"把服务端的事实接回本机状态"，榜与扣血**一
 
 ### 7.6 定时器与失败
 
-- **联机回合只有一个定时器**：`ui/useOnlineRounds`（2 秒一拍，递归 setTimeout，一拍没回来不叠下一拍）。
+- **联机回合只有一个定时器**：`ui/useOnlineRounds`（递归 setTimeout，一拍没回来不叠下一拍）。
   每拍**并发两发**：`GET rounds/current`（打什么）+ `GET /rooms/:code`（谁在推进 / 谁还活着 / 这局结束没有）。
   服务端 `game-room-poll` 限流 240/分钟，这一端只花 60/分钟；房间快照这一发失败**不切单机**
   （沿用上一份房主 / 血量，下一拍再问），回合那一发失败才算断线。
+  **2026-11-24 起**：推送（§7.10）正常时这一拍放宽到 **15 秒**（`ROUND_POLL_LIVE_MS`），
+  流断了 / 重连中立刻回到 **2 秒**；流正常时轮询那一发**传输层**失败不再判死这一局（主通道还在推），
+  但服务端**明确回了业务码**（`NOT_IN_ROOM` / `ROOM_NOT_FOUND` …）照旧收场。
   它同时负责：对齐本机阶段 / 回合、刷新房主、判结束、到结算阶段取 settlement、掉线退回单机、对局结束退房。
 - 大厅那一侧仍然只有 `ui/useLobbyOnline` 一个定时器；它多了一段"房间 playing 之后等回合铺好"的逻辑
   （房主建 / 其他人等，最多 30 秒），超时同样说一句再退回单机。
@@ -395,7 +399,10 @@ App 这一侧只做"把服务端的事实接回本机状态"，榜与扣血**一
 
 ### 7.7 已知限制
 
-- **没有推送**：仍然是 2 秒轮询（服务端契约就是这么设计的）；换回合 / 结算 / 房主换手 / 结束最多慢 2 秒。
+- **推送是单实例的**（§7.10）：线上 pm2 cluster + nginx，一次写只推给**同一进程**上的订阅者 ——
+  另一实例上的这一端收不到那一帧。所以**轮询永不撤**（流正常时 15 秒、断了 2 秒），
+  最坏情况是"别人交片要等一次兜底轮询才看到"（≤15 秒），不是"永远看不到"。
+  真要全服实时得把 `services/gameRoomBus` 换成 Redis pub/sub（不是 App 的事）。
 - **事件只在"服务端出题"那一档才跨端**（见 7.5）：`health.gameEvents` 为假的老服务端上仍退回本机那一套
   ——那时各人抽各人的题，界面明写「事件只在本机生效（不会影响别人）」。`GAME_EVENTS_API=off`
   急停的那一发也会落到这条路（503 → 本地事件），所以它不是"老服务端专属"的退路。
@@ -491,4 +498,77 @@ App 这一侧只做"把服务端的事实接回本机状态"，榜与扣血**一
 4. 真机这一轮**没跑**；上面是 dev 两个来源 + 本机服务端的真凭据（`AG425B` / `EZ2SU3` 两个房）。
    「能力位为假 → 退回本机事件」只有 `check-game-online` 第 11 节的正反例，**没有**真的把
    `GAME_EVENTS_API` 关掉再打一局（下一轮要验就在起服务端时不带上这个开关）。
+
+### 7.10 推送：一条 SSE 长连接（2026-11-24，服务端 server#159）
+
+服务端：`GET /api/game/rooms/:code/stream`（`text/event-stream`）。App 侧的实现分布在三处，
+**每一处都只有一份**：
+
+| 在哪 | 管什么 |
+|---|---|
+| `api/game/roomStream.ts` | 建连 / 关连接 / 认事件名（`snapshot` / `update` / `ping` / `error` / `end`）/ 把帧里的 `{room, round}` 交给轮询那份解析器 |
+| `api/sseBody.ts` | 响应体 → 帧（跨 chunk 半帧 / `\r\n` / 多行 data / 注释行）；`api/stream.ts`（AI 客服那两条流）也走它 |
+| `ui/useOnlineRounds.ts` | **唯一**决定"开不开 / 什么时候重连 / 什么时候关"的地方；轮询间隔也在这里跟着切换 |
+
+- **为什么不用 EventSource**：它带不了 `Authorization` 头（服务端留的 `?token=` 只是给 EventSource 的兜底）。
+  这里走 `fetch` + `ReadableStream`，token 与全仓其它请求同一个来源、**不进 URL**。
+- **帧格式**（服务端契约）：`snapshot` 建连即来（`round` 可能为 null = 还没开第一回合）；
+  `update` 之后每次变化都推**整份**快照；`ping` 每 20 秒一次（**data 是空串**，不是没有 data 行）；
+  `error` 发完就关；`end {reason:"lifetime"}` 是 30 分钟寿命到，客户端重连。
+- **同一个应用函数**：推送帧的解包用 `rooms.remoteRoomOf` / `rounds.remoteRoundOf`（与轮询同一份），
+  应用用 `roundsStore.applyRemote`（与轮询同一份）。推送**只是更快地拿到同一份东西**。
+  ★ 推送帧里没有结算榜 / 事件：`settleIfDue` 会照旧 `POST rounds/settle` 取回来（与轮询同一处）。
+  ★ 推送与轮询可能抢：轮询**在飞的时候**推送应用过快照，那一拍轮询结果整份丢掉（`roundsStore.pushSeq`）——
+  否则 HTTP 响应晚到会把刚推来的 `allSubmitted:true` 盖回 `false`（本机实测撞到过，见那边的 ★★）。
+- **能力位**：`health.gameRoomStream`（`data/serverCaps.serverGameRoomStream`）。
+  读不到（老服务端 / 离线包 / 还没探到 / 探测失败）= **一条流都不开**，就是改版前那套 2 秒轮询；
+  冷启动直接回到一局对局时能力位可能还没探到 —— `ui/useOnlineRounds` 订阅了能力位广播，探到了会把流开起来。
+- **降级**：流正常 → 轮询 15 秒；流断开 / 重连中 / 已放弃 → 轮询 **2 秒**，底栏一行小字
+  「实时连接断了，正在用轮询」（正常时是「实时连接中」）。**轮询一拍都不停**：推送是单实例的（§7.7）。
+- **重连**：`end` / 网络错 / 5xx / 半截帧 → 指数退避 **1s、2s、4s、8s、15s（上限 15 秒），最多 5 次**
+  （`studio/game/streamRetry`，构建里 `check-game-stream.mjs` 实跑）；5 次都失败就停流、彻底用 2 秒轮询。
+  **不重连**的那几种（重连只会把同一句话再要一遍）：`ROOM_NOT_FOUND` / `NOT_IN_ROOM` / `GAME_ROOMS_OFF` /
+  `TOO_MANY_STREAMS`（429，服务端契约就写着"停止重试"）/ 401 / 404 / 200 + HTML（老服务端）。
+- **心跳看门狗**：45 秒没有任何字节就当这条连接死了（心跳 20 秒一次，漏两拍才判）。手机切飞行模式 /
+  Wi-Fi 掉线时 `reader.read()` 会挂在半开连接上直到内核放弃（几十秒到几分钟）—— 没有它，界面会一直写着
+  「实时连接中」而对面的交片要等 15 秒那一拍轮询才看到。
+- **清理点**（服务端每用户只许 **2 条**并发，泄漏一条就是下一次重连 429）：
+  `ui/useOnlineRounds` 那个 effect 的 cleanup —— 离房（`roomCode` 变 null）/ 离开工坊 / 转竖屏（`GameLayer` 卸载）/
+  对局结束（`winners` 非 null）；`roomStream.ts` 里 `close()` 幂等，且**任何一条收尾路径**（end / error / 断网 /
+  调用方 close）都会 `AbortController.abort()` 关掉底层连接。
+- **状态那一行小字**：`roundsStore.stream` 三态 `live` / `retrying` / `polling`（`off` 不摆），
+  话只有 `roundsReasons.roundStreamText` 一处说（`retrying` 与 `polling` 是同一句 —— 对玩家是同一件事）。
+
+### 7.11 怎么验的（2026-11-24 SSE）
+
+1. `node scripts/check-game-stream.mjs` → **44 条**（正例）：服务端 `frameOf` 的**逐字格式**喂进真实的
+   `api/sseBody` 读循环 —— 一 chunk 两帧 / 一个事件切三块 / CRLF / 心跳空 data / 多行 data + 注释行 /
+   末尾没有空行的半帧（flush）/ UTF-8 多字节字符跨块 / 没有 `ReadableStream` 时走 `readText`；
+   重连表 1s→2s→4s→8s→15s、5 次封顶、第 6 次停流；再加 15 条源码断言（Bearer 不进 URL / `withAppVersion` /
+   帧切分只走 `sseBody` / 认 Content-Type / `close()` 与收尾都 abort / 能力位唯一判据 /
+   `ROUND_POLL_LIVE_MS` / 推送与轮询共用 `applyRemote` / 流正常时轮询失败不切单机）。
+2. `npm run build` 绿（tsc + lingui extract + 全部 check + vite build）；`check-i18n` → **en 缺译 0**
+   （本轮新增 2 条：实时连接中 / 实时连接断了，正在用轮询）。
+3. 本机服务端（`ideahub-server` main = SSE 那一版，本地 Mongo 测试库，`CORS_ORIGINS` 放行 dev 两个来源）
+   + `npm run dev -- --port 5178`，两个来源（`localhost:5178` / `127.0.0.1:5178`，localStorage 按源隔离）
+   各登一个新建测试账号（`sseA` 房主 / `sseB` 客人），custom 房 `PKXRTF`。真凭据：
+   - **进入对局**：两边 `__rounds.stream === "live"`，底栏「实时连接中」；房主推进 / 交片都照常。
+   - **① 对方交片**：`sseB` 用 API 交片（`POST rounds/entries`），`sseA` 的 store 在 **41ms** 后
+     `snapshot.entries.length === 1`（比那一发 POST 的**回包还早 22ms** 到 —— 推送先到）；
+     `sseA` 在界面上点「用占位片交片」后，`sseB` 的屏幕从「已交片，等其他人（1/2 已交）」
+     翻到「全员都交片了（2/2）」用了 **36ms**（`Date.now()` 两边同机对比）。
+   - **② 流断了**：把 `sseA` 的 `window.fetch` 对 `/stream` 打桩成必然失败（模拟"怎么都连不回来"），
+     再重启服务端（真断了那一条）→ `live → retrying` 在 **0.5~2 秒**内，底栏立刻是
+     「实时连接断了，正在用轮询」；5 次退避（1+2+4+8+15 = **30.2 秒**）后 `retrying → polling`
+     （同一句话，不再重连）。整段期间**这一局没有被退回单机**（断网那几拍轮询失败被容忍，没留 fallback）。
+     之后轮询实测 **2009 / 2014 / 2009 / 2016 / 2009 / 2010 ms**（2 秒一拍）；
+     `sseB` 再交一版（换了提示词）→ 那一发 POST 回包之后 **1.69 秒** `sseA` 看到新提示词（≤ 一拍轮询）；
+     房主 `sseA` 在轮询态下把阶段推到 `screening`，本机也进了展映屏 —— 对局能继续。
+   - **③ 离房清理**：`sseB` 刚离房前，同一账号（App 那条 + 探针 1 条）再开第 3 条被服务端拒成
+     **429 `TOO_MANY_STREAMS`，`details.active = 2`**（说明 App 那条确实占着服务端名额）；
+     `__rounds.leaveNow()` 之后新建一间房（`CCNF9C`），探针**连开两条都拿到了 `event: snapshot`**、
+     第三条才 429 `active:2` —— 旧连接已经关掉、名额释放了（泄漏的话第二条就会 429）。
+   - **没验的**：能力位 `gameRoomStream` 为假的那条路（老服务端）只有 `check-game-stream` 的源码断言，
+     没有真拿一台老服务端打一局；也没有真机。
+
 
