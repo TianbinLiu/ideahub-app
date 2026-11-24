@@ -258,6 +258,16 @@ function roomOf(raw: unknown): RemoteRoom | null {
   };
 }
 
+/**
+ * 房间快照解析（**唯一一处**）：轮询回包的 `{ok, room}` 信封与推送帧 `{room, round}` 里的 `room`
+ * 是同一份形状，所以两边必须走同一份解析 —— 另写一份的后果是"轮询读得出房主、推送读不出"，
+ * 屏幕上表现为房主键时有时无（铁律六：同一条规则两处实现）。
+ * ★ 只给 `api/game/roomStream.ts` 用；界面不读服务端字段名（见文件头）。
+ */
+export function remoteRoomOf(raw: unknown): RemoteRoom | null {
+  return roomOf(raw);
+}
+
 /** 队列回包 → `MatchTicket`（`POST` 与 `GET` 同形；任务契约里的 `queued` 就是服务端的 `waiting`）。 */
 function ticketOf(raw: unknown): MatchTicket | null {
   const r = asRecord(raw);

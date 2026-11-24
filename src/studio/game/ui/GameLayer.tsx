@@ -17,7 +17,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useLingui } from "@lingui/react/macro";
 import { ruleFailureText } from "../reasons";
-import { roundsNoteText } from "../roundsReasons";
+import { roundsNoteText, roundStreamText } from "../roundsReasons";
 import { useRounds } from "../roundsStore";
 import { useGame, type GameNotice } from "../store";
 import { gameViewOf } from "../view";
@@ -53,6 +53,7 @@ export default function GameLayer() {
   const online = useGame((s) => s.online);
   const onlineLocalEvents = useGame((s) => s.onlineLocalEvents);
   const roundsNote = useRounds((s) => s.note);
+  const roundStream = useRounds((s) => s.stream);
   const { t } = useLingui();
   // 联机回合的轮询与对账（**唯一一处**定时器；单机局里这个 hook 什么都不做）
   useOnlineRounds();
@@ -112,6 +113,13 @@ export default function GameLayer() {
   if (!view) return null;
   // 还没选风格：整屏都是风格卡（选完 beginRound 才开第一回合商店）
   if (state.phase === "style") return <StylePick view={view} />;
+
+  /**
+   * 底栏那一行推送状态小字（`null` = 不摆）。
+   * ★ 判据与话都在 `roundsReasons.roundStreamText` 那一处；这里只决定"联机局才摆"。
+   * ★ `off`（单机 / 老服务端 / 对局已结束）返回 null —— 没有推送这件事不该占底栏一行字。
+   */
+  const streamLine = online ? roundStreamText(roundStream) : null;
 
   const inShop = state.phase === "shop";
   /**
@@ -264,6 +272,24 @@ export default function GameLayer() {
         {/* 背包条 + 商店键：商店阶段 = 买完就地摆；创作阶段出片前还能改摆法（见 rules.PLACE_PHASES）。
             ★ 事件阶段让位（见 inEvent）：那一条在这一阶段没有一个能用的动作，却要占掉 67px。 */}
         {!inEvent && <BagBar view={view} />}
+
+        {/* ── 推送状态：底栏那一行小字（2026-11-24 SSE）──
+            ★ 只在**联机局且真的开了流**时摆：`off`（单机厅 / 老服务端 / 对局已结束）什么都不说，
+              没有推送这件事不该占一行字。话只有 `roundsReasons.roundStreamText` 一处说。
+            ★ 用 `role="status"` 而不是 alert：它不是失败提示（轮询兜着，对局照常能打完），
+              别去抢上面那条失败提示的注意力。 */}
+        {streamLine && (
+          <div
+            role="status"
+            className="pointer-events-none flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-[9px] leading-none text-slate-300"
+          >
+            <span
+              aria-hidden
+              className={`inline-block h-1.5 w-1.5 rounded-full ${roundStream === "live" ? "bg-ok-400" : "bg-warn-400"}`}
+            />
+            <span>{streamLine}</span>
+          </div>
+        )}
 
         <PhaseBar view={view} />
       </div>

@@ -93,6 +93,17 @@ export interface ServerCaps {
    *   （判据在 `studio/game/onlineHost.onlineEventSourceOf`：能力位 + 那一发的结果）。
    */
   gameEvents: boolean;
+  /**
+   * 工坊对局的 **SSE 推送**（2026-11-24；服务端 server#159）：有 `GET /api/game/rooms/:code/stream`，
+   * 建连即一帧 `snapshot`，之后 `update` / `ping` / `error` / `end`。
+   * ★ 读不到这一位 = 老服务端 / 离线包：**一条流都不开**，对局完全走改版前那套 2 秒轮询
+   *   （判据只在 `api/game/roomStream.roomStreamAvailable`，`ui/useOnlineRounds` 不自己读能力位）。
+   * ★ 与 gameRooms / gameEvents 同一条纪律：不按 404 猜（真机上不存在的路径回 200 + index.html），只认这一位。
+   * ★ 这一位为真、流中途坏了（网络 / 5xx / 服务端 30 分钟寿命到）时**轮询兜底必须还在**：
+   *   服务端的推送是**单实例**的（pm2 cluster 下另一个实例的写推不过来），所以那 2 秒一拍永远不拆，
+   *   只是流正常时放宽到 15 秒。
+   */
+  gameRoomStream: boolean;
 }
 
 /** 布尔的那几位（serverSupports 只答这几样） */
@@ -111,7 +122,8 @@ export type BoolCap =
   | "minimaxV2FreeTextOnly"
   | "gameTickets"
   | "gameRooms"
-  | "gameEvents";
+  | "gameEvents"
+  | "gameRoomStream";
 
 /** 健康端点的 JSON → ServerCaps（形状不对的位一律按「没有」）。**唯一解析处** */
 function capsOf(j: Record<string, unknown>): ServerCaps {
@@ -138,6 +150,7 @@ function capsOf(j: Record<string, unknown>): ServerCaps {
     gameTickets: j.gameTickets === true,
     gameRooms: j.gameRooms === true,
     gameEvents: j.gameEvents === true,
+    gameRoomStream: j.gameRoomStream === true,
   };
 }
 
@@ -163,6 +176,7 @@ const NONE: ServerCaps = {
   gameTickets: false,
   gameRooms: false,
   gameEvents: false,
+  gameRoomStream: false,
 };
 /**
  * 直连 / 离线：没有服务端那一层，能力全在；免费档清单按档位表（freeVideo null）。
@@ -171,7 +185,8 @@ const NONE: ServerCaps = {
  *   videoZone 同理（data/videoZone 本来也不在直连 / 离线时问）：dev 的出片不经服务端、没有地区门禁，地区当「不知道」照老样子摆。
  *   minimaxV2 同理（2026-10-26）：H3 只经服务端的 /api/minimax/v2 出片（MiniMax 的 key 在服务端），dev 直连方舟、离线走 mock 都没有它 —— 三档不摆。
  *   gameTickets 同理（G4 收尾）：dev 的 /api/ark 由 vite 代理直连方舟、不经服务端计费，也没有 /api/game/tickets —— 券没有可扣的地方。
- *   gameEvents / gameRooms 同理（联机对局）：dev 里没有 /api/game/rooms*，事件只能走本机那一套。
+ *   gameEvents / gameRooms / gameRoomStream 同理（联机对局）：dev 里没有 /api/game/rooms*，
+ *   事件只能走本机那一套、推送一条流都不开（那条长连接在 dev 里没有任何东西可连）。
  */
 const ALL: ServerCaps = {
   res480: true,
@@ -191,6 +206,7 @@ const ALL: ServerCaps = {
   gameTickets: false,
   gameRooms: false,
   gameEvents: false,
+  gameRoomStream: false,
 };
 const listeners = new Set<() => void>();
 
@@ -311,6 +327,21 @@ export function serverGameRooms(): boolean | null {
 export function serverGameEvents(): boolean | null {
   if (!API_ON) return ALL.gameEvents;
   if (caps) return caps.gameEvents;
+  if (!probe && Date.now() - failedAt >= RETRY_MS) void probeServerCaps(true);
+  return null;
+}
+
+/**
+ * 这台服务端有没有**对局推送那条长连接**（`GET /api/game/rooms/:code/stream`）。
+ * ★ 唯一读法是 `api/game/roomStream.roomStreamAvailable()`（`ui/useOnlineRounds` 据此决定开不开流）。
+ * ★ 与 serverGameRooms / serverGameEvents 同一份理由单开一个读法（force 探测：dev + 本地服务端要能问到这一位）。
+ * ★ 读不到（null）当「没有」：老服务端上真发出去的那条 GET 会吃 SPA 的 200 + HTML，客户端会一直挂在
+ *   一条永远不来的流上；而对局本来就有 2 秒轮询兜底，少开一条流没有任何损失。
+ *   与 minimaxV2 / gameTickets 同一种口径：这一位没有「不知道就放行」的余地。
+ */
+export function serverGameRoomStream(): boolean | null {
+  if (!API_ON) return ALL.gameRoomStream;
+  if (caps) return caps.gameRoomStream;
   if (!probe && Date.now() - failedAt >= RETRY_MS) void probeServerCaps(true);
   return null;
 }

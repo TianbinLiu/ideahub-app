@@ -8,7 +8,7 @@
  * ★ 函数体里的 t 是"调用那一刻才翻"（别在模块顶层拼常量：会冻结在开机语言）。
  */
 import { t } from "@lingui/core/macro";
-import type { RoundNote } from "./roundsStore";
+import type { RoundNote, RoundStreamState } from "./roundsStore";
 
 /** 服务端回合端点的业务码 → 一句人话。认不出的码原样印出来（照实说，不装作没事）。 */
 export function roundCodeText(code: string): string {
@@ -74,5 +74,24 @@ export function roundsNoteText(note: RoundNote): string {
       return t`这一拍没连上回合服务，正在重试`;
     case "code":
       return roundCodeText(note.code);
+  }
+}
+
+/**
+ * 底栏那一行推送状态小字（`null` = 不摆那一行）。
+ * ★ 玩家只需要知道两件事：现在是实时的，还是掉回轮询了。
+ *   `retrying`（正在退避重连）与 `polling`（重连 5 次都没成）对他是**同一件事** ——
+ *   现在靠轮询在跑、对局照样能打完；分成两句说只会让人追问"还要等多久"（答案我们也不知道）。
+ * ★ `off`（能力位为假 / 单机局 / 对局已结束）不摆：没有推送这件事不该占底栏一行字。
+ */
+export function roundStreamText(state: RoundStreamState): string | null {
+  switch (state) {
+    case "live":
+      return t`实时连接中`;
+    case "retrying":
+    case "polling":
+      return t`实时连接断了，正在用轮询`;
+    default:
+      return null;
   }
 }

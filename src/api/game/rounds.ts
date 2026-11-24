@@ -274,6 +274,15 @@ function roundOf(raw: unknown): RemoteRound | null {
 }
 
 /**
+ * 回合快照解析（**唯一一处**）：`GET rounds/current` 的回包与推送帧里的 `round` 是同一份形状，
+ * 两边必须走同一份解析（铁律六）。推送那边由 `api/game/roomStream.ts` 调。
+ * ★ 只给推送层用；界面拿的是 `roundsStore.snapshot`（已经是这个类型）。
+ */
+export function remoteRoundOf(raw: unknown): RemoteRound | null {
+  return roundOf(raw);
+}
+
+/**
  * 事件效果解析（`effects.client` 的每一项）。
  * ★ 认不出的 `kind` → 整份事件解析失败（**不是**跳过这一项）：事件效果会改金币 / 卡组 / 档位，
  *   跳过一项等于悄悄少给一次收益（铁律八：不静默）；而退回本机事件那条路会明说「事件只在本机生效」。

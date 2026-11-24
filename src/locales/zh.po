@@ -13921,6 +13921,14 @@ msgstr "定稿与重拍不能同时做——先定稿，满意了再重拍"
 msgid "实习生导演"
 msgstr "实习生导演"
 
+#: src/studio/game/roundsReasons.ts
+msgid "实时连接中"
+msgstr "实时连接中"
+
+#: src/studio/game/roundsReasons.ts
+msgid "实时连接断了，正在用轮询"
+msgstr "实时连接断了，正在用轮询"
+
 #: src/components/support/AdminTicketsView.tsx
 #: src/pages/SupportPage.tsx
 msgid "客服"

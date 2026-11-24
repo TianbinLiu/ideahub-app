@@ -1,5 +1,5 @@
 /**
- * 联机回合的界面状态（2026-11-24 接上服务端回合引擎）。
+ * 联机回合的界面状态（2026-11-24 接上服务端回合引擎；同日晚加 SSE 推送）。
  *
  * ★★ 这一层只做三件事：**发一拍 / 写回服务端给的事实 / 把失败原因原样留着**。
  *   · 规则一条都不在这里：谁能开回合、全员交片才能展映、谁扣多少血、胜者是谁 —— 全在服务端
@@ -10,7 +10,11 @@
  *   混进去之后单机那份 loop 会开始读服务端的字段。界面（ui/useOnlineRounds）是唯一同时认识两边的地方。
  * ★ 依赖方向：game/store 不认识这个文件（只在类型上认 `api/game/rounds` 的 RemoteWinner），
  *   这个文件也不认识 game/store —— 两边由 ui/useOnlineRounds 对账。
+ * ★★ 2026-11-24 的推送（SSE）**不在这层另开一份"应用服务端快照"**：推送来的 `{room, round}` 与轮询
+ *   读回来的那两份**走同一个 `applyRemote`**（本文件里唯一一处写 session/room/snapshot/memberHp 的地方）。
+ *   推送只是"更快地拿到同一份东西"：它比轮询先到就先用，慢 / 断了就由轮询兜着（见 ROUND_POLL_LIVE_MS）。
  */
+
 import { create } from "zustand";
 import { leaveRoom, readRoom, type RemoteRoom } from "../../api/game/rooms";
 import {
@@ -36,6 +40,29 @@ import { clearOnlineResume } from "./onlineResume";
 
 /** 回合屏的轮询间隔（服务端契约：轮询路径按 2 秒一次算，240 次/分钟够两台设备同时开着）。 */
 export const ROUND_POLL_MS = 2_000;
+
+/**
+ * 推送**正常**时轮询放慢到 15 秒（2026-11-24 SSE）。
+ * ★★ 为什么轮询一拍都不停（而不是"有流就关掉轮询"）：服务端的推送是**单实例**的 ——
+ *   线上是 pm2 cluster（2 实例）+ nginx，一次写只推给**同一进程**上的订阅者（服务端
+ *   `services/gameRoomStream.service.js` 头上那段 ★★）。另一实例上的这一端收不到那一帧，
+ *   而它以为自己"实时" —— 轮询是唯一能把那一帧补回来的东西，拆了就是"某些局每回合慢一拍、
+ *   偶尔完全不刷新"，且只在线上两台机器上才复现。
+ * ★ 15 秒：兜底够快（比一整屏发呆短得多），又不至于让两台设备各自多打一轮请求
+ *   （服务端 `game-room-poll` 限流 240/分钟；15 秒 = 4 次/分钟）。
+ * ★ 流断了 / 重连期间**立刻回到 ROUND_POLL_MS** —— 见 ui/useOnlineRounds。
+ */
+export const ROUND_POLL_LIVE_MS = 15_000;
+
+/**
+ * 推送那条长连接现在的状态（底栏那一行小字，唯一来源）。
+ *   `off`      = 没开流（能力位为假 / 单机局 / 已经收起）—— 界面上不摆那一行
+ *   `live`     = 流正常收帧 —— 「实时连接中」
+ *   `retrying` = 断了、正在退避重连 —— 轮询已回到 2 秒，界面说「实时连接断了，正在用轮询」
+ *   `polling`  = 重连 5 次都没成（或服务端明说别重连），彻底退回 2 秒轮询 —— 同一句话
+ * ★ 界面只读这一个值说那一行字（判据不在 GameLayer 里自己拼）。
+ */
+export type RoundStreamState = "off" | "live" | "retrying" | "polling";
 
 /** 房间里的一个真人（hp 是服务端的真相；对局里每回合结算会把它写回本地视图）。 */
 export interface RoundMember {
@@ -97,6 +124,8 @@ export interface RoundsStore {
   event: RemoteRoundEvent | null;
   eventState: RoundEventState;
   note: RoundNote | null;
+  /** 推送那条长连接的状态（底栏一行小字的**唯一来源**；`off` = 没开流） */
+  stream: RoundStreamState;
   /** 一个动作在飞（按钮灰掉用） */
   busy: boolean;
   /** 结算请求在飞（自动结算与手点不要撞在一起） */
@@ -126,6 +155,14 @@ export interface RoundsStore {
    */
   failNow: () => void;
   clearNote: () => void;
+  /** 写推送状态（**只由 ui/useOnlineRounds 写**；界面只读，别在别处改它） */
+  setStream: (state: RoundStreamState) => void;
+  /**
+   * 推送来的一帧（`{room, round}`）：与轮询读回来的那两份走**同一个 `applyRemote`**，
+   * 之后照旧补齐结算 / 事件（这两样不在推送帧里，服务端只推 `{room, round}`）。
+   * ★ 幂等：同一份快照重复来一次只是把同样的值再写一遍（服务端每次变化推整份）。
+   */
+  applyStream: (room: RemoteRoom | null, round: RemoteRound | null) => Promise<void>;
   /** 轮询一拍：读 current；到结算阶段就把 settlement 取回来。 */
   poll: () => Promise<"ok" | "stop" | "fallback">;
   submit: (input: RemoteRoundEntryInput) => Promise<boolean>;
@@ -194,6 +231,16 @@ function isEventAbsent(code: string): boolean {
 
 export const useRounds = create<RoundsStore>((set, get) => {
   /**
+   * 推送应用过几份快照（**只给"这一拍轮询是不是比推送旧"用**，不进 state：界面不该读它）。
+   * ★★ 为什么需要：推送与轮询是两个来源，而 HTTP 响应可能**比它代表的那一刻更晚到** ——
+   *   一拍 `GET rounds/current` 在提交交片之前发出、在推送之后才回来，就会把刚推来的 `allSubmitted:true`
+   *   又盖回 `false`。真机上表现为"所有人都交了片，房主那颗开始展映键又灰了 2 秒"（2026-11-24 本机实测
+   *   撞到过一次：推送 36ms 就到了，随后一拍旧响应把它盖回去）。判据：轮询**在飞的这段时间里**推送应用过
+   *   快照 → 丢掉这一拍（推送一定不比它旧，下一拍 2~15 秒后再读）。
+   */
+  let pushSeq = 0;
+
+  /**
    * 放弃这一局联机：**先把话说出来**（note 留着），再把状态收掉，最后尽力退房。
    * ★ 退房失败不再叠一句话：服务端 30 分钟房寿命 / playing 2 小时会收掉它；
    *   对玩家来说这一局已经改成单机了，再报一句退房失败只会让底栏更乱。
@@ -210,6 +257,8 @@ export const useRounds = create<RoundsStore>((set, get) => {
       eventState: "idle",
       memberHp: {},
       note,
+      // 退回单机 = 不再有推送（会话没了，ui/useOnlineRounds 的那个 effect 也会跟着关掉连接）
+      stream: "off",
       busy: false,
       settling: false,
       abstainedRound: null,
@@ -316,6 +365,59 @@ export const useRounds = create<RoundsStore>((set, get) => {
   };
 
   /**
+   * 服务端的一对快照（房间 + 回合）→ 本机状态。**轮询与推送共用的唯一一处**。
+   *
+   * ★★ 为什么必须是同一个函数：推送与轮询拿到的是**同一份东西**（服务端 `buildSnapshot` 与
+   *   `GET /rooms/:code` + `GET rounds/current` 同形）。两处各写一份的后果是"推送先到的那一刻
+   *   房主身份不刷新 / 新回合不清上一回合的结算"——而这类偏差只在有流的机器上出现，
+   *   时快时慢，最难复现。
+   * ★ `round` 为 null 是**正常状态**（房间还没开第一回合）：此时只应用房间，别把已有的回合清掉。
+   */
+  const applyRemote = (room: RemoteRoom | null, round: RemoteRound | null): void => {
+    const session = get().session;
+    if (!session) return;
+    const prev = get().snapshot;
+    const nextSnapshot = round ?? prev;
+    // 房间那一发失败（超时 / 老服务端）时调用方传 null：沿用上一份房主 / 血量，别把它清掉
+    const nextRoom = room ?? get().room;
+    // 房主身份每一份快照都对一次：服务端把 hostId 转给别人之后，新晋房主**不必退出重进**
+    // （开局那一份只带座位 / 血，房主是房间快照的真相）。
+    const hostId = hostIdOfRoom(nextRoom);
+    const nextSession = hostId === null ? session : withRoomHost(session, hostId);
+    const roundChanged = prev?.round !== nextSnapshot?.round;
+    const note = get().note;
+    set({
+      session: nextSession,
+      room: nextRoom,
+      snapshot: nextSnapshot,
+      // 同桌血量每拍都对一遍房间快照（`members[].hp` 是服务端的真相）：事件回血由服务端落库，
+      // 本机不应用 —— 对手条 / 存活人数从这里读到它（结算那一份仍是结算时刻的同一份数）。
+      memberHp: room ? { ...get().memberHp, ...hpOfRoom(room) } : get().memberHp,
+      // 只清"这一拍没连上"那种临时原因：服务端的业务拒绝（NOT_HOST / CANNOT_LIKE_SELF …）要留在屏上
+      // 让人看清，下一次动作成功 / 玩家点 ✕ 才收 —— 别让一秒一次的推送把它一闪就擦掉。
+      note: note?.kind === "unavailable" ? null : note,
+      // 新回合：上一回合的结算 / 弃权 / 事件全部作废（服务端每一回合都是新的一份）
+      ...(roundChanged
+        ? {
+            settlement: null,
+            winners: null,
+            abstainedRound: null,
+            autoSettleTriedRound: null,
+            event: null,
+            eventState: "idle" as const,
+          }
+        : {}),
+    });
+    // ── 这局结束了吗（房主 / 非房主都在这一份快照里知道）──────────────────────────
+    // 服务端 2026-11-23 起在房间快照里给了 state / winners（结束那一刻由 rounds/next 落库），
+    // 读不到才走 onlineHost 的过渡分支（老服务端按 hp 推）。判据只有一处。
+    if (nextSnapshot) {
+      const over = roomOverOf(nextRoom, nextSnapshot.phase);
+      if (over) markOver(over.winners);
+    }
+  };
+
+  /**
    * 结算：把服务端落库的那一份取回来（幂等；重复调用不会重复扣血）。
    * ★ winners 用"服务端这次给了才覆盖"：平局时服务端的结算回包**不带 winners**（空数组被
    *   gameRound.settlementOf 省掉），照旧写 null 会把轮询已经判出来的"平局"清掉 —— 结算屏一刷新又变回"还没结束"。
@@ -357,6 +459,21 @@ export const useRounds = create<RoundsStore>((set, get) => {
     }
   };
 
+  /**
+   * 这一份快照到"该取结算 / 该补事件"的那一步了吗（轮询与推送共用的**唯一一处**）。
+   * ★ 推送帧只带 `{room, round}`：`phase` 变成 `settled` 那一刻结算榜不在帧里，得自己 `POST settle`
+   *   取回来。放在这一处而不是各写一遍 —— 推送那条路漏了它，症状是"流一切正常、结算屏永远不出现"。
+   * ★ 全员表态（`voting` + `votesPending === 0`）也算：服务端允许任何成员触发自动结算（§7.5）。
+   */
+  const settleIfDue = async (): Promise<void> => {
+    const snapshot = get().snapshot;
+    if (!snapshot) return;
+    if (snapshot.phase !== "settled" && !(snapshot.phase === "voting" && snapshot.votesPending === 0)) return;
+    await pullSettlement();
+    // 结算已经拿到、事件还没问（手动结算那条路 / 能力位刚探到）：补问一次
+    await ensureEvent();
+  };
+
   return {
     session: null,
     room: null,
@@ -366,6 +483,8 @@ export const useRounds = create<RoundsStore>((set, get) => {
     event: null,
     eventState: "idle",
     note: null,
+    // 开不开流由 ui/useOnlineRounds 判能力位；单机局里永远停在 off（界面那一行小字也不摆）
+    stream: "off",
     busy: false,
     settling: false,
     autoSettleTriedRound: null,
@@ -385,6 +504,8 @@ export const useRounds = create<RoundsStore>((set, get) => {
         event: null,
         eventState: "idle",
         note: null,
+        // 新一局从"没开流"开始：`useOnlineRounds` 的那个 effect 会按能力位重新开一条
+        stream: "off",
         busy: false,
         settling: false,
         autoSettleTriedRound: null,
@@ -403,6 +524,7 @@ export const useRounds = create<RoundsStore>((set, get) => {
         event: null,
         eventState: "idle",
         note: null,
+        stream: "off",
         busy: false,
         settling: false,
         autoSettleTriedRound: null,
@@ -428,57 +550,55 @@ export const useRounds = create<RoundsStore>((set, get) => {
 
     clearNote: () => set({ note: null }),
 
+    setStream: (stream) => set({ stream }),
+
+    applyStream: async (room, round) => {
+      const session = get().session;
+      if (!session) return;
+      const code = session.roomCode;
+      // ★ 与轮询**同一套应用逻辑**（见 applyRemote 的 ★★）：房里 / 房主 / 血量 / 结束判定一个都不重写
+      pushSeq += 1;
+      applyRemote(room, round);
+      if (!sessionNow(code)) return;
+      // 推送帧只带 {room, round}：结算与事件要自己补（见 settleIfDue 的 ★）
+      await settleIfDue();
+    },
+
     poll: async () => {
       const session = get().session;
       if (!session) return "stop";
       const code = session.roomCode;
+      // ★ 这一拍开始时的推送序号：回来时若已经变了，说明推送应用过更新的快照（见 pushSeq 的 ★★）
+      const pushSeqAtStart = pushSeq;
       // ★★ 两发一起读：回合（打什么）+ 房间（谁在推进 / 谁还活着 / 这局结束没有）。
-      //   ★ 房间快照**每拍都读**（2 秒一次，服务端 poll 限流 240/分钟，这一端只花 60）：
+      //   ★ 房间快照**每拍都读**（正常 2 秒一次；有推送时放宽到 15 秒，见 ROUND_POLL_LIVE_MS）：
       //     房主转移是服务端自己改的、回合快照里没有 hostId —— 不读房间就永远不知道新主人是谁。
       //   ★ 两发并发：弱网时 10 秒超时叠住下一拍的问题与原来一样，但总时长是 max(两发) 不是两倍。
       const [roundRes, roomRes] = await Promise.all([readRound(code), readRoom(code)]);
       if (!sessionNow(code)) return "stop";
       if (!roundRes.ok) {
+        // ★★ 推送到位 / 正在重连时轮询只是**兜底**：弱网下这一拍超时不该把整局判死 —— 主通道还在推
+        //   （`live`）或正在退避重连（`retrying`：最多 5 次、~30 秒），真断了由推送那边的看门狗认
+        //   （api/game/roomStream 的 STREAM_STALL_MS）。★ 这**不会无限期拖着**：重连预算用完就变
+        //   `polling`，从那一刻起轮询失败照旧收场。
+        //   ★ 但服务端**明确回了业务码**（NOT_IN_ROOM / ROOM_NOT_FOUND …）是事实，照旧收场：
+        //     被移出房间这种结局，轮询那一发比推送的下一帧先知道（推送只在有人动的时候才来一帧）。
+        if ((get().stream === "live" || get().stream === "retrying") && roundRes.reason === "unavailable") {
+          console.warn("[rounds] 兜底轮询这一拍没连上（推送还在 / 正在重连），下一拍再试", code);
+          return "ok";
+        }
         // ★ 轮询是这一局的"心跳"：它失败就是真的断了（一两发的业务错误不会走到这儿）。
         //   按任务要求**不静默**：留一句 fallback，界面（ui/useOnlineRounds）据此把本地 loop 接回来。
         console.warn("[rounds] 回合快照轮询失败，这一局退回单机", roundRes.reason === "code" ? roundRes.code : "unavailable");
         abandon({ kind: "fallback" });
         return "fallback";
       }
-      const nextSnapshot = roundRes.value;
       // 房间这一发失败（超时 / 老服务端）**不切单机**：沿用上一份房主 / 血量，下一拍再问；
       // 真正的"房间没了"回合那发也会失败，走上面那条 fallback。
-      const nextRoom = roomRes.ok ? roomRes.value : get().room;
-      const hostId = hostIdOfRoom(nextRoom);
-      // 房主身份这一拍就刷新：服务端把 hostId 转给别人之后，新晋房主**不必退出重进**。
-      const nextSession = hostId === null ? session : withRoomHost(session, hostId);
-      const roundChanged = get().snapshot?.round !== nextSnapshot.round;
-      const note = get().note;
-      set({
-        session: nextSession,
-        room: nextRoom,
-        snapshot: nextSnapshot,
-        // 同桌血量每拍都对一次房间快照（`members[].hp` 是服务端的真相）：事件回血由服务端落库，
-        // 本机不应用 —— 对手条 / 存活人数从这里读到它（结算那一份仍是结算时刻的同一份数）。
-        memberHp: nextRoom ? { ...get().memberHp, ...hpOfRoom(nextRoom) } : get().memberHp,
-        // 只清"这一拍没连上"那种临时原因：服务端的业务拒绝（NOT_HOST / CANNOT_LIKE_SELF …）要留在屏上
-        // 让人看清，下一次动作成功 / 玩家点 ✕ 才收 —— 别让 2 秒一次的轮询把它一闪就擦掉。
-        note: note?.kind === "unavailable" ? null : note,
-        // 新回合：上一回合的结算 / 弃权 / 事件全部作废（服务端每一回合都是新的一份）
-        ...(roundChanged
-          ? { settlement: null, winners: null, abstainedRound: null, autoSettleTriedRound: null, event: null, eventState: "idle" as const }
-          : {}),
-      });
-      // ── 这局结束了吗（房主 / 非房主都在这一拍知道）──────────────────────────
-      // 服务端 2026-11-23 起在房间快照里给了 state / winners（结束那一刻由 rounds/next 落库），
-      // 读不到才走 onlineHost 的过渡分支（老服务端按 hp 推）。判据只有一处。
-      const over = roomOverOf(nextRoom, nextSnapshot.phase);
-      if (over) markOver(over.winners);
-      if (nextSnapshot.phase === "settled" || (nextSnapshot.phase === "voting" && nextSnapshot.votesPending === 0)) {
-        await pullSettlement();
-        // 结算已经拿到、事件还没问（手动结算那条路 / 能力位刚探到）：补问一次
-        await ensureEvent();
-      }
+      // ★ 这一拍在飞的时候推送应用过更新的快照 → 这一份可能更旧（HTTP 响应晚到），整拍丢掉（见 pushSeq 的 ★★）
+      if (pushSeq !== pushSeqAtStart) return "ok";
+      applyRemote(roomRes.ok ? roomRes.value : null, roundRes.value);
+      await settleIfDue();
       return "ok";
     },
 
