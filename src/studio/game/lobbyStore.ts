@@ -19,6 +19,7 @@ import { createRng } from "./rules";
 import {
   canStartRoom,
   createRoom,
+  hostStartPlanOf,
   kickSeat,
   leaveRoom,
   LOCAL_SEAT_ID,
@@ -67,6 +68,16 @@ export const QUEUE_POLL_MS = 2_000;
 export const QUEUE_TIMEOUT_MS = 60_000;
 /** 房间快照的轮询间隔（服务端契约：2~5 秒）。 */
 export const ROOM_POLL_MS = 2_000;
+/**
+ * 房间快照连续失败几拍才认"真的断了"（5 拍 ≈ 8~10 秒）。
+ * ★★ 为什么不是一拍就退回本机（2026-11-24 真机验收）：弱网 / 切后台回来第一拍超时是常事，
+ *   一拍就 `toLocalRoom` 会把一间**还在服务端**的房换成本机 AI 房：成员表停在 1/4、
+ *   房主键变回「用 AI 补位开局」，一点就开成单机（而那间房里真的坐着人）。
+ * ★ 为什么是 5 而不是 3：房主开局前的"数据陈旧"窗口是 `HOST_START_STALE_MS`（5 秒）。
+ *   容错窗口必须比它**长**，否则"数据已经陈旧、刷新又失败"这一格永远走不到 ——
+ *   而那一格正是房主按键要拦的地方（宁可先别开，也不拿旧数据开成 AI 局）。
+ */
+export const ROOM_FAIL_TOLERANCE = 5;
 
 /**
  * 底栏那一句话的**结构化原因**（文案在 lobbyReasons，唯一一处）。
@@ -83,7 +94,20 @@ export type LobbyNote =
   | { kind: "resume-gone" }
   /** 冷启动恢复联机局时连不上回合服务：记录留着，下次再试 */
   | { kind: "resume-offline" }
+  /**
+   * 服务端说"你已经在一间房里了"（`ALREADY_IN_ROOM`，2026-11-24 真机死锁的出口）。
+   * ★ 与 `code` 分开：这一条要**带一颗键**（退出那间房），不能只念一句；`code` 是"哪间房"
+   *   —— 服务端回包里带的 `roomCode`，拿不到时是 null（界面说"不知道是哪间"，按钮照样给）。
+   */
+  | { kind: "in-room"; code: string | null }
+  /** 房主开局前强制刷新失败，而最近一次快照也不够/太旧：先别开（别把旧数据当事实开成 AI 局） */
+  | { kind: "sync-failed" }
+  /** 房间快照这一拍没读回来，正在重试（`pollRoom` 的临时原因，成功就收掉） */
+  | { kind: "syncing" }
   | { kind: "code"; code: string };
+
+/** 被 ALREADY_IN_ROOM 挡住的那一下本来想干什么（退出那间房之后按原意重试一次） */
+type LobbyIntent = { kind: "create" } | { kind: "join"; code: string } | { kind: "match"; size: MatchSize };
 
 export interface LobbyStore {
   /** 大厅开着没有（开的一刻还没建局：StudioPage 的「▶ 开局」先开它） */
@@ -115,6 +139,20 @@ export interface LobbyStore {
   busy: boolean;
   /** 加入房间的输入框（6 位字母数字，服务端大小写不敏感） */
   joinCode: string;
+  /**
+   * 最近一次**成功**读到服务端房间快照的时刻（0 = 这一屏从没读到过）。
+   * ★ 房主开局要用它判"这一份人数还新不新鲜"（`hostStartPlanOf`）：陈旧数据不许决定开局模式。
+   */
+  roomSyncedAt: number;
+  /**
+   * 服务端说"你已经在一间房里"时**那间房的房号**（`ALREADY_IN_ROOM` 回包顶层的 `roomCode`）。
+   * null = 不知道是哪间（老服务端不报 / 从没撞到过）—— 界面照样给"退出那间房"的键。
+   */
+  stuckRoomCode: string | null;
+  /** 房间轮询连续失败了几拍（成功就清零）：一两拍不判死，别把还在服务端的房当成"没连上" */
+  roomFailStreak: number;
+  /** 被 `ALREADY_IN_ROOM` 挡住的那一下本来想干什么（退出那间房之后按原意重试一次） */
+  intent: LobbyIntent | null;
 
   openLobby: () => void;
   /** 恢复联机局时房间已经没了：大厅底栏说「这一局的房间已经结束」（openLobby 会清 note，所以放在它之后调） */
@@ -156,6 +194,36 @@ export interface LobbyStore {
    * 成功后 `remoteRoom.status` 变 playing，由 useLobbyOnline 统一建本机局（两个入口同一条路）。
    */
   beginStart: () => Promise<{ ok: true; size: number; code: string | null } | { ok: false }>;
+  /**
+   * 房主点「开始对局」的**唯一入口**（2026-11-24）：先强制拉一次最新房间快照，再按服务端事实
+   * 决定走服务端开局还是 AI 补位（判据 `lobby.hostStartPlanOf`，纯函数、构建里跑正反例）。
+   * ★★ 为什么不能直接看界面上那份 remote：那份可能停在"1/4"（轮询慢 / 断过），而服务端已经
+   *   坐上 2 个真人 —— 拿它决定就会开成一局本机 AI 单机（真机验收的事故）。
+   * 返回：
+   *   · `server` = 已调服务端开局（后续由 useLobbyOnline 看到 playing 后建本机局）；
+   *   · `ai` = 新鲜数据说真人不够，调用方去开本机 AI 补位局（size = 房间座位数）；
+   *   · `blocked` = 刷新失败且最近一次数据也不够 / 太旧：**不开**，界面提示"先别开"；
+   *   · `failed` = 服务端拒了（原因已在 note 里）。
+   */
+  prepareStart: () => Promise<{ kind: "server" } | { kind: "ai"; size: number } | { kind: "blocked" } | { kind: "failed" }>;
+  /**
+   * 立刻读一次房间快照（房主开局前 / 房间屏一进来就调）。
+   * 返回最新快照；失败返回 null（**不**改界面状态，不叠一句话：调用方自己决定怎么说）。
+   */
+  refreshRoomNow: () => Promise<RemoteRoom | null>;
+  /**
+   * 大厅房间屏的推送帧（`ui/useLobbyOnline` 收到 SSE 时调；与 2 秒轮询写同一份状态）。
+   * ★ 只认同一间房的那一帧：换房 / 回大厅之后晚到的帧直接丢掉。
+   */
+  applyPushedRoom: (remote: RemoteRoom) => void;
+  /**
+   * 服务端说"你已经在一间房里"之后的那颗键：`POST /rooms/:code/leave` 退出那间房。
+   * ★ 房号从回包顶层拿（`stuckRoomCode`）；拿不到时先 `GET /api/game/queue` / 最近一次建房记录
+   *   尽力找回（**契约缺口**见 docs/game-lobby.md：老服务端可以不报 `roomCode`）。
+   * 退出成功之后按原意（建房 / 进房 / 排队）**自动重试一次**，并把底栏那句话收掉。
+   * 返回 false = 没退掉（原因已经在 note 里），界面别假装解开了。
+   */
+  leaveStuckRoom: () => Promise<boolean>;
 
   /**
    * 等匹配的一拍。
@@ -231,9 +299,22 @@ function viewOfRemote(remote: RemoteRoom): LobbyRoom {
   };
 }
 
-/** 失败结果 → 底栏的原因。★ 只认 code（GAME_ROOMS_OFF 也照实说），不认 message。 */
+/**
+ * 失败结果 → 底栏的原因。★ 只认 code（GAME_ROOMS_OFF 也照实说），不认 message。
+ * ★ `ALREADY_IN_ROOM` 单独成一格（`in-room`）：它要带一颗「退出那间房」的键，不能只是一句话
+ *   —— 只念一句的话，玩家要么等 30 分钟房寿命，要么去另一台设备退（2026-11-24 真机死锁）。
+ */
 function noteOfFailure(res: RoomsFailure): LobbyNote {
-  return res.reason === "code" ? { kind: "code", code: res.code } : { kind: "offline" };
+  if (res.reason === "code") {
+    if (res.code === "ALREADY_IN_ROOM") return { kind: "in-room", code: res.roomCode ?? null };
+    return { kind: "code", code: res.code };
+  }
+  return { kind: "offline" };
+}
+
+/** 同一间房还在不在（异步回来时先问一句，别把旧房 / 旧屏的快照写回去）。 */
+function sameRoomCode(a: string | null | undefined, b: string | null | undefined): boolean {
+  return !!a && !!b && a.toUpperCase() === b.toUpperCase();
 }
 
 /** 开一间本机房间（AI 补位；联机不可用 / 中途掉线时退回它）。 */
@@ -284,6 +365,11 @@ export const useLobby = create<LobbyStore>((set, get) => {
       busy: false,
       inviteOpen: false,
       joinCode: "",
+      // ★ 这一份是刚读回来的服务端事实：房主开局的"新鲜度"从这一刻算（见 hostStartPlanOf）
+      roomSyncedAt: Date.now(),
+      roomFailStreak: 0,
+      stuckRoomCode: null,
+      intent: null,
     });
     return true;
   };
@@ -328,6 +414,10 @@ export const useLobby = create<LobbyStore>((set, get) => {
     note: null,
     busy: false,
     joinCode: "",
+    roomSyncedAt: 0,
+    stuckRoomCode: null,
+    roomFailStreak: 0,
+    intent: null,
 
     openLobby: () => {
       // 上一间联机房 / 队列还挂着的话先收掉（结束对局回来的那条路）；收不掉也照样开大厅
@@ -347,6 +437,8 @@ export const useLobby = create<LobbyStore>((set, get) => {
         note: null,
         busy: false,
         joinCode: "",
+        roomSyncedAt: 0,
+        roomFailStreak: 0,
       });
       // 底栏那句「联机通没通」要现问一次（能力位整场会话缓存，问的是同一个结论）
       void get().refreshOnline();
@@ -379,6 +471,8 @@ export const useLobby = create<LobbyStore>((set, get) => {
         note: null,
         busy: false,
         joinCode: "",
+        roomSyncedAt: 0,
+        roomFailStreak: 0,
       });
     },
 
@@ -424,7 +518,15 @@ export const useLobby = create<LobbyStore>((set, get) => {
           return;
         }
         if (!res.ok) {
-          set({ busy: false, online: false, note: noteOfFailure(res) });
+          // ★ ALREADY_IN_ROOM（账号还挂在某间房里）：不是"没连上"，也不能退回本机 AI 就算完 ——
+          //   底栏要带一颗「退出那间房」的键（note 的 in-room 那一格），退出后按原意重试。
+          const stuck = res.reason === "code" && res.code === "ALREADY_IN_ROOM";
+          set({
+            busy: false,
+            online: false,
+            note: noteOfFailure(res),
+            ...(stuck ? { stuckRoomCode: res.roomCode ?? null, intent: { kind: "match" as const, size } } : {}),
+          });
           return;
         }
         if (res.value.status === "matched") {
@@ -468,6 +570,54 @@ export const useLobby = create<LobbyStore>((set, get) => {
           return;
         }
         if (!res.ok) {
+          // ★★ 超时之后**核对一次**（2026-11-24 真机死锁的另一半）：建房这一发在服务端已经落库、
+          //   回包却因为弱网没回来 —— 客户端以为失败退回本机，账号却还挂在服务端那间房里。
+          //   建房对同一账号是幂等的（一人只能在一间房）：重发一次，要么真建成，要么服务端
+          //   回 ALREADY_IN_ROOM + 那间房的房号 —— 后者说明第一次其实成了，正好拿它当"你还在房间 X"。
+          if (res.reason === "unavailable" && res.timeout) {
+            const retry = await createRemoteRoom({ mode: "custom", size: DEFAULT_ROOM_SIZE });
+            if (!get().open) {
+              set({ busy: false });
+              return;
+            }
+            if (retry.ok) {
+              adoptRemote(retry.value);
+              return;
+            }
+            if (retry.reason === "code" && retry.code === "ALREADY_IN_ROOM") {
+              // 第一次其实建成了：**不退回本机**，把"你还在房间 X"和那颗退出键摆出来
+              set({
+                open: true,
+                screen: "home",
+                mode: "room",
+                room: null,
+                online: false,
+                remoteRoom: null,
+                busy: false,
+                note: { kind: "in-room", code: retry.roomCode ?? null },
+                stuckRoomCode: retry.roomCode ?? null,
+                intent: { kind: "create" },
+              });
+              return;
+            }
+          }
+          if (res.reason === "code" && res.code === "ALREADY_IN_ROOM") {
+            // 服务端说我还在另一间房里（上一次退房没成功 / 另台设备开的房）：留在大厅首屏 + 退出键，
+            // **不能**退回本机 AI —— 那间房可能正等着我，退成本机就看不出"我还挂在里面"了。
+            set({
+              open: true,
+              screen: "home",
+              mode: "room",
+              room: null,
+              online: false,
+              remoteRoom: null,
+              busy: false,
+              note: { kind: "in-room", code: res.roomCode ?? null },
+              stuckRoomCode: res.roomCode ?? null,
+              intent: { kind: "create" },
+            });
+            return;
+          }
           get().toLocalRoom(noteOfFailure(res));
           return;
         }
@@ -501,6 +651,54 @@ export const useLobby = create<LobbyStore>((set, get) => {
           return;
         }
         if (!res.ok) {
+          // ★ 我本来就在这间房里（重复点「加入」/ 换设备回来）：服务端这一支回 ALREADY_IN_ROOM
+          //   **并带整份房间快照** —— 那不是失败，直接当进房成功（不然用户被一句"你已经在房间里"
+          //   挡在自己房间外面，只能去杀进程）。
+          if (res.reason === "code" && res.code === "ALREADY_IN_ROOM") {
+            if (res.room && sameRoomCode(res.room.code, normalized)) {
+              adoptRemote(res.room);
+              return;
+            }
+            // 在**别的**房里：给出那间房的码 + 退出键，按原意（进这间房）重试
+            set({
+              busy: false,
+              online: false,
+              note: { kind: "in-room", code: res.roomCode ?? null },
+              stuckRoomCode: res.roomCode ?? null,
+              intent: { kind: "join", code: normalized },
+            });
+            return;
+          }
+          // ★ 进房超时之后核对一次：第一次其实进了的时候，重发会回 ALREADY_IN_ROOM + 快照，
+          //   把它当成功；不是这间房就把"你还在房间 X"摆出来（超时那次可能进了另一间 —— 不会，
+          //   一人一间，但服务端的回包里那间才是事实）。
+          if (res.reason === "unavailable" && res.timeout) {
+            const retry = await joinRoom(normalized);
+            if (!get().open) {
+              set({ busy: false });
+              return;
+            }
+            if (retry.ok) {
+              adoptRemote(retry.value);
+              return;
+            }
+            if (retry.reason === "code" && retry.code === "ALREADY_IN_ROOM") {
+              if (retry.room && sameRoomCode(retry.room.code, normalized)) {
+                adoptRemote(retry.room);
+                return;
+              }
+              set({
+                busy: false,
+                online: false,
+                note: { kind: "in-room", code: retry.roomCode ?? null },
+                stuckRoomCode: retry.roomCode ?? null,
+                intent: { kind: "join", code: normalized },
+              });
+              return;
+            }
+            set({ busy: false, note: noteOfFailure(retry) });
+            return;
+          }
           set({ busy: false, note: noteOfFailure(res) });
           return;
         }
@@ -523,6 +721,8 @@ export const useLobby = create<LobbyStore>((set, get) => {
         inviteOpen: false,
         busy: false,
         note: null,
+        roomSyncedAt: 0,
+        roomFailStreak: 0,
       });
       // 「取消」/「回大厅」= 主动收手：服务端那一步在状态清掉之后再发（失败时底栏补一句，
       // 而不是把人留在"正在离开"里；房间寿命 / 排队心跳是服务端那边的兜底）
@@ -645,6 +845,8 @@ export const useLobby = create<LobbyStore>((set, get) => {
           inviteOpen: false,
           busy: false,
           note: null,
+          roomSyncedAt: 0,
+          roomFailStreak: 0,
         });
         void leaveRemoteRoom(code).then((res) => {
           if (!res.ok) set({ note: { kind: "leave-failed" } });
@@ -708,6 +910,114 @@ export const useLobby = create<LobbyStore>((set, get) => {
       return { ok: true, size: res.value.size, code: remoteRoom.code };
     },
 
+    refreshRoomNow: async () => {
+      const { online, remoteRoom } = get();
+      if (!online || !remoteRoom) return null;
+      const code = remoteRoom.code;
+      const res = await readRoom(code);
+      // 回来时可能已经离开 / 换房 / 关掉大厅：这一份作废
+      if (!get().open || get().screen !== "room" || !sameRoomCode(get().remoteRoom?.code, code)) return null;
+      if (!res.ok) {
+        set({ roomFailStreak: get().roomFailStreak + 1 });
+        return null;
+      }
+      set({
+        remoteRoom: res.value,
+        room: viewOfRemote(res.value),
+        roomSyncedAt: Date.now(),
+        roomFailStreak: 0,
+        rejection: null,
+        // 「没读到最新的房间状态／正在同步」都是**这一刻**的临时原因：读回来就收掉（服务端的业务拒绝留着）
+        ...(get().note?.kind === "sync-failed" || get().note?.kind === "syncing" ? { note: null } : {}),
+      });
+      return res.value;
+    },
+
+    prepareStart: async () => {
+      const before = get();
+      const { online, remoteRoom } = before;
+      if (!online || !remoteRoom) {
+        // 本机房：数据本来就是本机的，没有"陈旧"这回事（AI 补位的口径由界面照旧走）
+        return { kind: "ai", size: before.room?.size ?? DEFAULT_ROOM_SIZE };
+      }
+      // ★★ **点之前强制拉一次最新快照**（2026-11-24 真机验收的任务点名）：界面那份可能停在 1/4。
+      const latest = await get().refreshRoomNow();
+      const remote = latest ?? get().remoteRoom;
+      if (!remote) return { kind: "failed" };
+      const plan = hostStartPlanOf({
+        memberCount: remote.memberCount,
+        requiredPlayers: remote.requiredPlayers,
+        syncedAt: get().roomSyncedAt,
+        refreshed: latest !== null,
+        now: Date.now(),
+      });
+      if (plan.kind === "blocked") {
+        // 没读到最新状态、最近一次也说不过去：**不开**。旧数据不能当成"还是我一个人"。
+        set({ note: { kind: "sync-failed" }, busy: false });
+        return { kind: "blocked" };
+      }
+      if (plan.kind === "ai") {
+        // 新鲜数据说真人不够（服务端要至少 2 个真人）：换成本机房、按座位数 AI 补位，
+        // 由调用方去建本机局（人数 = 房间座位数）。话在底栏说清（not-enough-players）。
+        get().toLocalRoom({ kind: "not-enough-players" }, remote.size);
+        return { kind: "ai", size: remote.size };
+      }
+      // 走服务端开局（服务端那一拍自己会判人数 / 准备 / 房主）
+      const started = await get().beginStart();
+      return started.ok ? { kind: "server" } : { kind: "failed" };
+    },
+
+    applyPushedRoom: (remote) => {
+      const { online, remoteRoom } = get();
+      // 只认同一间房、且人还在房间屏：换房 / 回大厅之后晚到的帧直接丢掉
+      if (!get().open || get().screen !== "room" || !online || !remoteRoom) return;
+      if (!sameRoomCode(remote.code, remoteRoom.code)) return;
+      set({
+        remoteRoom: remote,
+        room: viewOfRemote(remote),
+        roomSyncedAt: Date.now(),
+        roomFailStreak: 0,
+        // 推送帧就是最新事实：把"正在同步 / 没读到最新"这两句临时原因一起收掉
+        ...(get().note?.kind === "syncing" || get().note?.kind === "sync-failed" ? { note: null } : {}),
+      });
+    },
+
+    leaveStuckRoom: async () => {
+      const { stuckRoomCode, intent } = get();
+      set({ busy: true });
+      // 房号优先用服务端回包给的那个；没有就尽力找回（契约缺口见 docs/game-lobby.md）：
+      //   ① `GET /api/game/queue` 里 matched 的那一行带房号；② 退而求其次**重放一次原意** ——
+      //   服务端这次会回 ALREADY_IN_ROOM + `roomCode`（本版契约），第二次点就退得掉。
+      let code = stuckRoomCode;
+      if (!code) {
+        const q = await readQueue();
+        if (q.ok && q.value.status === "matched" && q.value.code) code = q.value.code;
+      }
+      if (!code) {
+        set({ busy: false });
+        if (intent?.kind === "create") get().chooseRoom();
+        else if (intent?.kind === "join") get().joinByCode(intent.code);
+        else if (intent?.kind === "match") get().chooseMatch(intent.size);
+        else set({ note: { kind: "in-room", code: null } });
+        return false;
+      }
+      const res = await leaveRemoteRoom(code);
+      if (!res.ok) {
+        const gone = res.reason === "code" && (res.code === "NOT_IN_ROOM" || res.code === "ROOM_NOT_FOUND");
+        // 已经不在那间房（退过了 / 房里就我一个人被清掉）、或者房间已经过期：也算解开了
+        if (!gone) {
+          set({ busy: false, note: noteOfFailure(res) });
+          return false;
+        }
+      }
+      set({ busy: false, stuckRoomCode: null, note: null, rejection: null, intent: null });
+      // ★ 退出之后按**原意**重试一次（建房 / 进房 / 排队）：玩家点那颗键不是想停在这一屏。
+      if (intent?.kind === "create") get().chooseRoom();
+      else if (intent?.kind === "join") get().joinByCode(intent.code);
+      else if (intent?.kind === "match") get().chooseMatch(intent.size);
+      return true;
+    },
+
     pollQueue: async (refresh) => {
       const { online, matchSize, screen } = get();
       if (!online || !matchSize || screen !== "matching") return "stop";
@@ -723,7 +1033,10 @@ export const useLobby = create<LobbyStore>((set, get) => {
             await enterMatched(q.value);
             return "matched";
           }
+          // ★ 队列里没有"我匹配上了" → 我确实还在某间房里（上一次退房没成功 / 另台设备）。
+          //   给底栏那颗「退出那间房」的键留下房号与"本来想排队"的原意（见 leaveStuckRoom）。
           get().fallbackMatch(noteOfFailure(res));
+          set({ stuckRoomCode: res.roomCode ?? null, intent: { kind: "match", size: matchSize } });
           return "stop";
         }
         // 接口不可用 / 服务端拒了：停拍、退回本机 AI，并顺手把队列行收掉（收不掉也有 90 秒心跳兜底）
@@ -749,11 +1062,24 @@ export const useLobby = create<LobbyStore>((set, get) => {
       // 回来时可能已经离开 / 换房 / 关掉大厅：这一拍作废，别把旧快照写回去
       if (!get().open || get().screen !== "room" || get().remoteRoom?.code !== code) return "stop";
       if (!res.ok) {
+        // ★ 房间没了 / 我不在成员表里 = 服务端的事实，当场收场（下一拍也读不出来）。
+        const dead = res.reason === "code" && (res.code === "ROOM_NOT_FOUND" || res.code === "NOT_IN_ROOM");
+        // ★★ 一次失败**不**退回本机（2026-11-24 真机验收的教训）：弱网抖一下就把一间还在服务端
+        //   的房换成本机 AI 房，界面看着还是"1/4"，房主键也变成「用 AI 补位开局」——一点就开成
+        //   单机。连着失败 3 拍（≈6 秒）才认，期间只摆一句「正在同步」。
+        const streak = get().roomFailStreak + 1;
+        if (!dead && res.reason === "unavailable" && streak < ROOM_FAIL_TOLERANCE) {
+          set({ roomFailStreak: streak, note: { kind: "syncing" } });
+          return "waiting";
+        }
         // 不静默：界面退回本机，控制台留一行（真机上出问题时这是唯一能对上服务端日志的线索）
         console.warn("[lobby] 房间快照读取失败，退回本机房间", res.reason === "code" ? res.code : "unavailable");
         if (res.reason === "code" && (res.code === "ROOM_NOT_FOUND" || res.code === "NOT_IN_ROOM")) {
           get().toLocalRoom({ kind: "code", code: res.code });
         } else {
+          // 掉线退回本机时把那间房的码留着：下一次建房吃 ALREADY_IN_ROOM 时，「退出那间房」的键
+          // 至少要退对房间（服务端还挂着的那间就是它）。
+          set({ stuckRoomCode: code });
           get().toLocalRoom({ kind: "offline" });
         }
         return "stop";
@@ -765,7 +1091,15 @@ export const useLobby = create<LobbyStore>((set, get) => {
         get().toLocalRoom({ kind: "kicked" });
         return "stop";
       }
-      set({ remoteRoom: remote, room: viewOfRemote(remote) });
+      set({
+        remoteRoom: remote,
+        room: viewOfRemote(remote),
+        // 这是刚读回来的服务端事实：房主开局用它判"新不新鲜"（hostStartPlanOf）
+        roomSyncedAt: Date.now(),
+        roomFailStreak: 0,
+        // 「正在同步 / 没读到最新」是临时原因：同步回来了就收掉；服务端的业务拒绝（NOT_HOST …）留着
+        ...(get().note?.kind === "syncing" || get().note?.kind === "sync-failed" ? { note: null } : {}),
+      });
       if (remote.status === "closed") {
         get().toLocalRoom({ kind: "code", code: "ROOM_NOT_FOUND" });
         return "stop";
@@ -809,6 +1143,11 @@ export const useLobby = create<LobbyStore>((set, get) => {
         rejection: null,
         busy: false,
         inviteOpen: false,
+        // ★ 本机房的"人数"不是服务端事实：新鲜度归零（`hostStartPlanOf` 只看 refreshed / 本机房，
+        //   不会拿它决定联机开局）。intent 留着也没用了 —— 不要在退出本机房间之后还替玩家重试。
+        roomSyncedAt: 0,
+        roomFailStreak: 0,
+        intent: null,
       });
     },
 

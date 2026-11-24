@@ -58,18 +58,18 @@ export default function Lobby() {
    * 「开始」那一下：联机房间先问服务端（房主 / 全员准备由服务端判），本机房间直接建局。
    * ★ 联机房间不在这里 startFromLobby：服务端开局成功之后 `remoteRoom.status` 变 playing，
    *   由 useLobbyOnline 统一建局（房主 / 非房主两个入口同一条路，不会一个先建一个后建）。
+   * ★★ 2026-11-24 改口：联机房间这一下**先强制拉一次最新快照再决定**（lobbyStore.prepareStart）——
+   *   界面上的人数可能停在旧数据（1/4），拿它决定就会开成一局本机 AI 单机（真机验收的事故）。
+   *   `ai` 那一支 = 服务端事实说真人不够，才去建本机 AI 补位局。
    */
   const startMatch = (playerCount: number) => {
     if (online && remoteRoom) {
-      void useLobby.getState().beginStart();
+      void (async () => {
+        const out = await useLobby.getState().prepareStart();
+        if (out.kind === "ai") setStartFailed(!startFromLobby(out.size));
+      })();
       return;
     }
-    setStartFailed(!startFromLobby(playerCount));
-  };
-
-  /** 联机房间人不够时，房主可以直接按 AI 补位开：先换成本机房间，再走原来的建局 */
-  const startWithAi = (playerCount: number) => {
-    useLobby.getState().toLocalRoom({ kind: "not-enough-players" }, playerCount);
     setStartFailed(!startFromLobby(playerCount));
   };
 
@@ -162,18 +162,33 @@ export default function Lobby() {
         )}
 
         {screen === "room" && room && (
-          <RoomScreen room={room} remote={online ? remoteRoom : null} onStart={() => startMatch(room.size)} onStartWithAi={() => startWithAi(room.size)} />
+          <RoomScreen room={room} remote={online ? remoteRoom : null} onStart={() => startMatch(room.size)} />
         )}
       </div>
 
       {/* ── 底栏：一次只显示一件事（开局失败 > 退回本机/服务端原因 > 本机规矩 > 联机现状 > 正在连） ── */}
-      <footer className="flex min-h-[1.5rem] items-center justify-center px-3 pb-1">
+      <footer className="flex min-h-[1.5rem] items-center justify-center gap-2 px-3 pb-1">
         {(startFailed || onlineRun.startFailed) && gameRejection ? (
           <p className="text-center text-[10px] leading-snug text-danger-200">{ruleFailureText(gameRejection.failure)}</p>
         ) : rejection ? (
           <p className="text-center text-[10px] leading-snug text-danger-200">{lobbyFailureText(rejection)}</p>
         ) : note ? (
-          <p className="text-center text-[10px] leading-snug text-slate-300">{lobbyNoteText(note)}</p>
+          <>
+            <p className="text-center text-[10px] leading-snug text-slate-300">{lobbyNoteText(note)}</p>
+            {/* ★ ALREADY_IN_ROOM 的那颗键（2026-11-24 真机死锁）：服务端说我还在某间房里时，
+                只念一句是不够的 —— 那要等 30 分钟房寿命（或去另一台设备退）。这里给一条出路：
+                退出那间房 → 按原意（建房 / 进房 / 排队）自动重试一次。 */}
+            {note.kind === "in-room" && (
+              <GameBtn
+                tone="primary"
+                className="flex-none px-2 py-0.5 text-[10px]"
+                onClick={() => void useLobby.getState().leaveStuckRoom()}
+                disabled={busy}
+              >
+                <Trans>退出那间房</Trans>
+              </GameBtn>
+            )}
+          </>
         ) : busy ? (
           <p className="text-center text-[10px] leading-snug text-slate-300">
             <Trans>正在连接房间服务…</Trans>

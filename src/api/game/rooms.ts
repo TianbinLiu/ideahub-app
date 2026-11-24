@@ -110,10 +110,21 @@ export interface MatchTicket {
  * 这一层能回的结果。
  * - `unavailable`：这条服务不可用（断网 / 超时 / 401 / 老服务端 / 正文形状不对）。
  * - `code`：服务端明确回了业务错误码（`ROOM_FULL` / `NOT_HOST` / …）。
+ *
+ * ★ 2026-11-24 加两位结构化字段（只给 `ALREADY_IN_ROOM` 那条死锁用，见 lobbyStore 的 ★★）：
+ *   · `roomCode`：服务端在回包**顶层**说的"你还在的那间房"（create 与 join 两条分支都带，
+ *     见 server `services/gameRoom.service.js` 的 createRoom / joinRoom）—— 客户端据此给出
+ *     「退出那间房」的键，而不是只念一句"你已经在另一间房里"等 30 分钟房寿命；
+ *   · `room`：join 的"你本来就在这间房里"那一支还带整份快照 —— 这一支不是失败，调用方可以
+ *     直接当进房成功用（重复点「加入」/ 换设备都走这里）。
+ *   ★ 契约缺口（docs/game-lobby.md 记着）：老服务端 / 别的实现若不回 `roomCode`，客户端只能
+ *     用"最近一次建房记录"尽力猜；再猜不到就如实说"不知道是哪间房"。
+ * - `timeout`：`unavailable` 里**只有超时**这一格为真。建房 / 进房超时之后要**核对一次**
+ *   （服务端可能已经建出来了）—— 见 lobbyStore.chooseRoom / joinByCode 的第二次调用。
  */
 export type RoomsFailure =
-  | { ok: false; reason: "unavailable" }
-  | { ok: false; reason: "code"; code: string };
+  | { ok: false; reason: "unavailable"; timeout?: boolean }
+  | { ok: false; reason: "code"; code: string; roomCode?: string; room?: RemoteRoom };
 
 export type RoomsResult<T> = { ok: true; value: T } | RoomsFailure;
 
@@ -173,10 +184,27 @@ function modeOf(v: unknown): RemoteRoomMode {
  *   同样归 unavailable。别拿状态码判"有没有这个功能"。
  * ★ 401 已经在 client 里广播了 auth:expired（登录态过期），这里只回 unavailable：
  *   大厅退本机 AI，登录页由 App 的登录态那一层去处理。
+ * ★ `ALREADY_IN_ROOM` 的 `roomCode` / `room` 在回包**顶层**（不在 details 里）：读它只能走
+ *   `ApiError.payload`（见 api/client 的 ★ 与 rounds.ts 读 GAME_OVER winners 的同一条路）。
+ *   ★★ 这一位是「服务端其实已经建好了房、客户端却以为失败」那条死锁的**唯一出口**：
+ *   没有它，界面只能干等 30 分钟房寿命（2026-11-24 真机验收撞到）。
  */
 function failureOf(err: unknown): RoomsFailure {
-  if (err instanceof ApiError && err.code && GAME_CODES.has(err.code)) {
-    return { ok: false, reason: "code", code: err.code };
+  if (err instanceof ApiError) {
+    if (err.code && GAME_CODES.has(err.code)) {
+      const payload = asRecord(err.payload);
+      const roomCode = strOf(payload?.roomCode);
+      const room = payload?.room ? roomOf(payload.room) : null;
+      return {
+        ok: false,
+        reason: "code",
+        code: err.code,
+        ...(roomCode ? { roomCode } : {}),
+        ...(room ? { room } : {}),
+      };
+    }
+    // 超时与断网在 client 里是两个码（TIMEOUT / NETWORK）：只有前者要做"超时之后核对一次"
+    if (err.code === "TIMEOUT") return { ok: false, reason: "unavailable", timeout: true };
   }
   return ROOMS_UNAVAILABLE;
 }

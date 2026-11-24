@@ -330,3 +330,74 @@ export function playerCountOf(mode: LobbyMode | null, room: LobbyRoom | null): n
   if (mode === "match8") return 8;
   return room ? room.size : clampSize(4);
 }
+
+// ─────────────────────── 房主开局：拿哪一份数据决定走哪条路（2026-11-24） ───────────────────────
+
+/**
+ * 房主按「开始对局」那一下的三种结局（纯函数；`scripts/check-game-lobby.mjs` 直接跑正反例）。
+ *
+ * ★★ 为什么要有它（2026-11-24 真机验收撞到的事故）：第二间房已经有 2 个真人，但大厅那份快照
+ *   还停在 1/4（成员表没刷新），房主键写着「用 AI 补位开局」——一点就开了一局**本机 AI 单机**，
+ *   永远碰不到桌上那两个人。**开局模式绝不能拿陈旧数据决定**。
+ *
+ * 规则（判据只有这一处，界面只照着摆）：
+ *   · 刚读到的快照说真人够（`memberCount >= requiredPlayers`）→ `server`：走服务端开局；
+ *   · 刚读到的快照说不够 → `ai`：换成本机房、按座位数 AI 补位（服务端要至少 2 个真人）；
+ *   · **没读到**最新快照（超时 / 断网）时：
+ *       - 最近一次说够 → `server`（用最近一次；真正的裁决在那一下服务端请求里）；
+ *       - 最近一次说不够、但刚同步过（< `HOST_START_STALE_MS`）→ `ai`（数据还可信，照旧 AI 补位）；
+ *       - 最近一次说不够、而且已经陈旧（或从没读到过）→ `blocked`：**不开**，界面提示
+ *         「没读到最新的房间状态，先别开」——这正是那个事故的形状：旧数据不能当成"还是我一个人"。
+ */
+export type HostStartPlan =
+  | { kind: "server"; reason: "fresh-enough" | "last-known-enough" }
+  | { kind: "ai"; reason: "fresh-short" | "fresh-short-unread" }
+  | { kind: "blocked"; reason: "stale-short" };
+
+/**
+ * 「刚同步过」的窗口：房间快照 2 秒一拍（ui/useLobbyOnline），漏掉两拍就算陈旧。
+ * ★ 为什么是 5 秒而不是 2 秒：一轮请求在弱网上要 1~2 秒，卡着 2 秒会把"正在回来"误判成陈旧
+ *   （误判的方向是**多问一次**，比"拿旧数据开局"安全，但太窄会让房主白等）。
+ */
+export const HOST_START_STALE_MS = 5_000;
+
+export interface HostStartInput {
+  /** 最新快照里的真人成员数（1 = 只有房主自己） */
+  memberCount: number;
+  /** 服务端说至少几个真人才能开局（custom = 2，不看选了几座） */
+  requiredPlayers: number;
+  /** 最近一次成功读到房间快照的时刻（0 = 这一屏从来没读到过） */
+  syncedAt: number;
+  /** 这一次点之前**强制刷新**到了没有（`true` = 下面的人数就是刚读回来的） */
+  refreshed: boolean;
+  /** 现在 */
+  now: number;
+}
+
+/** 这一份数据还新不新鲜（陈旧 = 不能拿它决定开局模式）。 */
+export function hostStartDataFresh(syncedAt: number, now: number): boolean {
+  return syncedAt > 0 && now - syncedAt <= HOST_START_STALE_MS;
+}
+
+export function hostStartPlanOf(input: HostStartInput): HostStartPlan {
+  const enough = input.memberCount >= input.requiredPlayers;
+  if (input.refreshed) {
+    return enough ? { kind: "server", reason: "fresh-enough" } : { kind: "ai", reason: "fresh-short" };
+  }
+  if (enough) return { kind: "server", reason: "last-known-enough" };
+  return hostStartDataFresh(input.syncedAt, input.now)
+    ? { kind: "ai", reason: "fresh-short-unread" }
+    : { kind: "blocked", reason: "stale-short" };
+}
+
+/**
+ * 房主键上写哪一句（`server` = 「开始对局」，`ai` = 「用 AI 补位开局」）。
+ * ★ 与 `hostStartPlanOf` 共用同一条"新鲜"判据：**陈旧时不许显示 AI 补位** ——
+ *   那一格正是事故里误导人的地方（明明可能已经坐上人了，键却写着"用 AI 补位"）。
+ *   陈旧时显示「开始对局」，点下去先强制刷新，再按新鲜数据决定（见 lobbyStore.prepareStart）。
+ */
+export function hostStartLabelOf(input: Omit<HostStartInput, "refreshed">): "server" | "ai" {
+  const enough = input.memberCount >= input.requiredPlayers;
+  if (enough) return "server";
+  return hostStartDataFresh(input.syncedAt, input.now) ? "ai" : "server";
+}

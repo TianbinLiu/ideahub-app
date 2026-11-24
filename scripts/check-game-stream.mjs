@@ -163,10 +163,12 @@ console.log("3) 源码断言");
   ok("认 Content-Type 不认状态码（SPA 回退 200 + HTML）", stream.includes("text/event-stream"));
   ok("close() 会 abort 底层连接（服务端每用户限 2 条）", /close: \(\) => \{[\s\S]*?ctrl\.abort\(\)/.test(stream));
   ok("收尾（end / error / 断开）都会关连接", /const finish = [\s\S]*?ctrl\.abort\(\)/.test(stream));
-  ok("能力位判据只有 roomStreamAvailable 一处", /export function roomStreamAvailable\(\): boolean \{\s*return serverGameRoomStream\(\) === true;/.test(stream));
+  ok("能力位判据只有 roomStreamCapability 一处（返回 true / false / null 三态）", /export function roomStreamCapability\(\): boolean \| null \{\s*return serverGameRoomStream\(\);/.test(stream));
+  ok("能力位为 null（还不知道）时不当成「没有」：hook 里另排一次追问", stream.includes("roomStreamCapability"));
 
   const hook = read("src/studio/game/ui/useOnlineRounds.ts");
-  ok("useOnlineRounds 先问能力位（为假一条流都不开）", hook.includes("roomStreamAvailable()"));
+  ok("useOnlineRounds 先问能力位（为假一条流都不开）", hook.includes("roomStreamCapability()"));
+  ok("能力位还不知道（null）时隔一会儿再问，不把这一局永久关掉", hook.includes("STREAM_CAP_RETRY_MS"));
   ok("useOnlineRounds 真的开流", hook.includes("subscribeRoomStream("));
   ok("cleanup 里 close()（离房 / 卸载 / 转竖屏）", hook.includes("closeSub()"));
   ok("重连节奏走 streamRetry（不在 hook 里另写一套数）", hook.includes("canRetryStream(") && hook.includes("retryDelayOf("));
@@ -176,6 +178,15 @@ console.log("3) 源码断言");
   ok("兜底轮询间隔是 15 秒", /export const ROUND_POLL_LIVE_MS = 15_000;/.test(store));
   ok("推送与轮询共用 applyRemote（不另写一套应用逻辑）", store.includes("const applyRemote = (") && store.includes("applyRemote(room, round)"));
   ok("流正常 / 正在重连时兜底轮询失败不切单机", store.includes('get().stream === "live"') && store.includes('get().stream === "retrying"'));
+
+  // ── 界面那一侧：**「已交片 x/y」与阶段条都读推送写进 store 的那一份快照** ──
+  // ★★ 2026-11-24 真机上量过：push 帧到达 → React 重渲只有 **2ms**；剩下的 1~2 秒全是
+  //   服务端写库（跨太平洋那条 RTT）与推送扇出。所以这两处一旦改成"自己数一个本地计数"，
+  //   屏幕上就会慢回轮询量级 —— 这条断言钉住"读的是 snapshot，不是别的计数"。
+  const create = read("src/studio/game/ui/CreatePanel.tsx");
+  ok("创作面板的「已交片 x/y」读 snapshot.entries", create.includes("useRounds((s) => s.snapshot)") && create.includes("snapshot?.entries.length"));
+  const phase = read("src/studio/game/ui/PhaseBar.tsx");
+  ok("阶段条也读 snapshot（同一条推送源）", phase.includes("useRounds((s) => s.snapshot)") && phase.includes("snapshot?.entries.length"));
 }
 
 // ── 结论 ─────────────────────────────────────────────────────────────────────

@@ -19,9 +19,15 @@
  * ★★ 断线 / 错误一律**先关掉这条流再回调**：服务端每用户最多 2 条并发（`STREAM_MAX_PER_USER`，
  *   超了在建连接之前就回 429）。留一条僵尸连接 = 下一次重连必然 429，然后整局掉回轮询。
  *
- * ★ 能力位：`roomStreamAvailable()` 是"开不开流"的唯一判据（`data/serverCaps` 的 `gameRoomStream`）。
- *   读不到（老服务端 / 离线包 / 还没探到）**一条流都不开** —— 老服务端上真发出去的那条 GET 会吃
- *   SPA 的 200 + HTML，然后永远等不到一帧；而对局本来就有 2 秒轮询兜底，少开一条流没有任何损失。
+ * ★ 能力位：`roomStreamCapability()` 是"开不开流"的唯一判据（`data/serverCaps` 的 `gameRoomStream`）。
+ *   **三态**（true / false / null），调用方必须区别对待：
+ *   · true  → 开流；
+ *   · false → 老服务端 / 离线包：**一条流都不开**（真发出去的那条 GET 会吃 SPA 的 200 + HTML，
+ *     然后永远等不到一帧；而对局本来就有 2 秒轮询兜底，少开一条流没有任何损失）；
+ *   · null  → 还没探到（冷启动时健康端点那一发在飞 / 刚刚失败过，serverCaps 要 30 秒后才允许重探）：
+ *     **不能当成"没有"就把这一局永久关掉** —— `ui/useOnlineRounds` 会隔几秒再问一次，
+ *     探到了就把流开起来。2026-11-24 真机验收追延迟时发现过这条缝：冷启动那一发探测撞上
+ *     网络抖动，整局就悄悄停在 2 秒轮询上，底栏连"实时"两个字都不摆（最难发现的那种）。
  */
 import { API_BASE, API_ON, getToken, withAppVersion } from "../client";
 import { readSseBody } from "../sseBody";
@@ -89,11 +95,12 @@ export interface RoomStreamSubscription {
 const STREAM_STALL_MS = 45_000;
 
 /**
- * 这台服务端有没有推送那条长连接（`health.gameRoomStream`）。
- * ★ 唯一判据（`ui/useOnlineRounds` 不自己读能力位）；读不到 = 没有（理由见文件头）。
+ * 这台服务端有没有推送那条长连接（`health.gameRoomStream`）：**true / false / null（还不知道）**。
+ * ★ 唯一判据（`ui/useOnlineRounds` 不自己读能力位、也不在这里再判一次三态用途）。
+ * ★ 三个值的用法见文件头那段 ★：false = 一条流都不开；null = 过几秒再问，别把这一局关死。
  */
-export function roomStreamAvailable(): boolean {
-  return serverGameRoomStream() === true;
+export function roomStreamCapability(): boolean | null {
+  return serverGameRoomStream();
 }
 
 /** 服务端 `error` 帧里**不值得重连**的那几个码（其余一律当可重连，最多 5 次退避就收敛）。 */

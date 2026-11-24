@@ -21,6 +21,7 @@ import { useEffect, useState } from "react";
 import { currentUser } from "../../../data/account";
 import { readRound, startRound, type RemoteRound } from "../../../api/game/rounds";
 import { roomsAvailable, type RemoteRoom } from "../../../api/game/rooms";
+import { roomStreamCapability, subscribeRoomStream } from "../../../api/game/roomStream";
 import { useLobby, QUEUE_POLL_MS, QUEUE_TIMEOUT_MS, ROOM_POLL_MS } from "../lobbyStore";
 import { useRounds } from "../roundsStore";
 import { startFromLobby, startOnlineFromLobby } from "./startFromLobby";
@@ -131,6 +132,29 @@ export function useLobbyOnline(): { startFailed: boolean } {
       if (timer) clearTimeout(timer);
     };
   }, [open, screen, online, matchSize, matchStartedAt]);
+
+  // ── 房间屏的推送：接上服务端这条 SSE（2026-11-24） ──
+  // ★★ 为什么大厅也要一条（对局里那条是另一条）：房间屏的成员表 / 人数直接决定房主键写哪一句
+  //   （「开始对局」还是「用 AI 补位开局」，见 lobby.hostStartLabelOf）。2 秒轮询本来就有，
+  //   但推送先到的那一拍能让"第二个人刚坐下"立刻上屏，不必等轮询、也不会被一轮失败拖成旧数据。
+  // ★ 这条流**不做重连**：断了就靠 2 秒轮询（大厅不是对局，没有"实时"这条承诺）；
+  //   对局开局时大厅卸载、这条流跟着关掉 —— 服务端每用户只许 2 条连接，别和开局那条抢名额。
+  // ★ 能力位读的仍是 roomStreamCapability 一处；false（老服务端）一条都不开，null（还没探到）也不开
+  //   —— 大厅每 2 秒本来就有一拍，等它下一次挂载/换屏再判即可，不做 5 秒一次的追问。
+  useEffect(() => {
+    if (!open || screen !== "room" || !online || !roomCode) return;
+    if (roomStreamCapability() !== true) return;
+    const sub = subscribeRoomStream(roomCode, {
+      onSnapshot: (snapshot) => useLobby.getState().applyPushedRoom(snapshot.room),
+      onUpdate: (snapshot) => useLobby.getState().applyPushedRoom(snapshot.room),
+      onPing: () => {},
+      // 断 / 服务端收尾：不重连、不弹话（底栏已经在说"正在同步房间状态…"那一类临时原因，
+      // 下一拍轮询读到就会收掉）。这里只留一行控制台线索，真机上对得上服务端日志。
+      onError: (failure) => console.warn("[lobby] 房间推送断了，改用 2 秒轮询", failure.code),
+      onEnd: () => console.warn("[lobby] 房间推送到了服务端寿命，改用 2 秒轮询"),
+    });
+    return () => sub.close();
+  }, [open, screen, online, roomCode]);
 
   // ── 房间里：2 秒拉一次快照（成员变动 / 准备 / 房主换人 / 开局都靠它） ──
   // ★ 服务端说 playing 之后**这个 effect 不停**：它继续当"回合铺起来没有"的等待拍（房主调 rounds/start、

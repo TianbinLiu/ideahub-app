@@ -23,7 +23,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import {
-  roomStreamAvailable,
+  roomStreamCapability,
   subscribeRoomStream,
   type RoomStreamSnapshot,
   type RoomStreamSubscription,
@@ -36,6 +36,14 @@ import { useRounds } from "../roundsStore";
 import type { RoundStreamState } from "../roundsStore";
 import { ROUND_POLL_LIVE_MS, ROUND_POLL_MS } from "../roundsStore";
 import { canRetryStream, retryDelayOf } from "../streamRetry";
+
+/**
+ * 能力位还是"不知道"（null）时隔多久再问一次（毫秒）。
+ * ★ serverCaps 的探测失败要 30 秒后才允许重探（那是给 render 里高频读它的调用方节流的），
+ *   而对局这一层等不了 30 秒：一局才几分钟 —— 冷启动那一发探测撞上网络抖动时，整局就没了推送。
+ *   这里每 5 秒拨一次（serverCaps 自己会把"不许重探"挡回去，不会真的每 5 秒发一发）。
+ */
+const STREAM_CAP_RETRY_MS = 5_000;
 
 /**
  * 结算这一拍**事件从哪来**（界面是唯一同时认识两个 store 的地方，见 roundsStore 文件头）。
@@ -92,9 +100,17 @@ export function useOnlineRounds(): void {
       useRounds.getState().setStream("off");
       return;
     }
-    // ★ 能力位为假（老服务端 / 离线包 / 还没探到）→ 一条流都不开，完全退回改版前那套 2 秒轮询。
-    if (!roomStreamAvailable()) {
+    // ★ 能力位为假（老服务端 / 离线包）→ 一条流都不开，完全退回改版前那套 2 秒轮询。
+    // ★ 能力位**还不知道**（null：冷启动那一发健康探测正飞着 / 刚失败、要 30 秒后才允许重探）：
+    //   不能当成"没有"把这一局关死 —— 隔 5 秒再问一次，探到了这一条 effect 会重跑、把流开起来。
+    //   （2026-11-24 追延迟时发现：原来的写法在这个窗口里会整局停在 2 秒轮询上，且底栏什么都不摆。）
+    const capability = roomStreamCapability();
+    if (capability !== true) {
       useRounds.getState().setStream("off");
+      if (capability === null) {
+        const timer = setTimeout(() => setCapsEpoch((n) => n + 1), STREAM_CAP_RETRY_MS);
+        return () => clearTimeout(timer);
+      }
       return;
     }
     let disposed = false;
