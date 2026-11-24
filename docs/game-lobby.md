@@ -1,4 +1,4 @@
-# 工坊对局大厅（2026-11-23；2026-11-24 接上服务端房间；同日接上服务端回合引擎）
+# 工坊对局大厅（2026-11-23；2026-11-24 接上服务端房间；同日接上服务端回合引擎；同日晚补完对局内剩余 P0，见 §7.13）
 
 > 主人这一轮点名的四件事：① 进对局前先到**大厅**（4 人匹配 / 8 人匹配 / 自定义房间）；
 > ② 对局人数从"固定 4"改成**参数化 2~8**（空位 AI 补）；③ 自定义房间（6 位房间码、房主踢人 / 改人数 / 开局）；
@@ -26,6 +26,13 @@
 | `src/studio/game/ui/OnlineScreeningPanel.tsx` | 展映 · 联机版：播服务端 entries、点赞写回服务端、**禁止自赞**、被淘汰只能看 |
 | `src/studio/game/ui/OnlineVotingPanel.tsx` | 投票 · 联机版：投 / 弃权写回服务端，不能投自己，全员表态后自动结算 |
 | `src/studio/game/ui/entryPayload.ts` | 一期作品 → 交片请求体的**唯一**翻译（卡名 / 档位 / 占位标记） |
+| `src/studio/game/roster.ts` | **本桌玩家名单（零依赖纯函数）**：单机（我 + AI）与联机（服务端成员）两条来源折成同一张 `RosterSeat[]`；**拿不到的状态一律 `null`**（别人点没点赞 / 投没投票服务端不下发、在线位服务端没有）。`check-game-ingame.mjs` 直接 import 跑正反例 |
+| `src/studio/game/connection.ts` | **顶部连接横幅的判据（零依赖纯函数）**：`bannerOf`（红 / 黄 / 不摆）、`isRoomGone`（哪些业务码算"房间没了"）、`recoveredOf`（黄 → 正常那一拍补绿条）、`RECOVERED_MS` |
+| `src/studio/game/phaseClock.ts` | **回合「已进行时间」的本地计时口径**：`clockKeyOf`（回合:阶段 = 归零判据）、`elapsedMsOf`（负数按 0）、`formatElapsed`（`0:42`） |
+| `src/studio/game/ui/PlayerPanel.tsx` | 对局内「👥 玩家」面板：左上角可开可收；每行名字 / ❤血量 / 房主（👑 前缀）/ 已交·未交 / 出局 / 我这一期的赞与票 / **拉黑**（复用 `components/BlockButton`）；AI 座位不摆动作键 |
+| `src/studio/game/ui/ConnectionBanner.tsx` | 顶部连接横幅：黄（断了，正在用轮询 + 转圈）/ 绿（恢复，2 秒自己消失）/ 红（房间没了 + 「回大厅」+ ✕）；正常时一个像素都不摆 |
+| `src/studio/game/ui/PhaseClock.tsx` | 阶段条最左边那一格「本回合 0:42」（本地计时，**不是倒计时**） |
+| `scripts/check-game-ingame.mjs` | 对局内 P0 **95 条断言**（名单派生 / 横幅三态与错误码映射 / 计时格式 / 源码接线 / reduced-motion 登记），`npm run build` 里跑 |
 | `src/studio/game/ui/RoomScreen.tsx` / `Lobby.tsx` | 联机房间**空位不参加回合**（2026-11-24 改口径，原来说"AI 补位"） |
 | `src/data/serverCaps.ts` | 新增 `gameRooms` 能力位（健康端点）；`serverGameRooms()` 是它的读法（dev 配了 `VITE_API_BASE` 也照问） |
 | `scripts/check-game-lobby.mjs` | 大厅 / 房间状态机 **100 条断言**（正例 85 / 反例 15），`npm run build` 里跑 |
@@ -707,5 +714,119 @@ custom 房 `LFRRNN`（手机是房主）。
    服务端那几间房都是 404。
 5. **没验的**：能力位 `gameRoomStream` 为 null 时那 5 秒一次的重问只有源码断言 —— 真机上要造
    "冷启动时健康探测失败" 得控网络，这一轮没造。
+
+### 7.13 对局内剩余 P0（2026-11-24）：玩家面板 / 连接横幅 / 本地回合计时
+
+任务来自 `docs/game-lobby-ui-benchmark.md` §2.2 的 P0 五项里**剩下的三件**（另两件——对局内设置页、
+投降/退出——已在 #511 / #510 落地）。这一轮**服务端一行没改、没有新依赖**，三条全是对局内 UI。
+
+#### 一、三条落点
+
+| 条目（§2.2） | 落点 | 交互 / 取舍 |
+|---|---|---|
+| 玩家列表与举报（#3 = 缺口表 #2 + #18） | `ui/PlayerPanel.tsx` + `studio/game/roster.ts`（零依赖纯函数）+ `ui/GameLayer` 挂载 | 左上角「👥 玩家 N」一颗键（收起时就是全部）；展开是**一行一个玩家**的小板：名字 + ❤血量 + `👑`房主前缀 + 已交/未交 + 出局 + 我这一期的 👍/🗳 + **拉黑**（复用 `components/BlockButton`）。**AI 座位没有服务端账号 id → 一颗动作键都不摆**（本机局整张板只有我一行有读数、AI 行只有 AI 徽记）。商店开着 / 事件屏时整块收起（与 HUD、对手条同一条让位规矩：商店栏是满宽一条，会把开关键盖住） |
+| 断线/推送状态 → 顶部横幅（#4 = 缺口表 #10） | `ui/ConnectionBanner.tsx` + `studio/game/connection.ts`（零依赖纯函数） | 正常**一个像素都不摆**（底栏原来那行「实时连接中」撤了）；断了 → 顶部细黄条「实时连接断了，正在用轮询」+ 转圈；恢复 → 绿条 2 秒自己消失；房间没了 → 红条 + 「回大厅」+ ✕。判据只读 `roundsStore.stream` 三态与 `roundsStore.note`，**没有新状态** |
+| 回合「已进行时间」（#5 = 缺口表 #6 前半） | `ui/PhaseClock.tsx` + `studio/game/phaseClock.ts`（零依赖纯函数），挂在 `ui/PhaseBar` 最左边 | 阶段条上写「本回合 0:42」；**阶段一切换（或换回合）就归零**；**不做倒计时**（不写"还剩 xx 秒"） |
+
+#### 二、状态映射（横幅：三态 / 错误码 → 颜色与文案）
+
+判据在 `studio/game/connection.ts` 的 `bannerOf` 一处（构建门禁逐条断言），话在 `roundsReasons`：
+
+| `roundsStore` 的事实 | 横幅 | 文案 | 动作 |
+|---|---|---|---|
+| `stream` = `live` / `off`（正常、或本机根本没开流） | **不摆** | — | — |
+| `stream` = `retrying`（退避重连中） | 黄条 | 「实时连接断了，正在用轮询」+ 转圈图标 | 无（轮询兜着，对局照常能打完） |
+| `stream` = `polling`（重连 5 次都没成） | 黄条 | 同上（对玩家是同一件事） | 无 |
+| 黄条 → 恢复正常的那一拍 | **绿条 2 秒** | 「实时连接恢复了」 | 2 秒后自己消失（`RECOVERED_MS`） |
+| `note` = `fallback` **带业务码** 且码 ∈ `NOT_IN_ROOM` / `ROOM_NOT_FOUND` / `GAME_ROUNDS_OFF` | 红条 | `roundsReasons.roundCodeText(code)`（如「你不在那间房里了」） | 「回大厅」（= `quitGameToLobby`，与「✕ 结束对局」同一条路）+ ✕ |
+| `note` = `code` 且码 ∈ 上面三个 | 红条 | 同上 | 同上 |
+| `note` = `fallback` **不带码**（网络断 / 回合服务没响应） | **不摆红条** | 底栏那一句「回合服务没响应，这一局改成单机继续」 | 无（这一局还能打完） |
+| `note` = `unavailable`（这一拍没连上） | **不摆** | 底栏那一句「这一拍没连上回合服务，正在重试」 | 无 |
+| `note` = `code` 且是 `GAME_OVER` / `ROUND_NOT_FOUND` / `NOT_HOST` / `WRONG_PHASE` … | **不摆** | 底栏（竞态由 `roundsStore` 自己重拉快照，不留红字） | — |
+
+- ★ **为什么要给 `RoundNote.fallback` 补一个可选 `code`**：原来 `poll` 把业务码丢了、统一记成
+  `{kind:"fallback"}`，于是"被房主移出房间"与"网络断了"在界面上长得一模一样（同一句小字）。
+  两个结局不同（前者的唯一出路是回大厅、后者这一局还能打），必须分开（铁律八）。
+  判据只有 `connection.isRoomGone` 一处，红条与底栏共用它 —— 红条说了，底栏就不再说同一句。
+- ★ 红条压过黄条：房间都没了，再说"正在用轮询"是废话。
+
+#### 三、计时口径（**本地计时，不是服务端约束**）
+
+- 服务端回合契约里**没有**截止时间字段（`api/game/rounds.ts` 的 `RemoteRound` 只有 round / phase /
+  entries / allSubmitted / likesPending / votesPending；§2.4 的"必须服务端配合的缺口"那一行就是它）。
+  所以这一版**只显示"已进行多久"**：
+  - 起点 = 本机**看到**这一阶段的第一帧（`PhaseClock` 挂载 / `clockKeyOf(round, phase)` 变了的那一拍）；
+  - **阶段切换（或换回合）就归零** —— 判据只有 `phaseClock.clockKeyOf` 一处；
+  - 界面上**永远不写"还剩 N 秒"**：两台设备的本地时钟不可能一样，那是拿本机时间冒充服务端时间，
+    等于给玩家一个不会到点的承诺；
+  - 负数（用户改时间 / NTP 校正）按 0 显示，不出现 "-0:03"。
+- 文案是「本回合 0:42」（施工单原话）。它读的是**本阶段**的时长（阶段一换归零），
+  由 `PhaseClock` 的 title 说明，别在别处再解释一遍。
+- 服务端补上 `phaseEndsAt` 之后：换掉 `PhaseClock` 这一个组件即可（`formatElapsed` 的 `m:ss` 可复用），
+  界面其余部分不用动。
+
+#### 四、800×363 / 1384×797 实测（headless Chrome，dev 本机模式）
+
+真机口径舞台 788×351（`p-1.5` 各 6px）；**桌面卡位与 HUD 的坐标来自 `scene/layout.ts` 的 `TABLE_SLOTS_LAND`
+量过的百分比**，其余是 DOM 实测（`getBoundingClientRect`）：
+
+| 元素 | 800×363 | 1384×797 |
+|---|---|---|
+| 黄/红横幅 | x 6、y 10、高 **17.6**（红条宽 180、黄条 150） | x 6、y 10、高 25.6 |
+| 「👥 玩家」开关键 | 140×19（y 33.2） | 192×19（y 41.2） |
+| 玩家面板（8 人） | 140×**87**（y 56.2 → 底 143.2；列表视口 87，**5 行可见** + 滚动） | 192×59.8（3 人局，不滚） |
+| HUD 药丸（进度 / 血） | x 160~640、y 70~96 → 面板右沿 **152**，不碰 | x 452~932 |
+| 桌面卡位（3D） | 场景位 x 24.0~31.4%（≈189~247）、角色排 32.6~67.4% → 面板右沿 152 **不压** | 同比例 |
+| 底部：创作面板上沿 / 背包条 / 阶段条 | 148.2 / 248.1 / 321.3 → 面板底 143.2 **都不碰** | 649 / 709 / 755 |
+| 阶段条上的「本回合」 | 与文案同一行最左（`本回合 0:42`，11px 灰） | 同 |
+
+- 三个数都是**被别的元素卡出来的**（不是审美）：宽 17.5vw = HUD 药丸左沿减 8px；高 24vh = 创作面板
+  上沿减 5px；顶点 = 横幅高度（`clamp(1.1rem, 4.6vh, 1.6rem)`）+ 间距（两个组件**同一个公式**，
+  1384×797 上横幅比 363 上高一截，写死 27px 会撞）。
+- 一行一个玩家（不是两行）：140px 宽一行放得下"名字 + 血量 + 徽记 + 拉黑"，同样高度能看到 5 行；
+  拆成两行时只看得到 3 行。房主用名字前面的 `👑` 前缀而不是单独一枚徽记（省 22px，正好是
+  "名字还能不能读全"）。
+
+#### 五、怎么验的（2026-11-24，dev 本机模式 + 本机服务端）
+
+1. `node scripts/check-game-ingame.mjs` → **95 条**（名单两种来源的正反例：`hp:0` 不被 `??` 吞、
+   结算行名字优先、联机局别人点赞/投票是 `null`；横幅 mapping 逐条；计时格式与归零；
+   源码接线；reduced-motion 登记）。`npm run build` 绿（tsc + lingui extract + 全部 check + vite build），
+   `check-i18n` → **en 缺译 0**（本轮新增 21 条）。
+2. **800×363**：dev 用 800×363 的 iframe 量（`innerWidth/innerHeight` 实测 800/363，`env(safe-area-inset-*)`
+   在浏览器里是 0，与真机 41px 的差别只影响顶部的起点，不影响相对关系）：
+   - 本机 8 人局（`__game.startGame(seed,{playerCount:8})`）→ 面板 8 行、**AI 行 0 颗动作键**（DOM 里
+     一行都没有 button）、我这一行 `未交`；
+   - 收起 / 展开：开关键 `aria-expanded` 由 true→false、面板 DOM 当场消失（`外框 0 个`）；
+   - 联机（强制 store：`startGame(...,{online})` + `__rounds.begin(session, snapshot)` + `room.hostId`）：
+     行是服务端昵称（同桌甲 / 同桌乙）、`👑` 在房主那一行、`❤75` 来自成员快照、`❤0 出局`、
+     我这一行 `已交 + 👍`；**拉黑键出现在另两行**（点开是 `BlockButton` 的弹层「拉黑「同桌乙」？」）；
+   - 横幅三态：`__rounds.setStream("retrying")` → 黄条（转圈）；`setStream("live")` → 绿条 2.2 秒后
+     DOM 里已经没有横幅；`__rounds.setState({note:{kind:"fallback",code:"ROOM_NOT_FOUND"}})` → 红条
+     「没有这间房…」+「回大厅」；点「回大厅」→ `__game.state === null`、`__lobby.open === true`；
+   - 计时：创造屏 2:21 时进展映 → 归零成 `0:00`，1.2 秒后 `0:04`（每拍 +1）；再进投票 → 又归零。
+3. **1384×797**：同一个 iframe 拉到 1384×797 量（横幅 25.6 高、面板 192 宽、HUD 在 x 452），
+   红/黄/绿三态与面板同样走了一遍，没有一处重叠。
+4. 真机**没跑**：这一轮改的全是横屏对局内的 HTML 浮层，dev 的 800×363 就是真机口径（舞台 788×351）；
+   观感仍要主人在已登录的 release 包上补看一眼（与 §六同一条）。
+
+#### 六、这一轮剩下的风险
+
+- ★★ **玩家举报还没有服务端目标类型**：`Report.TARGET_TYPES` = `video / comment / danmaku / persona`
+  （2026-11-24 核过 server main `ae60836`），`POST /api/branch/reports` 逐字校验；而局内的 UGC
+  （昵称 / 交片提示词 / 生成的片子）在服务端**没有可举报的对象 id**（回合快照的 entries 只有
+  userId / prompt / cardNames / videoUrl）。所以这一版**只摆真能用得上的那颗：拉黑**
+  （`components/BlockButton`，服务端早就有这套关系），**不摆一颗点了必然 400 的举报键**
+  （本仓 `api/admin.ts` 与 `docs/play-store-checklist.md` §6c 已把这条钉成纪律）。
+  服务端补上 `user`（或 `game-entry`）目标类型之后：`PlayerPanel` 那一行接一颗 `ReportButton`
+  （`targetType="user"`、`targetId={seat.userId}`）即可，弹层 / 理由表 / 失败话术全是现成的。
+- **在线 / 掉线状态没有来源**：服务端房间快照的成员只有 userId / displayName / seat / ready / isHost /
+  avatarUrl / hp，**没有在线位**；这一版不猜（面板里不摆）。要它就等于服务端补一列（心跳时间或 `online`）。
+- **面板尺寸是被硬卡出来的**：800×363 上宽 140（HUD 左沿）/ 高 87（创作面板上沿），所以 8 人局
+  **一屏只看得到 5 行**（可滚）。想看得更多只能借空间（HUD 让位 / 面板做成可拖的浮层），
+  这一轮没做：面板是"瞄一眼"的读数，不是主操作面。
+- **商店开着 / 事件屏时面板整块收起**（商店栏满宽会盖住开关键）。要"边买边看名单"得把商店栏
+  改窄或让面板换个位置 —— 那是下一轮的重排，不在这一批。
+- 绿条只在"黄 → 正常"那一拍出现；**红条不会变绿**（会话已经收掉，再报"恢复了"是骗人）。
 
 

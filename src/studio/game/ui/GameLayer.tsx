@@ -16,8 +16,9 @@
 //   一个动作都递回 store（store 去问 rules / phases）。3D 场景只按 drag / hover 高亮（scene/ 只读）。
 import { useEffect, useRef, useState } from "react";
 import { useLingui } from "@lingui/react/macro";
+import { isRoomGone } from "../connection";
 import { ruleFailureText } from "../reasons";
-import { roundsNoteText, roundStreamText } from "../roundsReasons";
+import { roundsNoteText } from "../roundsReasons";
 import { useRounds } from "../roundsStore";
 import { useGame, type GameNotice } from "../store";
 import { gameViewOf } from "../view";
@@ -25,6 +26,7 @@ import { gameViewOf } from "../view";
 // ★ 别把这两个动作塞进 game/store：那一层的纪律是"只转发规则"（文件头 ★★），而相机不是规则。
 import { useStudio } from "../../studioStore";
 import BagBar from "./BagBar";
+import ConnectionBanner from "./ConnectionBanner";
 import CreatePanel from "./CreatePanel";
 import EventPanel from "./EventPanel";
 import GameDragLayer from "./GameDragLayer";
@@ -36,6 +38,7 @@ import OnlineScreeningPanel from "./OnlineScreeningPanel";
 import OnlineVotingPanel from "./OnlineVotingPanel";
 import OpponentStrip from "./OpponentStrip";
 import PhaseBar from "./PhaseBar";
+import PlayerPanel from "./PlayerPanel";
 import RoundResultPanel from "./RoundResultPanel";
 import ScreeningPanel from "./ScreeningPanel";
 import ShopPanel from "./ShopPanel";
@@ -53,10 +56,18 @@ export default function GameLayer() {
   const online = useGame((s) => s.online);
   const onlineLocalEvents = useGame((s) => s.onlineLocalEvents);
   const roundsNote = useRounds((s) => s.note);
-  const roundStream = useRounds((s) => s.stream);
   const { t } = useLingui();
   // 联机回合的轮询与对账（**唯一一处**定时器；单机局里这个 hook 什么都不做）
   useOnlineRounds();
+
+  /**
+   * 「👥 玩家」面板开着没有（2026-11-24 对局内 P0-1）。
+   * ★ 状态放在这一层而不是 ui/PlayerPanel 里：对手条与面板是同一份名单的两种形态，
+   *   面板一开就把对手条收起来 —— 800×363 上它俩本来就会抢同一条横向空间
+   *   （对手条居中在 safe-top+6.1rem，面板在左上角）。面板收起时对手条原样回来。
+   * ★ 这一局结束（state 变 null）就把它收掉：下一局开局不该停在一块已经不该开着的板上。
+   */
+  const [rosterOpen, setRosterOpen] = useState(false);
 
   // 轻提示 2.8 秒后自己消失（与 StudioPage 的 Toast 同一种做法：状态留在 store，显示由本地计时器管）
   const [shownNotice, setShownNotice] = useState<GameNotice | null>(null);
@@ -66,6 +77,11 @@ export default function GameLayer() {
     const timer = setTimeout(() => setShownNotice(null), 2800);
     return () => clearTimeout(timer);
   }, [notice]);
+
+  // 这一局结束（结束对局 / 联机判结束）→ 把玩家面板收掉（见 rosterOpen 的 ★）
+  useEffect(() => {
+    if (!state) setRosterOpen(false);
+  }, [state]);
 
   // 商店栏开着没有：挂不挂商店那一屏、要不要把相机交过去，都只看这一个值。
   // ★ 算在早退之前：下面有 `if (!state) return null` 之类的早退，hook 不能排在它们后面。
@@ -115,11 +131,12 @@ export default function GameLayer() {
   if (state.phase === "style") return <StylePick view={view} />;
 
   /**
-   * 底栏那一行推送状态小字（`null` = 不摆）。
-   * ★ 判据与话都在 `roundsReasons.roundStreamText` 那一处；这里只决定"联机局才摆"。
-   * ★ `off`（单机 / 老服务端 / 对局已结束）返回 null —— 没有推送这件事不该占底栏一行字。
+   * 底栏那条 note 还摆不摆。
+   * ★ 2026-11-24（对局内 P0-2）：**房间没了 / 被踢 / 回合服务被关**这种结局已经交给顶部红条
+   *   （它带一颗「回大厅」），底栏再念同一句就是同一条信息说两遍 —— 而且底栏那句是"小字"，
+   *   红条那句是"要你动手"。判据只有 `connection.isRoomGone` 一处。
    */
-  const streamLine = online ? roundStreamText(roundStream) : null;
+  const showRoundNote = roundsNote !== null && !isRoomGone(roundsNote);
 
   const inShop = state.phase === "shop";
   /**
@@ -183,9 +200,21 @@ export default function GameLayer() {
       {/* 纯预览的工作流面板（施工单 §2 第三条）：整屏盖住，只让看不让改 */}
       {previewOpen && <GenPreview />}
 
-      {/* ★ 商店开着时 HUD 与对手条让位（理由见文件头那段 ★）；事件阶段也一起让位（见 inEvent） */}
+      {/* ── 连接横幅（2026-11-24 对局内 P0-2）：正常时不摆；断了黄条、恢复绿条 2 秒、房间没了红条 + 回大厅 ──
+          ★ 挂在最上面（安全区下沿那一条）：底栏原来那行「实时连接中」已经撤了（正常时不该占地方）。
+          ★ 它自己判 stream / note 三态，这一层不替它判（判据在 studio/game/connection.ts）。 */}
+      <ConnectionBanner />
+
+      {/* ── 👥 玩家面板（2026-11-24 对局内 P0-1）：左上角那一列，可开可收 ──
+          ★ 名字 / 血量 / 房主 / 交片 / 点赞 / 投票 / 出局全在 ui/PlayerPanel + studio/game/roster.ts。
+          ★ 商店开着 / 事件屏时**整块收起来**（与 HUD、对手条同一条让位规矩）：商店栏是满宽的一条
+            （真机 y 14~93），它会把左上角那颗开关键整个盖住 —— 摆一颗被盖住的键比不摆更糟。 */}
+      {!shopVisible && !inEvent && <PlayerPanel open={rosterOpen} onToggle={() => setRosterOpen((v) => !v)} />}
+
+      {/* ★ 商店开着时 HUD 与对手条让位（理由见文件头那段 ★）；事件阶段也一起让位（见 inEvent）
+          ★ 玩家面板开着时对手条让位（同一份名单，见 rosterOpen 的 ★） */}
       {!shopVisible && !inEvent && <GameHud hud={view.hud} />}
-      {!shopVisible && !inEvent && <OpponentStrip />}
+      {!shopVisible && !inEvent && !rosterOpen && <OpponentStrip />}
       {/* ── 商店栏：**屏幕上方**（施工单 §2 第 2 条） ── */}
       {shopVisible && (
         <div className="absolute inset-x-0 top-[calc(env(safe-area-inset-top,0px)+0.5rem)] flex justify-center px-1.5">
@@ -228,9 +257,11 @@ export default function GameLayer() {
               ✕
             </button>
           </div>
-        ) : roundsNote ? (
+        ) : showRoundNote && roundsNote ? (
           // 联机回合那一句：退回单机 / 这一拍没连上 / 服务端拒了这一步。**必须看得见**（铁律八），
           // 与 rejection 同一行、同一优先级位置；点了 ✕ 才收掉（2 秒轮询不会把它冲掉）。
+          // ★ 「房间没了 / 被踢 / 回合服务被关」那一类不在这儿（顶部红条说，它带一颗回大厅）——
+          //   见 showRoundNote 的 ★。
           <div
             role="status"
             className={`pointer-events-auto flex max-w-[40rem] items-start gap-1.5 rounded-lg border px-2 py-1 text-[10px] leading-snug ${
@@ -272,24 +303,6 @@ export default function GameLayer() {
         {/* 背包条 + 商店键：商店阶段 = 买完就地摆；创作阶段出片前还能改摆法（见 rules.PLACE_PHASES）。
             ★ 事件阶段让位（见 inEvent）：那一条在这一阶段没有一个能用的动作，却要占掉 67px。 */}
         {!inEvent && <BagBar view={view} />}
-
-        {/* ── 推送状态：底栏那一行小字（2026-11-24 SSE）──
-            ★ 只在**联机局且真的开了流**时摆：`off`（单机厅 / 老服务端 / 对局已结束）什么都不说，
-              没有推送这件事不该占一行字。话只有 `roundsReasons.roundStreamText` 一处说。
-            ★ 用 `role="status"` 而不是 alert：它不是失败提示（轮询兜着，对局照常能打完），
-              别去抢上面那条失败提示的注意力。 */}
-        {streamLine && (
-          <div
-            role="status"
-            className="pointer-events-none flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-[9px] leading-none text-slate-300"
-          >
-            <span
-              aria-hidden
-              className={`inline-block h-1.5 w-1.5 rounded-full ${roundStream === "live" ? "bg-ok-400" : "bg-warn-400"}`}
-            />
-            <span>{streamLine}</span>
-          </div>
-        )}
 
         <PhaseBar view={view} />
       </div>
