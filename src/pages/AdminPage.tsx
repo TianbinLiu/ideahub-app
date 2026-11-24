@@ -63,6 +63,7 @@ import { isAdmin, isRemoteMode } from "../data/account";
 import AdminTicketsView from "../components/support/AdminTicketsView";
 import { useCurrentUser } from "../hooks/useAccount";
 import { useBackOr } from "../hooks/useBackOr";
+import { openExternal } from "../utils/openExternal";
 import { relativeTime, visibilityOf } from "../types";
 
 /** 同页子视图。home = 总览（统计卡 + 举报队列），其余五个是钻取列表 */
@@ -89,9 +90,26 @@ export default function AdminPage() {
   const [reloadKey, setReloadKey] = useState(0);
   // 通知深链 /admin?view=support 直达客服工单队列；其它情况从总览进
   const [view, setView] = useState<AdminView>(() => (new URLSearchParams(window.location.hash.split("?")[1] || "").get("view") === "support" ? "support" : "home"));
+  /**
+   * 「用户」那一屏的**初始搜索词**。从一条 `user` 举报点过来时带的是那个玩家的用户名 / 昵称。
+   * ★ 为什么要有：这两类举报在后台只剩「驳回」（服务端 takedown registry 两格是空的），
+   *   而管理员真正的处理动作「封禁」在用户管理里 —— 只换个视图不带搜索词的话，
+   *   他得在几千个用户里自己再搜一遍那个 id（id 是 24 位十六进制，抄不动）。
+   */
+  const [userQuery, setUserQuery] = useState("");
   const { t } = useLingui();
 
   if (!isAdmin()) return <Denied remote={isRemoteMode()} loggedIn={!!user} onBack={() => navigate("/", { replace: true })} />;
+
+  /**
+   * 打开「用户」视图并把搜索词带过去。
+   * ★ 从统计卡 / 别处进「用户」时必须**显式清空**：`userQuery` 是本页 state，
+   *   不清的话上一次从举报带过来的搜索词会留在下一次进入时，列表看起来"少了一堆人"。
+   */
+  const openUsers = (q = "") => {
+    setUserQuery(q);
+    setView("users");
+  };
 
   // ★★ 所有处置动作共用这一个"该重读了"的信号：处理完一条举报/封了一个人之后，
   //   如果只有列表更新、统计卡不动，同一屏上就会出现「没有待处理的举报」与
@@ -109,11 +127,12 @@ export default function AdminPage() {
 
       {view === "home" && (
         <>
-          <StatsSection reloadKey={reloadKey} onOpen={setView} />
+          {/* 统计卡点的钻取一律**不带**搜索词（见 openUsers 的 ★） */}
+          <StatsSection reloadKey={reloadKey} onOpen={() => openUsers()} />
           {/* id 给「待处理举报」那张卡当滚动锚点：举报队列本来就在这一页上，
               点卡不必换视图，把人带到它面前即可 */}
           <div id="admin-reports">
-            <ReportsSection onChanged={bump} />
+            <ReportsSection onChanged={bump} onOpenUsers={openUsers} />
           </div>
           {/* 客服工单：单独一个视图（列表可能很长，且要在里面打字回复） */}
           <button
@@ -135,7 +154,7 @@ export default function AdminPage() {
           </p>
         </>
       )}
-      {view === "users" && <UsersView onChanged={bump} />}
+      {view === "users" && <UsersView onChanged={bump} initialQ={userQuery} />}
       {view === "videos" && <VideosView onChanged={bump} />}
       {view === "comments" && <ContentView kind="comment" onChanged={bump} />}
       {view === "danmaku" && <ContentView kind="danmaku" onChanged={bump} />}
@@ -386,9 +405,11 @@ function hit(needle: string, ...hay: Array<string | undefined | null>): boolean 
 
 type UserFilter = "all" | "admin" | "banned";
 
-function UsersView({ onChanged }: { onChanged: () => void }) {
+function UsersView({ onChanged, initialQ = "" }: { onChanged: () => void; initialQ?: string }) {
   const { t } = useLingui();
-  const [q, setQ] = useState("");
+  // ★ initialQ：从一条 `user` 举报点过来时带上那个玩家的用户名 / 昵称（封人只有这一条路，
+  //   而 id 是 24 位十六进制，让人自己抄进搜索框等于没有这个入口）。缺省空 = 全量列表。
+  const [q, setQ] = useState(initialQ);
   // ★ q 交给 hook 下推服务端（在全量里查）；本地 hit() 只再筛一遍已拉到的
   //   （防抖窗口内给即时反馈，语义与服务端一致所以不会互相打架）
   const { items, supported, err, loading, load, loadMore, hasMore, total } = useAdminList(listAdminUsers, q);
@@ -1135,7 +1156,7 @@ function ContentRow({ kind, c, onDone }: { kind: "comment" | "danmaku"; c: ApiAd
 
 type Tab = "pending" | "all";
 
-function ReportsSection({ onChanged }: { onChanged: () => void }) {
+function ReportsSection({ onChanged, onOpenUsers }: { onChanged: () => void; onOpenUsers: (q: string) => void }) {
   const { t } = useLingui();
   const [tab, setTab] = useState<Tab>("pending");
   const [items, setItems] = useState<ApiReport[]>([]);
@@ -1220,6 +1241,7 @@ function ReportsSection({ onChanged }: { onChanged: () => void }) {
           <ReportCard
             key={r._id}
             report={r}
+            onOpenUsers={onOpenUsers}
             onResolved={(next, action) => {
               setItems((xs) => applyResolved(xs, r._id, next, action, tab));
               // ★ 统计卡跟着重读：处理掉一条之后「待处理举报」那个数必须动，
@@ -1300,11 +1322,142 @@ const ACTIONS: Array<{ id: ReportAction; label: MessageDescriptor; why: MessageD
   },
 ];
 
+/** 管理端只认 http(s) 的站外地址：这一屏是**带登录态**的页面，别把 `javascript:` / `data:` 之类
+ *  从一条用户内容里递进 `openExternal`（服务端存的地址来自出片机，这里只是把"万一"挡在渲染这一层）。 */
+function isHttpUrl(u: string | null | undefined): u is string {
+  return typeof u === "string" && /^https?:\/\//i.test(u);
+}
+
+/**
+ * 对局里两类举报的**内容块**（`user` / `game-entry`，2026-11-24）。
+ *
+ * ★★ 为什么必须单开一支：这两类的 `target` 形状与四种内容**不同**，不只是换了字段名 ——
+ *   一个玩家没有 title / text（名字在 `displayName` / `username`），一条回合投稿的现场在
+ *   `prompt` / `videoUrl`。沿用下面那套「title/name/text 都没有 ⇒ 服务端没返回快照」的判据，
+ *   会把**内容其实在**的举报全画成红字契约故障（2026-11-24 上一轮线上就是这个表现）：
+ *   管理员照着驳回，而该看的东西就在下一行。
+ *
+ * ★★ 现查到的 `target` 优先，受理时抄下的 `targetContext` 兜底 —— 这个先后是服务端契约给的口径
+ *   （server docs/api-contract.md「对局里的两类对象」）：房间过期懒清理会把**整份**房间文档删掉，
+ *   那时 `target` 只剩 `{ exists: false }`，唯一的现场就是 `targetContext`。
+ * ★ 两条路都没有内容时是"真的没有"，但那**不是**契约故障（老服务端 / 数据被清），所以画灰字。
+ *   红字在这一块只留给一件事：服务端漏了字段（下列四种内容那一支）。
+ *   对局房间只活两小时，过期是**正常寿命** —— 把它画成红色契约故障，会让人去查一个不存在的 bug。
+ */
+function GameTargetBody({ report }: { report: ApiReport }) {
+  const { t } = useLingui();
+  const [openErr, setOpenErr] = useState("");
+  const tgt = report.target;
+  const ctx = report.targetContext ?? null;
+  /** 现查到的才算"现在还在"：`{ exists: false }` 与"服务端没给 target"都要落到受理时那份现场 */
+  const live = tgt && tgt.exists !== false ? tgt : null;
+
+  async function openVideo(url: string) {
+    setOpenErr("");
+    try {
+      // 站外网页只有这一份实现（原生 Browser.open / 网页 window.open 被拦都会抛，见 utils/openExternal）
+      await openExternal(url);
+    } catch {
+      setOpenErr(t`没能打开浏览器（可能被拦截了）。你可以直接访问 ${url}`);
+    }
+  }
+
+  if (report.targetType === "user") {
+    // 玩家：昵称 > 用户名 > 只剩 id。★ 三档都画成一句"玩家：…"—— 管理员要判的是"这个人是谁"，
+    //   不是"服务端哪一格有值"；把空值原样摆出来只会让人以为数据坏了。
+    const id = live?.userId || ctx?.offenderUserId || report.targetId;
+    const name = live?.displayName || live?.username || "";
+    return (
+      <div>
+        <div className="flex items-center gap-2">
+          <Avatar name={live?.username || id} label={name || id} src={live?.avatarUrl || undefined} size={32} />
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold text-slate-100">
+              {name ? <Trans>玩家：{name}</Trans> : <Trans>玩家：昵称读不到</Trans>}
+            </div>
+            <div className="truncate text-[11px] text-slate-500">
+              {live?.username ? `@${live.username} · ` : null}
+              <Trans>ID：{id}</Trans>
+            </div>
+          </div>
+        </div>
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
+          {live?.banned && <span className="text-warn-300"><Trans>已处于封禁状态</Trans></span>}
+          {live?.deactivated && <span className="text-slate-400"><Trans>账号已由本人注销</Trans></span>}
+          {/* ★ 现查不到 = 账号已被删（本人注销或管理员删号）。这是**正常事**，不是契约故障：
+              所以灰字说清楚，并给一句"该怎么办" —— 账号没了，这条举报只剩驳回有意义。 */}
+          {tgt?.exists === false && (
+            <span className="text-slate-500"><Trans>账号已经不在了（可能已注销或被删除）—— 这条通常「驳回」就好。</Trans></span>
+          )}
+          {/* ★ 连 `target` 这一格都没有（老服务端 / 回包漏了字段）：这才是"没有现场"，
+              同样画灰字 —— 它不等于"这个人已经没了"（那一支在上面，服务端明说过 exists:false）。
+              ★ 复用四种内容那一支的同一条 msgid（表达式形状必须一样才是同一条：写 report.targetId，
+              写成局部变量 id 会多出一条没翻的文案）。 */}
+          {!tgt && (
+            <span className="text-slate-500"><Trans>服务端没有返回内容快照，只能看到 id：{report.targetId}</Trans></span>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── game-entry ──
+  // 现查到的优先（提示词是完整的），房间过期 / 老服务端就用受理时抄下的那一份（截断到 200 码点）
+  const roomCode = live?.roomCode || ctx?.roomCode || "";
+  const round = typeof live?.round === "number" ? live.round : typeof ctx?.round === "number" ? ctx.round : null;
+  const prompt = (live?.prompt || ctx?.prompt || "").trim();
+  const videoUrl = live ? live.videoUrl || "" : ctx?.videoUrl || "";
+  /** 「画的是受理时那份现场」只在**没有现查结果**、且上下文里**真有内容**时成立 —— 一份空上下文不算现场 */
+  const fromContext = !live && !!ctx && !!(ctx.roomCode || ctx.prompt || ctx.videoUrl || typeof ctx.round === "number");
+
+  if (!live && !fromContext) {
+    return (
+      <p className="text-xs text-slate-500">
+        <Trans>服务端没有返回内容快照（可能是房间已过期），只能看到 id：{report.targetId}</Trans>
+      </p>
+    );
+  }
+
+  return (
+    <div>
+      <div className="mb-1 truncate text-sm font-semibold text-slate-100">
+        <Trans>对局投稿：房间 {roomCode || "—"} · 第 {round ?? "—"} 回合</Trans>
+      </div>
+      {prompt ? (
+        // 提示词全文照画、不截断：现查时它 ≤80 字，现场那份服务端已截到 200 码点 ——
+        // 这里再折一次行数，管理员就会在"看不全"的前提下判一条内容要不要下架。
+        <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-200">{prompt}</p>
+      ) : (
+        <p className="text-xs text-slate-500"><Trans>这一条投稿没有写提示词</Trans></p>
+      )}
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-500">
+        {live?.username && <span><Trans>投稿人 @{live.username}</Trans></span>}
+        {(live?.cardNames?.length ?? 0) > 0 && <span><Trans>卡片：{live?.cardNames?.join("、")}</Trans></span>}
+        {live?.placeholder && <span className="text-slate-400"><Trans>占位投稿：这一回合没交片</Trans></span>}
+        {fromContext && <span><Trans>以上是受理时抄下的现场（房间可能已过期）</Trans></span>}
+      </div>
+      {isHttpUrl(videoUrl) && (
+        <button
+          type="button"
+          onClick={() => void openVideo(videoUrl)}
+          className="mt-1.5 block text-[11px] text-brand underline underline-offset-2"
+        >
+          <Trans>打开这条投稿的成片 ↗</Trans>
+        </button>
+      )}
+      {openErr && <Warn compact className="mt-1.5">{openErr}</Warn>}
+    </div>
+  );
+}
+
 function ReportCard({
   report,
+  onOpenUsers,
   onResolved,
 }: {
   report: ApiReport;
+  /** 打开「用户」视图并把搜索词带过去（只有 `user` 举报会用到：封人只有那一条路） */
+  onOpenUsers: (q: string) => void;
   // ★ 把 action 也报上去：服务端没回处理后的那一条时，列表要靠它推出落地状态
   //   （服务端从不回 "resolved"，见 applyResolved 的说明）
   onResolved: (next: ApiReport | null, action: ReportAction) => void;
@@ -1318,6 +1471,8 @@ function ReportCard({
 
   const tgt = report.target;
   const pending = report.status === "pending";
+  /** 对局里的两类：靶子是**人**和**一条回合投稿**，形状与四种内容不同（见 GameTargetBody） */
+  const isGameTarget = report.targetType === "user" || report.targetType === "game-entry";
   // ★ 解析不出时间就不显示这一项。reportTimeMs 兜底成 0，直接丢给 relativeTime
   //   会显示成「56 年前」—— 一个看起来像真数据的假数据，比没有更糟。
   const at = reportTimeMs(report.createdAt);
@@ -1371,11 +1526,17 @@ function ReportCard({
       {/* ★★ 被举报的**内容本身**。只给一个 id 的后台没人会用 —— 管理员要么不审，
           要么凭举报人的一面之词直接下架，两种都比没有后台更糟。 */}
       <div className="rounded-lg bg-black/25 p-2.5">
-        {/* ★ 判据是**必给的布尔** exists === false，不是"缺省即正常"。
-            写成 !t?.missing 那种缺省即真的话，作者自删过的内容会走进下面那支，
-            没有 title/text 于是打出红字"服务端没返回快照" —— 把一件正常事误报成契约故障，
-            管理员照着点下架，服务端抛 404，这条举报永远卡在待处理里。 */}
-        {tgt?.exists === false ? (
+        {/* ★★ 对局里的两类（user / game-entry）走自己那一支：它们的 target 形状与下面四种不同
+            （一个玩家没有 title / text，一条投稿的现场在 prompt / videoUrl）。沿用下面那套
+            「title/name/text 都没有 ⇒ 红字契约故障」的判据，会把内容**其实在**的举报画成红字
+            —— 2026-11-24 上一轮线上就是这个表现（取舍见 GameTargetBody 头上那段）。 */}
+        {isGameTarget ? (
+          <GameTargetBody report={report} />
+        ) : tgt?.exists === false ? (
+          // ★ 判据是**必给的布尔** exists === false，不是"缺省即正常"。
+          //   写成 !tgt?.missing 那种缺省即真的话，作者自删过的内容会走进下面那支，
+          //   没有 title/text 于是打出红字"服务端没返回快照" —— 把一件正常事误报成契约故障，
+          //   管理员照着点下架，服务端抛 404，这条举报永远卡在待处理里。
           <p className="text-xs text-slate-500"><Trans>内容已经不在了（作者自己删了，或已被删除）—— 这条通常「驳回」就好。</Trans></p>
         ) : (
           <>
@@ -1475,6 +1636,28 @@ function ReportCard({
           只解释这一类真摆出来的那几颗键（见 ACTIONS 头上的说明） */}
       {pending && !confirmingDelete && (
         <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">{actions.map((a) => t(a.legend)).join(" · ")}</p>
+      )}
+
+      {/* ★★ 对局里的两类**只有驳回**一颗键（服务端 takedown registry 这两格是空的：下架 / 删除都回 400）。
+          摆一颗必然失败的键比不摆糟得多，所以既要收敛按钮，也要在页面上说清"真正的动作在哪"——
+          否则管理员只会觉得"这个后台连封人都做不到"。
+          ★ 封禁的唯一入口是「用户」那一屏（`POST /api/admin/branch/users/:id/ban`，与内容处置分开），
+          所以这里给一条带搜索词的入口；**拿不到名字就不摆**（只剩一串 24 位 id 的搜索一定搜不到，
+          摆出来只会让人以为搜索坏了）。 */}
+      {pending && report.targetType === "user" && (tgt?.username || tgt?.displayName) && (
+        <button
+          onClick={() => onOpenUsers(tgt?.username || tgt?.displayName || "")}
+          className="mt-1.5 block text-[11px] text-brand underline underline-offset-2"
+        >
+          <Trans>去「用户」里封禁这个账号 →</Trans>
+        </button>
+      )}
+      {pending && isGameTarget && (
+        <p className="mt-1.5 text-[10px] leading-relaxed text-slate-500">
+          {report.targetType === "user"
+            ? t`服务端对这一类只受理、不处置：封人走「用户」，这条举报收尾只能用「驳回」。`
+            : t`服务端对这一类只受理、不处置：投稿跟着对局房间走（房间过期就整份没了），收尾只能用「驳回」。`}
+        </p>
       )}
 
       {err && <p className="mt-1.5 text-[11px] leading-relaxed text-danger-300">{err}</p>}

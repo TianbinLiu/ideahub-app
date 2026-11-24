@@ -5256,6 +5256,10 @@ msgstr "canvas 不可用"
 msgid "Google Play 还在等这笔付款完成，到账后余额会自动更新"
 msgstr "Google Play 还在等这笔付款完成，到账后余额会自动更新"
 
+#: src/pages/AdminPage.tsx
+msgid "ID：{id}"
+msgstr "ID：{id}"
+
 #. placeholder {0}: ipRegionLabel(r, activeLang())
 #: src/pages/ProfilePage.tsx
 msgid "IP 属地：{0}"
@@ -7455,6 +7459,10 @@ msgstr "付费人格要在官网 ideahubs.org 购买，买过之后这里就能�
 #: src/pages/AdminPage.tsx
 msgid "代币流水"
 msgstr "代币流水"
+
+#: src/pages/AdminPage.tsx
+msgid "以上是受理时抄下的现场（房间可能已过期）"
+msgstr "以上是受理时抄下的现场（房间可能已过期）"
 
 #: src/components/CardModelFit.tsx
 msgid "以卡上的真人照片起拍"
@@ -10932,6 +10940,10 @@ msgstr "卖掉「{0}」，回收 {CARD_SELL_GOLD} 金"
 msgid "卖掉了，+{0} 金"
 msgstr "卖掉了，+{0} 金"
 
+#: src/pages/AdminPage.tsx
+msgid "占位投稿：这一回合没交片"
+msgstr "占位投稿：这一回合没交片"
+
 #: src/components/guide/tours.tsx
 msgid "占的空间在这看、也在这清"
 msgstr "占的空间在这看、也在这清"
@@ -11025,6 +11037,11 @@ msgstr "卡池里已经没有这种品质的卡了"
 #: src/studio/ui/projection.tsx
 msgid "卡片"
 msgstr "卡片"
+
+#. placeholder {0}: live?.cardNames?.join("、")
+#: src/pages/AdminPage.tsx
+msgid "卡片：{0}"
+msgstr "卡片：{0}"
 
 #: src/pages/PublishPage.tsx
 msgid "卡片存上了，卡组本身没建成"
@@ -11309,6 +11326,10 @@ msgstr "原视频音轨"
 #: src/components/video/RelatedWorks.tsx
 msgid "去 TA 的主页 ›"
 msgstr "去 TA 的主页 ›"
+
+#: src/pages/AdminPage.tsx
+msgid "去「用户」里封禁这个账号 →"
+msgstr "去「用户」里封禁这个账号 →"
 
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "去人格市场"
@@ -14127,6 +14148,12 @@ msgstr "对局大厅"
 msgid "对局大厅是横屏的：把手机横过来就能开局。"
 msgstr "对局大厅是横屏的：把手机横过来就能开局。"
 
+#. placeholder {0}: roomCode || "—"
+#. placeholder {1}: round ?? "—"
+#: src/pages/AdminPage.tsx
+msgid "对局投稿：房间 {0} · 第 {1} 回合"
+msgstr "对局投稿：房间 {0} · 第 {1} 回合"
+
 #: src/studio/game/labels.ts
 msgid "对局结束"
 msgstr "对局结束"
@@ -14934,6 +14961,10 @@ msgstr "已声明真人"
 #: src/pages/AdminPage.tsx
 msgid "已处于下架状态"
 msgstr "已处于下架状态"
+
+#: src/pages/AdminPage.tsx
+msgid "已处于封禁状态"
+msgstr "已处于封禁状态"
 
 #. placeholder {0}: statusLabel(report.status)
 #: src/pages/AdminPage.tsx
@@ -16698,6 +16729,10 @@ msgctxt "丢弃确认卡里「…再回来X」的那个动作（英文用小写�
 msgid "打开草稿"
 msgstr "打开草稿"
 
+#: src/pages/AdminPage.tsx
+msgid "打开这条投稿的成片 ↗"
+msgstr "打开这条投稿的成片 ↗"
+
 #: src/components/DraftSheet.tsx
 msgid "打开这条草稿（丢弃上面那条流水线）"
 msgstr "打开这条草稿（丢弃上面那条流水线）"
@@ -16964,6 +16999,11 @@ msgstr "投票"
 msgctxt "举报对象的类别（单数）：工坊对局一回合里的一条投稿（提示词 + 生成的片子）"
 msgid "投稿"
 msgstr "投稿"
+
+#. placeholder {0}: live.username
+#: src/pages/AdminPage.tsx
+msgid "投稿人 @{0}"
+msgstr "投稿人 @{0}"
 
 #: src/studio/game/ui/OnlineVotingPanel.tsx
 #: src/studio/game/ui/VotingPanel.tsx
@@ -19928,6 +19968,14 @@ msgstr "服务端升级后即可使用，App 不用重装"
 msgid "服务端只算真人座位（至少 2 人），已切回本机 AI 补位"
 msgstr "服务端只算真人座位（至少 2 人），已切回本机 AI 补位"
 
+#: src/pages/AdminPage.tsx
+msgid "服务端对这一类只受理、不处置：封人走「用户」，这条举报收尾只能用「驳回」。"
+msgstr "服务端对这一类只受理、不处置：封人走「用户」，这条举报收尾只能用「驳回」。"
+
+#: src/pages/AdminPage.tsx
+msgid "服务端对这一类只受理、不处置：投稿跟着对局房间走（房间过期就整份没了），收尾只能用「驳回」。"
+msgstr "服务端对这一类只受理、不处置：投稿跟着对局房间走（房间过期就整份没了），收尾只能用「驳回」。"
+
 #: src/api/auth.ts
 msgid "服务端未返回 token/user"
 msgstr "服务端未返回 token/user"
@@ -19948,6 +19996,11 @@ msgstr "服务端没带所属作品 id，这条删不了（需要升级服务端
 #: src/pages/AdminPage.tsx
 msgid "服务端没有返回内容快照，只能看到 id：{0}"
 msgstr "服务端没有返回内容快照，只能看到 id：{0}"
+
+#. placeholder {0}: report.targetId
+#: src/pages/AdminPage.tsx
+msgid "服务端没有返回内容快照（可能是房间已过期），只能看到 id：{0}"
+msgstr "服务端没有返回内容快照（可能是房间已过期），只能看到 id：{0}"
 
 #: src/api/support.ts
 msgid "服务端没有返回音频"
@@ -22539,6 +22592,7 @@ msgid "没能打开浏览器。可以手动访问：{linkFailed}"
 msgstr "没能打开浏览器。可以手动访问：{linkFailed}"
 
 #: src/components/support/SafetyCard.tsx
+#: src/pages/AdminPage.tsx
 #: src/pages/SettingsPage.tsx
 #: src/pages/tutor/TutorHomePage.tsx
 #: src/pages/tutor/TutorNewPage.tsx
@@ -23681,6 +23735,14 @@ msgstr "玩家"
 msgctxt "举报对象的类别（单数）：工坊对局里的一个真人玩家"
 msgid "玩家"
 msgstr "玩家"
+
+#: src/pages/AdminPage.tsx
+msgid "玩家：{name}"
+msgstr "玩家：{name}"
+
+#: src/pages/AdminPage.tsx
+msgid "玩家：昵称读不到"
+msgstr "玩家：昵称读不到"
 
 #: src/components/flow/CameraChips.tsx
 msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜头运动"
@@ -29203,6 +29265,14 @@ msgstr "谢谢反馈"
 msgid "账号"
 msgstr "账号"
 
+#: src/pages/AdminPage.tsx
+msgid "账号已由本人注销"
+msgstr "账号已由本人注销"
+
+#: src/pages/AdminPage.tsx
+msgid "账号已经不在了（可能已注销或被删除）—— 这条通常「驳回」就好。"
+msgstr "账号已经不在了（可能已注销或被删除）—— 这条通常「驳回」就好。"
+
 #: src/data/account.ts
 msgid "账号库未装载"
 msgstr "账号库未装载"
@@ -30651,6 +30721,10 @@ msgstr "这一期还没交片"
 #: src/studio/game/reasons.ts
 msgid "这一条你已经点过赞了（同一期同一条只能点一次）"
 msgstr "这一条你已经点过赞了（同一期同一条只能点一次）"
+
+#: src/pages/AdminPage.tsx
+msgid "这一条投稿没有写提示词"
+msgstr "这一条投稿没有写提示词"
 
 #: src/components/flow/SegmentRecoverCards.tsx
 msgid "这一条暂时收不起来：上游确认这一发没出成，但这次没带回退款的结论——过一会儿再点一次「知道了」（核对不花钱）。"

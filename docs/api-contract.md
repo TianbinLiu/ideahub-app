@@ -1001,8 +1001,10 @@ B 站式弹幕：一句话 + 它该在**视频第几秒**飘过去。与评论�
 
 ## 举报
 
-能举报**四种对象**：作品（`video`）、评论（`comment`）、弹幕（`danmaku`）、人格（`persona`，服务端 2026-09-28 加、
-App 的入口 2.70 之后的版本（2.71 起）才有：人格市场每张别人的卡上，2.70 及更早没有）。AI 客服的回答、Live2D 形象、声音模板**还不在里面** ——
+能举报**六种对象**：作品（`video`）、评论（`comment`）、弹幕（`danmaku`）、人格（`persona`，服务端 2026-09-28 加、
+App 的入口 2.70 之后的版本（2.71 起）才有：人格市场每张别人的卡上，2.70 及更早没有），
+以及工坊对局里的**玩家**（`user`）与**一回合的投稿**（`game-entry`，服务端 2026-11-24 加，见下「对局里的两类对象」）。
+AI 客服的回答、Live2D 形象、声音模板**还不在里面** ——
 要先在 server `Report.TARGET_TYPES` 加类型（服务端先上），App 再接 `ReportButton`。
 它们共用一张 `Report` 表与同一条处理流程（待处理 → 下架 / 删除 / 驳回）——
 管理端要的是"一个按时间排的待处理队列"，拆三张表那个队列就得三查一合再排序。
@@ -1055,11 +1057,16 @@ App 的入口 2.70 之后的版本（2.71 起）才有：人格市场每张别�
   reporter: { _id, username, displayName, avatarUrl },
   handler: {…} | null, handledAt: ISO | null, handleNote: "",
   createdAt,
+  targetContext: {…} | null,           // 只有 user / game-entry 有，其余 null（见下「对局里的两类对象」）
   // ↓ 只有管理端列表才有
   target: { exists, … },               // 见下「target 是现查的」
   reportCount, pendingCount            // 这个**对象**一共被举报几次 / 还剩几条没处理
 }
 ```
+
+★ `targetContext` 与 `target` 是**两件事**，别合并：`target` 是"**现在**还在不在"（管理端现查），
+`targetContext` 是"**报的时候**是什么"（受理时从服务端自己的库里抄的）。前者受删除 / 过期影响，
+后者不受 —— 见下「对局里的两类对象」。
 
 `reportCount` 是管理员最需要的信号：**30 个人举报同一条 ≠ 1 个人举报 30 条**。
 （后者不可能发生 —— 见下「去重」。）
@@ -1195,6 +1202,11 @@ pending ─────────┼─ action=delete   ─▶ deleted      �
 垃圾举报由三样兜住：① 唯一索引；② 上面两个限流桶；③ 管理端**现查**对象，
 查不到就如实标 `target.exists = false`，一眼能筛掉。
 
+★ **例外（2026-11-24）**：`user` / `game-entry` 两类**要**校验靶子存在，不存在回 **404
+`TARGET_NOT_FOUND`**（见上「对局里的两类对象」）。不是把上面这条规矩推翻 —— 这两类本来就不
+适用：靶子是一枚裸 ObjectId，身后没有可见性规则可抄；而 `game-entry` 受理时要落一份上下文，
+查不到就没得落。
+
 ★ 同理，请求体里**不收 `videoId`**（发了会被 zod strip 掉）。那是外部输入，伪造一个
 别的作品 id 就能让管理员点去看错误的现场；评论/弹幕属于哪条作品由服务端按 `targetId`
 **现查**，那份才是权威的（结果在 `target.videoId` 里回给管理端）。
@@ -1209,6 +1221,8 @@ pending ─────────┼─ action=delete   ─▶ deleted      �
 | `comment` | `{ exists, videoId, text, author, createdAt }` |
 | `danmaku` | `{ exists, videoId, text, at, author, createdAt }` |
 | `persona` | `{ exists, personaId, name, kind, shared, takenDown, takenDownReason, author, createdAt }` —— 名字在 `name`（不是 `title`），下架状态是人格表自己的布尔 `takenDown` |
+| `user` | `{ exists, userId, username, displayName, avatarUrl, banned, deactivated, createdAt }` —— **没有 `author`**：靶子就是这个人本身 |
+| `game-entry` | `{ exists, entryId, roomCode, round, userId, username, prompt, cardNames[], videoUrl, posterUrl, placeholder, submittedAt }` —— `username` 是投稿人，`videoUrl` / `posterUrl` 在占位投稿上是 **null**（不是空串），`placeholder` 才是它的正规判据 |
 
 - 查不到一律给 `{ exists: false }`。★ 用**必给的布尔** `exists`，不用"缺省即正常"的
   `missing?`：后者一旦服务端漏给这一项，客户端读到 `undefined` → falsy → 显示成
@@ -1229,6 +1243,91 @@ pending ─────────┼─ action=delete   ─▶ deleted      �
 这里是全系统**唯一**一处把它露出来的地方，成立的前提是**整个列表端点挂在
 `requireRole(ADMIN_ROLE)` 后面**。哪天把它放开给普通用户（比如做「我的举报」），
 **必须先把这个字段摘掉**，否则举报一次就能查出某条弹幕是谁发的，整面弹幕墙都被去匿名化了。
+★ `user` / `game-entry` 两类**不受上面那条弹幕例外约束**：被举报的玩家与投稿人在对局快照里
+本来就对同房的人可见（快照带着 `userId` / `name`），管理端只是把名字现拼出来。
+
+### 对局里的两类对象（`user` / `game-entry`，2026-11-24）
+
+工坊对局里会产生两类用户内容，而此前它们都没有可递的 id：
+
+| targetType | `targetId` 是什么 | 靶子从哪来 |
+|---|---|---|
+| `user` | `users._id` | 房间快照 `members[].userId`（公开资料页 `GET /api/users/:id` 也看得到） |
+| `game-entry` | 回合投稿的 `entryId`（24-hex ObjectId） | `GET /api/game/rooms/:code/rounds/current` 的 `entries[].entryId` |
+
+**`entryId` 是 2026-11-24 新加的**：`POST /api/game/rooms/:code/rounds/entries` 首次交片时生成，
+**覆盖提交保持不变**（内容替换、`submittedAt` 刷新，id 不变）。客户端**不许**自带这个字段
+（服务端说了算），也**不要**拿 `(回合, userId)` 自己拼。老房间（上线前交的片）快照里这一格是
+`null` —— 房间最多活 2 小时，不留迁移。App 侧那两格举报键的判据在 `src/studio/game/reports.ts`
+（零依赖）：能力位为真 + 靶子 id 是 24-hex + 不是自己的内容，三条缺一不摆。
+
+**请求**：与其它类型同一条端点、同一个请求体 `{ targetType, targetId, reason, detail? }`。
+
+**校验（与其余四种相反）**：靶子必须存在 —— `user` 查 `users`，`game-entry` 在某个
+`gamerooms.rounds[].entries[]` 里找得到；否则：
+
+```
+404 { ok:false, code:"TARGET_NOT_FOUND", message:"Report target not found: <type>",
+      details:{ targetType, targetId } }
+```
+
+★ 为什么这两类反过来必须校验：靶子是一枚裸 ObjectId，身后没有可见性规则可抄（见下
+「提交端点不校验对象存在」那条：**这两类是例外**）；而 `game-entry` 受理时要落一份上下文，
+查不到就没得落 —— 与其在队列里多一条什么也答不出的死条目，不如当场 404。
+★ 顺序：**去重预检在存在性校验之前**。同一个人重复举报同一个靶子照旧 **409 `DUPLICATE`**
+（带首次的 `reportId`），哪怕这个靶子在这期间已经被删 / 过期 —— 反过来会让客户端把
+"已受理过"显示成"没报上"。
+★ 客户端**只认 `code`**：`TARGET_NOT_FOUND` 不能说成"这台服务器还不支持举报"（`reportErrorText`
+里那一支），房间过期与端点缺失是两件事。
+
+**响应里多一格 `targetContext`**（`user` / `game-entry` 才有；其余四种是 `null`；
+两类都回全部六个键，不适用的给空串 / `null`）：
+
+```json
+"targetContext": {
+  "offenderUserId": "…",   // 被举报的人（两类都有；game-entry 是投稿人）
+  "roomCode": "ABC123",    // 对局房号（user 类为空串）
+  "round": 1,              // 回合号（user 类为 null）
+  "entryId": "…",          // 回合投稿的 entryId（与 targetId 相同；user 类为 null）
+  "prompt": "…",           // 投稿提示词（截断到 200 码点；正常投稿 ≤80 字不会被切）
+  "videoUrl": "…"          // 成片地址（占位片为空串）
+}
+```
+
+- ★ 这是**服务端在受理那一刻从自己的库里抄的**，不接受请求体里的任何一份（同名键会被 zod
+  strip 掉）：能递的话，伪造一段脏话栽赃谁都做得到（见上「`target` 是现查的」那段的 ★）。
+- ★ 为什么这两类例外要存：房间过期懒清理会把**整份** `gamerooms` 文档一起删（server
+  `models/GameRoom.js` 文件头），到管理员打开队列时投稿的提示词 / 成片地址已经无从现查 ——
+  `targetContext` 就是那份现场。
+- ★★ `null`（没有这份上下文：老服务端 / 其余四种类型）与"有上下文、字段全空"是**两件事**，
+  渲染处别用 `|| {}` 抹平（抹平之后分不出"没有现场"与"现场是空的"，而前者要说
+  「服务端没有返回内容快照」）。
+- **管理端显示顺序：现查到的 `target` 优先，`targetContext` 兜底。** 反过来会拿着旧现场当
+  现状（作者改了提示词，管理员按旧的判）。
+- ⚠ 这两类的 `target` **没有** `title` / `name` / `text`（一个玩家没有标题，一条投稿的现场
+  在 `prompt` / `videoUrl`）。管理端沿用四种内容那套「三个都没有 ⇒ 服务端没返回快照」的
+  判据，会把**内容其实在**的举报画成红字契约故障（App 2026-11-24 上一轮就是这个表现）——
+  `AdminPage` 的 `GameTargetBody` 单开一支正是为此。
+- ★ 两条路都没有内容时（老服务端 / 数据被清）画**灰字**「服务端没有返回内容快照（可能是房间
+  已过期）」，**不画红字**：对局房间只活两小时，过期是正常寿命，不是契约故障 —— 红字在这块
+  地方只留给"服务端漏了字段"。封禁状态 / 注销状态给的是布尔（`banned` / `deactivated`），
+  服务端已经判好了（判 `banned.at` 在不在），别在这一层再折一次。
+
+**后台处置本轮不深做**：这两类 `action=takedown` / `action=delete` 都回 **400** 一句人话
+（`services/takedown.service.js` 注册表里两格是空的）。现阶段的收尾动作只有 `action=dismiss`。
+App 侧的唯一一份镜像是 `src/api/admin.ts` 的 `REPORT_ACTIONS`（`user` / `game-entry` 两格
+**只有 `dismiss`**）：摆一颗点了必然 400 的键，比不摆糟得多 —— 失败之后举报仍留在待处理里，
+管理员只会以为后台坏了。
+- `user` 的封禁走 **`POST /api/admin/branch/users/:id/ban`**（与内容处置分开，见 `User.banned`），
+  管理端从举报卡给一条带搜索词的「用户」入口；**拿不到用户名 / 昵称就不摆**（只剩一串 24 位 id
+  的搜索一定搜不到，摆出来只会让人以为搜索坏了）。
+- `game-entry` 没有独立隐藏位，删一条会打乱「全员已交片 / 已投票」的回合判定 ⇒ 不提供。
+
+**能力位**：`GET /api/ark/health` 的 `gameReports: true`。App 见不到这一位（老服务端）就
+**不摆那两格举报键** —— 别先摆出来再吃一个 400。
+
+回归测试在服务端仓：`server/tests/gameReport.spec.js`（两类受理与上下文 / 404 / 409 / 截断 /
+管理端两页与房间清理后的上下文 / 处置 400 / 能力位）。
 
 ### 「下架 / 删除」调另一条线的服务，举报侧**不写一行清理逻辑**
 
@@ -1254,6 +1353,10 @@ exports.takedownTarget = async ({ targetType, targetId, operatorId, reason, hard
 会得到 **400**「请改用 action=delete」。★ 这是**故意不降级**的：悄悄替管理员把"下架"
 办成"删除"，会让举报记录上写着 `taken_down`（可撤销、内容还在）而内容其实已经没了 ——
 事后申诉时谁也说不清发生过什么，且一个错都不报。
+
+⚠ `user` / `game-entry` **更彻底：HANDLERS 里两格都是空的**（`takedown` 与 `delete` 都 400，
+各回一句人话）。封人走 `POST /api/admin/branch/users/:id/ban`（与内容处置分开），投稿跟着
+房间文档走、没有独立隐藏位。所以这两类后台**只剩「驳回」**，见上「对局里的两类对象」。
 
 ★★ **任何一种失败（服务抛错、400、以及服务整个不存在时的 501）都不写状态**：
 举报原地留在 `pending`，管理员可以重来。把状态标成 `taken_down` 而内容还挂在首页上，

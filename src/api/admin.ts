@@ -242,6 +242,88 @@ export interface ApiReportTarget {
    *  服务端原样带出 —— 与作品的 `takedown` 子文档是两张表各自的写法，不是同一条判断写了两遍。
    */
   takenDown?: boolean;
+
+  // ── 下面这些只有对局里的两类（`user` / `game-entry`，2026-11-24）才有 ──
+  // ★★ 这两类的形状与上面四种**不同**，不只是换了个字段名：一个玩家没有 title / text，
+  //   一条回合投稿的现场是 prompt / videoUrl。管理端拿上面那套「title/name/text 都没有
+  //   ⇒ 服务端没返回快照」的判据去画，会把**内容其实在**的举报全画成红字契约故障
+  //   （2026-11-24 上一轮的真实表现），管理员照着驳回，而该看的东西就在下一行。
+  // ★ 服务端现查这两类时**不给 `author`**：`user` 的靶子就是人本身，`game-entry` 给 `userId` + `username`。
+  /** 玩家 id（`user` 类就是靶子本身；`game-entry` 类是投稿人）。两类都有 */
+  userId?: string;
+  /** 用户名（**不带 @**，服务端原样给 `users.username`） */
+  username?: string;
+  /** 昵称（服务端原样给 `users.displayName`，可能是空串） */
+  displayName?: string;
+  /** 头像地址（可能为空串） */
+  avatarUrl?: string;
+  /**
+   * 这个人现在是否被封着（`user` 类）。★ 服务端**折成了布尔**（判 `banned.at` 在不在），
+   * 与作品的 `takedown` 子文档不是同一条判断写了两遍：那边是"原样带出、客户端判空"，
+   * 这边是"服务端折好"—— 两张表各自的既有写法，别在这一层再折一次。
+   */
+  banned?: boolean;
+  /** 这个人是不是自己注销了（`user` 类） */
+  deactivated?: boolean;
+  /**
+   * 回合投稿的稳定 id（`game-entry` 类；与 `targetId` 相等）。
+   * ★ 冗余这一格不是笔误：`targetId` 是一列混着六种 id 的值（没有 ref），
+   *   管理员要一眼看出"报的是哪条投稿"，就得有自己这一格。
+   */
+  entryId?: string;
+  /** 对局房号（`game-entry` 类；已过期的房间查不到时这一格不会出现） */
+  roomCode?: string;
+  /** 第几回合（`game-entry` 类） */
+  round?: number;
+  /** 投稿提示词（`game-entry` 类）。★ 现查给的是**完整**正文；受理时抄下的那份是截断到 200 码点的 */
+  prompt?: string;
+  /** 这条投稿挂了哪些卡的名字（`game-entry` 类） */
+  cardNames?: string[];
+  /**
+   * 成片地址（`game-entry` 类）。
+   * ★ 占位投稿是 **null**（不是空串）："这一回合没交片"是正常事，不是契约故障 ——
+   *   两种空别混，`placeholder` 才是它的正规判据。
+   */
+  videoUrl?: string | null;
+  /** 封面帧地址（同上，占位投稿为 null） */
+  posterUrl?: string | null;
+  /** 这一条是空镜占位片（没真出片）。★ 判据用这一格，不要拿 `!videoUrl` 反推 */
+  placeholder?: boolean;
+  /** 交片时间（`game-entry` 类） */
+  submittedAt?: string | number | null;
+}
+
+/**
+ * 受理那一刻服务端从**自己库里**抄下的现场（**只有** `user` / `game-entry` 两类，其余是 `null`）。
+ *
+ * ★★ 它与 `target` 是两件不同的事，别合并：
+ *   · `target` 是"**现在**还在不在"——管理端打开队列时现查；
+ *   · `targetContext` 是"**报的时候**是什么"——受理时抄下、之后不再更新。
+ *   房间过期懒清理会把**整份** GameRoom 文档一起删掉（server `models/GameRoom.js` 文件头），
+ *   到管理员打开队列时投稿的提示词 / 成片地址已经无从现查，这一格就是当时那份现场。
+ *   所以管理端**优先画现查到的 `target`**，查不到才落到这一份 —— 顺序反了会拿着旧现场
+ *   当现状（作者改了提示词，管理员却按旧的判）。
+ *
+ * ★ 形状固定：两类都回全部六个键，不适用的给空串 / `null`，页面不用先判"这类有没有这一格"。
+ * ★ `null`（没有这份上下文：老服务端 / 其余四种类型）与"有上下文、字段全空"是**两件事**，
+ *   代码里别用 `|| {}` 抹平 —— 抹平之后分不出"没有现场"与"现场是空的"，而前者要说
+ *   「服务端没有返回内容快照」，后者是"内容为空"的正常形状。
+ * ★ 内容全部由服务端在受理时从自己的库抄，**不接受请求体里的任何一份**（同名键会被 zod strip 掉）：
+ *   能递的话，伪造一段脏话栽赃谁都做得到（同 `ApiReportTarget` 头上那段 ★）。
+ */
+export interface ApiReportTargetContext {
+  /** 被举报的人（两类都有；`user` 类就是靶子本身，`game-entry` 类是投稿人） */
+  offenderUserId: string | null;
+  /** 对局房号（`user` 类为空串；房间删了也留着） */
+  roomCode: string;
+  /** 回合号（`user` 类为 `null`） */
+  round: number | null;
+  /** 回合投稿的 `entryId`（与 `targetId` 相同；`user` 类为 `null`） */
+  entryId: string | null;
+  /** 投稿提示词（**截断到 200 码点**；完整正文由管理端现查，房间没了就只有这一截） */
+  prompt: string;
+  /** 成片地址（占位投稿为空串 —— 与 `ApiReportTarget.videoUrl` 的 null 不是一种写法，各有各的来源） */
+  videoUrl: string;
 }
 
 export interface ApiReport {
@@ -266,7 +348,14 @@ export interface ApiReport {
    */
   status: ReportStatus;
   reporter?: ApiAuthor | string | null;
+  /** 被举报对象**现在**的样子（服务端按 targetId 现查）。查不到是 `{ exists: false }`，不是省掉这一项 */
   target?: ApiReportTarget;
+  /**
+   * 受理那一刻抄下的现场（**只有** `user` / `game-entry` 才有；其余类型与老服务端是 `null` / 缺）。
+   * ★ 判据写 `targetContext ?? null` 之后看**内容**，不要写成 `targetContext && …` 就当成"有现场"——
+   *   一份全空的对象同样是"没有现场"（见 `ApiReportTargetContext` 头上那段 ★）。
+   */
+  targetContext?: ApiReportTargetContext | null;
   createdAt?: string | number;
   /** 处理人 / 处理时间 / 处理备注（status !== "pending" 时才有） */
   handler?: ApiAuthor | string | null;
