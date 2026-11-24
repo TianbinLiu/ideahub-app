@@ -51,6 +51,7 @@ import {
   onlinePhaseTo,
   openRound,
   playOutAiOnly,
+  resumeOnlineRound as resumeOnlineRoundPhases,
   startMatch,
   toCreation,
   toScreening,
@@ -204,6 +205,11 @@ export interface GameStore {
   startGame: (seed?: number, opts?: { playerCount?: number; online?: OnlineGameHandoff }) => boolean;
   /** 轮询读到服务端新回合（round + 1）→ 本机也开下一回合（收入 + 商店；AI 不在联机里行动） */
   beginOnlineRound: (serverRound: number) => void;
+  /**
+   * 重连：把本机直接放到服务端**当前回合**的商店（App 被杀 / 刷新之后恢复那一局）。
+   * 回 false = 跳不过去（原因已经进 rejection）；调用方（ui/startFromLobby）据此决定要不要继续接。
+   */
+  resumeOnlineRound: (serverRound: number) => boolean;
   /** 服务端推进到展映 / 投票 → 本机阶段跟着走（本机的全员闸不适用，见 phases.onlinePhaseTo） */
   syncOnlinePhase: (phase: "screening" | "voting") => void;
   /** 服务端结算：写回我的 hp / 淘汰，渲染那一屏；未结束时照旧进入本机事件（事件只在本机） */
@@ -417,6 +423,19 @@ export const useGame = create<GameStore>((set, get) => {
       }
       if (opened.state === state) return;
       done({ state: opened.state, shopOpen: true, onlineSettlement: null, onlineWinners: null, drag: null });
+    },
+
+    resumeOnlineRound: (serverRound) => {
+      const { state, online } = get();
+      if (!state || !online) return false;
+      const jumped = resumeOnlineRoundPhases(state, serverRound, rng);
+      if (!jumped.ok) {
+        fail(jumped);
+        return false;
+      }
+      if (jumped.state === state) return true;
+      done({ state: jumped.state, shopOpen: true, drag: null });
+      return true;
     },
 
     syncOnlinePhase: (phase) => {

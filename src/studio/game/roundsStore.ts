@@ -12,7 +12,7 @@
  *   这个文件也不认识 game/store —— 两边由 ui/useOnlineRounds 对账。
  */
 import { create } from "zustand";
-import { leaveRoom } from "../../api/game/rooms";
+import { leaveRoom, readRoom, type RemoteRoom } from "../../api/game/rooms";
 import {
   likeRoundEntry,
   nextRound,
@@ -27,6 +27,8 @@ import {
   type RemoteWinner,
   type RoundsFailure,
 } from "../../api/game/rounds";
+import { hostIdOfRoom, roomOverOf, withRoomHost } from "./onlineHost";
+import { clearOnlineResume } from "./onlineResume";
 
 /** 回合屏的轮询间隔（服务端契约：轮询路径按 2 秒一次算，240 次/分钟够两台设备同时开着）。 */
 export const ROUND_POLL_MS = 2_000;
@@ -62,6 +64,12 @@ export type RoundNote =
 export interface RoundsStore {
   /** null = 这一局不是联机回合（单机 / 已经退回单机） */
   session: OnlineRoundSession | null;
+  /**
+   * 服务端房间快照（**每拍和回合一起读**，见 poll）。
+   * ★ 房主转移 / 成员血量 / 结束判定都读它：回合快照（rounds/current）里**没有 hostId**，
+   *   服务端也只在房间快照里说"谁是房主"（hostId + members[].isHost 同一事实）。
+   */
+  room: RemoteRoom | null;
   /** 服务端当前回合快照（entries 的顺序就是展映顺序：服务端给什么顺序就播什么） */
   snapshot: RemoteRound | null;
   /** 服务端结算（榜与扣血只认它） */
@@ -138,6 +146,7 @@ export const useRounds = create<RoundsStore>((set, get) => {
     const session = get().session;
     set({
       session: null,
+      room: null,
       snapshot: null,
       settlement: null,
       winners: null,
@@ -148,6 +157,8 @@ export const useRounds = create<RoundsStore>((set, get) => {
       abstainedRound: null,
       autoSettleTriedRound: null,
     });
+    // 这一局已经改成单机了：下次冷启动不该再尝试恢复它（否则会把人拉回一张已经打完的联机桌）
+    clearOnlineResume();
     if (session) {
       void leaveRoom(session.roomCode).then((res) => {
         if (!res.ok) console.warn("[rounds] 退回单机时退房失败（服务端可能还挂着）", session.roomCode);
@@ -161,7 +172,51 @@ export const useRounds = create<RoundsStore>((set, get) => {
     return session && session.roomCode === roomCode ? session : null;
   };
 
-  /** 结算：把服务端落库的那一份取回来（幂等；重复调用不会重复扣血）。 */
+  /** userId → 界面上的名字（服务端只存 id；名字从结算榜 / 房间快照现拼，拼不到就 null）。 */
+  const namesOfIds = (ids: readonly string[]): RemoteWinner[] => {
+    const settlement = get().settlement;
+    const room = get().room;
+    return ids.map((userId) => ({
+      userId,
+      name:
+        settlement?.ranking.find((row) => row.userId === userId)?.name ??
+        room?.members.find((member) => member.userId === userId)?.displayName ??
+        null,
+    }));
+  };
+
+  /**
+   * 判定这一局结束（winners 空数组 = 平局）。
+   * ★ 同时收掉本机那条"恢复这一局"的记录：下次冷启动再把人拉回一张已经打完的牌桌没有意义。
+   * ★ 只写一次：服务端快照每 2 秒一张，胜者名单不会变；反复写会让界面每拍重渲（且覆盖掉结算回包补上的名字）。
+   */
+  const markOver = (ids: readonly string[]): void => {
+    if (get().winners !== null) return;
+    set({ winners: namesOfIds(ids) });
+    clearOnlineResume();
+  };
+
+  /**
+   * 动作被服务端按"你不再是房主 / 这一步已经晚了一步"拒了：拉一拍快照再回来，**不把这句话留在底栏**。
+   * ★ 房主转移之后的竞态：旧房主的键还亮着的那一拍点下去，服务端先判房主 → 回 NOT_HOST；
+   *   界面若照实写"这一步只有房主能做"，玩家会以为自己被踢了；其实下一拍新房的键就出来了。
+   * ★ 不在这里吞掉真正的业务原因：只有 NOT_HOST / WRONG_PHASE / ROUND_NOT_SETTLED 这三种"竞态码"走这条路。
+   */
+  const resyncOnRace = async (roomCode: string): Promise<void> => {
+    if (!sessionNow(roomCode)) return;
+    try {
+      await get().poll();
+    } catch (err) {
+      // poll 自己会把网络失败翻译成 fallback；能抛到这里的是我们自己的 bug —— 别让按钮卡在 busy
+      console.error("[rounds] 竞态之后重拉快照意外失败", err);
+    }
+  };
+
+  /**
+   * 结算：把服务端落库的那一份取回来（幂等；重复调用不会重复扣血）。
+   * ★ winners 用"服务端这次给了才覆盖"：平局时服务端的结算回包**不带 winners**（空数组被
+   *   gameRound.settlementOf 省掉），照旧写 null 会把轮询已经判出来的"平局"清掉 —— 结算屏一刷新又变回"还没结束"。
+   */
   const pullSettlement = async (): Promise<void> => {
     const session = get().session;
     const snapshot = get().snapshot;
@@ -177,9 +232,13 @@ export const useRounds = create<RoundsStore>((set, get) => {
         set({ note: noteOfFailure(res) });
         return;
       }
+      const remoteWinners = winnersOf(res.value.settlement);
+      if (remoteWinners !== null) {
+        set({ winners: remoteWinners });
+        clearOnlineResume();
+      }
       set({
         settlement: res.value.settlement,
-        winners: winnersOf(res.value.settlement),
         // 结算行的 hp 是服务端的真相：覆盖进跨回合记录（对手条 / 交片的 x/y 都读它）
         memberHp: { ...get().memberHp, ...hpOfSettlement(res.value.settlement) },
         note: null,
@@ -193,6 +252,7 @@ export const useRounds = create<RoundsStore>((set, get) => {
 
   return {
     session: null,
+    room: null,
     snapshot: null,
     settlement: null,
     winners: null,
@@ -206,6 +266,8 @@ export const useRounds = create<RoundsStore>((set, get) => {
     begin: (session, snapshot) =>
       set({
         session,
+        // room 由轮询的第一拍（≤ 2 秒）从 GET /rooms/:code 灌进来；开局这一份只带座位 / 血，
+        // 不逼调用方多传一个参数（host 身份在 poll 里也会再对一次，房间快照是真相）。
         snapshot,
         // 开局时房间快照里的 hp 就是起点；之后每次结算再覆盖（见 memberHp 的 ★）
         memberHp: Object.fromEntries(session.members.map((member) => [member.userId, member.hp])),
@@ -218,9 +280,12 @@ export const useRounds = create<RoundsStore>((set, get) => {
         abstainedRound: null,
       }),
 
-    reset: () =>
+    reset: () => {
+      // 退出对局 = 这一局不再"可恢复"（leaveNow 走这一条；下次冷启动别把人拉回一张已经离席的牌桌）
+      clearOnlineResume();
       set({
         session: null,
+        room: null,
         snapshot: null,
         settlement: null,
         winners: null,
@@ -230,7 +295,8 @@ export const useRounds = create<RoundsStore>((set, get) => {
         autoSettleTriedRound: null,
         abstainedRound: null,
         memberHp: {},
-      }),
+      });
+    },
 
     leaveNow: () => {
       const session = get().session;
@@ -252,19 +318,32 @@ export const useRounds = create<RoundsStore>((set, get) => {
     poll: async () => {
       const session = get().session;
       if (!session) return "stop";
-      const res = await readRound(session.roomCode);
-      if (!sessionNow(session.roomCode)) return "stop";
-      if (!res.ok) {
+      const code = session.roomCode;
+      // ★★ 两发一起读：回合（打什么）+ 房间（谁在推进 / 谁还活着 / 这局结束没有）。
+      //   ★ 房间快照**每拍都读**（2 秒一次，服务端 poll 限流 240/分钟，这一端只花 60）：
+      //     房主转移是服务端自己改的、回合快照里没有 hostId —— 不读房间就永远不知道新主人是谁。
+      //   ★ 两发并发：弱网时 10 秒超时叠住下一拍的问题与原来一样，但总时长是 max(两发) 不是两倍。
+      const [roundRes, roomRes] = await Promise.all([readRound(code), readRoom(code)]);
+      if (!sessionNow(code)) return "stop";
+      if (!roundRes.ok) {
         // ★ 轮询是这一局的"心跳"：它失败就是真的断了（一两发的业务错误不会走到这儿）。
         //   按任务要求**不静默**：留一句 fallback，界面（ui/useOnlineRounds）据此把本地 loop 接回来。
-        console.warn("[rounds] 回合快照轮询失败，这一局退回单机", res.reason === "code" ? res.code : "unavailable");
+        console.warn("[rounds] 回合快照轮询失败，这一局退回单机", roundRes.reason === "code" ? roundRes.code : "unavailable");
         abandon({ kind: "fallback" });
         return "fallback";
       }
-      const nextSnapshot = res.value;
+      const nextSnapshot = roundRes.value;
+      // 房间这一发失败（超时 / 老服务端）**不切单机**：沿用上一份房主 / 血量，下一拍再问；
+      // 真正的"房间没了"回合那发也会失败，走上面那条 fallback。
+      const nextRoom = roomRes.ok ? roomRes.value : get().room;
+      const hostId = hostIdOfRoom(nextRoom);
+      // 房主身份这一拍就刷新：服务端把 hostId 转给别人之后，新晋房主**不必退出重进**。
+      const nextSession = hostId === null ? session : withRoomHost(session, hostId);
       const roundChanged = get().snapshot?.round !== nextSnapshot.round;
       const note = get().note;
       set({
+        session: nextSession,
+        room: nextRoom,
         snapshot: nextSnapshot,
         // 只清"这一拍没连上"那种临时原因：服务端的业务拒绝（NOT_HOST / CANNOT_LIKE_SELF …）要留在屏上
         // 让人看清，下一次动作成功 / 玩家点 ✕ 才收 —— 别让 2 秒一次的轮询把它一闪就擦掉。
@@ -274,6 +353,11 @@ export const useRounds = create<RoundsStore>((set, get) => {
           ? { settlement: null, winners: null, abstainedRound: null, autoSettleTriedRound: null }
           : {}),
       });
+      // ── 这局结束了吗（房主 / 非房主都在这一拍知道）──────────────────────────
+      // 服务端今天没有把"over"放进房间快照（§7.7 缺口）：onlineHost 按服务端 gameOverOf 的同一口径、
+      // 只在**这一回合已结算**时从 members[].hp 推。推出来的名单与 next 的 GAME_OVER 同序同名。
+      const over = roomOverOf(nextRoom, nextSnapshot.phase);
+      if (over) markOver(over.winners);
       if (nextSnapshot.phase === "settled" || (nextSnapshot.phase === "voting" && nextSnapshot.votesPending === 0)) {
         await pullSettlement();
       }
@@ -309,6 +393,12 @@ export const useRounds = create<RoundsStore>((set, get) => {
       }
       set({ busy: false });
       if (!res.ok) {
+        // 房主刚换人 / 阶段刚被另一端推走：以服务端下一拍为准。这三种码都是"这一下晚了一步"，
+        // 不是"你做错了"——照实写成红字会让玩家以为键坏了（提示条只在❌真正需要人处理时才留）。
+        if (res.reason === "code" && (res.code === "NOT_HOST" || res.code === "WRONG_PHASE")) {
+          await resyncOnRace(session.roomCode);
+          return false;
+        }
         set({ note: noteOfFailure(res) });
         return false;
       }
@@ -366,12 +456,21 @@ export const useRounds = create<RoundsStore>((set, get) => {
         const res = await settleRemoteRound(session.roomCode);
         if (!sessionNow(session.roomCode)) return false;
         if (!res.ok) {
+          // 别人已经结算过（WRONG_PHASE）/ 房主刚换人（NOT_HOST）：拉一拍快照，别把竞态留成红字
+          if (res.reason === "code" && (res.code === "NOT_HOST" || res.code === "WRONG_PHASE")) {
+            await resyncOnRace(session.roomCode);
+            return false;
+          }
           set({ note: noteOfFailure(res) });
           return false;
         }
+        const remoteWinners = winnersOf(res.value.settlement);
+        if (remoteWinners !== null) {
+          set({ winners: remoteWinners });
+          clearOnlineResume();
+        }
         set({
           settlement: res.value.settlement,
-          winners: winnersOf(res.value.settlement),
           memberHp: { ...get().memberHp, ...hpOfSettlement(res.value.settlement) },
           note: null,
         });
@@ -393,6 +492,13 @@ export const useRounds = create<RoundsStore>((set, get) => {
       set({ busy: false });
       if (!res.ok) {
         if (res.reason === "code") {
+          // ① ROUND_NOT_SETTLED：另一端还没把这一回合结算完（换房主 / 并发点下一回合都会这样）——
+          //    拉一拍，等结算落地；别把"再等 2 秒"说成失败。
+          // ② NOT_HOST：点下去的那一拍房主已经换人（服务端先判房主）；拉一拍，新房主接手。
+          if (res.code === "ROUND_NOT_SETTLED" || res.code === "NOT_HOST") {
+            await resyncOnRace(session.roomCode);
+            return "waiting";
+          }
           set({ note: { kind: "code", code: res.code } });
           return "waiting";
         }
@@ -400,10 +506,12 @@ export const useRounds = create<RoundsStore>((set, get) => {
         return "waiting";
       }
       if (res.value.kind === "over") {
+        const winnerIds = res.value.winners;
+        // 服务端 GAME_OVER 是权威名单（平局 = 空数组）：名字从结算榜 / 交片 / 房间成员里现拼
         const settlement = get().settlement;
         const snapshot = get().snapshot;
         set({
-          winners: res.value.winners.map((userId) => ({
+          winners: winnerIds.map((userId) => ({
             userId,
             name:
               settlement?.ranking.find((row) => row.userId === userId)?.name ??
@@ -413,6 +521,7 @@ export const useRounds = create<RoundsStore>((set, get) => {
           })),
           note: null,
         });
+        clearOnlineResume();
         return "over";
       }
       set({

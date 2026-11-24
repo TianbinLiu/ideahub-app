@@ -16,6 +16,7 @@ import type { RemoteRound } from "../../../api/game/rounds";
 import { useGame } from "../store";
 import { useLobby } from "../lobbyStore";
 import { useRounds } from "../roundsStore";
+import { saveOnlineResume } from "../onlineResume";
 import { LOCAL_SEAT_ID } from "../lobby";
 import { START_HP } from "../rules";
 
@@ -64,7 +65,20 @@ export function startOnlineFromLobby(remote: RemoteRoom, round: RemoteRound): bo
     },
   });
   if (!started) return false;
+  // 重连（App 被杀 / 刷新）时服务端可能已经打到第 N 回合：本机建局是第 1 回合的选风格，
+  // 直接跳到服务端当前回合的商店（只发一次收入；不补发中间回合，见 phases.resumeOnlineRound）。
+  // 正常开局 round === 1，这里是 no-op。
+  if (round.round > 1 && !useGame.getState().resumeOnlineRound(round.round)) {
+    // 跳不过去（理论上走不到：服务端回合号总是 ≥1）——把这一份本机局收掉，别让大厅开着却已经有 state
+    // （大厅按 inGame 会自己隐藏，玩家会看到一张没接上回合的桌面）。endGame 会清掉 rejection，
+    // 所以这条路上玩家看到的是"大厅没开起来"而不是原因；真要走到这里，先查 resumeOnlineRound 的入参。
+    useGame.getState().endGame();
+    return false;
+  }
   useLobby.getState().closeLobby({ keepRoom: true });
   useRounds.getState().begin(session, round);
+  // 记下"这一局是联机的、房间码是多少"：App 被杀 / 切后台回来时靠它找回同一局（ui/OnlineResumeGate）。
+  // ★ 只在**联机局真的开起来之后**写：写早了会在"开局失败"时留下一条恢复不了的记录。
+  saveOnlineResume({ roomCode: remote.code, myUserId });
   return true;
 }

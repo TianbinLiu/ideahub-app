@@ -79,6 +79,10 @@ export type LobbyNote =
   | { kind: "leave-failed" }
   | { kind: "bad-code" }
   | { kind: "kicked" }
+  /** 冷启动恢复联机局时房间已经没了（§7.7 轻量重连）：如实说一句，人在大厅 */
+  | { kind: "resume-gone" }
+  /** 冷启动恢复联机局时连不上回合服务：记录留着，下次再试 */
+  | { kind: "resume-offline" }
   | { kind: "code"; code: string };
 
 export interface LobbyStore {
@@ -113,6 +117,10 @@ export interface LobbyStore {
   joinCode: string;
 
   openLobby: () => void;
+  /** 恢复联机局时房间已经没了：大厅底栏说「这一局的房间已经结束」（openLobby 会清 note，所以放在它之后调） */
+  noteResumeGone: () => void;
+  /** 恢复联机局时连不上回合服务：同样在大厅说一句，但记录留着（下次冷启动再试） */
+  noteResumeOffline: () => void;
   /**
    * 关大厅。
    * ★ `keepRoom` = 这一下是**开局交接**，不是离开：服务端房间要留给回合引擎用（下一拍 rounds/start /
@@ -343,6 +351,10 @@ export const useLobby = create<LobbyStore>((set, get) => {
       // 底栏那句「联机通没通」要现问一次（能力位整场会话缓存，问的是同一个结论）
       void get().refreshOnline();
     },
+
+    noteResumeGone: () => set({ note: { kind: "resume-gone" } }),
+
+    noteResumeOffline: () => set({ note: { kind: "resume-offline" } }),
 
     closeLobby: (opts) => {
       if (opts?.keepRoom) {

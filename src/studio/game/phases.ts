@@ -266,6 +266,28 @@ export function beginOnlineRound(state: GameState, serverRound: number, rng: Rng
 }
 
 /**
+ * 重连回到同一局：把本机直接放到服务端**当前回合**的商店（2026-11-24 轻量重连）。
+ *
+ * ★ 与 beginOnlineRound 的分工：那个是"正常打完一回合 → 下一回合"（本机在 round-end / event，
+ *   只差 1 格、下一回合前发一份收入）；这个是"App 被杀 / 刷新之后本机那一份没了"，本机可能还停在
+ *   选风格 / 第 1 回合，而服务端已经打到第 N 回合。
+ * ★ 做法：假装上一回合刚结算完（`round = serverRound - 1`、phase = round-end），走同一条 beginRound ——
+ *   只发**一次**收入（重连那一回合手上得有点钱买东西），不会因为"刷新一次补发 N-1 份收入"变成刷金币。
+ * ★ 卡组 / 金币 / 商店都是本机事实（服务端不存）：重连之后这一回合的桌面从空重开，这是轻量重连
+ *   明确的取舍 —— 能回到同一局、同一回合、同一批对手，比"重新开一局"多救回一局。
+ * ★ 只接受 serverRound ≥ 1；回头（小于本机）按不动处理，与 beginOnlineRound 同一条纪律。
+ */
+export function resumeOnlineRound(state: GameState, serverRound: number, rng: Rng): PhaseResult {
+  if (state.phase === "over") return { ok: true, state };
+  if (!Number.isFinite(serverRound) || serverRound < 1) return { ok: false, reason: "wrong-phase" };
+  if (serverRound <= state.round) return { ok: true, state };
+  const atEnd: GameState = { ...state, round: serverRound - 1, phase: "round-end" };
+  const began = beginRound(atEnd, rng, { allowPastLimit: true });
+  if (!began.ok) return began;
+  return { ok: true, state: began.state };
+}
+
+/**
  * 结算之后（服务端给完 hp / 名次）本机的事件：抽事件 + 替 AI 选掉，剩下真人那一屏。
  * ★ 事件**只在本机**（服务端没有事件端点，这一版也不打算有）：它改的是本机的金币 / 档位，
  *   不改服务端记的 hp —— 下一次结算服务端的 hp 会把本地这一格盖回去（界面不暗示它影响别人）。

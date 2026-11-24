@@ -6,7 +6,10 @@
 //   · 联机推到 screening / voting，本机被单机那几道"全员交片 / 全员表态"的闸卡住（数据是服务端的，闸是本机的）；
 //   · 中途掉线退回单机时，AI 这一期没交片 / 没投票 → 展映排片少几条、结算永远差一个人；
 //   · 服务端没有 8 回合上限，本机的 beginRound 在第 9 回合直接拒 → 联机局打到一半卡死。
-//   这四种都只在真机上撞见，靠人点是最后一环。
+//   · 房主中途退出后服务端把 hostId 转给别人，App 的 isHost 还是开局那个常量 → 剩下的人没人能推阶段；
+//   · 平局时服务端的结算回包省掉 winners，只有房主能从 next 的 GAME_OVER 知道结束 → 非房主停在结算屏；
+//   · App 被杀 / 刷新之后本机那一份没了 → 重连必须回到服务端当前回合，还不能靠"多补几回合收入"刷金币。
+//   这些都不报错，只在真机上撞见，靠人点是最后一环。
 // ★ 这里**不重写一条规则**：import 的就是线上那三份（rules / phases / lobby），断言的是编排结果。
 // ★ 服务端那边的同一份口径（扣血公式 / 胜者名额 / 阶段）在 ideahub-server 的 tests/gameRound.spec.js；
 //   这个脚本只管"App 这一侧把这些事实接回本机状态"这一段。
@@ -20,6 +23,7 @@ const load = (rel) => import(url.pathToFileURL(path.join(root, rel)).href);
 const R = await load("src/studio/game/rules.ts");
 const P = await load("src/studio/game/phases.ts");
 const L = await load("src/studio/game/lobby.ts");
+const H = await load("src/studio/game/onlineHost.ts");
 
 const problems = [];
 let positive = 0;
@@ -192,6 +196,76 @@ function toVoting(state, rng) {
   ok("抽到了具体事件", typeof event2.state.currentEventId === "string");
   ok("AI 已经替自己选好了（真人的选项还留着）", AI.every((id) => event2.state.eventPicks[id] !== undefined));
   eq("我还得自己选", event2.state.eventPicks["me"], undefined);
+}
+
+// ── 6. 房主转移：每拍读房间快照里的 hostId，isHost 跟着翻、阶段键跟着换手 ──
+//    ★ 症状：房主中途退出后服务端把房主转给别人，但 App 的 isHost 是开局那一刻记的常量 →
+//      剩下的人界面里没人能推进阶段，整桌卡死（§7.7 的坑）。这里断言的就是"那一拍之后"的编排结果。
+{
+  const guest = { roomCode: "QWERTY", myUserId: "u2", myName: "客人", isHost: false, members: [] };
+  const room = { hostId: "u1", memberCount: 2, members: [{ userId: "u1", hp: 100 }, { userId: "u2", hp: 100 }] };
+  eq("房主是谁：只认房间快照的 hostId", H.hostIdOfRoom(room), "u1");
+  eq("老快照没有 hostId 时退到 members[].isHost", H.hostIdOfRoom({ members: [{ userId: "u1", isHost: true }] }), "u1");
+  eq("没换人时不换对象（界面不白重渲）", H.withRoomHost(guest, "u1"), guest);
+  eq("hostId 换人之后 isHost 翻成 true", H.withRoomHost(guest, "u2").isHost, true);
+  eq("自己还是房主时保持 true", H.withRoomHost({ ...guest, isHost: true }, "u2").isHost, true);
+
+  // 换手之后：新晋房主拿到四颗推进键；客人只有「全员表态后结算」这一颗
+  const becameHost = H.withRoomHost(guest, "u2").isHost ? "host" : "guest";
+  eq("客人：创作阶段没有推进键（提示条，不是灰键）", H.phaseKeyOf("guest", "create", { votesPending: 0 }), null);
+  eq("客人：展映阶段等房主", H.phaseKeyOf("guest", "screening", { votesPending: 0 }), null);
+  eq("客人：结算阶段等房主", H.phaseKeyOf("guest", "round-end", { votesPending: 0 }), null);
+  eq("新晋房主：创作阶段 → 开始展映", H.phaseKeyOf(becameHost, "create", { votesPending: 0 }), "screening");
+  eq("新晋房主：展映阶段 → 去投票", H.phaseKeyOf(becameHost, "screening", { votesPending: 0 }), "voting");
+  eq("新晋房主：投票阶段 → 结算", H.phaseKeyOf(becameHost, "voting", { votesPending: 2 }), "settle");
+  eq("新晋房主：结算阶段 → 下一回合", H.phaseKeyOf(becameHost, "round-end", { votesPending: 0 }), "next");
+  eq("客人：全员表态之后也能结算（服务端允许任何成员触发）", H.phaseKeyOf("guest", "voting", { votesPending: 0 }), "settle");
+  eq("客人：还有人没表态时没有结算键", H.phaseKeyOf("guest", "voting", { votesPending: 1 }), null);
+  eq("已经结束的屏上没有推进键", H.phaseKeyOf(becameHost, "over", { votesPending: 0 }), null);
+}
+
+// ── 7. 平局 / 结束：服务端没给 winners 时非房主也能在同一拍判出结束（§7.7 的缺口） ──
+{
+  const four = {
+    memberCount: 4,
+    members: [
+      { userId: "u1", hp: 95 },
+      { userId: "u2", hp: 0 },
+      { userId: "u3", hp: 90 },
+      { userId: "u4", hp: 0 },
+    ],
+  };
+  eq("4 人局剩 2 人、这一回合已结算 → 结束且按血量给胜者", H.roomOverOf(four, "settled"), {
+    winners: ["u1", "u3"],
+    source: "derived",
+  });
+  eq("还没结算时不判结束（中途有人退房也会让存活数达标）", H.roomOverOf(four, "voting"), null);
+  eq("4 人局还剩 3 人 → 没结束", H.roomOverOf({ ...four, members: [{ userId: "u1", hp: 95 }, { userId: "u2", hp: 0 }, { userId: "u3", hp: 90 }, { userId: "u4", hp: 80 }] }, "settled"), null);
+  eq("2 人局剩 1 人 → 结束", H.roomOverOf({ memberCount: 2, members: [{ userId: "u1", hp: 95 }, { userId: "u2", hp: 0 }] }, "settled"), { winners: ["u1"], source: "derived" });
+  eq("2 人局两人都活着 → 没结束", H.roomOverOf({ memberCount: 2, members: [{ userId: "u1", hp: 95 }, { userId: "u2", hp: 90 }] }, "settled"), null);
+  eq("同归于尽 → 结束但胜者为空（界面说平局）", H.roomOverOf({ memberCount: 2, members: [{ userId: "u1", hp: 0 }, { userId: "u2", hp: 0 }] }, "settled"), { winners: [], source: "derived" });
+  // 服务端哪天把结束位放进房间快照：直接照读，不再看 hp / 阶段
+  eq("服务端带了 over + winners → 直接读", H.roomOverOf({ memberCount: 2, members: [], over: true, winners: ["u2"] }, "creating"), { winners: ["u2"], source: "server" });
+  eq("服务端说 over 但没带 winners → 平局", H.roomOverOf({ memberCount: 2, members: [], over: true }, "creating"), { winners: [], source: "server" });
+  eq("服务端明说 over:false → 不推（不知道 ≠ 没结束，但服务端说了没结束就听它）", H.roomOverOf({ ...four, over: false }, "settled"), null);
+}
+
+// ── 8. 重连：把本机直接放到服务端当前回合，且只补一次收入（刷新不能变成刷金币） ──
+{
+  const rng = R.createRng(20261124);
+  const raw = R.createGame(seats, rng);
+  eq("夹具：新局停在选风格 / 第 1 回合", [raw.phase, raw.round], ["style", 1]);
+  const jumped = must("重连跳到服务端第 3 回合", P.resumeOnlineRound(raw, 3, rng));
+  eq("重连后的回合数", jumped.state.round, 3);
+  eq("重连后直接进商店（不用再选一次风格）", jumped.state.phase, "shop");
+  const once = R.START_GOLD + R.incomeFor(raw.players[0]).total;
+  eq("只补发一回合收入（不是补发 N-1 份）", jumped.state.players[0].gold, once);
+  const same = P.resumeOnlineRound(jumped.state, 3, rng);
+  must("服务端回合没变时再同步", same);
+  ok("同回合不换对象", same.state === jumped.state);
+  const back = P.resumeOnlineRound(jumped.state, 1, rng);
+  must("服务端回合比本机小", back);
+  ok("回合不回退", back.state === jumped.state);
 }
 
 if (problems.length) {
