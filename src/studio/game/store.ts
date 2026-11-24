@@ -45,12 +45,27 @@ import {
 import { aiEventChoices, openRound, playOutAiOnly, startMatch, toCreation, toScreening, toVoting } from "./phases";
 import { aiPromptPool } from "./labels";
 import { modelUpgradeGate } from "./genTier";
+// 座位 id 与人数换算在 lobby.ts（大厅和这一层认同一份：大厅给几个座位、这里就开几个人的局）
+import { LOCAL_SEAT_ID, seatIdsFor } from "./lobby";
 import type { GameCard, GameState, RoundSettlement, RoundTally, Rng, TableSlot } from "./types";
 
-/** 本地玩家的座位 id（单机版的"我"；G5 联机时换成服务端下发的 playerId） */
-export const LOCAL_PLAYER_ID = "me";
-/** 三个 AI 陪玩。排列顺序固定，方便复盘（同 seed 同一局） */
-export const AI_PLAYER_IDS = ["ai-1", "ai-2", "ai-3"] as const;
+/**
+ * 本地玩家的座位 id（单机版的"我"；G5 联机时换成服务端下发的 playerId）。
+ * ★ 值本身在 lobby.LOCAL_SEAT_ID：大厅、房间成员表、这一层是同一个"我" —— 三处各写一个字面量
+ *   就是三个会漂的值（联机换成服务端 id 时更是一改三处漏两处）。这里留个名字是为了 README / 旧代码可读。
+ */
+export const LOCAL_PLAYER_ID = LOCAL_SEAT_ID;
+
+/**
+ * 这一局对手的 id（= 除我之外的全部座位）。4 人桌 3 个、8 人桌 7 个、2 人桌 1 个。
+ * ★ 从 state 里**现算**而不是存一份常量：人数由大厅决定（4 人匹配 / 8 人匹配 / 自定义房间 2~8），
+ *   存常量就得再维护一份"当前这一局几个 AI"，两处一对不上就是"少了两个对手在买卡"。
+ * ★ 顺序 = 座位表的顺序（建局时给的，见 lobby.seatIdsFor）：AI 的每一步都按这个顺序走，
+ *   同一 seed 才能复盘。
+ */
+function aiIdsOf(state: GameState): string[] {
+  return state.players.filter((player) => player.id !== LOCAL_PLAYER_ID).map((player) => player.id);
+}
 
 /** 动作成功后那条轻提示的**种类**（不带文案：文案在界面里按语言拼，见 ui/GameLayer） */
 export type GameNoticeKind =
@@ -131,8 +146,19 @@ export interface GameStore {
   createPrompt: string;
   /** 工作流面板（纯预览）开着没有 */
   previewOpen: boolean;
+  /**
+   * 这一局几个座位（2~8，由大厅定：4 人匹配 / 8 人匹配 / 自定义房间 2~8）。
+   * ★ 存着是为了「🔁 再来一局」：restart 要接着开**同样人数**的一局，
+   *   不然玩家在 8 人局点再来一次会掉回默认桌（他自己不会知道人数变了）。
+   */
+  playerCount: number;
 
-  startGame: (seed?: number) => void;
+  /**
+   * 开一局。`playerCount` = 大厅给的座位数（缺省沿用上一局，首次是 4）。
+   * ★ 回 boolean：大厅那一屏要知道"这一局开没开起来"（开不起来就把失败原因留在界面上，
+   *   别先把大厅收掉、让玩家对着没开局的桌面猜）。
+   */
+  startGame: (seed?: number, opts?: { playerCount?: number }) => boolean;
   endGame: () => void;
   /** 选风格卡：选定后（连同 3 个 AI 的选择）进第一回合商店 */
   pickStyle: (styleCardId: string) => void;
@@ -204,13 +230,12 @@ function freshSeed(): number {
  * 本地玩家选完之后，替 AI 把风格选完，再开第一回合。
  * ★ AI 的风格与买卡都走 phases / rules（不直接改 styleChoices）：规则里"一人一次 / 只能选自己那三张 /
  *   全员选完才 ready"这三条与真人共用一处，AI 不该有后门。
+ * ★ AI 是谁从 state 现算（aiIdsOf）：4 人桌 3 个、8 人桌 7 个 —— 这里不再有一份固定的 AI 名单。
  */
 function beginFirstRound(state: GameState): StateResult {
   if (state.phase !== "ready") return { ok: true, state };
-  return openRound(state, [...AI_PLAYER_IDS], rng);
+  return openRound(state, aiIdsOf(state), rng);
 }
-
-const AI_IDS: readonly string[] = [...AI_PLAYER_IDS];
 
 export const useGame = create<GameStore>((set, get) => {
   /** 失败统一从这里落地：原因原样留着，界面说人话；轻提示让位给失败 */
@@ -251,21 +276,28 @@ export const useGame = create<GameStore>((set, get) => {
     drag: null,
     createPrompt: "",
     previewOpen: false,
+    // 还没开过局时的默认桌 = 4 人（§5-1 的默认值；大厅一进来就是 4 人匹配那张卡）
+    playerCount: 4,
 
-    startGame: (seed) => {
+    startGame: (seed, opts) => {
       const nextSeed = typeof seed === "number" && Number.isFinite(seed) ? seed >>> 0 : freshSeed();
+      // 人数由大厅给（2~8，rules.MIN_PLAYERS~MAX_PLAYERS 里夹一道）：座位表与 AI 名单同一处算
+      //（lobby.seatIdsFor），这里不另拼一份 id 数组。
+      const playerCount = typeof opts?.playerCount === "number" && Number.isFinite(opts.playerCount) ? opts.playerCount : get().playerCount;
+      const seats = seatIdsFor(playerCount);
       // 开局用**同一个** rng：抽风格卡、AI 选风格、之后的商店 / 事件 / 随机卡都接着这条序列走
       // （两处各 createRng(seed) 会抽出一模一样的序列，复盘就对不上了）。
       const r = createRng(nextSeed);
-      const started = startMatch([LOCAL_PLAYER_ID, ...AI_PLAYER_IDS], AI_IDS, r);
+      const started = startMatch(seats, seats.slice(1), r);
       rng = r;
       if (!started.ok) {
         fail(started);
-        return;
+        return false;
       }
       set({
         state: started.state,
         seed: nextSeed,
+        playerCount: seats.length,
         shopOpen: false,
         rejection: null,
         notice: null,
@@ -275,6 +307,7 @@ export const useGame = create<GameStore>((set, get) => {
         createPrompt: "",
         previewOpen: false,
       });
+      return true;
     },
 
     endGame: () => {
@@ -493,7 +526,7 @@ export const useGame = create<GameStore>((set, get) => {
       const { state } = get();
       if (!state) return;
       // AI 的片子在这一拍就交好（先摆好它自己的桌面，再用它的卡 + 一句随机提示词）
-      const created = toCreation(state, AI_IDS, aiPromptPool(), rng);
+      const created = toCreation(state, aiIdsOf(state), aiPromptPool(), rng);
       if (!created.ok) {
         fail(created);
         return;
@@ -522,7 +555,7 @@ export const useGame = create<GameStore>((set, get) => {
     enterScreening: () => {
       const { state } = get();
       if (!state) return;
-      const screened = toScreening(state, AI_IDS, rng);
+      const screened = toScreening(state, aiIdsOf(state), rng);
       if (!screened.ok) {
         fail(screened);
         return;
@@ -544,7 +577,7 @@ export const useGame = create<GameStore>((set, get) => {
     enterVoting: () => {
       const { state } = get();
       if (!state) return;
-      const voting = toVoting(state, AI_IDS, rng);
+      const voting = toVoting(state, aiIdsOf(state), rng);
       if (!voting.ok) {
         fail(voting);
         return;
@@ -585,7 +618,7 @@ export const useGame = create<GameStore>((set, get) => {
       let next = settled.state;
       const report: RoundReport = { summary: settled.summary, tally: settled.tally };
       // 事件（§2.3b）：AI 先把三选一选掉，真人的选项由事件屏摆出来
-      const evented = aiEventChoices(next, AI_IDS, rng);
+      const evented = aiEventChoices(next, aiIdsOf(next), rng);
       if (!evented.ok) {
         fail(evented);
         return;
@@ -599,7 +632,7 @@ export const useGame = create<GameStore>((set, get) => {
       // ★ 真人被淘汰：这一局对他已经结束，但胜者要等"剩 ≤2 人 / 打满 8 回合"才出 ——
       //   所以让剩下的回合在后台按 AI 自动跑完（phases.playOutAiOnly），玩家直接看到最终胜者。
       if (me?.eliminated && next.phase !== "over") {
-        const played = playOutAiOnly(next, AI_IDS, aiPromptPool(), rng);
+        const played = playOutAiOnly(next, aiIdsOf(next), aiPromptPool(), rng);
         if (!played.ok) {
           fail(played);
           return;
@@ -636,7 +669,7 @@ export const useGame = create<GameStore>((set, get) => {
     nextRound: () => {
       const { state } = get();
       if (!state) return;
-      const opened = openRound(state, AI_IDS, rng);
+      const opened = openRound(state, aiIdsOf(state), rng);
       if (!opened.ok) {
         fail(opened);
         return;
@@ -646,7 +679,8 @@ export const useGame = create<GameStore>((set, get) => {
     },
 
     restart: () => {
-      get().startGame();
+      // 同一张桌（人数沿用）：8 人局点「再来一局」还是 8 人，不掉回默认 4 人
+      get().startGame(undefined, { playerCount: get().playerCount });
     },
   };
 });

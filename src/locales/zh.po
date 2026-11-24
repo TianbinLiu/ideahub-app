@@ -1832,6 +1832,10 @@ msgstr "{refNone}。"
 msgid "{rejected} 格没过内容审核"
 msgstr "{rejected} 格没过内容审核"
 
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "{ROOM_MIN_SIZE}~{ROOM_MAX_SIZE} 人，空位开局时 AI 补"
+msgstr "{ROOM_MIN_SIZE}~{ROOM_MAX_SIZE} 人，空位开局时 AI 补"
+
 #: src/studio/game/ui/ScreeningPanel.tsx
 #~ msgid "{seconds} 秒占位片"
 #~ msgstr "{seconds} 秒占位片"
@@ -3880,6 +3884,10 @@ msgstr "✕ 关掉"
 msgid "✕ 结束对局"
 msgstr "✕ 结束对局"
 
+#: src/studio/game/ui/Lobby.tsx
+msgid "✕ 返回工坊"
+msgstr "✕ 返回工坊"
+
 #: src/studio/ui/modals.tsx
 msgid "✦ 全息实体 3D"
 msgstr "✦ 全息实体 3D"
@@ -4933,6 +4941,10 @@ msgstr "3D 桌面"
 msgid "3D 桌面摆卡、推演走向"
 msgstr "3D 桌面摆卡、推演走向"
 
+#: src/studio/game/ui/Lobby.tsx
+msgid "4 人匹配"
+msgstr "4 人匹配"
+
 #: src/pages/CustomCardPage.tsx
 #~ msgid "④ 定名完成"
 #~ msgstr "④ 定名完成"
@@ -4964,6 +4976,10 @@ msgstr "768p · 可直接用素材卡的形象参考图出片（一段最多 {ma
 #: src/data/economy.ts
 msgid "768p · 可直接用素材卡的形象参考图出片（一段最多 {max} 张图）· 出片一定带 AI 生成的环境音，不参考卡上的声音样本；没有往后延长、样片和白模模板"
 msgstr "768p · 可直接用素材卡的形象参考图出片（一段最多 {max} 张图）· 出片一定带 AI 生成的环境音，不参考卡上的声音样本；没有往后延长、样片和白模模板"
+
+#: src/studio/game/ui/Lobby.tsx
+msgid "8 人匹配"
+msgstr "8 人匹配"
 
 #: src/pages/ProfilePage.tsx
 #~ msgid "add-on token · 直充 / 新人额度 / 创作收益，不过期"
@@ -5144,6 +5160,11 @@ msgstr "AI 自拟开头帧"
 #: src/studio/ui/FrameCard.tsx
 msgid "AI 自拟首尾帧"
 msgstr "AI 自拟首尾帧"
+
+#: src/studio/game/ui/Lobby.tsx
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "AI 补位"
+msgstr "AI 补位"
 
 #: src/components/ShareSheet.tsx
 msgid "AI 逐段生成的短片 · 来自启梦"
@@ -7082,6 +7103,14 @@ msgstr "人或整体交代在画好之后改过：这一张还是按原来那版
 msgid "人排在作品前面，点一行进他主页 —— 有些作品这里搜不到，去他主页能看全。 名字底下那串 <0>@ 开头的</0>，就是 @ 他时要打的那串。"
 msgstr "人排在作品前面，点一行进他主页 —— 有些作品这里搜不到，去他主页能看全。 名字底下那串 <0>@ 开头的</0>，就是 @ 他时要打的那串。"
 
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "人数"
+msgstr "人数"
+
+#: src/studio/game/lobbyReasons.ts
+msgid "人数只能是 {ROOM_MIN_SIZE}~{ROOM_MAX_SIZE} 人"
+msgstr "人数只能是 {ROOM_MIN_SIZE}~{ROOM_MAX_SIZE} 人"
+
 #: src/pages/SupportModelNewPage.tsx
 #: src/pages/SupportPage.tsx
 msgid "人格"
@@ -7651,6 +7680,10 @@ msgstr "你：{0}"
 msgid "你一句我一句"
 msgstr "你一句我一句"
 
+#: src/studio/game/lobbyReasons.ts
+msgid "你不在这个房间里"
+msgstr "你不在这个房间里"
+
 #: src/pages/CutPage.tsx
 msgid "你动过片段（裁剪 / 删段 / 换序），而配乐是自动预置的原片音轨——它按原片从头混，合出来会和画面对不上。想对齐就在「音频」里换一条自己的，或把片段改回原样。"
 msgstr "你动过片段（裁剪 / 删段 / 换序），而配乐是自动预置的原片音轨——它按原片从头混，合出来会和画面对不上。想对齐就在「音频」里换一条自己的，或把片段改回原样。"
@@ -7666,6 +7699,14 @@ msgstr "你可以第一个"
 #: src/ai/minimaxVideo.ts
 msgid "你同时在出的 MiniMax 视频已经有 {limit} 段了——等其中一段出来再点"
 msgstr "你同时在出的 MiniMax 视频已经有 {limit} 段了——等其中一段出来再点"
+
+#: src/studio/game/ui/Lobby.tsx
+msgid "你和 3 个对手，一桌人打得快"
+msgstr "你和 3 个对手，一桌人打得快"
+
+#: src/studio/game/ui/Lobby.tsx
+msgid "你和 7 个对手，8 个座位的大桌"
+msgstr "你和 7 个对手，8 个座位的大桌"
 
 #. placeholder {0}: eliminatedAtRound ?? state.round
 #: src/studio/game/ui/PhaseBar.tsx
@@ -8883,6 +8924,7 @@ msgstr "关键帧还在画（约 20~30 秒），画完才能另挑特效。"
 #: src/components/GenerationPill.tsx
 #: src/components/IconTapButton.tsx
 #: src/components/UpdateSheet.tsx
+#: src/studio/game/ui/RoomScreen.tsx
 #: src/studio/ui/modals.tsx
 msgid "关闭"
 msgstr "关闭"
@@ -9360,6 +9402,7 @@ msgid "净底主视图"
 msgstr "净底主视图"
 
 #: src/studio/game/labels.ts
+#: src/studio/game/ui/RoomScreen.tsx
 msgid "准备"
 msgstr "准备"
 
@@ -11737,6 +11780,7 @@ msgstr "取整个画面"
 #: src/pages/RecipePage.tsx
 #: src/pages/SupportModelNewPage.tsx
 #: src/pages/SupportPage.tsx
+#: src/studio/game/ui/Lobby.tsx
 #: src/studio/stage/StageOverlay.tsx
 #: src/studio/ui/NpcDialog.tsx
 msgid "取消"
@@ -13142,6 +13186,10 @@ msgstr "复制失败，手动复制：{url}"
 msgid "复制失败，请手动分享"
 msgstr "复制失败，请手动分享"
 
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "复制房间码"
+msgstr "复制房间码"
+
 #: src/components/ShareSheet.tsx
 msgid "复制链接"
 msgstr "复制链接"
@@ -13165,6 +13213,10 @@ msgstr "复古相机"
 #: src/components/flow/EffectWizard.tsx
 msgid "夕阳下腾空翻板，落地滑向镜头"
 msgstr "夕阳下腾空翻板，落地滑向镜头"
+
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "多一个座位"
+msgstr "多一个座位"
 
 #: src/components/video/RemakeCard.tsx
 msgid "多个档位"
@@ -13768,6 +13820,10 @@ msgstr "对不上就地改：改标记、「删掉」多出的位子、用清单
 #~ msgid "对局"
 #~ msgstr "对局"
 
+#: src/studio/game/ui/Lobby.tsx
+msgid "对局大厅"
+msgstr "对局大厅"
+
 #: src/studio/game/labels.ts
 msgid "对局结束"
 msgstr "对局结束"
@@ -13787,6 +13843,22 @@ msgstr "对手 B"
 #: src/studio/game/labels.ts
 msgid "对手 C"
 msgstr "对手 C"
+
+#: src/studio/game/labels.ts
+msgid "对手 D"
+msgstr "对手 D"
+
+#: src/studio/game/labels.ts
+msgid "对手 E"
+msgstr "对手 E"
+
+#: src/studio/game/labels.ts
+msgid "对手 F"
+msgstr "对手 F"
+
+#: src/studio/game/labels.ts
+msgid "对手 G"
+msgstr "对手 G"
 
 #: src/utils/oauth.ts
 msgid "对方没有提供邮箱地址，没法用它登录。"
@@ -13967,6 +14039,10 @@ msgstr "小满好可爱"
 #: src/studio/StudioPage.tsx
 msgid "小窗右上角可在「卡组 / 卡片」间切换，单击卡片看详情"
 msgstr "小窗右上角可在「卡组 / 卡片」间切换，单击卡片看详情"
+
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "少一个座位"
+msgstr "少一个座位"
 
 #: src/studio/scene/TableScene.tsx
 msgid "尚未就绪"
@@ -14341,6 +14417,10 @@ msgstr "已关注"
 msgid "已关闭"
 msgstr "已关闭"
 
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "已准备"
+msgstr "已准备"
+
 #: src/pages/QuickModePage.tsx
 msgid "已出样片"
 msgstr "已出样片"
@@ -14531,6 +14611,7 @@ msgid "已处理：{0}"
 msgstr "已处理：{0}"
 
 #: src/pages/CardDetailPage.tsx
+#: src/studio/game/ui/RoomScreen.tsx
 msgid "已复制"
 msgstr "已复制"
 
@@ -15179,6 +15260,10 @@ msgstr "建课需要联网"
 msgid "开一条新的{pendingTitle}（丢弃上面那条）"
 msgstr "开一条新的{pendingTitle}（丢弃上面那条）"
 
+#: src/studio/game/ui/Lobby.tsx
+msgid "开一间房，把房间码念给朋友"
+msgstr "开一间房，把房间码念给朋友"
+
 #: src/ai/arkClient.ts
 msgid "开发环境直连图片服务的组图断了就接不回来（页面刷新过）——重新出一组"
 msgstr "开发环境直连图片服务的组图断了就接不回来（页面刷新过）——重新出一组"
@@ -15244,6 +15329,10 @@ msgstr "开始创作"
 msgid "开始创建"
 msgstr "开始创建"
 
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "开始对局"
+msgstr "开始对局"
+
 #: src/components/blockout/BlockoutTrimmer.tsx
 msgid "开始白模化"
 msgstr "开始白模化"
@@ -15267,6 +15356,11 @@ msgstr "开始识别（{price}）"
 #: src/studio/StudioPage.tsx
 msgid "开局后，背包里的角色卡与场景卡会摊到桌面的 5 个卡位上"
 msgstr "开局后，背包里的角色卡与场景卡会摊到桌面的 5 个卡位上"
+
+#. placeholder {0}: plan.aiCount
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "开局时 {0} 个座位由 AI 陪玩补齐"
+msgstr "开局时 {0} 个座位由 AI 陪玩补齐"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "开心"
@@ -15925,6 +16019,7 @@ msgid "成片预览（各段按时间线依次播放）"
 msgstr "成片预览（各段按时间线依次播放）"
 
 #: src/studio/game/labels.ts
+#: src/studio/game/ui/Lobby.tsx
 msgid "我"
 msgstr "我"
 
@@ -16090,6 +16185,31 @@ msgstr "截图失败：{0}"
 #: src/components/flow/FlowCanvas.tsx
 msgid "截帧中…"
 msgstr "截帧中…"
+
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "房主"
+msgstr "房主"
+
+#: src/studio/game/lobbyReasons.ts
+msgid "房主不用准备：点「开始对局」就是表态"
+msgstr "房主不用准备：点「开始对局」就是表态"
+
+#: src/studio/game/lobbyReasons.ts
+msgid "房主不能踢自己——想走就点「离开房间」"
+msgstr "房主不能踢自己——想走就点「离开房间」"
+
+#: src/studio/game/ui/Lobby.tsx
+msgid "房主开局"
+msgstr "房主开局"
+
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "房间码"
+msgstr "房间码"
+
+#. placeholder {0}: room.code
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "房间码 {0}"
+msgstr "房间码 {0}"
 
 #: src/ai/arkClient.ts
 msgid "所在地区不提供这一档的出片模型"
@@ -19446,6 +19566,10 @@ msgstr "服装细节"
 msgid "朝向"
 msgstr "朝向"
 
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "未准备"
+msgstr "未准备"
+
 #: src/pages/QuickModePage.tsx
 msgid "未出"
 msgstr "未出"
@@ -21678,6 +21802,10 @@ msgstr "没有解析结果。"
 msgid "没有账号？用邮箱注册"
 msgstr "没有账号？用邮箱注册"
 
+#: src/studio/game/lobbyReasons.ts
+msgid "没有这个座位"
+msgstr "没有这个座位"
+
 #: src/components/support/AdminTicketsView.tsx
 msgid "没有进行中的工单"
 msgstr "没有进行中的工单"
@@ -23317,6 +23445,10 @@ msgstr "用 {0} 出片、台词写在引号里时，AI 会参考这段音色说�
 msgid "用 {voiceNames} 出片、台词写在引号里时，AI 会参考这段声音的音色（尽力而为，不是复刻）。样本只存在这台设备上，分享卡片不带它。"
 msgstr "用 {voiceNames} 出片、台词写在引号里时，AI 会参考这段声音的音色（尽力而为，不是复刻）。样本只存在这台设备上，分享卡片不带它。"
 
+#: src/studio/game/ui/Lobby.tsx
+msgid "用 AI 开局"
+msgstr "用 AI 开局"
+
 #: src/pages/LoginPage.tsx
 msgid "用{name}登录"
 msgstr "用{name}登录"
@@ -24937,6 +25069,10 @@ msgstr "票投出去了"
 msgid "禁止"
 msgstr "禁止"
 
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "离开房间"
+msgstr "离开房间"
+
 #. placeholder {0}: (boxAtSec ?? 0).toFixed(1)
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "离开标记帧了，这里的落点会不准（画面上的人已经走动过）—— 回到第 {0} 秒再拖。"
@@ -25060,6 +25196,7 @@ msgid "空 = 用真人卡的照片起拍"
 msgstr "空 = 用真人卡的照片起拍"
 
 #: src/studio/game/ui/CreatePanel.tsx
+#: src/studio/game/ui/RoomScreen.tsx
 msgid "空位"
 msgstr "空位"
 
@@ -26184,6 +26321,10 @@ msgstr "等待中"
 msgid "等待火山引擎认证…"
 msgstr "等待火山引擎认证…"
 
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "等房主开一局：非房主只能准备或离开"
+msgstr "等房主开一局：非房主只能准备或离开"
+
 #: src/studio/game/ui/ShopPanel.tsx
 #~ msgid "等替换"
 #~ msgstr "等替换"
@@ -26915,6 +27056,19 @@ msgstr "老师这节课学到了 {0} 件事，还有 {1} 条等你在官网点�
 msgid "聊天记录、发过的文案、随手写的笔记都行"
 msgstr "聊天记录、发过的文案、随手写的笔记都行"
 
+#: src/studio/game/ui/Lobby.tsx
+msgid "联机还没接通：现在开局一律由 AI 陪玩补位，真人匹配要等服务端房间。"
+msgstr "联机还没接通：现在开局一律由 AI 陪玩补位，真人匹配要等服务端房间。"
+
+#. placeholder {0}: size - 1
+#: src/studio/game/ui/Lobby.tsx
+msgid "联机还没接通：这一局 {0} 个座位由 AI 陪玩补齐。"
+msgstr "联机还没接通：这一局 {0} 个座位由 AI 陪玩补齐。"
+
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "联机还没接通：这个码现在只能念给人听，别人还进不来。开局时空位由 AI 补上。"
+msgstr "联机还没接通：这个码现在只能念给人听，别人还进不来。开局时空位由 AI 补上。"
+
 #. placeholder {0}: tk.contactEmail
 #: src/components/support/AdminTicketsView.tsx
 msgid "联系邮箱 {0}"
@@ -27034,6 +27188,10 @@ msgstr "自动识别"
 #: src/studio/studioStore.ts
 msgid "自定义"
 msgstr "自定义"
+
+#: src/studio/game/ui/Lobby.tsx
+msgid "自定义房间"
+msgstr "自定义房间"
 
 #. 铸卡师念的话。「⚡ 生成本段视频」是工坊方案台上那颗出片键的名字（键上还带价钱），英文请引用它的英文名（不带价钱）
 #: src/studio/studioStore.ts
@@ -28510,6 +28668,15 @@ msgstr "跳过 / 下一步"
 msgid "跳过试跑，继续"
 msgstr "跳过试跑，继续"
 
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "踢掉"
+msgstr "踢掉"
+
+#. placeholder {0}: name ?? ""
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "踢掉 {0}"
+msgstr "踢掉 {0}"
+
 #: src/types.ts
 msgid "身上佩戴的饰物、纹样或疤痕"
 msgstr "身上佩戴的饰物、纹样或疤痕"
@@ -28976,6 +29143,10 @@ msgstr "还没有工单"
 #: src/studio/ui/projection.tsx
 msgid "还没有建过卡组——发布作品会自动生成《作品》卡组，<0/>也可以在创意工坊的「我的仓库」里手动组一套（编辑时可指定封面卡）。"
 msgstr "还没有建过卡组——发布作品会自动生成《作品》卡组，<0/>也可以在创意工坊的「我的仓库」里手动组一套（编辑时可指定封面卡）。"
+
+#: src/studio/game/lobbyReasons.ts
+msgid "还没有开房间——先在大厅里选「自定义房间」"
+msgstr "还没有开房间——先在大厅里选「自定义房间」"
 
 #: src/components/flow/SkillPanel.tsx
 msgid "还没有技能——输入条写好常用指令，点「＋ 存为技能」。"
@@ -29662,6 +29833,10 @@ msgstr "这一条暂时收不起来：上游确认这一发没出成，但这次
 msgid "这一条暂时收不起来：没能向上游核对到这一发的结局——过一会儿再点一次「知道了」（核对不花钱）。"
 msgstr "这一条暂时收不起来：没能向上游核对到这一发的结局——过一会儿再点一次「知道了」（核对不花钱）。"
 
+#: src/studio/game/lobbyReasons.ts
+msgid "这一格上还坐着人，不能把房间缩到这么小"
+msgstr "这一格上还坐着人，不能把房间缩到这么小"
+
 #: src/components/flow/GridShotsWizard.tsx
 msgid "这一格可能有问题"
 msgstr "这一格可能有问题"
@@ -29677,6 +29852,10 @@ msgstr "这一格放原片裁剪本身，不调模型、不计费。"
 #: src/studio/game/reasons.ts
 msgid "这一格是空的——拖一张卡上去才算占位"
 msgstr "这一格是空的——拖一张卡上去才算占位"
+
+#: src/studio/game/lobbyReasons.ts
+msgid "这一格本来就是空的"
+msgstr "这一格本来就是空的"
 
 #: src/components/flow/GridShotsWizard.tsx
 msgid "这一格没核对上（AI 没看成），要看就自己看一眼。"
@@ -30563,6 +30742,10 @@ msgstr "这个位置"
 msgid "这个位置原来是谁（套用的人只看这句话）"
 msgstr "这个位置原来是谁（套用的人只看这句话）"
 
+#: src/studio/game/lobbyReasons.ts
+msgid "这个动作只有房主能做"
+msgstr "这个动作只有房主能做"
+
 #. placeholder {0}: s.previewErr
 #: src/pages/SupportModelNewPage.tsx
 msgid "这个包在手机上画不出来：{0} 画不出来的包发布出去别人也用不了，请先修好再传。"
@@ -31289,6 +31472,10 @@ msgstr "这台设备上的本机数据被系统清空了"
 #: src/utils/oauth.ts
 msgid "这台设备上还没接第三方登录（{why}）——先用邮箱或手机号登录"
 msgstr "这台设备上还没接第三方登录（{why}）——先用邮箱或手机号登录"
+
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "这台设备不让碰剪贴板——长按上面的房间码选中复制。"
+msgstr "这台设备不让碰剪贴板——长按上面的房间码选中复制。"
 
 #: src/utils/nativeCamera.ts
 msgid "这台设备处理不了照片（画布不可用）"
@@ -32394,6 +32581,10 @@ msgstr "选一段本地视频"
 msgid "选一段视频（传完再框选）"
 msgstr "选一段视频（传完再框选）"
 
+#: src/studio/game/ui/Lobby.tsx
+msgid "选一种开局方式：4 人 / 8 人匹配，或者开一间自定义房间。"
+msgstr "选一种开局方式：4 人 / 8 人匹配，或者开一间自定义房间。"
+
 #: src/components/flow/DialogueWizard.tsx
 msgid "选两个说话的人：先点的是第一个人（站在画面左边），后点的是第二个人。可以再挑一张场景卡当地点。"
 msgstr "选两个说话的人：先点的是第一个人（站在画面左边），后点的是第二个人。可以再挑一张场景卡当地点。"
@@ -32725,6 +32916,14 @@ msgstr "道具扩容"
 #: src/studio/game/ui/ItemRail.tsx
 msgid "道具栏"
 msgstr "道具栏"
+
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "邀请"
+msgstr "邀请"
+
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "邀请别人进这间房"
+msgstr "邀请别人进这间房"
 
 #: src/components/guide/tours.tsx
 #~ msgid "那一列最下面单独一枚是全屏键，点了只留画面；<0>横屏的片子会连屏幕一起转过来</0>，所以它在横屏片上写的是「转屏」。退出点右上角那枚缩小键。"

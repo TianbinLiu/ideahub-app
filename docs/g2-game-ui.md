@@ -10,6 +10,10 @@
 G4 第 1 步之前它在右栏最上面（`src/studio/ui/SceneRails.tsx` 的 `MarketRail`）。那两条常驻栏
 已按 `docs/g4-ui-revamp-spec.md` §2 删掉，入口搬进顶栏；竖屏不挂对局 UI —— G1 的竖屏逐字不变。
 
+★ **2026-11-23 起「▶ 开局」先到大厅**（`src/studio/game/ui/Lobby.tsx`）：4 人匹配 / 8 人匹配 / 自定义房间，
+再由大厅把对局建起来（人数由大厅定，空位 AI 补；「结束对局」之后也回大厅）。大厅、房间状态机、
+N 人对局与联机桩见 [`docs/game-lobby.md`](game-lobby.md)。
+
 ## 文件
 
 | 文件 | 内容 |

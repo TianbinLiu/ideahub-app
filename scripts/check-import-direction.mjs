@@ -53,6 +53,10 @@ const ZERO_DEP = [
   "src/data/live2dMotionCheck.ts",
   "src/data/gameTicketRules.ts",
   "src/studio/game/rules.ts",
+  // 大厅 / 自定义房间的纯状态机（2026-11-23）：scripts/check-game-lobby.mjs 直接 import 它跑正反例。
+  // ★ 它值引用 rules.ts（那一个也是零依赖模块，座位数上下界只有一份），这不是违反 ③ 而是 ③ 允许的
+  //   "值 import 只许来自表里另一个零依赖模块"。
+  "src/studio/game/lobby.ts",
 ];
 /** ③′ 零 store 依赖（纯函数、不认识 store，但可以用同层的 data 模块） */
 const NO_STORE = ["src/data/recipe.ts"];

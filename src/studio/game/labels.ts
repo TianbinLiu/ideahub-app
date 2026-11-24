@@ -225,9 +225,11 @@ export function styleLine(style: StyleCard): string {
 // ────────────────────────────── 玩家 / 阶段（§2.0） ──────────────────────────────
 
 /**
- * 座位 id → 展示名。单机版固定四个座位：本地玩家 "me"、三个 AI 陪玩 ai-1/2/3。
+ * 座位 id → 展示名。单机版的座位是"我" + ai-1 … ai-7（人数由大厅定：4 人桌 3 个 AI、8 人桌 7 个、
+ * 自定义房间 2~8，见 lobby.aiSeatIds）。
  * ★ 只认 id 不认顺序：以后 G5 联机换成服务端下发的昵称时，改这一个函数就够了。
  * ★ 多语言照常走 t（"对手 A" 在英文界面里是 "Rival A"）。
+ * ★ 认不出的 id 原样回：联机接通后远端玩家的 displayName 由服务端给，这一层不编名字。
  */
 export function playerName(playerId: string): string {
   switch (playerId) {
@@ -239,6 +241,15 @@ export function playerName(playerId: string): string {
       return t`对手 B`;
     case "ai-3":
       return t`对手 C`;
+    // 8 人桌多出来的四个座位（4 人桌永远走不到这四行）
+    case "ai-4":
+      return t`对手 D`;
+    case "ai-5":
+      return t`对手 E`;
+    case "ai-6":
+      return t`对手 F`;
+    case "ai-7":
+      return t`对手 G`;
     default:
       return playerId;
   }
