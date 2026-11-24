@@ -317,6 +317,11 @@ msgid "· {roleCount} 角色 / {0} 场景 / {itemCount} 道具"
 msgstr "· {roleCount} 角色 / {0} 场景 / {itemCount} 道具"
 
 #. placeholder {0}: opponent.hp
+#: src/studio/game/ui/OpponentStrip.tsx
+msgid "· ❤ {0}"
+msgstr "· ❤ {0}"
+
+#. placeholder {0}: opponent.hp
 #. placeholder {1}: opponent.cards
 #: src/studio/game/ui/OpponentStrip.tsx
 msgid "· ❤ {0} · {1} 卡"
@@ -575,6 +580,7 @@ msgstr "（⚠ 这一段的要求太长，末尾 {storyOver} 字没能发出去�
 #~ msgid "（⚠ 这一段的要求太长，末尾 {storyOver} 字没能发出去：提示词上限 {VIDEO_PROMPT_MAX} 字，其中素材设定与形象点名句占了 {reserved} 字——把要求写短些，或少挂一张卡）"
 #~ msgstr "（⚠ 这一段的要求太长，末尾 {storyOver} 字没能发出去：提示词上限 {VIDEO_PROMPT_MAX} 字，其中素材设定与形象点名句占了 {reserved} 字——把要求写短些，或少挂一张卡）"
 
+#: src/studio/game/ui/OnlineVotingPanel.tsx
 #: src/studio/game/ui/VotingPanel.tsx
 msgid "（一人一票，不能投自己；投「专业评价」，点赞另算）"
 msgstr "（一人一票，不能投自己；投「专业评价」，点赞另算）"
@@ -1012,6 +1018,7 @@ msgid "{0} 秒"
 msgstr "{0} 秒"
 
 #. placeholder {0}: Math.round(seconds)
+#: src/studio/game/ui/OnlineScreeningPanel.tsx
 #: src/studio/game/ui/ScreeningPanel.tsx
 msgid "{0} 秒占位片"
 msgstr "{0} 秒占位片"
@@ -3318,6 +3325,7 @@ msgstr "<0>这一步不是每次都全对。</0>实测每隔几发就会有 1~2 
 msgid "⏳ 接着等上一组（图不再收钱）"
 msgstr "⏳ 接着等上一组（图不再收钱）"
 
+#: src/studio/game/ui/OnlineScreeningPanel.tsx
 #: src/studio/game/ui/ScreeningPanel.tsx
 msgid "⏸ 暂停"
 msgstr "⏸ 暂停"
@@ -3363,6 +3371,7 @@ msgstr "▶ 开始试跑"
 msgid "▶ 开局"
 msgstr "▶ 开局"
 
+#: src/studio/game/ui/OnlineScreeningPanel.tsx
 #: src/studio/game/ui/ScreeningPanel.tsx
 msgid "▶ 继续"
 msgstr "▶ 继续"
@@ -3389,6 +3398,7 @@ msgstr "▸ 对不上怎么办？<0>多数情况删掉那个位子就行，不�
 msgid "▾ 收起商店"
 msgstr "▾ 收起商店"
 
+#: src/studio/game/ui/OnlineScreeningPanel.tsx
 #: src/studio/game/ui/ScreeningPanel.tsx
 msgid "◀ 上一条"
 msgstr "◀ 上一条"
@@ -3741,6 +3751,10 @@ msgstr "✂ 就取这一块"
 #: src/studio/ui/projection.tsx
 msgid "✂ 编辑"
 msgstr "✂ 编辑"
+
+#: src/studio/game/ui/CreatePanel.tsx
+msgid "✅ 已交片，等其他人（{submittedCount}/{aliveCount} 已交）——全员交片后房主才能开始展映。"
+msgstr "✅ 已交片，等其他人（{submittedCount}/{aliveCount} 已交）——全员交片后房主才能开始展映。"
 
 #. placeholder {0}: slot0.tag
 #: src/pages/CustomCardPage.tsx
@@ -4347,6 +4361,11 @@ msgstr "🎵 配乐建议：{0}（在「音频」页签里挑一条自己的）"
 msgid "🏁 本局结束"
 msgstr "🏁 本局结束"
 
+#: src/studio/game/ui/PhaseBar.tsx
+msgid "🏁 返回大厅"
+msgstr "🏁 返回大厅"
+
+#: src/studio/game/ui/OnlineScreeningPanel.tsx
 #: src/studio/game/ui/ScreeningPanel.tsx
 msgid "👍 点赞这一条"
 msgstr "👍 点赞这一条"
@@ -4371,6 +4390,11 @@ msgstr "💬 记录"
 #: src/studio/game/ui/RoundResultPanel.tsx
 msgid "📊 第 {0} 回合结算"
 msgstr "📊 第 {0} 回合结算"
+
+#. placeholder {0}: state.round
+#: src/studio/game/ui/RoundResultPanel.tsx
+msgid "📊 第 {0} 回合结算（联机）"
+msgstr "📊 第 {0} 回合结算（联机）"
 
 #: src/studio/game/ui/PhaseBar.tsx
 msgid "📊 结算"
@@ -4693,6 +4717,7 @@ msgstr "🗑 删除某段"
 msgid "🗳 去投票"
 msgstr "🗳 去投票"
 
+#: src/studio/game/ui/OnlineVotingPanel.tsx
 #: src/studio/game/ui/VotingPanel.tsx
 msgid "🗳 投票：给别人的一条片子"
 msgstr "🗳 投票：给别人的一条片子"
@@ -5748,6 +5773,10 @@ msgstr "三选一（拿不准可以跳过）"
 msgid "上一句还没念完，这一句晚 {0} 秒开始。"
 msgstr "上一句还没念完，这一句晚 {0} 秒开始。"
 
+#: src/studio/game/roundsReasons.ts
+msgid "上一回合还没结算"
+msgstr "上一回合还没结算"
+
 #: src/utils/nativeCamera.ts
 msgid "上一张还没拍完"
 msgstr "上一张还没拍完"
@@ -6150,6 +6179,7 @@ msgstr "下一回合提示词上限 +{0}%"
 msgid "下一回合能出 {0} 段"
 msgstr "下一回合能出 {0} 段"
 
+#: src/studio/game/ui/OnlineScreeningPanel.tsx
 #: src/studio/game/ui/ScreeningPanel.tsx
 msgid "下一条 ▶"
 msgstr "下一条 ▶"
@@ -6623,6 +6653,10 @@ msgstr "不给封面也能发，市场里会是一块空的卡面。"
 msgid "不能投给自己——选别人的一条"
 msgstr "不能投给自己——选别人的一条"
 
+#: src/studio/game/roundsReasons.ts
+msgid "不能投自己那条片子"
+msgstr "不能投自己那条片子"
+
 #: src/api/blocking.ts
 msgid "不能拉黑自己。"
 msgstr "不能拉黑自己。"
@@ -7053,6 +7087,10 @@ msgstr "交回自动"
 #: src/studio/game/ui/PhaseBar.tsx
 msgid "交片了：{0} 张卡 + 一句提示词（{1} 秒）"
 msgstr "交片了：{0} 张卡 + 一句提示词（{1} 秒）"
+
+#: src/studio/game/ui/PhaseBar.tsx
+msgid "交片后其他人也能看到：全员交片之后房主才能开始展映"
+msgstr "交片后其他人也能看到：全员交片之后房主才能开始展映"
 
 #: src/studio/ui/NpcDialog.tsx
 msgid "交给铸卡师炼卡"
@@ -7688,6 +7726,10 @@ msgstr "你不在这个房间里"
 msgid "你不在那间房里"
 msgstr "你不在那间房里"
 
+#: src/studio/game/roundsReasons.ts
+msgid "你不在那间房里了"
+msgstr "你不在那间房里了"
+
 #: src/pages/CutPage.tsx
 msgid "你动过片段（裁剪 / 删段 / 换序），而配乐是自动预置的原片音轨——它按原片从头混，合出来会和画面对不上。想对齐就在「音频」里换一条自己的，或把片段改回原样。"
 msgstr "你动过片段（裁剪 / 删段 / 换序），而配乐是自动预置的原片音轨——它按原片从头混，合出来会和画面对不上。想对齐就在「音频」里换一条自己的，或把片段改回原样。"
@@ -7742,11 +7784,49 @@ msgstr "你已经拿到过 {count} 次，共 {earned} token。"
 msgid "你已经淘汰了，不能再操作"
 msgstr "你已经淘汰了，不能再操作"
 
+#. placeholder {0}: snapshot.votesPending
+#: src/studio/game/ui/OnlineVotingPanel.tsx
+msgid "你已经表过态了——还差 {0} 个人，全员表态后自动结算"
+msgstr "你已经表过态了——还差 {0} 个人，全员表态后自动结算"
+
+#: src/studio/game/ui/PhaseBar.tsx
+msgid "你已经表过态了——还差 {pendingVotes} 个人，全员表态后自动结算"
+msgstr "你已经表过态了——还差 {pendingVotes} 个人，全员表态后自动结算"
+
 #. placeholder {0}: roundView.pending
 #: src/studio/game/ui/PhaseBar.tsx
 msgid "你已经表过态了——还有 {0} 个人没表态（AI 会自己投）"
 msgstr "你已经表过态了——还有 {0} 个人没表态（AI 会自己投）"
 
+#: src/studio/game/ui/PhaseBar.tsx
+msgid "你已经被淘汰——这一局只能看别人打"
+msgstr "你已经被淘汰——这一局只能看别人打"
+
+#: src/studio/game/ui/CreatePanel.tsx
+msgid "你已经被淘汰——这一局只能看别人打，交片 / 点赞 / 投票都不再收你的。"
+msgstr "你已经被淘汰——这一局只能看别人打，交片 / 点赞 / 投票都不再收你的。"
+
+#: src/studio/game/roundsReasons.ts
+msgid "你已经被淘汰，这一局只能看别人打"
+msgstr "你已经被淘汰，这一局只能看别人打"
+
+#: src/studio/game/ui/OnlineScreeningPanel.tsx
+msgid "你已被淘汰，只能观看"
+msgstr "你已被淘汰，只能观看"
+
+#: src/studio/game/ui/PhaseBar.tsx
+msgid "你已被淘汰，只能观看展映"
+msgstr "你已被淘汰，只能观看展映"
+
+#: src/studio/game/ui/PhaseBar.tsx
+msgid "你已被淘汰，等其他人投完"
+msgstr "你已被淘汰，等其他人投完"
+
+#: src/studio/game/ui/OnlineVotingPanel.tsx
+msgid "你已被淘汰，这一票不收你的"
+msgstr "你已被淘汰，这一票不收你的"
+
+#: src/studio/game/ui/OnlineVotingPanel.tsx
 #: src/studio/game/ui/VotingPanel.tsx
 msgid "你弃权了"
 msgstr "你弃权了"
@@ -7781,7 +7861,9 @@ msgstr "你所在的地区用不了这一档的出片模型。"
 msgid "你手上这一版已经停止支持了，更新之后才能接着用。"
 msgstr "你手上这一版已经停止支持了，更新之后才能接着用。"
 
+#. placeholder {0}: myVote.name ?? myVote.userId
 #. placeholder {0}: playerName(myVote.playerId)
+#: src/studio/game/ui/OnlineVotingPanel.tsx
 #: src/studio/game/ui/VotingPanel.tsx
 msgid "你投给了 {0}"
 msgstr "你投给了 {0}"
@@ -7849,7 +7931,9 @@ msgid "你的账号是管理员：AI 生成走的是免扣费通道，消耗不�
 msgstr "你的账号是管理员：AI 生成走的是免扣费通道，消耗不从钱包里扣。"
 
 #. placeholder {0}: mine.rank
+#. placeholder {0}: mineIndex + 1
 #. placeholder {1}: mine.damage
+#. placeholder {2}: mine.hp
 #. placeholder {2}: mine.hpAfter
 #: src/studio/game/ui/RoundResultPanel.tsx
 msgid "你第 {0} 名：−{1} 血，剩 {2}"
@@ -8695,6 +8779,10 @@ msgstr "免费版用 MiniMax 出片只能用文字：这一段带着画面或参
 msgid "全不选"
 msgstr "全不选"
 
+#: src/studio/game/ui/PhaseBar.tsx
+msgid "全员都交片了（{submittedCount}/{aliveCount}）"
+msgstr "全员都交片了（{submittedCount}/{aliveCount}）"
+
 #: src/components/PlayerControls.tsx
 msgid "全屏"
 msgstr "全屏"
@@ -8830,6 +8918,11 @@ msgstr "公开着的还是上一版的制作过程（这一版回炉后还没更
 #: src/studio/game/ui/RoundResultPanel.tsx
 msgid "共 {0} 回合"
 msgstr "共 {0} 回合"
+
+#. placeholder {0}: state.round
+#: src/studio/game/ui/RoundResultPanel.tsx
+msgid "共 {0} 回合（联机）"
+msgstr "共 {0} 回合（联机）"
 
 #. placeholder {0}: cards.length
 #: src/pages/WorkshopMinePage.tsx
@@ -9795,6 +9888,11 @@ msgstr "出画面"
 #: src/pages/TemplateDetailPage.tsx
 msgid "出过了？刷新状态"
 msgstr "出过了？刷新状态"
+
+#. placeholder {0}: row.composite
+#: src/studio/game/ui/RoundResultPanel.tsx
+msgid "分 {0}"
+msgstr "分 {0}"
 
 #: src/studio/ui/PlanBoard.tsx
 msgid "分了镜头：不用结束画面"
@@ -12542,6 +12640,10 @@ msgstr "名字（选填；台词按这个名字认说话人）"
 msgid "名次 = 两个榜相加（并列看投票）"
 msgstr "名次 = 两个榜相加（并列看投票）"
 
+#: src/studio/game/ui/RoundResultPanel.tsx
+msgid "名次 = 服务端按两个榜合出来的顺序（分 = 点赞名次 + 投票名次，越小越好）"
+msgstr "名次 = 服务端按两个榜合出来的顺序（分 = 点赞名次 + 投票名次，越小越好）"
+
 #: src/studio/game/reasons.ts
 msgid "名次名单和存活玩家对不上，这次结算没有生效"
 msgstr "名次名单和存活玩家对不上，这次结算没有生效"
@@ -12762,6 +12864,14 @@ msgstr "回去看原因 ›"
 #: src/components/GenerationPill.tsx
 msgid "回去看看 ›"
 msgstr "回去看看 ›"
+
+#: src/studio/game/roundsReasons.ts
+msgid "回合服务回了没见过的错误：{code}"
+msgstr "回合服务回了没见过的错误：{code}"
+
+#: src/studio/game/roundsReasons.ts
+msgid "回合服务没响应，这一局改成单机继续"
+msgstr "回合服务没响应，这一局改成单机继续"
 
 #: src/studio/game/labels.ts
 msgid "回合结算"
@@ -14169,6 +14279,10 @@ msgstr "展开简介"
 msgid "展映"
 msgstr "展映"
 
+#: src/studio/game/ui/PhaseBar.tsx
+msgid "展映中：给别人的片子点赞（联机版不能给自己点赞）"
+msgstr "展映中：给别人的片子点赞（联机版不能给自己点赞）"
+
 #: src/components/guide/tours.tsx
 msgid "工作台里的「删除」不是从列表里划掉：<0>云端那段模板视频和原始素材会一起没掉</0>， 谁都找不回。所以要点两下才认。"
 msgstr "工作台里的「删除」不是从列表里划掉：<0>云端那段模板视频和原始素材会一起没掉</0>， 谁都找不回。所以要点两下才认。"
@@ -14393,6 +14507,14 @@ msgstr "已举报"
 #: src/studio/game/ui/ShopPanel.tsx
 msgid "已买走"
 msgstr "已买走"
+
+#: src/studio/game/ui/GameLayer.tsx
+msgid "已交片，等其他人"
+msgstr "已交片，等其他人"
+
+#: src/studio/game/ui/PhaseBar.tsx
+msgid "已交片，等其他人（{submittedCount}/{aliveCount} 已交）"
+msgstr "已交片，等其他人（{submittedCount}/{aliveCount} 已交）"
 
 #: src/pages/EditPage.tsx
 msgid "已从模板市场下架（制作过程照样公开着）"
@@ -14833,6 +14955,7 @@ msgstr "已添加"
 msgid "已清理 {n} 个文件"
 msgstr "已清理 {n} 个文件"
 
+#: src/studio/game/ui/OnlineScreeningPanel.tsx
 #: src/studio/game/ui/ScreeningPanel.tsx
 msgid "已点赞 ❤"
 msgstr "已点赞 ❤"
@@ -15415,6 +15538,7 @@ msgctxt "丢弃确认卡里「…再回来X」的那个动作（英文用小写�
 msgid "开新的这条"
 msgstr "开新的这条"
 
+#: src/studio/game/ui/OnlineVotingPanel.tsx
 #: src/studio/game/ui/VotingPanel.tsx
 msgid "弃权"
 msgstr "弃权"
@@ -16113,6 +16237,7 @@ msgstr "我已逐个核对，编号无误"
 
 #: src/components/support/VoiceMarket.tsx
 #: src/components/TabBar.tsx
+#: src/studio/game/ui/OnlineScreeningPanel.tsx
 #: src/studio/game/ui/ScreeningPanel.tsx
 msgid "我的"
 msgstr "我的"
@@ -16263,6 +16388,10 @@ msgstr "房间码是 6 位字母或数字"
 #: src/studio/game/lobbyReasons.ts
 msgid "房间请求的参数不对，退回大厅再试一次"
 msgstr "房间请求的参数不对，退回大厅再试一次"
+
+#: src/studio/game/roundsReasons.ts
+msgid "房间还没开局"
+msgstr "房间还没开局"
 
 #: src/ai/arkClient.ts
 msgid "所在地区不提供这一档的出片模型"
@@ -16560,8 +16689,12 @@ msgstr "把常用的几张归成一组；出片时<0>人物和场景由卡组锁
 #~ msgstr "把常用的几张归成一组；出片时<0>人物和场景由卡组锁住，全片保持一致</0>。 散着的卡在「我的卡片」页签，你自己做的模板在「我的模板」。"
 
 #: src/studio/game/ui/RoomScreen.tsx
-msgid "把房间码念给朋友：他们在大厅的「加入房间」里输入就能进来。开局时空位由 AI 补上。"
-msgstr "把房间码念给朋友：他们在大厅的「加入房间」里输入就能进来。开局时空位由 AI 补上。"
+#~ msgid "把房间码念给朋友：他们在大厅的「加入房间」里输入就能进来。开局时空位由 AI 补上。"
+#~ msgstr "把房间码念给朋友：他们在大厅的「加入房间」里输入就能进来。开局时空位由 AI 补上。"
+
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "把房间码念给朋友：他们在大厅的「加入房间」里输入就能进来。服务端的回合只算真人，空位不参加。"
+msgstr "把房间码念给朋友：他们在大厅的「加入房间」里输入就能进来。服务端的回合只算真人，空位不参加。"
 
 #: src/components/blockout/BoxFramePicker.tsx
 msgid "把播放头挪到第几秒"
@@ -16627,6 +16760,7 @@ msgstr "抒情民谣"
 msgid "投票"
 msgstr "投票"
 
+#: src/studio/game/ui/OnlineVotingPanel.tsx
 #: src/studio/game/ui/VotingPanel.tsx
 msgid "投这一条"
 msgstr "投这一条"
@@ -17730,6 +17864,10 @@ msgstr "提示词"
 msgid "提示词 {length}/{limit} 字"
 msgstr "提示词 {length}/{limit} 字"
 
+#: src/studio/game/roundsReasons.ts
+msgid "提示词不能是空的"
+msgstr "提示词不能是空的"
+
 #: src/studio/blockoutPrompt.ts
 msgid "提示词合成失败：AI 什么都没返回——这一段的要求请自己写，或用下面那份默认写法。"
 msgstr "提示词合成失败：AI 什么都没返回——这一段的要求请自己写，或用下面那份默认写法。"
@@ -17771,6 +17909,10 @@ msgstr "提示词合成失败（{why}）——这一段的要求请自己写，�
 #: src/studio/game/reasons.ts
 msgid "提示词太长了：最多 {0} 字，现在 {1} 字"
 msgstr "提示词太长了：最多 {0} 字，现在 {1} 字"
+
+#: src/studio/game/roundsReasons.ts
+msgid "提示词太长了（联机版最多 80 字）"
+msgstr "提示词太长了（联机版最多 80 字）"
 
 #: src/ai/minimaxVideo.ts
 msgid "提示词或图片没过 MiniMax 的内容审核——改一改再出片"
@@ -17992,6 +18134,7 @@ msgstr "撤销"
 msgid "撤销 / 重做要单独说：这一句里别的改动没有办，撤完再说一次"
 msgstr "撤销 / 重做要单独说：这一句里别的改动没有办，撤完再说一次"
 
+#: src/studio/game/ui/OnlineScreeningPanel.tsx
 #: src/studio/game/ui/ScreeningPanel.tsx
 msgid "播完了"
 msgstr "播完了"
@@ -19602,6 +19745,10 @@ msgstr "服务端还没有语音识别（返回的不是 JSON）"
 msgid "服务端还没有这个功能，等后端更新后再来。"
 msgstr "服务端还没有这个功能，等后端更新后再来。"
 
+#: src/studio/game/ui/OnlineScreeningPanel.tsx
+msgid "服务端这一回合还没有收到片子——等其他人交片。"
+msgstr "服务端这一回合还没有收到片子——等其他人交片。"
+
 #: src/pages/tutor/TutorNewPage.tsx
 msgid "服务端验收…"
 msgstr "服务端验收…"
@@ -20310,6 +20457,10 @@ msgstr "检查视频规格…"
 msgctxt "人偶的主色（挂卡提醒那句话里显示）"
 msgid "棕"
 msgstr "棕"
+
+#: src/studio/game/ui/RoundResultPanel.tsx
+msgid "榜与扣血来自服务端"
+msgstr "榜与扣血来自服务端"
 
 #. placeholder {0}: tierModelLabel(tierOf(editor.videoTier))
 #: src/studio/ui/projection.tsx
@@ -21189,6 +21340,10 @@ msgstr "正在读你给的素材…"
 #: src/pages/ProfilePage.tsx
 msgid "正在读取余额…"
 msgstr "正在读取余额…"
+
+#: src/studio/game/ui/RoundResultPanel.tsx
+msgid "正在读取服务端的结算…（榜与扣血以服务端为准）"
+msgstr "正在读取服务端的结算…（榜与扣血以服务端为准）"
 
 #: src/components/blockout/VideoStage.tsx
 msgid "正在读取视频…"
@@ -22866,6 +23021,7 @@ msgstr "点赞"
 msgid "点赞 · {likes}"
 msgstr "点赞 · {likes}"
 
+#: src/studio/game/ui/OnlineScreeningPanel.tsx
 #: src/studio/game/ui/ScreeningPanel.tsx
 msgid "点赞：播放中可以给每一条点一次"
 msgstr "点赞：播放中可以给每一条点一次"
@@ -22874,6 +23030,7 @@ msgstr "点赞：播放中可以给每一条点一次"
 msgid "点赞失败，稍后再试。"
 msgstr "点赞失败，稍后再试。"
 
+#: src/studio/game/ui/OnlineVotingPanel.tsx
 #: src/studio/game/ui/VotingPanel.tsx
 msgid "点赞数（热度）"
 msgstr "点赞数（热度）"
@@ -23255,6 +23412,10 @@ msgstr "现在接不上（可能有一段正在生成中），稍后再试"
 #: src/studio/studioStore.ts
 msgid "现在接不上这一段，稍后再试。"
 msgstr "现在接不上这一段，稍后再试。"
+
+#: src/studio/game/roundsReasons.ts
+msgid "现在是另一个阶段，这一步现在做不了"
+msgstr "现在是另一个阶段，这一步现在做不了"
 
 #: src/studio/cutAgent.ts
 msgid "现在是演示模式（没有连上模型），只听得懂直白的句式。"
@@ -24682,6 +24843,7 @@ msgid "看着满意就定稿：把这同一份样片升成 1080p 成片（画面
 msgstr "看着满意就定稿：把这同一份样片升成 1080p 成片（画面、动作、声音都照样片，不重新抽卡）。还剩 {mins} 分钟可以定稿。"
 
 #. placeholder {0}: dot + 1
+#: src/studio/game/ui/OnlineScreeningPanel.tsx
 #: src/studio/game/ui/ScreeningPanel.tsx
 msgid "看第 {0} 条"
 msgstr "看第 {0} 条"
@@ -24872,6 +25034,7 @@ msgid "真人还不够开局（服务端至少算 2 个真人）"
 msgstr "真人还不够开局（服务端至少算 2 个真人）"
 
 #. placeholder {0}: Math.round(seconds)
+#: src/studio/game/ui/OnlineScreeningPanel.tsx
 #: src/studio/game/ui/ScreeningPanel.tsx
 msgid "真出片的那一条（{0} 秒）"
 msgstr "真出片的那一条（{0} 秒）"
@@ -25366,10 +25529,12 @@ msgstr "空卡组不能分享：先往里放几张卡。"
 msgid "空行分段；「# 标题」会自成一块"
 msgstr "空行分段；「# 标题」会自成一块"
 
+#: src/studio/game/ui/OnlineVotingPanel.tsx
 #: src/studio/game/ui/VotingPanel.tsx
 msgid "空镜"
 msgstr "空镜"
 
+#: src/studio/game/ui/OnlineScreeningPanel.tsx
 #: src/studio/game/ui/ScreeningPanel.tsx
 msgid "空镜（没放卡）"
 msgstr "空镜（没放卡）"
@@ -25441,7 +25606,9 @@ msgid "童话森林"
 msgstr "童话森林"
 
 #. placeholder {0}: index + 1
+#. placeholder {1}: entries.length
 #. placeholder {1}: playlist.length
+#: src/studio/game/ui/OnlineScreeningPanel.tsx
 #: src/studio/game/ui/ScreeningPanel.tsx
 msgid "第 {0} / {1} 条"
 msgstr "第 {0} / {1} 条"
@@ -25493,6 +25660,16 @@ msgstr "第 {0} 回合"
 #: src/studio/game/ui/PhaseBar.tsx
 msgid "第 {0} 回合结束"
 msgstr "第 {0} 回合结束"
+
+#. placeholder {0}: state.round
+#: src/studio/game/ui/PhaseBar.tsx
+msgid "第 {0} 回合结算完了"
+msgstr "第 {0} 回合结算完了"
+
+#. placeholder {0}: state.round
+#: src/studio/game/ui/PhaseBar.tsx
+msgid "第 {0} 回合结算完了——榜与扣血是服务端给的"
+msgstr "第 {0} 回合结算完了——榜与扣血是服务端给的"
 
 #. placeholder {0}: Number(m[1])
 #. placeholder {0}: i + 1
@@ -26446,6 +26623,22 @@ msgstr "等待火山引擎认证…"
 msgid "等房主开一局：非房主只能准备或离开"
 msgstr "等房主开一局：非房主只能准备或离开"
 
+#: src/studio/game/ui/PhaseBar.tsx
+msgid "等房主开下一回合"
+msgstr "等房主开下一回合"
+
+#: src/studio/game/ui/PhaseBar.tsx
+msgid "等房主开始展映"
+msgstr "等房主开始展映"
+
+#: src/studio/game/ui/PhaseBar.tsx
+msgid "等房主开始投票"
+msgstr "等房主开始投票"
+
+#: src/studio/game/ui/PhaseBar.tsx
+msgid "等房主推进（要先全员交片）"
+msgstr "等房主推进（要先全员交片）"
+
 #: src/studio/game/ui/ShopPanel.tsx
 #~ msgid "等替换"
 #~ msgstr "等替换"
@@ -27182,18 +27375,37 @@ msgid "聊天记录、发过的文案、随手写的笔记都行"
 msgstr "聊天记录、发过的文案、随手写的笔记都行"
 
 #: src/studio/game/ui/Lobby.tsx
-msgid "联机已接通：匹配会等真人，空位开局时由 AI 补位。"
-msgstr "联机已接通：匹配会等真人，空位开局时由 AI 补位。"
+#~ msgid "联机已接通：匹配会等真人，空位开局时由 AI 补位。"
+#~ msgstr "联机已接通：匹配会等真人，空位开局时由 AI 补位。"
+
+#: src/studio/game/ui/Lobby.tsx
+msgid "联机已接通：匹配会等真人；自定义房间的空位不参加回合。"
+msgstr "联机已接通：匹配会等真人；自定义房间的空位不参加回合。"
 
 #. placeholder {0}: remote.memberCount
 #. placeholder {1}: remote.size
 #: src/studio/game/ui/RoomScreen.tsx
-msgid "联机房间：{0}/{1} 个真人，空位开局时由 AI 补齐。"
-msgstr "联机房间：{0}/{1} 个真人，空位开局时由 AI 补齐。"
+#~ msgid "联机房间：{0}/{1} 个真人，空位开局时由 AI 补齐。"
+#~ msgstr "联机房间：{0}/{1} 个真人，空位开局时由 AI 补齐。"
+
+#. placeholder {0}: remote.memberCount
+#. placeholder {1}: remote.size
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "联机房间：{0}/{1} 个真人；服务端的回合只算真人，空位不参加这一局。"
+msgstr "联机房间：{0}/{1} 个真人；服务端的回合只算真人，空位不参加这一局。"
+
+#: src/studio/game/ui/CreatePanel.tsx
+msgid "联机房间：交片会同步给所有人；提交之后这里会写「已交片，等其他人」。"
+msgstr "联机房间：交片会同步给所有人；提交之后这里会写「已交片，等其他人」。"
 
 #: src/studio/game/lobbyReasons.ts
 msgid "联机房间暂时不能改人数"
 msgstr "联机房间暂时不能改人数"
+
+#: src/studio/game/roundsReasons.ts
+#: src/studio/game/ui/OnlineScreeningPanel.tsx
+msgid "联机版不能给自己的片子点赞"
+msgstr "联机版不能给自己的片子点赞"
 
 #: src/studio/game/ui/Lobby.tsx
 #~ msgid "联机还没接通：现在开局一律由 AI 陪玩补位，真人匹配要等服务端房间。"
@@ -27253,6 +27465,10 @@ msgstr "背景"
 #: src/types.ts
 msgid "背景卡"
 msgstr "背景卡"
+
+#: src/studio/game/ui/RoundResultPanel.tsx
+msgid "胜者由服务端判定"
+msgstr "胜者由服务端判定"
 
 #: src/studio/game/labels.ts
 msgid "胶片颗粒 ＋ 50mm 浅景深"
@@ -29089,6 +29305,10 @@ msgstr "还差 {0} 个人表态——全员表态之后才能结算"
 msgid "还差 {0} 金"
 msgstr "还差 {0} 金"
 
+#: src/studio/game/ui/PhaseBar.tsx
+msgid "还差 {pendingVotes} 个人表态"
+msgstr "还差 {pendingVotes} 个人表态"
+
 #: src/pages/SupportPage.tsx
 msgid "还想补充什么？任务号、大概时间、屏幕上的提示…"
 msgstr "还想补充什么？任务号、大概时间、屏幕上的提示…"
@@ -29140,6 +29360,10 @@ msgstr "还有 {emptyCount} 个角色位没挂卡 —— <0>可以直接出片</
 #: src/pages/SupportModelNewPage.tsx
 msgid "还有 {unrun} 项没试。"
 msgstr "还有 {unrun} 项没试。"
+
+#: src/studio/game/roundsReasons.ts
+msgid "还有人没交片——全员交片之后房主才能开始展映"
+msgstr "还有人没交片——全员交片之后房主才能开始展映"
 
 #. placeholder {0}: rewritten.missing.map(slotLabel).join("、")
 #: src/components/TextTemplateSheet.tsx
@@ -29382,6 +29606,10 @@ msgstr "还没有草稿——工坊和工作流里都能存"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "还没有草稿。"
 msgstr "还没有草稿。"
+
+#: src/studio/game/ui/OnlineVotingPanel.tsx
+msgid "还没有表态：投一条或弃权。全员表态之后自动结算（房主也可以直接结算）。"
+msgstr "还没有表态：投一条或弃权。全员表态之后自动结算（房主也可以直接结算）。"
 
 #: src/components/CommentSheet.tsx
 #: src/components/SocialPanel.tsx
@@ -29774,9 +30002,25 @@ msgstr "这一句问了模型（{price} token）"
 msgid "这一回合你已经选过了"
 msgstr "这一回合你已经选过了"
 
+#: src/studio/game/roundsReasons.ts
+msgid "这一回合已经开始了"
+msgstr "这一回合已经开始了"
+
+#: src/studio/game/ui/OnlineVotingPanel.tsx
+msgid "这一回合没有别人的片子可投（只有你自己）"
+msgstr "这一回合没有别人的片子可投（只有你自己）"
+
 #: src/studio/game/reasons.ts
 msgid "这一回合没有抽到事件"
 msgstr "这一回合没有抽到事件"
+
+#: src/studio/game/roundsReasons.ts
+msgid "这一回合还没开（或者房间已经散了）"
+msgstr "这一回合还没开（或者房间已经散了）"
+
+#: src/studio/game/roundsReasons.ts
+msgid "这一回合还没有人交片，结算不了"
+msgstr "这一回合还没有人交片，结算不了"
 
 #: src/studio/game/ui/RoundResultPanel.tsx
 msgid "这一回合还没有结算——先投票，再按「结算」。"
@@ -29826,9 +30070,18 @@ msgstr "这一小段传了 {hardMin} 分钟还没完成——网络太慢，换�
 msgid "这一小段有 {stallSec} 秒没传出去一个字节——网络断了或太不稳，换个网络再试"
 msgstr "这一小段有 {stallSec} 秒没传出去一个字节——网络断了或太不稳，换个网络再试"
 
+#: src/studio/game/roundsReasons.ts
+msgid "这一局已经结束了"
+msgstr "这一局已经结束了"
+
 #: src/studio/game/ui/PhaseBar.tsx
 msgid "这一局打完了"
 msgstr "这一局打完了"
+
+#. placeholder {0}: remote?.memberCount ?? 0
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "这一局按 {0} 个真人开：服务端的回合只算真人，空位不参加。"
+msgstr "这一局按 {0} 个真人开：服务端的回合只算真人，空位不参加。"
 
 #: src/studio/game/ui/StylePick.tsx
 msgid "这一局没有抽到风格卡（数据不对）——去右栏结束对局再开一局。"
@@ -29915,6 +30168,10 @@ msgstr "这一批里没有「{typeLabel}」卡"
 msgid "这一批里没有可保存的文件。"
 msgstr "这一批里没有可保存的文件。"
 
+#: src/studio/game/roundsReasons.ts
+msgid "这一拍没连上回合服务，正在重试"
+msgstr "这一拍没连上回合服务，正在重试"
+
 #: src/components/flow/RefStrip.tsx
 msgid "这一排就是出片时视频模型会收到的图，按发送顺序编号。素材卡是谁、哪几张图是他，由系统自动写进提示词；你另加的参考图没在句子里点名时，系统按「用途」替它说一句。想自己说清楚某张图管什么，就在句子里写 @名字（或点这一排上的图）——出片时会在名字后面接上模型认的编号「图片N」。"
 msgstr "这一排就是出片时视频模型会收到的图，按发送顺序编号。素材卡是谁、哪几张图是他，由系统自动写进提示词；你另加的参考图没在句子里点名时，系统按「用途」替它说一句。想自己说清楚某张图管什么，就在句子里写 @名字（或点这一排上的图）——出片时会在名字后面接上模型认的编号「图片N」。"
@@ -29968,9 +30225,17 @@ msgstr "这一期没有这条片子"
 msgid "这一期的事件：三选一，拿不准可以跳过"
 msgstr "这一期的事件：三选一，拿不准可以跳过"
 
+#: src/studio/game/ui/PhaseBar.tsx
+msgid "这一期的事件：三选一，拿不准可以跳过（事件只在本机生效）"
+msgstr "这一期的事件：三选一，拿不准可以跳过（事件只在本机生效）"
+
 #: src/studio/game/ui/CreatePanel.tsx
 #~ msgid "这一期的提示词"
 #~ msgstr "这一期的提示词"
+
+#: src/studio/game/ui/OnlineScreeningPanel.tsx
+msgid "这一期的赞已经点给别的片子了（一回合每人一票赞）"
+msgstr "这一期的赞已经点给别的片子了（一回合每人一票赞）"
 
 #: src/studio/game/reasons.ts
 msgid "这一条你已经点过赞了（同一期同一条只能点一次）"
@@ -29983,6 +30248,10 @@ msgstr "这一条暂时收不起来：上游确认这一发没出成，但这次
 #: src/components/flow/SegmentRecoverCards.tsx
 msgid "这一条暂时收不起来：没能向上游核对到这一发的结局——过一会儿再点一次「知道了」（核对不花钱）。"
 msgstr "这一条暂时收不起来：没能向上游核对到这一发的结局——过一会儿再点一次「知道了」（核对不花钱）。"
+
+#: src/studio/game/ui/OnlineScreeningPanel.tsx
+msgid "这一条的首帧"
+msgstr "这一条的首帧"
 
 #: src/studio/game/lobbyReasons.ts
 msgid "这一格上还坐着人，不能把房间缩到这么小"
@@ -30195,6 +30464,10 @@ msgstr "这一步不出片、不换人，只花「认人 + 量框」的钱。按
 msgid "这一步不花钱：框好要用的那一段点「下一步」，下一步在<0>框出来的这一段</0>上标帧，报价也在那一步、按「做成模板」之前整句报出。"
 msgstr "这一步不花钱：框好要用的那一段点「下一步」，下一步在<0>框出来的这一段</0>上标帧，报价也在那一步、按「做成模板」之前整句报出。"
 
+#: src/studio/game/roundsReasons.ts
+msgid "这一步只有房主能做"
+msgstr "这一步只有房主能做"
+
 #. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
 #. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
 #: src/ai/failCharge.ts
@@ -30215,6 +30488,10 @@ msgstr "这一步是把「我们的演出协议」对到「你这个模型自己
 #: src/studio/game/reasons.ts
 msgid "这一步没成功（规则回的原因：{0}）"
 msgstr "这一步没成功（规则回的原因：{0}）"
+
+#: src/studio/game/roundsReasons.ts
+msgid "这一步的参数不对，刷新之后再试一次"
+msgstr "这一步的参数不对，刷新之后再试一次"
 
 #. placeholder {0}: fmtTokens(visionTokens)
 #: src/components/blockout/BlockoutTrimmer.tsx
@@ -31350,6 +31627,10 @@ msgstr "这台服务器不支持识别角色位（回包形状不对，可能需
 #: src/data/account.ts
 msgid "这台服务器出片只接了 {via}"
 msgstr "这台服务器出片只接了 {via}"
+
+#: src/studio/game/roundsReasons.ts
+msgid "这台服务器把回合服务关掉了"
+msgstr "这台服务器把回合服务关掉了"
 
 #: src/studio/game/lobbyReasons.ts
 msgid "这台服务器把房间服务关掉了"
@@ -33104,6 +33385,10 @@ msgstr "那一列最下面转着的碟片就是<0>「做同款」</0>；全屏 /
 msgid "那个人已经不在房里了"
 msgstr "那个人已经不在房里了"
 
+#: src/studio/game/roundsReasons.ts
+msgid "那个人已经不在这一局里了"
+msgstr "那个人已经不在这一局里了"
+
 #: src/data/danmaku.ts
 msgid "那扇门后面是什么"
 msgstr "那扇门后面是什么"
@@ -33128,6 +33413,7 @@ msgstr "邮箱验证码"
 msgid "部分用得上"
 msgstr "部分用得上"
 
+#: src/studio/game/ui/OnlineVotingPanel.tsx
 #: src/studio/game/ui/VotingPanel.tsx
 msgid "都不投也算一种表态"
 msgstr "都不投也算一种表态"

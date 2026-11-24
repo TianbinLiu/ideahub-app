@@ -17,9 +17,11 @@ import {
   beginRound,
   buyShopCard,
   createGame,
+  drawEventAfterRound,
   enterCreation,
   enterScreening,
   enterVoting,
+  entryOfPlayer,
   equipItem,
   eventOptionsFor,
   likeEntry,
@@ -143,7 +145,22 @@ function aiSetupTable(state: GameState, playerId: string): { state: GameState; l
 export function toCreation(state: GameState, aiIds: readonly string[], prompts: readonly string[], rng: Rng): PhaseResult {
   const entered = enterCreation(state);
   if (!entered.ok) return entered;
-  let next = entered.state;
+  return aiSubmitEntries(entered.state, aiIds, prompts, rng);
+}
+
+/**
+ * 每个存活 AI 摆好桌面 + 交这一期的片。
+ * ★ 从 `toCreation` 里抽出来是为了**联机掉线退回单机**那一条路：服务端已经把这局推到 screening / voting，
+ *   而本机那几个 AI 的片子还没交；靠这一个函数补上，玩家才能在本机把这一期走完（见 fillLocalOpponents）。
+ * ★ 摆卡失败不整局失败（只是这个 AI 少一张卡），原因留在 lastFailure 里交给调用方。
+ */
+export function aiSubmitEntries(
+  state: GameState,
+  aiIds: readonly string[],
+  prompts: readonly string[],
+  rng: Rng,
+): PhaseResult & { lastFailure?: RuleFailure } {
+  let next = state;
   let lastFailure: RuleFailure | undefined;
   for (const id of aiIds) {
     const player = playerOf(next, id);
@@ -167,7 +184,12 @@ export function toCreation(state: GameState, aiIds: readonly string[], prompts: 
 export function toScreening(state: GameState, aiIds: readonly string[], rng: Rng): PhaseResult {
   const entered = enterScreening(state);
   if (!entered.ok) return entered;
-  let next = entered.state;
+  return aiLikeEntries(entered.state, aiIds, rng);
+}
+
+/** 每个存活 AI 按随机偏好把赞点完（联机退回单机时也走这一份）。 */
+export function aiLikeEntries(state: GameState, aiIds: readonly string[], rng: Rng): PhaseResult {
+  let next = state;
   for (const id of aiIds) {
     const player = playerOf(next, id);
     if (!player || player.eliminated) continue;
@@ -189,7 +211,12 @@ export function toScreening(state: GameState, aiIds: readonly string[], rng: Rng
 export function toVoting(state: GameState, aiIds: readonly string[], rng: Rng): PhaseResult {
   const entered = enterVoting(state);
   if (!entered.ok) return entered;
-  let next = entered.state;
+  return aiCastVotes(entered.state, aiIds, rng);
+}
+
+/** 每个存活 AI 投完 / 弃权（联机退回单机时也走这一份）。 */
+export function aiCastVotes(state: GameState, aiIds: readonly string[], rng: Rng): PhaseResult {
+  let next = state;
   for (const id of aiIds) {
     const player = playerOf(next, id);
     if (!player || player.eliminated) continue;
@@ -199,6 +226,89 @@ export function toVoting(state: GameState, aiIds: readonly string[], rng: Rng): 
     next = decision.state;
   }
   return { ok: true, state: next };
+}
+
+// ────────────────────────────── 联机回合（服务端是真相；这一节只做"把服务端的事实接回本机状态"） ──────────────────────────────
+
+/**
+ * 服务端的阶段 → 本机阶段（**只认 screening / voting 两格**）。
+ * ★ 这里**不跑 rules 的闸**（enterScreening / enterVoting 要求本机全员交片 / 全员表态）：
+ *   联机版"全员"是**服务端的房间成员**，本机那几个 AI 座位根本不参与 —— 拿本机的闸去卡服务端推来的阶段，
+ *   症状是"两个真人都投完了，界面还停在创作"。所以服务端说到了哪一阶段，本机就跟到哪一阶段。
+ * ★ 服务的 `creating` 不在这里：那一阶段本机还是正常的 shop → create（买卡 / 摆卡 / 出片），不强制。
+ */
+export function onlinePhaseTo(state: GameState, phase: "screening" | "voting"): GameState {
+  return state.phase === phase ? state : { ...state, phase };
+}
+
+/**
+ * 服务端说新回合开始了（next 成功 / 轮询读到 round + 1）→ 本机也开下一回合。
+ * ★ 本机可能还停在 `event`（事件只在本机跑，房主不等我选完）：这里把它当作已收尾（round-end），
+ *   直接开下一回合 —— 已经翻篇的那一期，事件再让人选就是"在别人的下一回合里做上一轮的选择"。
+ * ★ 一回合最多补一格（`round < serverRound` 循环）：正常路径只差 1；差多了按服务端的号补齐，
+ *   补不齐回 round-limit（界面会说人话，不静默停在旧回合）。
+ */
+export function beginOnlineRound(state: GameState, serverRound: number, rng: Rng): PhaseResult {
+  if (state.phase === "over") return { ok: true, state };
+  if (!Number.isFinite(serverRound) || serverRound < 1) return { ok: false, reason: "wrong-phase" };
+  // 服务端说还停在同一回合 / 乱序回包说回头了：本机不动（回合不回退，也不白白重开商店）
+  if (serverRound <= state.round) return { ok: true, state };
+  let next = state;
+  for (let guard = 0; next.round < serverRound && guard < 32; guard += 1) {
+    const atEnd: GameState = next.phase === "round-end" ? next : { ...next, phase: "round-end" };
+    // allowPastLimit：服务端没有 8 回合上限（见 rules.beginRound 的 ★）
+    const began = beginRound(atEnd, rng, { allowPastLimit: true });
+    if (!began.ok) return began;
+    next = began.state;
+  }
+  if (next.round !== serverRound) return { ok: false, reason: "round-limit" };
+  return { ok: true, state: next };
+}
+
+/**
+ * 结算之后（服务端给完 hp / 名次）本机的事件：抽事件 + 替 AI 选掉，剩下真人那一屏。
+ * ★ 事件**只在本机**（服务端没有事件端点，这一版也不打算有）：它改的是本机的金币 / 档位，
+ *   不改服务端记的 hp —— 下一次结算服务端的 hp 会把本地这一格盖回去（界面不暗示它影响别人）。
+ * ★ 被淘汰的人不再弹事件（他已经不在这一局里了，选什么都影响不到后面）。
+ */
+export function onlineEventPhase(state: GameState, aiIds: readonly string[], rng: Rng): PhaseResult {
+  if (state.phase !== "round-end") return { ok: true, state };
+  const drawn = drawEventAfterRound(state, rng);
+  if (drawn.phase !== "event") return { ok: true, state: drawn };
+  return aiEventChoices(drawn, aiIds, rng);
+}
+
+/**
+ * 联机中途断了（轮询失败 / 接口不可用）→ 把这一局接回**单机循环**。
+ * 本机缺的是那几个 AI 对手在这一期的动作：创作阶段没交片、展映没点赞、投票没表态。
+ * ★ 交片那一步 rules 只允许在 `create`：服务端已经把这局推到 screening / voting，所以临时把 phase
+ *   换成 create 交完再换回来 —— 走的是同一份 rules.submitRoundEntry（不另造一份作品形状）。
+ * ★ 补哪几步看**当前本机阶段**：shop / style / ready 什么都不用补（玩家自己接着走就行）；
+ *   round-end / over 也不用（这一期已经过去了）。
+ */
+export function fillLocalOpponents(
+  state: GameState,
+  aiIds: readonly string[],
+  prompts: readonly string[],
+  rng: Rng,
+): PhaseResult {
+  if (state.phase === "create") {
+    return aiSubmitEntries(state, aiIds, prompts, rng);
+  }
+  if (state.phase !== "screening" && state.phase !== "voting") return { ok: true, state };
+
+  let next = state;
+  const missing = aiIds.some((id) => {
+    const player = playerOf(next, id);
+    return player !== null && !player.eliminated && entryOfPlayer(next, id) === null;
+  });
+  if (missing) {
+    const atCreate: GameState = { ...next, phase: "create" };
+    const filled = aiSubmitEntries(atCreate, aiIds, prompts, rng);
+    if (!filled.ok) return filled;
+    next = { ...filled.state, phase: state.phase };
+  }
+  return state.phase === "screening" ? aiLikeEntries(next, aiIds, rng) : aiCastVotes(next, aiIds, rng);
 }
 
 // ────────────────────────────── 事件（§2.3b） ──────────────────────────────

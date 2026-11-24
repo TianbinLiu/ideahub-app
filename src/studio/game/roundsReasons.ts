@@ -1,0 +1,78 @@
+/**
+ * 联机回合被拒 / 退回单机的那句话（唯一一处）。
+ *
+ * ★ 与 lobbyReasons / reasons 同一条分工：`roundsStore` 只留 `RoundNote`（结构化原因），
+ *   说人话只在界面这一层、只有这一份 —— 创作屏、展映屏、投票屏、底栏都会显示同一件事，
+ *   各写一句就是"同一件事两种说法"。
+ * ★ 只认 `code` 不认 `message`（服务端那句是英文 / 给老 App 兜底，改措辞不该牵着界面改）。
+ * ★ 函数体里的 t 是"调用那一刻才翻"（别在模块顶层拼常量：会冻结在开机语言）。
+ */
+import { t } from "@lingui/core/macro";
+import type { RoundNote } from "./roundsStore";
+
+/** 服务端回合端点的业务码 → 一句人话。认不出的码原样印出来（照实说，不装作没事）。 */
+export function roundCodeText(code: string): string {
+  switch (code) {
+    case "NOT_HOST":
+      return t`这一步只有房主能做`;
+    case "ROUND_NOT_FOUND":
+      return t`这一回合还没开（或者房间已经散了）`;
+    case "ROUND_ALREADY_STARTED":
+      return t`这一回合已经开始了`;
+    case "ROUND_NOT_PLAYING":
+      return t`房间还没开局`;
+    case "ROUND_NOT_SETTLED":
+      return t`上一回合还没结算`;
+    case "WRONG_PHASE":
+      return t`现在是另一个阶段，这一步现在做不了`;
+    case "NOT_ALL_SUBMITTED":
+      return t`还有人没交片——全员交片之后房主才能开始展映`;
+    case "NOT_IN_ROOM":
+      return t`你不在那间房里了`;
+    case "PLAYER_ELIMINATED":
+      return t`你已经被淘汰，这一局只能看别人打`;
+    case "CANNOT_LIKE_SELF":
+      return t`联机版不能给自己的片子点赞`;
+    case "CANNOT_VOTE_SELF":
+      return t`不能投自己那条片子`;
+    case "TARGET_NOT_IN_ROOM":
+      return t`那个人已经不在这一局里了`;
+    case "NO_ENTRIES":
+      return t`这一回合还没有人交片，结算不了`;
+    case "BAD_PROMPT":
+      return t`提示词不能是空的`;
+    case "PROMPT_TOO_LONG":
+      return t`提示词太长了（联机版最多 80 字）`;
+    case "BAD_CARD_NAMES":
+    case "BAD_ENTRY_FIELD":
+    case "BAD_TARGET":
+    case "BAD_PHASE":
+      // 客户端把参数发错了，玩家做不了什么 —— 照实说一句，别装作是服务器的问题
+      return t`这一步的参数不对，刷新之后再试一次`;
+    case "GAME_ROUNDS_OFF":
+      return t`这台服务器把回合服务关掉了`;
+    case "GAME_OVER":
+      return t`这一局已经结束了`;
+    case "TIMEOUT":
+    case "NETWORK":
+      return t`回合服务没响应，这一局改成单机继续`;
+    default:
+      return t`回合服务回了没见过的错误：${code}`;
+  }
+}
+
+/**
+ * 底栏那一句。
+ * ★ "回合服务没响应，这一局改成单机继续"是任务点名的那一句：它只在**真的退回单机**时出现
+ *   （`fallback`），不是每一拍网络抖动都说 —— 抖动那一句是 `unavailable`，还能重试。
+ */
+export function roundsNoteText(note: RoundNote): string {
+  switch (note.kind) {
+    case "fallback":
+      return t`回合服务没响应，这一局改成单机继续`;
+    case "unavailable":
+      return t`这一拍没连上回合服务，正在重试`;
+    case "code":
+      return roundCodeText(note.code);
+  }
+}

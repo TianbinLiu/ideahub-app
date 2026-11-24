@@ -12,10 +12,13 @@
 //   还是**现在桌面这一份**必须在句子里分开 —— 混成一句就会"看着是 A、展映放的是 B"。
 import { useState } from "react";
 import { Trans, useLingui } from "@lingui/react/macro";
+import { ROUND_PROMPT_MAX } from "../../../api/game/rounds";
 import { VIDEO_SECONDS, promptLimitOf } from "../rules";
 import { gameCardName } from "../labels";
 import { useGame } from "../store";
+import { useRounds } from "../roundsStore";
 import { roundViewOf, type GameView } from "../view";
+import { entryPayloadOf } from "./entryPayload";
 import GenSheet from "./GenSheet";
 import GameBtn from "./GameBtn";
 import GameCardTile from "./GameCardTile";
@@ -25,14 +28,36 @@ export default function CreatePanel({ view }: { view: GameView }) {
   const meId = useGame((s) => s.meId);
   const state = useGame((s) => s.state);
   const prompt = useGame((s) => s.createPrompt);
+  const online = useGame((s) => s.online);
+  const snapshot = useRounds((s) => s.snapshot);
+  const session = useRounds((s) => s.session);
+  const memberHp = useRounds((s) => s.memberHp);
   const roundView = state ? roundViewOf(state, meId) : null;
   const [genOpen, setGenOpen] = useState(false);
 
-  const limit = promptLimitOf(view.player);
+  // ★ 联机版提示词上限取**服务端与规则里更严的那个**（服务端只挡 80，规则带事件加成能到 120）：
+  //   照本机那个显示的话，玩家写着 100 字，交片那一发被 PROMPT_TOO_LONG 拒掉（一句看不见上限的红字）。
+  const localLimit = promptLimitOf(view.player);
+  const limit = online ? Math.min(localLimit, ROUND_PROMPT_MAX) : localLimit;
   const length = Array.from(prompt.trim()).length;
   const tableRoles = view.table.roles.filter((card): card is NonNullable<typeof card> => Boolean(card));
   const roleCount = tableRoles.length;
   const itemCount = tableRoles.reduce((sum, card) => sum + (view.equippedOnRole[card.id]?.length ?? 0), 0);
+  const mySubmitted = Boolean(online && snapshot?.entries.some((entry) => entry.userId === online.myUserId));
+  const submittedCount = snapshot?.entries.length ?? 0;
+  // 同桌还活着几个人：hp 读 roundsStore 的**跨回合**记录（开局房间快照 + 每次结算覆盖，见 memberHp 的 ★）
+  const aliveCount = session ? session.members.filter((member) => (memberHp[member.userId] ?? member.hp) > 0).length : 0;
+  const eliminated = view.player.eliminated;
+
+  /** 占位片：先写本机这一期（单机的展映 / 结算也要它），再交给服务端（联机） */
+  const submitPlaceholder = () => {
+    if (eliminated) return;
+    useGame.getState().saveEntry();
+    if (!online) return;
+    void useRounds.getState().submit(entryPayloadOf(view, prompt)).then((ok) => {
+      if (ok) useGame.getState().markOnlineSubmitted();
+    });
+  };
 
   return (
     <div className="pointer-events-auto w-full max-w-[46rem] rounded-xl bg-panel/90 p-1.5 ring-1 ring-white/10 backdrop-blur">
@@ -90,10 +115,10 @@ export default function CreatePanel({ view }: { view: GameView }) {
               <span className="text-[10px] text-slate-500">
                 <Trans>· {roleCount} 角色 / {view.table.scene ? 1 : 0} 场景 / {itemCount} 道具</Trans>
               </span>
-              <GameBtn onClick={() => setGenOpen(true)} tone="primary" className="ml-auto">
+              <GameBtn onClick={() => setGenOpen(true)} tone="primary" className="ml-auto" disabled={eliminated}>
                 <Trans>🎬 视频生成</Trans>
               </GameBtn>
-              <GameBtn onClick={() => useGame.getState().saveEntry()} title={t`不花 token：用占位片交这一期`}>
+              <GameBtn onClick={submitPlaceholder} title={t`不花 token：用占位片交这一期`} disabled={eliminated}>
                 <Trans>用占位片交片</Trans>
               </GameBtn>
             </div>
@@ -110,6 +135,19 @@ export default function CreatePanel({ view }: { view: GameView }) {
                 <Trans>摆好卡、写好提示词：点「🎬 视频生成」真出片（先看首帧）；不想花 token 就交占位片。</Trans>
               )}
             </div>
+            {online && (
+              <div className="text-[9px] font-semibold leading-snug text-brand-200">
+                {eliminated ? (
+                  <Trans>你已经被淘汰——这一局只能看别人打，交片 / 点赞 / 投票都不再收你的。</Trans>
+                ) : mySubmitted ? (
+                  <Trans>
+                    ✅ 已交片，等其他人（{submittedCount}/{aliveCount} 已交）——全员交片后房主才能开始展映。
+                  </Trans>
+                ) : (
+                  <Trans>联机房间：交片会同步给所有人；提交之后这里会写「已交片，等其他人」。</Trans>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -17,6 +17,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useLingui } from "@lingui/react/macro";
 import { ruleFailureText } from "../reasons";
+import { roundsNoteText } from "../roundsReasons";
+import { useRounds } from "../roundsStore";
 import { useGame, type GameNotice } from "../store";
 import { gameViewOf } from "../view";
 // 相机归工坊（studioStore）管，对局这一层**只按商店开没开来敲它的门**（enterShopCam/exitShopCam）。
@@ -29,12 +31,15 @@ import GameDragLayer from "./GameDragLayer";
 import GenPreview from "./GenPreview";
 import GameHud from "./GameHud";
 import ItemRail from "./ItemRail";
+import OnlineScreeningPanel from "./OnlineScreeningPanel";
+import OnlineVotingPanel from "./OnlineVotingPanel";
 import OpponentStrip from "./OpponentStrip";
 import PhaseBar from "./PhaseBar";
 import RoundResultPanel from "./RoundResultPanel";
 import ScreeningPanel from "./ScreeningPanel";
 import ShopPanel from "./ShopPanel";
 import StylePick from "./StylePick";
+import { useOnlineRounds } from "./useOnlineRounds";
 import VotingPanel from "./VotingPanel";
 
 export default function GameLayer() {
@@ -44,7 +49,11 @@ export default function GameLayer() {
   const rejection = useGame((s) => s.rejection);
   const notice = useGame((s) => s.notice);
   const previewOpen = useGame((s) => s.previewOpen);
+  const online = useGame((s) => s.online);
+  const roundsNote = useRounds((s) => s.note);
   const { t } = useLingui();
+  // 联机回合的轮询与对账（**唯一一处**定时器；单机局里这个 hook 什么都不做）
+  useOnlineRounds();
 
   // 轻提示 2.8 秒后自己消失（与 StudioPage 的 Toast 同一种做法：状态留在 store，显示由本地计时器管）
   const [shownNotice, setShownNotice] = useState<GameNotice | null>(null);
@@ -154,6 +163,8 @@ export default function GameLayer() {
         return t`票投出去了`;
       case "abstained":
         return t`这一期弃权了`;
+      case "online-submitted":
+        return t`已交片，等其他人`;
     }
   };
 
@@ -207,6 +218,30 @@ export default function GameLayer() {
               ✕
             </button>
           </div>
+        ) : roundsNote ? (
+          // 联机回合那一句：退回单机 / 这一拍没连上 / 服务端拒了这一步。**必须看得见**（铁律八），
+          // 与 rejection 同一行、同一优先级位置；点了 ✕ 才收掉（2 秒轮询不会把它冲掉）。
+          <div
+            role="status"
+            className={`pointer-events-auto flex max-w-[40rem] items-start gap-1.5 rounded-lg border px-2 py-1 text-[10px] leading-snug ${
+              roundsNote.kind === "fallback"
+                ? "border-danger/40 bg-danger/15 text-danger-100"
+                : "border-gold/40 bg-gold/10 text-gold-100"
+            }`}
+          >
+            <span className="font-semibold" aria-hidden>
+              ↻
+            </span>
+            <span>{roundsNoteText(roundsNote)}</span>
+            <button
+              type="button"
+              onClick={() => useRounds.getState().clearNote()}
+              aria-label={t`关掉这条提示`}
+              className="ml-auto flex-none rounded px-1 text-slate-300 active:bg-white/10"
+            >
+              ✕
+            </button>
+          </div>
         ) : shownNotice ? (
           <div className="pointer-events-none rounded-lg bg-black/65 px-2.5 py-1 text-[10px] leading-snug text-slate-100">
             {noticeText(shownNotice)}
@@ -215,8 +250,8 @@ export default function GameLayer() {
 
         {/* ── 阶段对应的那一屏（商店那一屏在顶部，见上面） ── */}
         {state.phase === "create" && <CreatePanel view={view} />}
-        {!inShop && state.phase === "screening" && <ScreeningPanel />}
-        {!inShop && state.phase === "voting" && <VotingPanel />}
+        {!inShop && state.phase === "screening" && (online ? <OnlineScreeningPanel /> : <ScreeningPanel />)}
+        {!inShop && state.phase === "voting" && (online ? <OnlineVotingPanel /> : <VotingPanel />)}
         {!inShop && state.phase === "event" && <EventPanel view={view} />}
         {!inShop && (state.phase === "round-end" || state.phase === "over") && <RoundResultPanel />}
 

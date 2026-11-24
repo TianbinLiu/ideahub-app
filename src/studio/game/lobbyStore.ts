@@ -113,7 +113,14 @@ export interface LobbyStore {
   joinCode: string;
 
   openLobby: () => void;
-  closeLobby: () => void;
+  /**
+   * 关大厅。
+   * ★ `keepRoom` = 这一下是**开局交接**，不是离开：服务端房间要留给回合引擎用（下一拍 rounds/start /
+   *   rounds/current 都认房间码），这里只清界面、顺手把队列行收掉，**不退房**。
+   *   退房由对局结束时的 roundsStore.leaveNow 负责（联机局打完 / 玩家点结束对局）。
+   *   不加这一位的话，`release()` 会在开局那一刻把房间退掉 —— 症状是"服务端回合刚开，成员已经不在房里"。
+   */
+  closeLobby: (opts?: { keepRoom?: boolean }) => void;
   /** 问一次服务端有没有房间服务（能力位）；返回能不能发房间请求 */
   refreshOnline: () => Promise<boolean>;
   /** 4 人 / 8 人匹配：先进"等匹配"那一屏，联机可用就进队轮询；不可用就本机 AI 补位 */
@@ -337,8 +344,14 @@ export const useLobby = create<LobbyStore>((set, get) => {
       void get().refreshOnline();
     },
 
-    closeLobby: () => {
-      release();
+    closeLobby: (opts) => {
+      if (opts?.keepRoom) {
+        // 开局交接：房间留给对局（回合引擎认这个码）。队列行照旧收掉 —— 匹配成功那一行会在服务端
+        // 留 10 分钟，不清下一次排队会读到旧房号。
+        void cancelMatch();
+      } else {
+        release();
+      }
       set({
         open: false,
         screen: "home",

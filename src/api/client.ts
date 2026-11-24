@@ -64,13 +64,21 @@ export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
   readonly details: unknown;
+  /**
+   * 整份失败回包（`{ok:false, code, message, …}`）。
+   * ★ 2026-11-24 加：有的业务错误把**结构化结果挂在顶层**而不是 `details` 里 —— 对局回合引擎的
+   *   `GAME_OVER` 就是 `{ok:false, code:"GAME_OVER", winners:[…]}`。只留 details 的话客户端
+   *   读不到 winners，只能显示一句「结束了」而没有谁赢了。旧调用方不受影响（新字段，没人读就不看）。
+   */
+  readonly payload: unknown;
 
-  constructor(message: string, status: number, code = "", details?: unknown) {
+  constructor(message: string, status: number, code = "", details?: unknown, payload?: unknown) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.code = code;
     this.details = details;
+    this.payload = payload;
   }
 }
 
@@ -240,7 +248,8 @@ async function request<T>(
       errorMessage(data, res.status),
       res.status,
       isRecord(data) ? String(data.code ?? "") : "",
-      isRecord(data) ? data.details : undefined
+      isRecord(data) ? data.details : undefined,
+      data
     );
   }
 

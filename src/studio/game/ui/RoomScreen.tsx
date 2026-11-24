@@ -84,11 +84,13 @@ export default function RoomScreen({
         </GameBtn>
       </div>
 
-      {/* ── 联机状态一句话：几个真人、空位怎么补 ── */}
+      {/* ── 联机状态一句话：几个真人、空位怎么算 ──
+          ★ 2026-11-24 接回合引擎之后这句话改过一次：以前写"空位开局时由 AI 补齐"，但服务端的回合只认**真人成员**
+            （结算榜按 room.members 算，没有 AI 座位）。再写"AI 补位"就是一句会被下一屏拆穿的假话。 */}
       {online && remote && (
         <p className="text-center text-[10px] leading-snug text-slate-400">
           <Trans>
-            联机房间：{remote.memberCount}/{remote.size} 个真人，空位开局时由 AI 补齐。
+            联机房间：{remote.memberCount}/{remote.size} 个真人；服务端的回合只算真人，空位不参加这一局。
           </Trans>
         </p>
       )}
@@ -154,7 +156,11 @@ export default function RoomScreen({
         ) : host && startBlocked ? (
           <Trans>还有队友没点准备——全员准备好之后房主才能开局。</Trans>
         ) : host ? (
-          <Trans>开局时 {plan.aiCount} 个座位由 AI 陪玩补齐</Trans>
+          online ? (
+            <Trans>这一局按 {remote?.memberCount ?? 0} 个真人开：服务端的回合只算真人，空位不参加。</Trans>
+          ) : (
+            <Trans>开局时 {plan.aiCount} 个座位由 AI 陪玩补齐</Trans>
+          )
         ) : mySeat?.ready ? (
           <Trans>已准备，等房主开局</Trans>
         ) : (
@@ -178,7 +184,7 @@ export default function RoomScreen({
             <div className="my-2 select-all font-mono text-[24px] tracking-[0.3em] text-gold-200">{room.code}</div>
             <p className="text-left text-[10px] leading-snug text-slate-300">
               {online ? (
-                <Trans>把房间码念给朋友：他们在大厅的「加入房间」里输入就能进来。开局时空位由 AI 补上。</Trans>
+                <Trans>把房间码念给朋友：他们在大厅的「加入房间」里输入就能进来。服务端的回合只算真人，空位不参加。</Trans>
               ) : (
                 <Trans>联机还没接通：这个码现在只能念给人听，别人还进不来。开局时空位由 AI 补上。</Trans>
               )}
@@ -218,7 +224,7 @@ function SeatTile({ seat, host, online }: { seat: LobbySeat; host: boolean; onli
       ) : (
         <Trans>未准备</Trans>
       )
-    ) : seat.kind === "ai" || (online && seat.kind === "empty") ? (
+    ) : seat.kind === "ai" ? (
       <Trans>AI 补位</Trans>
     ) : (
       <Trans>空位</Trans>
@@ -230,7 +236,7 @@ function SeatTile({ seat, host, online }: { seat: LobbySeat; host: boolean; onli
         ? seat.ready
           ? "bg-ok/20 text-ok-200"
           : "bg-white/10 text-slate-300"
-        : seat.kind === "ai" || (online && seat.kind === "empty")
+        : seat.kind === "ai"
           ? "bg-brand/20 text-brand-100"
           : "bg-white/[0.04] text-slate-400";
 

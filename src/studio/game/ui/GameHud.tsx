@@ -17,7 +17,11 @@ export default function GameHud({ hud }: { hud: HudModel }) {
   const { t } = useLingui();
   // 血条宽度按 rules.START_HP 归一；血量在规则层已被夹在 0~100（settleRound），这里只防越界
   const hpPct = Math.max(0, Math.min(100, (hud.hp / START_HP) * 100));
-  const round = Math.max(1, Math.min(MAX_ROUNDS, hud.round));
+  // ★ 联机局的回合数可能超过 8（服务端的回合引擎没有 8 回合上限，见 rules.beginRound 的 allowPastLimit）：
+  //   8 段进度条只画前 8 段，超出的回合把 8 段全点亮；aria 的 max 跟着真实回合数走，读屏不会读到越界值。
+  const round = Math.max(1, hud.round);
+  const shownRound = Math.min(MAX_ROUNDS, round);
+  const maxRound = Math.max(MAX_ROUNDS, round);
 
   return (
     <div className="pointer-events-none absolute inset-x-0 top-[calc(env(safe-area-inset-top,0px)+4rem)] flex justify-center px-2">
@@ -27,14 +31,14 @@ export default function GameHud({ hud }: { hud: HudModel }) {
         <div
           role="progressbar"
           aria-valuemin={1}
-          aria-valuemax={MAX_ROUNDS}
+          aria-valuemax={maxRound}
           aria-valuenow={round}
           aria-label={t`对局进度`}
           className="flex flex-1 items-center gap-1"
         >
           {Array.from({ length: MAX_ROUNDS }, (_, i) => {
-            const passed = i + 1 < round;
-            const current = i + 1 === round;
+            const passed = i + 1 < shownRound;
+            const current = i + 1 === shownRound;
             return (
               <span
                 key={i}

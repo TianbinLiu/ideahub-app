@@ -38,6 +38,11 @@ export interface RemoteRoomMember {
   ready: boolean;
   isHost: boolean;
   avatarUrl: string | null;
+  /**
+   * 血量（回合引擎 2026-11-23）：服务端按 `members[].hp` 记，**它是联机对局里 hp 的唯一真相**。
+   * 老房间 / 这一版之前的快照没有这一位，服务端自己按 100 兜底；这里也按同一个口径兜底。
+   */
+  hp: number;
 }
 
 /** 服务端的一间房（`GET /api/game/rooms/:code` 的快照）。 */
@@ -180,6 +185,8 @@ function roomOf(raw: unknown): RemoteRoom | null {
       ready: m.ready === true,
       isHost: m.isHost === true,
       avatarUrl: strOf(m.avatarUrl),
+      // 与服务端 services/gameRound.hpOf 同一个兜底：没这一位（老房间）就是满血
+      hp: numOf(m.hp) ?? 100,
     });
   }
   const statusRaw = strOf(r.status) ?? strOf(r.state) ?? "waiting";

@@ -26,9 +26,11 @@ import { refreshGameTickets } from "../../../data/gameTickets";
 import { useGameTickets } from "../../../hooks/useGameTickets";
 import { chosenOf, nodeDone, realVideoOfNode, useFlow } from "../../flowStore";
 import { useGame } from "../store";
+import { useRounds } from "../roundsStore";
 import { gameGenQuote, gameGenQuoteOf, gameNodeOfRound, gameSegmentSpec, seedGameSegment } from "../gen";
 import { gameRejectText } from "../reasons";
 import type { GameView } from "../view";
+import { entryPayloadOf } from "./entryPayload";
 import GameBtn from "./GameBtn";
 
 export default function GenSheet({ view, onClose }: { view: GameView; onClose: () => void }) {
@@ -37,6 +39,8 @@ export default function GenSheet({ view, onClose }: { view: GameView; onClose: (
   const busy = useFlow((s) => s.busy);
   const flowErr = useFlow((s) => s.err);
   const prompt = useGame((s) => s.createPrompt);
+  const online = useGame((s) => s.online);
+  const eliminated = useGame((s) => s.state?.players.find((player) => player.id === s.meId)?.eliminated ?? false);
   const round = view.hud.round;
   const [drawing, setDrawing] = useState(false);
   /** 券：有券 / 用完 / 这台服务器没有 / 还没读到 —— 三句钱的说明与那一发带不带券头都读它 */
@@ -103,11 +107,20 @@ export default function GenSheet({ view, onClose }: { view: GameView; onClose: (
   };
 
   const submit = () => {
-    if (!node) return;
+    if (!node || eliminated) return;
     const url = realVideoOfNode(node);
     if (!url) return;
     const seconds = prop?.realDurationSec ?? prop?.durationSec;
+    // 本机这一期先写（单机的展映 / 结算要它）；联机再交给服务端（同一份卡名 / 提示词 / 档位，见 entryPayload）
     useGame.getState().saveEntry({ videoUrl: url, seconds });
+    if (online) {
+      void useRounds
+        .getState()
+        .submit(entryPayloadOf(view, useGame.getState().createPrompt, { videoUrl: url, posterUrl: frame || undefined }))
+        .then((ok) => {
+          if (ok) useGame.getState().markOnlineSubmitted();
+        });
+    }
     onClose();
   };
 
@@ -212,7 +225,7 @@ export default function GenSheet({ view, onClose }: { view: GameView; onClose: (
         {done && video && (
           <>
             <video src={video} controls playsInline className="h-[clamp(3.6rem,7.6vw,5rem)] rounded ring-1 ring-white/20" />
-            <GameBtn onClick={submit} tone="gold">
+            <GameBtn onClick={submit} tone="gold" disabled={eliminated}>
               <Trans>用这一条交片</Trans>
             </GameBtn>
             <GameBtn onClick={() => void generate()} disabled={drawing || busy}>
