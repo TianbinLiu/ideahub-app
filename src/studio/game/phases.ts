@@ -34,7 +34,7 @@ import {
   type RuleFailure,
 } from "./rules.ts";
 import * as bots from "./bots.ts";
-import type { GameState, Rng } from "./types";
+import type { GameState, RoundSettlement, RoundTally, Rng } from "./types";
 
 export type PhaseResult = ({ ok: true; state: GameState; lastFailure?: RuleFailure }) | RuleFailure;
 
@@ -397,12 +397,17 @@ export function aiEventChoices(
  *   而这个单机版要回答"这一局谁赢了"。所以剩下的回合让它跑完，玩家直接看胜者。
  * ★ 纯函数、不需要界面：store 在被淘汰的那一拍调一次就够（不占渲染帧，最多 8 个回合）。
  * ★ `rounds: 跑完了几期` 是给脚本 / 复盘念的（界面不读）。
+ * ★ `onSettled`（2026-11-24 晚，本机战绩）：每结算完一期回一次**刚结算的那一份** —— store 用它把
+ *   淘汰之后 AI 跑完的回合也收进本机战绩（否则回放条只到"我出局"那一回合，"共 N 回合"与结束屏对不上）。
+ *   回调拿到的 state 里 `entries` 还在（`openRound` 才清），足够只取"我这一期"那一条。
+ *   不传 = 原来那条"只跑完、不记事"的路，一行行为都不变。
  */
 export function playOutAiOnly(
   state: GameState,
   aiIds: readonly string[],
   prompts: readonly string[],
   rng: Rng,
+  onSettled?: (settled: { state: GameState; summary: RoundSettlement; tally: RoundTally }) => void,
 ): PhaseResult & { rounds?: number } {
   let next = state;
   let rounds = 0;
@@ -443,6 +448,7 @@ export function playOutAiOnly(
       if (!settled.ok) return settled;
       next = settled.state;
       rounds += 1;
+      onSettled?.({ state: settled.state, summary: settled.summary, tally: settled.tally });
       continue;
     }
     // 走不到：上面的分支把 shop / create / screening / voting / event / round-end / over 都接住了。

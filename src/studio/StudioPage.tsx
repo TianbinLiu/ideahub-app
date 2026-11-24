@@ -309,6 +309,13 @@ export default function StudioPage() {
    * ★★ 为什么要延迟一拍再判：React StrictMode 在 dev 里把 effect 走一遍「挂载 → 卸载 → 挂载」，
    *   直接在 cleanup 里 close 会把刚用 `?lobby=1` 打开的大厅当场收掉（dev 里表现为"点了入口没反应"）。
    *   定时器跑的时候若已经重新挂上（alive 又变 true）就什么都不做。
+   *
+   * ★ 战绩 / 回放浮层用**同一个清理点**（2026-11-24 晚，上一轮遗留）：`historyStore.open` 与大厅一样是
+   *   持久值 —— 从上一次对局的结束屏点开回放、没关就按系统返回键离开 `/studio`，下次进来屏幕直接盖着
+   *   上一局的回放（而且那一局的 `code` 还在 store 里，看着像"这一局"）。两处都收在同一个 setTimeout 里：
+   *   只有真离开（alive 仍为 false）才动手，StrictMode 的假卸载照旧什么都不做。
+   *   ★ 这里调 `close()`（不是只把 open 置 false）：它同时把 code / history / 失败原因清掉，并让
+   *     seq 自增作废晚到的回包 —— 否则下一次进来会看到上一局的回放条。
    */
   const studioAlive = useRef(false);
   useEffect(() => {
@@ -318,6 +325,7 @@ export default function StudioPage() {
       window.setTimeout(() => {
         if (studioAlive.current) return;
         if (useLobby.getState().open) useLobby.getState().closeLobby();
+        if (useHistory.getState().open) useHistory.getState().close();
       }, 0);
     };
   }, []);

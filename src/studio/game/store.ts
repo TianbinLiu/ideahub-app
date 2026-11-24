@@ -40,6 +40,7 @@ import {
   applyEventChoice,
   applyOnlineEventChoice,
   settleRoundFromVotes,
+  MODEL_LEVEL_TIERS,
   winnersOf,
   type OnlineEventChoice,
   type RuleFailure,
@@ -59,11 +60,14 @@ import {
   toScreening,
   toVoting,
 } from "./phases";
-import { aiPromptPool } from "./labels";
-import { modelUpgradeGate } from "./genTier";
+import { aiPromptPool, gameCardName, playerName } from "./labels";
+import { effectiveModelLevel, modelUpgradeGate } from "./genTier";
 // 座位 id 与人数换算在 lobby.ts（大厅和这一层认同一份：大厅给几个座位、这里就开几个人的局）
 import { LOCAL_SEAT_ID, seatIdsFor } from "./lobby";
-import type { RemoteSettlement, RemoteWinner } from "../../api/game/rounds";
+// 本机战绩（2026-11-24 晚）：每期结算那一刻收一条，对局结束落盘；读回来的是联机 history 同一份形状
+import { localGameOf, localRoundOf, saveLocalGame, type LocalGameOutcome } from "./localHistory";
+import { localGameOwner } from "./localHistoryOwner";
+import type { RemoteHistoryRound, RemoteSettlement, RemoteWinner } from "../../api/game/rounds";
 import type { GameCard, GameState, RoundSettlement, RoundTally, Rng, TableSlot } from "./types";
 
 /**
@@ -142,6 +146,12 @@ export interface RoundReport {
 }
 
 /**
+ * 刚打完的那一局本机对局**存下来了没有**（2026-11-24 晚，任务第二件）。
+ * 三态的理由与"为什么不能只看存储"写在 `localHistory.LocalGameOutcome` 的 ★ 里（判据也只在那里）。
+ */
+export type LocalHistoryOutcome = LocalGameOutcome;
+
+/**
  * 这一局是不是"从服务端房间开出来的"（联机回合）。
  * ★ 只记**开局那一刻**从大厅/DOM 接过的事实：房间码、我是哪个服务端账号、我是不是房主、开局时我的血。
  *   之后的回合事实（entries / 点赞 / 投票 / 结算）全在 `roundsStore`，这一层不重复存 ——
@@ -202,6 +212,12 @@ export interface GameStore {
    * ★ 只有这一条路会置真：界面据此写明「事件只在本机生效」（不假装跨端一致）。
    */
   onlineLocalEvents: boolean;
+  /**
+   * 这一场会话里最近一局本机对局的落盘结果（见 LocalHistoryOutcome 的 ★）。
+   * ★ 由 `settle` 在"这一局打到 over"那一刻写；`startGame` 清回 null。
+   *   `endGame`（中途退出）**不清** —— 回大厅之后还要靠它分辨"这一局没存下来"与"上一局"。
+   */
+  localHistory: LocalHistoryOutcome;
 
   /**
    * 开一局。`playerCount` = 大厅给的座位数（缺省沿用上一局，首次是 4）。
@@ -283,8 +299,9 @@ export interface GameStore {
    * 交片：用**桌面上的卡**（+ 挂在角色身上的道具）+ 一句提示词。
    * ★ 卡不再由调用方递进来（G4 第 3 步）：一期作品的卡 = rules.castCardsOf(我)，桌面就是"这一期拍什么"。
    * ★ `videoUrl` / `seconds` = 真出片那一发的结果（game/gen 传进来）；没出片就是空镜占位片。
+   * ★ `posterUrl` = 同一发画的那张首帧：本机战绩拿它当回放条封面（联机交片另走 entryPayload.posterUrl）。
    */
-  saveEntry: (patch?: { videoUrl?: string; seconds?: number }) => void;
+  saveEntry: (patch?: { videoUrl?: string; posterUrl?: string; seconds?: number }) => void;
   /** 创作 → 展映（AI 在这一拍点完赞） */
   enterScreening: () => void;
   /** 展映里给一条点赞（每条一次） */
@@ -366,6 +383,56 @@ export const useGame = create<GameStore>((set, get) => {
     return table.roles[slot.index] ?? null;
   };
 
+  /**
+   * 本机这一局**每回合**的战绩（2026-11-24 晚，任务第二件）。
+   * ★ 不进 store state：界面一个字段都不读它（只读"存下来了没有"那个 `localHistory`），
+   *   进了 state 就等于每期结算都让整棵树重渲一次；而它只在 `settle` / `playOutAiOnly` 里追加。
+   * ★ 每期结算那一刻收一条：`state.entries` 在 `beginRound` 就被清掉，过了这一拍就再也拿不到
+   *   "我这一期交的片子"。淘汰之后 AI 跑完的回合由 `playOutAiOnly` 的回调补进来。
+   */
+  let localRounds: RemoteHistoryRound[] = [];
+
+  /** 把刚结算的一期收进本机战绩（联机局不记：服务端有它自己那份历史）。 */
+  const noteLocalRound = (settledState: GameState, summary: RoundSettlement, tally: RoundTally): void => {
+    if (get().online) return;
+    const me = settledState.players.find((player) => player.id === get().meId);
+    localRounds.push(
+      localRoundOf({
+        summary,
+        tally,
+        entries: settledState.entries,
+        meId: get().meId,
+        // 展示名 / 卡名归界面语言那一层（labels）：这一层只把两份函数递下去
+        nameOf: playerName,
+        cardNameOf: gameCardName,
+        // 这一期按哪一档出片（与联机交片的 entryPayload 同一个来源）；拿不到就不编
+        modelTier: me ? MODEL_LEVEL_TIERS[effectiveModelLevel(me.modelLevel)].tier : null,
+      }),
+    );
+  };
+
+  /**
+   * 这一局打到 `over`：把每回合的战绩落盘，并记下**存下来了没有**。
+   * ★ 只在本机局调；写失败不抛也不重试（一次就够，界面会说"这一局的回放没存下来"）。
+   * ★ 落完清空累积：`restart` 会走 `startGame` 再开一局，留着就是两局的回合混在一起。
+   */
+  const saveLocalHistory = (finalState: GameState): void => {
+    if (get().online) return;
+    const record = saveLocalGame({
+      owner: localGameOwner(),
+      meId: get().meId,
+      history: localGameOf({
+        rounds: localRounds,
+        players: finalState.players,
+        winners: winnersOf(finalState),
+        finishedAt: new Date().toISOString(),
+        nameOf: playerName,
+      }),
+    });
+    localRounds = [];
+    set({ localHistory: record ? { kind: "saved", at: record.savedAt } : { kind: "failed" } });
+  };
+
   return {
     state: null,
     meId: LOCAL_PLAYER_ID,
@@ -384,6 +451,7 @@ export const useGame = create<GameStore>((set, get) => {
     onlineSettlement: null,
     onlineWinners: null,
     onlineLocalEvents: false,
+    localHistory: null,
 
     startGame: (seed, opts) => {
       const nextSeed = typeof seed === "number" && Number.isFinite(seed) ? seed >>> 0 : freshSeed();
@@ -429,12 +497,20 @@ export const useGame = create<GameStore>((set, get) => {
         onlineSettlement: null,
         onlineWinners: null,
         onlineLocalEvents: false,
+        // 新的一局：上一局记没记下来归上一局（回放已经落盘或已经说了没存下来）
+        localHistory: null,
       });
+      // 本机战绩的累积从开局清起：`restart` 也走这里（留着就是两局的回合混在一起）
+      localRounds = [];
       return true;
     },
 
     endGame: () => {
       rng = createRng(1);
+      // 中途结束不是"对局结束"：累积丢掉、不落盘（本机战绩只记打完的整局）。
+      // ★ `localHistory`（刚打完那局存没存下来）**不清**：回大厅之后点「最近一局回放」还要靠它
+      //   分辨"这一局没存下来"与"看的是上一局"；下一局开局（startGame）才清。
+      localRounds = [];
       set({
         state: null,
         seed: 0,
@@ -870,6 +946,7 @@ export const useGame = create<GameStore>((set, get) => {
       const saved = submitRoundEntry(state, meId, {
         prompt: createPrompt,
         videoUrl: patch?.videoUrl,
+        posterUrl: patch?.posterUrl,
         seconds: patch?.seconds,
       });
       if (!saved.ok) {
@@ -947,6 +1024,8 @@ export const useGame = create<GameStore>((set, get) => {
       }
       let next = settled.state;
       const report: RoundReport = { summary: settled.summary, tally: settled.tally };
+      // 本机战绩：这一期先收进来（entries 下一回合就清了，这里是唯一还能拿到"我这一期片子"的一拍）
+      noteLocalRound(settled.state, settled.summary, settled.tally);
       // 事件（§2.3b）：AI 先把三选一选掉，真人的选项由事件屏摆出来
       const evented = aiEventChoices(next, aiIdsOf(next), rng);
       if (!evented.ok) {
@@ -962,13 +1041,18 @@ export const useGame = create<GameStore>((set, get) => {
       // ★ 真人被淘汰：这一局对他已经结束，但胜者要等"剩 ≤2 人 / 打满 8 回合"才出 ——
       //   所以让剩下的回合在后台按 AI 自动跑完（phases.playOutAiOnly），玩家直接看到最终胜者。
       if (me?.eliminated && next.phase !== "over") {
-        const played = playOutAiOnly(next, aiIdsOf(next), aiPromptPool(), rng);
+        // 淘汰之后 AI 跑完的那几期也收进本机战绩（否则回放条只到出局那一回合，"共 N 回合"与结束屏对不上）
+        const played = playOutAiOnly(next, aiIdsOf(next), aiPromptPool(), rng, (one) =>
+          noteLocalRound(one.state, one.summary, one.tally),
+        );
         if (!played.ok) {
           fail(played);
           return;
         }
         next = played.state;
       }
+      // 这一局打完了：把每回合的战绩落盘（结束屏与大厅的「最近一局回放」都读这一份）
+      if (next.phase === "over") saveLocalHistory(next);
       done({ state: next, report, eliminatedAtRound, shopOpen: false });
     },
 

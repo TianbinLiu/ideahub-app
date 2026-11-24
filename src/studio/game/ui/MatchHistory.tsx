@@ -3,6 +3,11 @@
 // ★★ 这一屏与大厅是**同一套壳**（absolute inset-0 + bg-ink + 顶栏/内容/底栏三段），挂在 StudioPage
 //   那一层而不是 GameLayer 里：入口有两个 —— 对局结束屏（RoundResultPanel）与大厅的「最近一局回放」；
 //   从前一个进来时 GameLayer 还在，从后一个进来时对局已经收掉了。挂在页面这一层，两个入口看到的是同一份。
+// ★★ 两种来源、一套渲染（2026-11-24 晚，任务第二件）：本机单机局的战绩由 `localHistory` 落盘成
+//   **与联机回包同形**的一份（`RemoteGameHistory`），所以这一屏不认识"来源"——回放条 / 播放器 / summary
+//   全是同一套组件、同一批纯函数（`historyBarsOf` / `historySummaryRowsOf`）；来源只决定三处措辞：
+//   顶部那块标（「本机对局」替代房间码）、summary 那句"按谁结算"、以及"联机读不到时先说一句这是本机的"。
+//   写第二套组件（本机一套 / 联机一套）就是铁律六里那种"迟早两边说的不是一回事"。
 // ★ 数据只走 store（`historyStore`）：这一屏自己不发请求、不算名次、不算合计。回放条怎么取数在
 //   `studio/game/history.ts`（纯函数，构建门禁直接跑）；失败怎么说是 `historyReasons.ts`（唯一一处）。
 // ★ 播放器用原生 `<video controls>`：这一屏要的是"点一条、看到那一段"，不需要 SegmentPlayer 的
@@ -14,7 +19,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { placeholderColors, placeholderHue } from "../art";
 import { historyBarsOf, historyRowIsMine, historyRetryAllowed, historySummaryRowsOf, type HistoryBar } from "../history";
-import { historyFailureText, historyNoReplayText } from "../historyReasons";
+import { historyFailureText, historyLocalMissingText, historyNoReplayText } from "../historyReasons";
 import { useHistory } from "../historyStore";
 import { useGame } from "../store";
 import { useLobby } from "../lobbyStore";
@@ -55,6 +60,12 @@ export default function MatchHistory() {
   const failure = useHistory((s) => s.failure);
   const attempts = useHistory((s) => s.attempts);
   const myUserId = useHistory((s) => s.myUserId);
+  /** 画的是联机那间房还是本机最近一局（本机记录与联机回包同一份形状，只有顶部那块标与几句说明不同） */
+  const source = useHistory((s) => s.source);
+  /** 打开时点的是联机那一局、读不到才退回本机（顶部要说明，别让人以为这就是他点的那一局） */
+  const fallback = useHistory((s) => s.fallback);
+  /** 退路是哪一种（本机局没存过 / 这一局没存下来 / 这台服务器没有回放） */
+  const block = useHistory((s) => s.block);
 
   /** 正在看哪一条（null = 没开播放器）；关屏 / 换一局时一起收掉 */
   const [playing, setPlaying] = useState<HistoryBar | null>(null);
@@ -97,20 +108,28 @@ export default function MatchHistory() {
   return (
     <div
       data-match-history={status}
+      data-history-source={source ?? undefined}
       role="dialog"
       aria-modal="true"
       aria-label={t`本局战绩`}
       className="pointer-events-auto absolute inset-0 z-50 flex flex-col bg-ink text-slate-100"
     >
-      {/* ── 顶栏：标题 + 房间码 + 结束时间 + 关闭 ── */}
+      {/* ── 顶栏：标题 + 房号 / 本机对局 + 结束时间 + 关闭 ── */}
       <header className="flex flex-none items-center gap-2 border-b border-white/10 px-3 py-1.5">
         <span className="text-[13px] font-bold tracking-wide">
           📼 <Trans>本局战绩</Trans>
         </span>
-        {code && (
-          <span className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-[10px] tracking-[0.15em] text-slate-200 ring-1 ring-white/10">
-            {code}
+        {source === "local" ? (
+          // 本机局没有房号：这块标是它与联机那一局唯一的区别（同一套组件、同一个顶栏）
+          <span className="rounded bg-gold/15 px-1.5 py-0.5 text-[10px] font-semibold text-gold-200 ring-1 ring-gold/40">
+            <Trans>本机对局</Trans>
           </span>
+        ) : (
+          code && (
+            <span className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-[10px] tracking-[0.15em] text-slate-200 ring-1 ring-white/10">
+              {code}
+            </span>
+          )
         )}
         {history && (
           <span className="text-[10px] text-slate-400">
@@ -150,7 +169,13 @@ export default function MatchHistory() {
 
       {status === "blocked" && (
         <Fallback
-          text={historyNoReplayText()}
+          // 本机局该有记录却读不出来（写失败 / 存储坏了）：如实说，不拿"没有回放"糊过去
+          text={block === "local-missing" ? historyLocalMissingText() : historyNoReplayText()}
+          hunch={
+            block === "local-missing" ? (
+              <Trans>对局本身已经结束（战绩在刚才那一屏上）；本机存储写不进去或读不出来，这一局的回放就没了。</Trans>
+            ) : null
+          }
           onBack={backToLobby}
         />
       )}
@@ -172,6 +197,12 @@ export default function MatchHistory() {
         />
       ) : (
         <>
+          {/* 打开的是联机那一局、读不到才退回本机：一句说明，别让人以为这就是他点的那一局 */}
+          {source === "local" && fallback && (
+            <div className="flex-none px-3 pt-1 text-[10px] leading-snug text-warn-200">
+              <Trans>联机那一局的战绩没读到，这是本机最近一局回放</Trans>
+            </div>
+          )}
           {/* ── 回放带：每回合一条，横向滚动 ── */}
           <section className="flex-none px-3 pt-1.5">
             <div className="flex items-baseline gap-2 text-[10px] text-slate-400">
@@ -204,7 +235,12 @@ export default function MatchHistory() {
                 <Trans>本局统计</Trans>
               </span>
               <span className="min-w-0 truncate">
-                <Trans>名次、夺冠与合计都按服务端结算</Trans>
+                {source === "local" ? (
+                  // 本机局没有服务端：这张表是本机规则层算的（与联机那一份的口径逐条对齐，但不是服务端结的账）
+                  <Trans>名次、夺冠与合计都是本机对局里算的</Trans>
+                ) : (
+                  <Trans>名次、夺冠与合计都按服务端结算</Trans>
+                )}
               </span>
               <span className="ml-auto flex-none text-brand-200">
                 {summaryOpen ? <Trans>▲ 收起</Trans> : <Trans>▼ 展开</Trans>}

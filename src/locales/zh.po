@@ -9440,8 +9440,16 @@ msgid "最火作品"
 msgstr "最火作品"
 
 #: src/studio/game/ui/Lobby.tsx
-msgid "最近一局：{lastRoomCode}"
-msgstr "最近一局：{lastRoomCode}"
+#~ msgid "最近一局：{lastRoomCode}"
+#~ msgstr "最近一局：{lastRoomCode}"
+
+#: src/studio/game/ui/Lobby.tsx
+msgid "最近一局：{replayCode}"
+msgstr "最近一局：{replayCode}"
+
+#: src/studio/game/ui/Lobby.tsx
+msgid "最近一局：本机对局"
+msgstr "最近一局：本机对局"
 
 #: src/studio/game/ui/Lobby.tsx
 msgid "最近一局回放"
@@ -12850,6 +12858,10 @@ msgstr "名次 = 服务端按两个榜合出来的顺序（分 = 点赞名次 + 
 msgid "名次、夺冠与合计都按服务端结算"
 msgstr "名次、夺冠与合计都按服务端结算"
 
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "名次、夺冠与合计都是本机对局里算的"
+msgstr "名次、夺冠与合计都是本机对局里算的"
+
 #: src/studio/game/reasons.ts
 msgid "名次名单和存活玩家对不上，这次结算没有生效"
 msgstr "名次名单和存活玩家对不上，这次结算没有生效"
@@ -14229,6 +14241,10 @@ msgstr "对局大厅是横屏的：把手机横过来就能开局。"
 #: src/pages/AdminPage.tsx
 msgid "对局投稿：房间 {0} · 第 {1} 回合"
 msgstr "对局投稿：房间 {0} · 第 {1} 回合"
+
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "对局本身已经结束（战绩在刚才那一屏上）；本机存储写不进去或读不出来，这一局的回放就没了。"
+msgstr "对局本身已经结束（战绩在刚才那一屏上）；本机存储写不进去或读不出来，这一局的回放就没了。"
 
 #: src/studio/game/labels.ts
 msgid "对局结束"
@@ -20335,6 +20351,10 @@ msgstr "本服务尚未接入支付渠道，下单后无法完成付款"
 #: src/pages/CustomCardPage.tsx
 msgid "本机存储写入失败（配额满或隐私模式）"
 msgstr "本机存储写入失败（配额满或隐私模式）"
+
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "本机对局"
+msgstr "本机对局"
 
 #: src/studio/game/ui/PlayerPanel.tsx
 #~ msgid "本机局：其余座位由 AI 补位，不能拉黑或举报"
@@ -27960,6 +27980,10 @@ msgstr "联机版不能给自己的片子点赞"
 msgid "联机还没接通：这个码现在只能念给人听，别人还进不来。开局时空位由 AI 补上。"
 msgstr "联机还没接通：这个码现在只能念给人听，别人还进不来。开局时空位由 AI 补上。"
 
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "联机那一局的战绩没读到，这是本机最近一局回放"
+msgstr "联机那一局的战绩没读到，这是本机最近一局回放"
+
 #. placeholder {0}: tk.contactEmail
 #: src/components/support/AdminTicketsView.tsx
 msgid "联系邮箱 {0}"
@@ -30694,6 +30718,10 @@ msgstr "这一局没有回放（房间已结束或本机对局）"
 #: src/studio/game/ui/StylePick.tsx
 msgid "这一局没有抽到风格卡（数据不对）——去右栏结束对局再开一局。"
 msgstr "这一局没有抽到风格卡（数据不对）——去右栏结束对局再开一局。"
+
+#: src/studio/game/historyReasons.ts
+msgid "这一局的回放没存下来"
+msgstr "这一局的回放没存下来"
 
 #: src/studio/game/lobbyReasons.ts
 msgid "这一局的房间已经结束"

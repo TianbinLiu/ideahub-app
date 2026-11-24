@@ -24,6 +24,8 @@ import url from "node:url";
 const root = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), "..");
 const load = (rel) => import(url.pathToFileURL(path.join(root, rel)).href);
 const H = await load("src/studio/game/history.ts");
+// 本机战绩（2026-11-24 晚）：纯映射 + localStorage 读写 + 读侧校验，同一个模块 Node 直接 import
+const L = await load("src/studio/game/localHistory.ts");
 
 const problems = [];
 let positive = 0;
@@ -165,7 +167,191 @@ eq("首次失败还能再试一次", H.historyRetryAllowed(1), true);
 eq("重试过一次之后不再给重试键", H.historyRetryAllowed(2), false);
 eq("没发过 / 更早的次数也不拦", H.historyRetryAllowed(0), true);
 
-// ── ⑨ 界面接线（这几处要 React，Node 跑不起来；用源码断言钉住） ────────────────
+// ── ⑨ 本机战绩：一期的形状映射（2026-11-24 晚，任务第二件） ────────────────────
+// 本机局没有服务端，但**形状照联机那一份**翻译过去 —— 下面几条用真的 historyBarsOf /
+// historySummaryRowsOf 去读本机记录的产物，证明"一套渲染两种来源"不是嘴上说的。
+const nameOf = (id) => ({ me: "我", "ai-1": "对手 A" }[id] ?? id);
+const cardNameOf = (card) => card.name;
+const localEntry = ({ round, playerId, videoUrl, posterUrl }) => ({
+  id: `r${round}-${playerId}`,
+  round,
+  playerId,
+  cards: [{ id: "role-lead#1", type: "role", quality: 4, name: "Lead" }],
+  prompt: `第 ${round} 期：雨夜回头`,
+  styleCardId: "cel-cyberpunk",
+  seconds: 5,
+  ...(videoUrl ? { videoUrl } : {}),
+  ...(posterUrl ? { posterUrl } : {}),
+  likedBy: [],
+  votedBy: [],
+});
+const damageRow = (playerId, rank, damage, hpAfter) => ({
+  playerId,
+  rank,
+  damage,
+  hpBefore: hpAfter + damage,
+  hpAfter,
+  eliminated: false,
+});
+const tallyRow = (playerId, likes, votes, likeRank, voteRank, rank) => ({
+  entryId: `r1-${playerId}`,
+  playerId,
+  likes,
+  votes,
+  likeRank,
+  voteRank,
+  score: likeRank + voteRank,
+  rank,
+});
+const localRoundInput = ({ round, order, damages, tallies, entries, modelTier = "hd" }) => ({
+  summary: {
+    round,
+    ranking: order,
+    damages,
+    eliminated: [],
+    alive: order,
+    winners: [],
+    streaks: [],
+  },
+  tally: {
+    round,
+    entries: tallies,
+    ranking: order,
+    likeBoard: tallies.map((one) => one.entryId),
+    voteBoard: tallies.map((one) => one.entryId),
+  },
+  entries,
+  meId: "me",
+  nameOf,
+  cardNameOf,
+  modelTier,
+});
+
+// 第 1 回合：AI 第 1、我第 2；我这条是真出片（有片子 + 首帧）
+const r1Input = localRoundInput({
+  round: 1,
+  order: ["ai-1", "me"],
+  damages: [damageRow("ai-1", 1, 0, 100), damageRow("me", 2, 7, 93)],
+  tallies: [tallyRow("ai-1", 4, 3, 1, 1, 1), tallyRow("me", 2, 1, 2, 2, 2)],
+  entries: [
+    localEntry({ round: 1, playerId: "ai-1" }),
+    localEntry({ round: 1, playerId: "me", videoUrl: "https://cdn.example/me-r1.mp4", posterUrl: "https://cdn.example/me-r1.jpg" }),
+  ],
+});
+// 第 2 回合：我第 1；这一期只拿到本机 blob 地址（活不过重启 → 必须当占位片）
+const r2Input = localRoundInput({
+  round: 2,
+  order: ["me", "ai-1"],
+  damages: [damageRow("me", 1, 0, 100), damageRow("ai-1", 2, 7, 93)],
+  tallies: [tallyRow("me", 5, 4, 1, 1, 1), tallyRow("ai-1", 1, 0, 2, 2, 2)],
+  entries: [localEntry({ round: 2, playerId: "me", videoUrl: "blob:http://localhost/dead-on-restart" })],
+});
+const localR1 = L.localRoundOf(r1Input);
+const localR2 = L.localRoundOf(r2Input);
+eq("本机一期：只落我这一条投稿（别人的片子这一版没有入口）", localR1.entries.map((one) => one.userId), ["me"]);
+eq(
+  "本机一期：我这一期的片子 / 封面 / 卡名 / 提示词 / 档位",
+  [localR1.entries[0].videoUrl, localR1.entries[0].posterUrl, localR1.entries[0].cardNames, localR1.entries[0].prompt, localR1.entries[0].modelTier],
+  ["https://cdn.example/me-r1.mp4", "https://cdn.example/me-r1.jpg", ["Lead"], "第 1 期：雨夜回头", "hd"],
+);
+eq("本机一期：结算榜整榜都收（summary 要累加别人的数）", localR1.settlement.ranking.map((row) => row.userId), ["ai-1", "me"]);
+eq(
+  "本机一期：我这一行的名次 / 扣血 / 剩血 / 计数",
+  [localR1.settlement.ranking[1].composite, localR1.settlement.ranking[1].damage, localR1.settlement.ranking[1].hp, localR1.settlement.ranking[1].likes, localR1.settlement.ranking[1].votes],
+  [4, 7, 93, 2, 1],
+);
+eq("本机一期：blob 地址活不过重启 → 当占位投稿（不做成一块黑）", [localR2.entries[0].videoUrl, localR2.entries[0].placeholder], [null, true]);
+
+const localHistory = L.localGameOf({
+  rounds: [localR1, localR2],
+  players: [
+    { id: "me", hp: 100, eliminated: false },
+    { id: "ai-1", hp: 93, eliminated: false },
+  ],
+  winners: ["me"],
+  finishedAt: "2026-11-24T09:00:00.000Z",
+  nameOf,
+});
+const localBars = H.historyBarsOf(localHistory, "me");
+eq("同一套渲染映射：本机两回合 = 两条回放条", localBars.map((bar) => bar.round), [1, 2]);
+eq(
+  "同一套映射：第 1 回合的名次 / 扣血 / 片子 / 点赞 / 票数",
+  [localBars[0].mine.rank, localBars[0].mine.damage, localBars[0].videoUrl, localBars[0].likes, localBars[0].votes],
+  [2, 7, "https://cdn.example/me-r1.mp4", 2, 1],
+);
+eq("同一套映射：第 2 回合只有占位片（播放器不摆空的 <video>）", [localBars[1].placeholder, localBars[1].videoUrl], [true, null]);
+const localRows = H.historySummaryRowsOf(localHistory);
+eq("本机 summary：一行一玩家、顺序 = 座位", localRows.map((row) => row.userId), ["me", "ai-1"]);
+eq("本机 summary：夺冠 / 累计点赞 / 累计票", [localRows[0].wins, localRows[0].likesTotal, localRows[0].votesTotal], [1, 7, 5]);
+eq("本机 summary：最好的一回合（并列取较早）", [localRows[0].bestRound, localRows[1].bestRound], [2, 1]);
+eq("本机 summary：已结算回合数 = 记录里的回合数", localHistory.summary.roundsPlayed, 2);
+ok("本机记录没有房号（顶栏不摆房间码，改摆「本机对局」）", localHistory.room.code === "" && localHistory.room.state === "over");
+ok("本机胜者记在 room.winners（与联机回包同一位）", JSON.stringify(localHistory.room.winners) === JSON.stringify(["me"]));
+
+// 淘汰之后 AI 跑完的回合：没有我的投稿 / 也没有我的结算行，但**条数不能少**（否则"共 N 回合"对不上）
+const r3Input = localRoundInput({
+  round: 3,
+  order: ["ai-1"],
+  damages: [damageRow("ai-1", 1, 0, 93)],
+  tallies: [tallyRow("ai-1", 1, 0, 1, 1, 1)],
+  entries: [],
+});
+const eliminatedRound = L.localRoundOf(r3Input);
+const eliminatedBars = H.historyBarsOf({ ...localHistory, rounds: [...localHistory.rounds, eliminatedRound] }, "me");
+eq("淘汰后的回合也有一条回放条（条数 = 回合数）", eliminatedBars.map((bar) => bar.round), [1, 2, 3]);
+eq("淘汰后的回合：没有我这一期的投稿、没有我的名次", [eliminatedBars[2].hasEntry, eliminatedBars[2].mine], [false, null]);
+
+// ── ⑩ 本机战绩的落盘：按账号、最多 5 局、坏数据 / 写失败都要说得出话 ───────────
+// ★ 这两条是"零症状"里最贵的那种：写失败之后读到的**上一局**会被当成这一局摆出来。
+//   所以本脚本既核"留 5 局"，也核"最新那条坏了不许退回上一局"。
+const memory = new Map();
+let writeError = null;
+globalThis.localStorage = {
+  getItem: (key) => (memory.has(key) ? memory.get(key) : null),
+  setItem: (key, value) => {
+    if (writeError) throw writeError;
+    memory.set(key, String(value));
+  },
+  removeItem: (key) => memory.delete(key),
+};
+const saveGame = (owner, savedAt) => L.saveLocalGame({ owner, meId: "me", history: localHistory, savedAt });
+ok("写一局：存下来了", saveGame("A", 1000) !== null);
+eq("读回来就是那一局", L.readLatestLocalGame("A").kind, "ok");
+eq("按账号分开：别人那份读不到", L.readLatestLocalGame("B").kind, "none");
+saveGame("A", 2000);
+eq("新的在前（大厅的「最近一局」读第一条）", [L.readLatestLocalGame("A").record.savedAt, L.readLocalGames("A").length], [2000, 2]);
+for (let at = 3000; at <= 7000; at += 1000) saveGame("A", at);
+eq("最多留最近 5 局", L.readLocalGames("A").map((one) => one.savedAt), [7000, 6000, 5000, 4000, 3000]);
+eq("最早的几局被丢掉（不是无限长）", L.readLocalGames("A").some((one) => one.savedAt === 1000), false);
+memory.set(L.LOCAL_HISTORY_KEY, "{坏掉的 JSON");
+eq("整份读不出来 → broken（界面说这一局的回放没存下来）", L.readLatestLocalGame("A").kind, "broken");
+memory.delete(L.LOCAL_HISTORY_KEY);
+saveGame("A", 1000);
+const stored = JSON.parse(memory.get(L.LOCAL_HISTORY_KEY));
+stored.A = [{ v: 1, owner: "A", savedAt: 9999, meId: "me" }, ...stored.A];
+memory.set(L.LOCAL_HISTORY_KEY, JSON.stringify(stored));
+eq("最新那条坏了 → broken，绝不悄悄退回上一局", [L.readLatestLocalGame("A").kind, L.readLocalGames("A").length], ["broken", 1]);
+memory.delete(L.LOCAL_HISTORY_KEY);
+writeError = new Error("quota");
+// 这一发故意让存储写失败；saveLocalGame 自己会 warn 一行（stderr），把这一行收掉，别让 CI 日志看着像坏了
+const warnAt = console.warn;
+console.warn = () => {};
+eq("存储写不进去 → saveLocalGame 回 null（界面说没存下来）", saveGame("A", 3000), null);
+console.warn = warnAt;
+writeError = null;
+
+// ── ⑪ 「这一局」该不该看本机存储：写失败时不许拿存储里上一局顶替 ─────────────
+// ★ 这条是零报错里最坏的一种：屏幕上摆着一局看起来正常的战绩，其实是上一局的片子。
+const okRecord = (savedAt) => ({ kind: "ok", record: { savedAt } });
+eq("这一局存下来了 → 看本机那一局", L.localPickOf({ kind: "saved", at: 1000 }, okRecord(1000)), "show");
+eq("写失败（没存下来）→ 不许拿存储里上一局顶替", L.localPickOf({ kind: "failed" }, okRecord(900)), "missing");
+eq("存下来了但读到的不是这一局（被清 / 换人）→ 说没存下来", L.localPickOf({ kind: "saved", at: 1000 }, okRecord(900)), "missing");
+eq("刚存过却读不到 → 没存下来", L.localPickOf({ kind: "saved", at: 1000 }, { kind: "none" }), "missing");
+eq("读出来是坏数据 → 没存下来", L.localPickOf(null, { kind: "broken" }), "missing");
+eq("这一场会话没打过本机局、存储里也没有 → none（大厅不摆入口）", L.localPickOf(null, { kind: "none" }), "none");
+eq("这一场会话没打过、但存储里有上一局 → 看它（大厅的最近一局）", L.localPickOf(null, okRecord(500)), "show");
+
+// ── ⑫ 界面接线（这几处要 React，Node 跑不起来；用源码断言钉住） ────────────────
 const read = (rel) => fs.readFileSync(path.join(root, rel), "utf8");
 const roundsSrc = read("src/api/game/rounds.ts");
 const capsSrc = read("src/data/serverCaps.ts");
@@ -175,12 +361,21 @@ const resultSrc = read("src/studio/game/ui/RoundResultPanel.tsx");
 const lobbySrc = read("src/studio/game/ui/Lobby.tsx");
 const studioSrc = read("src/studio/StudioPage.tsx");
 const startSrc = read("src/studio/game/ui/startFromLobby.ts");
+const gameSrc = read("src/studio/game/store.ts");
+const phasesSrc = read("src/studio/game/phases.ts");
+const ownerSrc = read("src/studio/game/localHistoryOwner.ts");
+const genSheetSrc = read("src/studio/game/ui/GenSheet.tsx");
+const typesSrc = read("src/studio/game/types.ts");
 
 ok("API 层有 readHistory（历史端点）", roundsSrc.includes("export function readHistory(") && roundsSrc.includes("/rounds/history"));
 ok("API 层复用 10 秒超时", roundsSrc.includes("ROUNDS_TIMEOUT_MS"));
 ok("能力位 gameHistory 在 ServerCaps 里", capsSrc.includes("gameHistory") && capsSrc.includes("export function serverGameHistory()"));
 ok("store 只在 historyPlanOf 放行之后调 readHistory", storeSrc.includes("historyPlanOf(") && storeSrc.includes("if (!plan.request)") && storeSrc.includes("readHistory("));
-ok("能力位为假时 store 不 load（判定命中后当场 blockWith 返回，不落到 load）", /if \(!plan\.request\) \{\s*blockWith\(/.test(storeSrc));
+// 能力位为假那一支：只读本机记录，然后 blockWith 返回 —— 整支里不许出现 load（那一发要发请求）
+ok(
+  "能力位为假时不 load（那一支只读本机记录，然后 blockWith 返回）",
+  /if \(!plan\.request\) \{(?:(?!\n      \})[\s\S])*showLocal\([^)]*\)[\s\S]{0,120}blockWith\("off"/.test(storeSrc),
+);
 ok("store 读历史只有一处（load 里的那一发）", (storeSrc.match(/await readHistory\(/g) ?? []).length === 1);
 ok("回放条数量由 historyBarsOf 从 rounds 来", pageSrc.includes("historyBarsOf(history, myUserId)"));
 ok("summary 行由 historySummaryRowsOf 从 perPlayer 来", pageSrc.includes("historySummaryRowsOf(history)"));
@@ -191,11 +386,38 @@ ok("回放带可横向滚动、封面 96×54", pageSrc.includes("overflow-x-auto
 ok("summary 可折叠 + 自己的滚动区", pageSrc.includes("setSummaryOpen") && pageSrc.includes("overflow-y-auto"));
 ok("尊重 prefers-reduced-motion", pageSrc.includes("motion-reduce:"));
 ok("结束屏有「📼 查看回放」入口", resultSrc.includes("HistoryReplayButton") && resultSrc.includes("code={online.roomCode}"));
-ok("本机单机局的结束屏也摆入口（打开后说没有回放）", resultSrc.includes("code={null}"));
-ok("大厅有「最近一局回放」入口且读本地记录", lobbySrc.includes("lastHistoryRoomFor") && lobbySrc.includes("最近一局回放"));
-ok("大厅能力位明确为假时不摆入口", lobbySrc.includes("serverGameHistory() !== false"));
+ok("本机单机局的结束屏也摆入口", resultSrc.includes("code={null}"));
+ok("大厅有「最近一局回放」入口且读联机那一路的本地记录", lobbySrc.includes("lastHistoryRoomFor") && lobbySrc.includes("最近一局回放"));
+ok("大厅能力位明确为假时不摆联机那一路", lobbySrc.includes("serverGameHistory() !== false"));
 ok("浮层挂在 StudioPage（横屏）并让 3D 停帧", studioSrc.includes("<MatchHistory") && studioSrc.includes("historyOpen"));
 ok("联机开局成功时记下最近一局", startSrc.includes("saveLastHistoryRoom({ code: remote.code, userId: myUserId })"));
+
+// ── ⑫ 本机战绩的接线（任务第二件） ─────────────────────────────────────────────
+ok(
+  "离开 /studio 时把回放浮层收掉（与大厅同一个清理点）",
+  /studioAlive\.current = false;[\s\S]{0,700}if \(useHistory\.getState\(\)\.open\) useHistory\.getState\(\)\.close\(\);/.test(studioSrc),
+);
+ok(
+  "收浮层在延迟一拍之后（StrictMode 假卸载不关、真卸载才关）",
+  /window\.setTimeout\(\(\) => \{\s*if \(studioAlive\.current\) return;[\s\S]{0,300}useHistory\.getState\(\)\.close\(\)/.test(studioSrc),
+);
+ok("每期结算收一条本机战绩（entries 下一回合就清了）", gameSrc.includes("noteLocalRound(settled.state, settled.summary, settled.tally)"));
+ok("淘汰后 AI 跑完的回合也收（playOutAiOnly 的回调）", /playOutAiOnly\([\s\S]{0,260}noteLocalRound\(/.test(gameSrc) && phasesSrc.includes("onSettled?.("));
+ok("这一局打到 over 才落盘", /if \(next\.phase === "over"\) saveLocalHistory\(next\)/.test(gameSrc));
+ok("落盘结果分 saved / failed（界面据此说没存下来）", gameSrc.includes('{ kind: "saved", at: record.savedAt }') && gameSrc.includes('{ kind: "failed" }'));
+ok("开新局 / 中途结束都清掉累积（不把两局的回合混在一起）", (gameSrc.match(/localRounds = \[\];/g) ?? []).length >= 3);
+ok("本机记录记在谁名下只有一处（localHistoryOwner）", ownerSrc.includes('deviceOwner() || "guest"') && (gameSrc.match(/localGameOwner\(\)/g) ?? []).length === 1);
+ok("交片把首帧一起记下（本机战绩的封面）", /saveEntry\(\{ videoUrl: url, posterUrl: frame \|\| undefined, seconds \}\)/.test(genSheetSrc));
+ok("投稿形状多了 posterUrl（本机战绩的封面来源）", typesSrc.includes("posterUrl?: string") && read("src/studio/game/rules.ts").includes("input.posterUrl"));
+ok("本机局不发请求、直接读本机记录", /if \(plan\.kind === "local"\) \{[\s\S]{0,320}showLocal\(\)/.test(storeSrc));
+ok("本机取舍只问 localPickOf（写失败不许拿上一局顶替）", storeSrc.includes("localPickOf(outcome, read)"));
+ok("联机读不到时退回本机那一局（带 fallback 说明）", /if \(showLocal\(\{ failure, fallback: true \}\) === "shown"\) return;/.test(storeSrc));
+ok("两种来源只多一个 source（history 是同一份类型）", storeSrc.includes('source: "local"') && storeSrc.includes('source: "remote"'));
+ok("浮层顶部标「本机对局」并标出来源", pageSrc.includes("data-history-source") && pageSrc.includes("本机对局"));
+ok("本机局的 summary 不再说「按服务端结算」", pageSrc.includes("名次、夺冠与合计都是本机对局里算的"));
+ok("本机记录该有却没有时如实说「没存下来」", pageSrc.includes("historyLocalMissingText()") && read("src/studio/game/historyReasons.ts").includes("这一局的回放没存下来"));
+ok("大厅的「最近一局」也认本机记录", lobbySrc.includes("readLatestLocalGame(") && lobbySrc.includes("localGameOwner()"));
+ok("大厅按更近的那一局挑联机 / 本机两路", lobbySrc.includes("savedAt >= lastRoomAt") && lobbySrc.includes("replayCode"));
 
 // ── 汇总 ─────────────────────────────────────────────────────────────────────
 for (const p of problems) console.error(`❌ ${p}`);
@@ -203,4 +425,4 @@ if (problems.length) {
   console.error(`\n❌ 战绩 / 回放检查没过：${problems.length} 处（正例 ${positive} 条）\n`);
   process.exit(1);
 }
-console.log(`✓ 战绩 / 回放检查通过：${positive} 条（回放条 / 名次 / summary / 退路 / 重试 / 接线）`);
+console.log(`✓ 战绩 / 回放检查通过：${positive} 条（回放条 / 名次 / summary / 退路 / 重试 / 本机战绩 / 接线）`);

@@ -86,6 +86,12 @@ export interface RoundEntry {
    *   而不是塞一个空地址给 <video>（那会是一块黑，见 flowStore.isRealVideoUrl 的 ★）。
    */
   videoUrl?: string;
+  /**
+   * 这一期出片时画的那张首帧（`Proposal.firstFrame`）：本机战绩的封面（game/gen 的「用这一条交片」传进来）。
+   * ★ 只有本机局用；联机交片时同一张图走 `entryPayload.posterUrl` 发给服务端，那边存自己的一份。
+   *   没有它 = 回放条画占位色块（与联机历史里 posterUrl 为空时同一个样子）。
+   */
+  posterUrl?: string;
   /** 点过赞的人（每人对同一条只能一次；**自己也可以点** —— 见 rules.likeEntry 的 ★）。 */
   likedBy: string[];
   /** 投给它的人（一人一票、不能投自己；弃权的人不在这里，见 GameState.abstained）。 */

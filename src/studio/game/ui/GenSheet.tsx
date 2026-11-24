@@ -112,7 +112,8 @@ export default function GenSheet({ view, onClose }: { view: GameView; onClose: (
     if (!url) return;
     const seconds = prop?.realDurationSec ?? prop?.durationSec;
     // 本机这一期先写（单机的展映 / 结算要它）；联机再交给服务端（同一份卡名 / 提示词 / 档位，见 entryPayload）
-    useGame.getState().saveEntry({ videoUrl: url, seconds });
+    // 首帧一并交给本机那一期当封面（本机战绩的回放条读它；不给就是一块占位色）
+    useGame.getState().saveEntry({ videoUrl: url, posterUrl: frame || undefined, seconds });
     if (online) {
       void useRounds
         .getState()

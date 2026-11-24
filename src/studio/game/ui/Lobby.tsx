@@ -37,7 +37,9 @@ import { fmtTokens } from "../../../data/economy";
 import { resetDayOf } from "../../../data/gameTicketRules";
 import { serverGameHistory } from "../../../data/serverCaps";
 import { UPGRADE_HREF } from "../../../components/UpgradeLink";
-import { lastHistoryRoomFor } from "../historyLastRoom";
+import { lastHistoryRoomFor, readLastHistoryRoom } from "../historyLastRoom";
+import { readLatestLocalGame } from "../localHistory";
+import { localGameOwner } from "../localHistoryOwner";
 import { useHistory } from "../historyStore";
 import GameBtn from "./GameBtn";
 import RoomScreen from "./RoomScreen";
@@ -95,16 +97,30 @@ export default function Lobby() {
   const openWallet = () => navigate(UPGRADE_HREF);
 
   /**
-   * 「最近一局回放」入口（2026-11-24）：房号来自本机记录（`historyLastRoom`，开局成功那一刻写的），
-   * 不是服务端事实 —— 大厅这时候没有房间会话。
+   * 「最近一局回放」入口（2026-11-24）：联机那一路的房号来自本机记录（`historyLastRoom`，开局成功那一刻写的），
+   * 不是服务端事实 —— 大厅这时候没有房间会话；本机单机局没有房号，读的是 `localHistory` 落的那一份。
    * ★ 只在首屏摆（等匹配 / 房间屏里摆一个"上一局"会跟眼前的开局流程抢注意力）。
-   * ★ 能力位**明确为假**时不摆（服务端 docs：读不到 gameHistory = 老服务端，App 不摆战绩 / 回放）；
+   * ★ 能力位**明确为假**时不摆**联机**那一路（服务端 docs：读不到 gameHistory = 老服务端，App 不摆联机战绩 / 回放）；
    *   还没探到（null）照摆 —— 大厅先进来、健康探测慢半拍是常态，藏起来等于让刚打完的人找不到入口。
-   * ★ 没有记录 / 不是当前账号那一局 → 不摆（理由见 historyLastRoom 的文件头）。
+   *   本机记录跟服务器有没有这个端点无关：本机局照摆（否则打完本机局回来，入口直接消失）。
+   * ★ 两路都有时打开**更近**的那一局：打完一局本机局之后，上一间联机房的码还挂在 localStorage 里，
+   *   不比较的话点开的是那间（多半已过期），而玩家想看的是刚刚这一局。两个时刻含义略有不同
+   *   （本机 = 结束时刻，联机 = 开局时刻），但两局不可能同时打，先后次序仍然对得上。
+   * ★ 本机记录**坏了**（写失败 / 读不出来）也摆：点开它会如实说「这一局的回放没存下来」。
+   *   藏起来等于静默丢掉——玩家只会以为回放功能坏了。
    */
   const accountId = currentUser()?.id ?? null;
   const lastRoomCode = lastHistoryRoomFor(accountId);
-  const showReplay = screen === "home" && lastRoomCode !== null && serverGameHistory() !== false;
+  const lastRoomAt = lastRoomCode ? (readLastHistoryRoom()?.at ?? 0) : 0;
+  const localAt = localGameOwner();
+  const localRead = localAt ? readLatestLocalGame(localAt) : ({ kind: "none" } as const);
+  const localReplay = localRead.kind === "ok" ? localRead.record : null;
+  const localBroken = localRead.kind === "broken";
+  const preferLocal = localReplay !== null && (!lastRoomCode || localReplay.savedAt >= lastRoomAt);
+  const replayCode = preferLocal ? null : lastRoomCode;
+  const showReplay =
+    screen === "home" &&
+    (localReplay !== null || localBroken || (lastRoomCode !== null && serverGameHistory() !== false));
 
   // 换一屏就把"上一屏开局失败"那句话收掉：不然回到首屏还挂着一条已经无关的红字
   useEffect(() => {
@@ -208,12 +224,12 @@ export default function Lobby() {
               <span className="tabular-nums">{fmtTokens(tokens)}</span>
             </button>
           )}
-          {/* 📼 最近一局回放：只有真的打过一局联机、且这台服务器有历史端点时才摆 */}
-          {showReplay && lastRoomCode && (
+          {/* 📼 最近一局回放：联机局看服务端那间房（有历史端点才摆）、本机局看本机存下来的那一份 */}
+          {showReplay && (
             <button
               type="button"
-              onClick={() => useHistory.getState().openFor({ code: lastRoomCode, myUserId: accountId })}
-              title={t`最近一局：${lastRoomCode}`}
+              onClick={() => useHistory.getState().openFor({ code: replayCode, myUserId: accountId })}
+              title={replayCode ? t`最近一局：${replayCode}` : t`最近一局：本机对局`}
               className="h-8 flex-none rounded-full bg-white/[0.06] px-2.5 text-[11px] font-semibold text-slate-200 ring-1 ring-white/10 active:bg-white/[0.12]"
             >
               <span aria-hidden>📼</span> <Trans>最近一局回放</Trans>
