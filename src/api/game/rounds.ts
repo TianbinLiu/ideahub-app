@@ -20,6 +20,12 @@
  * ★ `GAME_OVER` 的 winners 在**错误回包顶层**（不在 `details` 里）：`api/client` 只把 `details` 挂到
  *   ApiError 上，所以这一版给 ApiError 补了 `payload`（整份回包）——这是唯一能读到 winners 的地方。
  * ★ 每个请求 10 秒上限：回合屏是 2 秒一拍轮询的，缺省 20 秒会让一拍叠在下一拍上。
+ * ★ 2026-11-24 晚加 **历史回合**（`GET …/rounds/history`，任务「本局战绩 + 回放」）：
+ *   一次读全这一局的全部回合与 summary；**只读**、不轮询（战绩屏打开时拉一次，失败手动重试一次）。
+ *   形状与统计口径的正本是 **ideahub-server** 的 `services/gameRound.service.getHistory` 与
+ *   那份仓库里的 `docs/api-contract.md`「历史回合与战绩」一节（App 仓这份契约还没有工坊对局那几节）；
+ *   App 只认 `rounds[].settled` / `settlement.ranking` / `summary.perPlayer`，
+ *   **一个名次、一个合计数都不在本机重算**（与联机回合同一条纪律）。
  */
 import { ApiError, apiGet, apiPost } from "../client";
 
@@ -95,6 +101,82 @@ export interface RemoteWinner {
 export interface RemoteSettlementResult {
   round: number | null;
   settlement: RemoteSettlement;
+}
+
+/** 房号在服务端是怎么写的（`gameRoom.stateOf`）：战绩屏只用它说「这一局结束了没有」。 */
+export type RemoteHistoryRoomState = "waiting" | "playing" | "over";
+
+/**
+ * 历史回合里的一条投稿（`GET …/rounds/history` 的 `rounds[].entries[]`）。
+ * ★ 与 `RemoteRoundEntry` 的差别是**契约级的**：多一格 `modelTier`（复盘要显示当时用的档位），
+ *   少 `likedByMe` / `votedByMe`（历史是公共事实，不是「我」的视角）。
+ *   别把两份类型合并：合并之后总有一边多一个永远为假 / 永远缺的字段，界面迟早会去读它。
+ */
+export interface RemoteHistoryEntry {
+  /** 老房间的存量投稿没有这一格（服务端 2026-11-24 才给投稿加 entryId）→ null，不是空串 */
+  entryId: string | null;
+  userId: string;
+  name: string | null;
+  prompt: string;
+  cardNames: string[];
+  videoUrl: string | null;
+  posterUrl: string | null;
+  placeholder: boolean;
+  /** 这一期出片用的档位（服务端存的时候是什么就回什么；老投稿没有） */
+  modelTier: string | null;
+  likes: number;
+  votes: number;
+}
+
+/** 历史回放里的一回合。`settlement` 是**可选位**（不是 null）：只在已结算的回合出现。 */
+export interface RemoteHistoryRound {
+  round: number;
+  /** 这一回合结算落库了没有（settle 在同一次原子更新里写 phase 与 settlement，两者等价） */
+  settled: boolean;
+  entries: RemoteHistoryEntry[];
+  settlement?: RemoteSettlement;
+}
+
+/** 历史回包的房间抬头。没结束时 `winners` / `finishedAt` 是 null；结束时空数组 = 平局。 */
+export interface RemoteHistoryRoom {
+  code: string;
+  state: RemoteHistoryRoomState;
+  winners: string[] | null;
+  finishedAt: string | null;
+}
+
+/**
+ * summary 的一行（**当前还在房里的人**，顺序与座位一致）。
+ * ★ 统计口径全在服务端（`gameRound.service.getHistory` 的文件头），App 一个数都不重算：
+ *   `wins` = 已结算回合里综合名次第一的次数；`likesTotal` / `votesTotal` 含正在打的那一回合；
+ *   `bestRound` 只在「进过榜」时才出现（缺这一位 ≠ null）。
+ */
+export interface RemoteHistoryPlayer {
+  userId: string;
+  name: string | null;
+  hp: number;
+  wins: number;
+  likesTotal: number;
+  votesTotal: number;
+  /** 综合名次最好的一回合（并列取较早的；一次都没进过榜的人没有这一格） */
+  bestRound?: number;
+}
+
+/** 一局的 summary（战绩屏底部的表）。 */
+export interface RemoteHistorySummary {
+  /** **已结算**回合数（正在打的那一回合不算；总回合数看 `rounds.length`） */
+  roundsPlayed: number;
+  perPlayer: RemoteHistoryPlayer[];
+}
+
+/**
+ * 一整局的历史回合 + 战绩（`GET /api/game/rooms/:code/rounds/history` 的 `value`）。
+ * ★ `rounds` 是**全部**回合（含正在打的那一个，`settled:false`）、按 round 升序、不翻页。
+ */
+export interface RemoteGameHistory {
+  room: RemoteHistoryRoom;
+  rounds: RemoteHistoryRound[];
+  summary: RemoteHistorySummary;
 }
 
 /** `POST /rounds/next` 的两种结局：新回合，或者这局已经结束。 */
@@ -445,6 +527,130 @@ function settlementResultOf(raw: unknown): RemoteSettlementResult | null {
   };
 }
 
+/**
+ * 历史回包里的一条投稿。
+ * ★ 形状不对就整份不认（回 null）：历史屏是"复盘"，少读一条 / 把缺字段读成 0 都是在编一场没发生过的局。
+ *   与回合快照那条 `entryOf` 是同一条纪律，但**分开写**：两份类型的字段本来就不一样（见 RemoteHistoryEntry）。
+ */
+function historyEntryOf(raw: unknown): RemoteHistoryEntry | null {
+  const e = asRecord(raw);
+  if (!e) return null;
+  const userId = strOf(e.userId);
+  if (!userId) return null;
+  return {
+    entryId: strOf(e.entryId),
+    userId,
+    name: strOf(e.name),
+    prompt: typeof e.prompt === "string" ? e.prompt : "",
+    cardNames: Array.isArray(e.cardNames) ? e.cardNames.filter((name): name is string => typeof name === "string") : [],
+    videoUrl: strOf(e.videoUrl),
+    posterUrl: strOf(e.posterUrl),
+    placeholder: boolOf(e.placeholder),
+    modelTier: strOf(e.modelTier),
+    likes: numOf(e.likes) ?? 0,
+    votes: numOf(e.votes) ?? 0,
+  };
+}
+
+/** 历史回包里的一回合；`settlement` 只在已结算的回合出现（有就必须认得，认不出整份不认）。 */
+function historyRoundOf(raw: unknown): RemoteHistoryRound | null {
+  const r = asRecord(raw);
+  if (!r) return null;
+  const round = numOf(r.round);
+  const entriesRaw = Array.isArray(r.entries) ? r.entries : null;
+  if (round === null || round < 1 || !entriesRaw) return null;
+  const entries: RemoteHistoryEntry[] = [];
+  for (const one of entriesRaw) {
+    const entry = historyEntryOf(one);
+    if (!entry) return null;
+    entries.push(entry);
+  }
+  const settlementRaw = asRecord(r.settlement);
+  let settlement: RemoteSettlement | undefined;
+  if (settlementRaw) {
+    const parsed = settlementResultOf({ settlement: settlementRaw });
+    if (!parsed) return null;
+    settlement = parsed.settlement;
+  }
+  return {
+    round,
+    settled: boolOf(r.settled),
+    entries,
+    // 可选位：没结算的回合没有这一格（服务端契约原文），别补一个空 settlement
+    ...(settlement ? { settlement } : {}),
+  };
+}
+
+/** 历史回包的房间抬头；`state` 只认三态（服务端 `stateOf` 的同一份）。 */
+function historyRoomOf(raw: unknown): RemoteHistoryRoom | null {
+  const r = asRecord(raw);
+  if (!r) return null;
+  const code = strOf(r.code);
+  const state = r.state;
+  if (!code || (state !== "waiting" && state !== "playing" && state !== "over")) return null;
+  return {
+    code,
+    state,
+    // 与房间快照同一条：没结束 winners / finishedAt 是 null；结束时空数组 = 平局
+    winners: Array.isArray(r.winners) ? winnersOf(r.winners) : null,
+    finishedAt: strOf(r.finishedAt),
+  };
+}
+
+/** summary 的一行；四个会计数位必填（缺了 = 形状不认识，别静默读成 0 写进战绩表）。 */
+function historyPlayerOf(raw: unknown): RemoteHistoryPlayer | null {
+  const p = asRecord(raw);
+  if (!p) return null;
+  const userId = strOf(p.userId);
+  const hp = numOf(p.hp);
+  const wins = numOf(p.wins);
+  const likesTotal = numOf(p.likesTotal);
+  const votesTotal = numOf(p.votesTotal);
+  if (!userId || hp === null || wins === null || likesTotal === null || votesTotal === null) return null;
+  const bestRound = numOf(p.bestRound);
+  return {
+    userId,
+    name: strOf(p.name),
+    hp,
+    wins,
+    likesTotal,
+    votesTotal,
+    ...(bestRound !== null ? { bestRound } : {}),
+  };
+}
+
+function historySummaryOf(raw: unknown): RemoteHistorySummary | null {
+  const s = asRecord(raw);
+  if (!s) return null;
+  const roundsPlayed = numOf(s.roundsPlayed);
+  const perPlayerRaw = Array.isArray(s.perPlayer) ? s.perPlayer : null;
+  if (roundsPlayed === null || roundsPlayed < 0 || !perPlayerRaw) return null;
+  const perPlayer: RemoteHistoryPlayer[] = [];
+  for (const one of perPlayerRaw) {
+    const player = historyPlayerOf(one);
+    if (!player) return null;
+    perPlayer.push(player);
+  }
+  return { roundsPlayed, perPlayer };
+}
+
+/** `GET …/rounds/history` 的回包解析（唯一一处；界面拿的是 historyStore 里已经解析过的一份）。 */
+function historyOf(raw: unknown): RemoteGameHistory | null {
+  const r = asRecord(raw);
+  if (!r) return null;
+  const room = historyRoomOf(r.room);
+  const summary = historySummaryOf(r.summary);
+  const roundsRaw = Array.isArray(r.rounds) ? r.rounds : null;
+  if (!room || !summary || !roundsRaw) return null;
+  const rounds: RemoteHistoryRound[] = [];
+  for (const one of roundsRaw) {
+    const round = historyRoundOf(one);
+    if (!round) return null;
+    rounds.push(round);
+  }
+  return { room, rounds, summary };
+}
+
 async function call<T>(run: () => Promise<unknown>, shape: (raw: unknown) => T | null): Promise<RoundsResult<T>> {
   try {
     const raw = await run();
@@ -478,6 +684,18 @@ export function submitRoundEntry(
 /** 读当前回合（2 秒轮询那一发）。`GET …/rounds/current` → 回合快照；房间没开回合时 404 ROUND_NOT_FOUND。 */
 export function readRound(code: string): Promise<RoundsResult<RemoteRound>> {
   return call(() => apiGet<unknown>(`/api/game/rooms/${encodeURIComponent(code)}/rounds/current`, opts), roundOf);
+}
+
+/**
+ * 读一局的**历史回合 + 战绩**（战绩 / 回放屏打开时拉一次）。
+ * `GET /api/game/rooms/:code/rounds/history`（**房间成员**）→ `RemoteGameHistory`。
+ * 错误：403 `NOT_IN_ROOM`（不是成员；读接口用 403）/ 404 `ROOM_NOT_FOUND`（房号不对或已过期）/
+ *   503 `GAME_HISTORY_OFF`（这台服务器把历史端点关了；`GAME_ROUNDS=off` 时先回 `GAME_ROUNDS_OFF`）。
+ * ★ 只发一发、不轮询：这一屏没有"实时"承诺（局已经打完了），失败由界面给一次重试。
+ * ★ 超时与其它回合端点一致（10 秒）—— 它不是轮询拍，但同一套节奏别在这里长出一个 20 秒的例外。
+ */
+export function readHistory(code: string): Promise<RoundsResult<RemoteGameHistory>> {
+  return call(() => apiGet<unknown>(`/api/game/rooms/${encodeURIComponent(code)}/rounds/history`, opts), historyOf);
 }
 
 /** 房主推进阶段（creating→screening 要全员已交片；screening→voting 房主可提前）。`POST …/rounds/phase`。 */

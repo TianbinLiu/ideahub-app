@@ -60,6 +60,9 @@ const ZERO_DEP = [
   // 联机房的"谁是房主 / 这局结束没有"判据（2026-11-24 房主转移 + 平局收口）：
   // scripts/check-game-online.mjs 直接 import 它跑正反例；值引用 rules.ts（表里另一个零依赖模块）。
   "src/studio/game/onlineHost.ts",
+  // 本局战绩 / 回放的取数与退路判据（2026-11-24）：scripts/check-game-history.mjs 直接 import 跑正反例；
+  // 只 import type（api/game/rounds 的类型），运行时零依赖。
+  "src/studio/game/history.ts",
 ];
 /** ③′ 零 store 依赖（纯函数、不认识 store，但可以用同层的 data 模块） */
 const NO_STORE = ["src/data/recipe.ts"];

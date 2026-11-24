@@ -27,6 +27,11 @@ import Lobby from "./game/ui/Lobby";
 // 它挂在**页面**这一层而不是 GameLayer 里：选风格那一屏 GameLayer 是早退的（只画 StylePick），
 // 挂在那儿的话在那一屏点 ⚙ 会"点了没反应"。
 import GameSettings from "./game/ui/GameSettings";
+// 本局战绩 + 回放（2026-11-24）：整屏浮层，入口在结束屏与大厅（最近一局）。
+// ★ 与大厅 / 设置页同一条理由挂在页面这一层：从结束屏进来时对局还在，从大厅进来时已经收掉，
+//   两个入口看到的是同一份；它也把 3D 桌面停帧（canvasCovered）。
+import MatchHistory from "./game/ui/MatchHistory";
+import { useHistory } from "./game/historyStore";
 // 退出对局那一下（退房 + 收局 + 开大厅）的唯一实现，与设置页的「退出游戏」共用
 import { quitGameToLobby } from "./game/ui/quitGame";
 import { useLobby } from "./game/lobbyStore";
@@ -323,6 +328,11 @@ export default function StudioPage() {
    */
   const [settingsOpen, setSettingsOpen] = useState(false);
   /**
+   * 战绩 / 回放浮层开着没有（2026-11-24）。与设置页同一个理由进 canvasCovered：
+   * 它也是整屏实底，盖着的时候桌面还在每帧画 NPC（看不见、电照烧）。
+   */
+  const historyOpen = useHistory((s) => s.open);
+  /**
    * 「开始做完整作品」那条入口（src/pages/CreatePage）落到 `/studio?lobby=1`：进来就直接开大厅。
    * ★ 为什么是地址里的一个标记、不新造一条路由：大厅本来就是这块 3D 舞台上的一个浮层
    *   （lobbyStore.open），另开路由会把模型与场景整整挂两遍。
@@ -347,7 +357,7 @@ export default function StudioPage() {
    * ★ 大厅也算"盖着"（2026-11-23）：不进对局的那几屏不挂 3D —— 大厅铺满舞台、纯 2D 入口卡。
    * ★ 对局设置页也算（2026-11-24）：它同样是整屏实底，盖着的时候桌面还在每帧画 NPC（看不见、电照烧）。
    */
-  const canvasCovered = canvasOpen || lobbyOpen || settingsOpen;
+  const canvasCovered = canvasOpen || lobbyOpen || settingsOpen || historyOpen;
   /**
    * 横屏宽布局（G1 施工单 docs/g1-scene-plan.md §2 A）：左右各一条常驻条，3D 桌面留在中间。
    * ★ 判据只有一份（hooks/useIsLandscape）：`(orientation: landscape)`，也就是画布宽 > 高。
@@ -553,6 +563,9 @@ export default function StudioPage() {
             挂在那儿的话在那一屏点 ⚙ 点了没反应（铁律八）。
           ★ 只在这一局还开着时挂（inGame）：认输退出之后这一页当场消失，不用等一个 effect 去收。 */}
       {isLand && inGame && settingsOpen && <GameSettings onClose={() => setSettingsOpen(false)} />}
+      {/* 本局战绩 + 回放（2026-11-24）：两个入口都写 historyStore.open，这里只负责挂。
+          在设置页之后挂 → 同一层级（z-50）时它盖在上面；结束屏上不会同时开设置页。 */}
+      {isLand && <MatchHistory />}
       {/* 竖屏 + 大厅：大厅那一屏只在横屏挂（与对局一致），而「开始做完整作品」可能落在竖屏窗口里
           （dev 浏览器拖成竖的）。不说这一句的话，点进来看见的是 3D 桌面，像是在"没落地"。 */}
       {!isLand && lobbyOpen && (

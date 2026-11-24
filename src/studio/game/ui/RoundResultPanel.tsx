@@ -11,6 +11,7 @@ import { playerName } from "../labels";
 import { useGame, winnersOfState } from "../store";
 import { useRounds } from "../roundsStore";
 import { boardsOf, damagesViewOf, entryViewById } from "../view";
+import { HistoryReplayButton } from "./MatchHistory";
 
 export default function RoundResultPanel() {
   const state = useGame((s) => s.state);
@@ -67,6 +68,9 @@ export default function RoundResultPanel() {
             <span className="ml-auto text-[10px] text-slate-500">
               <Trans>胜者由服务端判定</Trans>
             </span>
+            {/* 本局战绩 + 每回合回放（2026-11-24）：房间码从这一局的联机凭据拿；本机局没有房号，
+                按钮照样摆 —— 打开的那一屏会明说"这一局没有回放"，而不是让键消失。 */}
+            <HistoryReplayButton code={online.roomCode} myUserId={session?.myUserId ?? online.myUserId} />
           </div>
           {rows.length > 0 && (
             <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-[10px] text-slate-400">
@@ -192,6 +196,7 @@ export default function RoundResultPanel() {
                 {playerName(player.id)} ❤ {player.hp}
               </span>
             ))}
+            <HistoryReplayButton code={null} myUserId={meId} />
           </span>
         </div>
       </div>

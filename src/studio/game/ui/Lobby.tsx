@@ -32,10 +32,13 @@ import { ruleFailureText } from "../reasons";
 import { playerName } from "../labels";
 import { useGameTickets } from "../../../hooks/useGameTickets";
 import { useAccountVersion } from "../../../hooks/useAccount";
-import { walletOf } from "../../../data/account";
+import { currentUser, walletOf } from "../../../data/account";
 import { fmtTokens } from "../../../data/economy";
 import { resetDayOf } from "../../../data/gameTicketRules";
+import { serverGameHistory } from "../../../data/serverCaps";
 import { UPGRADE_HREF } from "../../../components/UpgradeLink";
+import { lastHistoryRoomFor } from "../historyLastRoom";
+import { useHistory } from "../historyStore";
 import GameBtn from "./GameBtn";
 import RoomScreen from "./RoomScreen";
 import { startFromLobby } from "./startFromLobby";
@@ -90,6 +93,18 @@ export default function Lobby() {
   const ticketResetDay = resetDayOf(ticket.tickets?.nextResetAt ?? "");
   /** 钱包页是全仓唯一一处（components/UpgradeLink 的 UPGRADE_HREF）；别在这儿手拼 /me?wallet=1 */
   const openWallet = () => navigate(UPGRADE_HREF);
+
+  /**
+   * 「最近一局回放」入口（2026-11-24）：房号来自本机记录（`historyLastRoom`，开局成功那一刻写的），
+   * 不是服务端事实 —— 大厅这时候没有房间会话。
+   * ★ 只在首屏摆（等匹配 / 房间屏里摆一个"上一局"会跟眼前的开局流程抢注意力）。
+   * ★ 能力位**明确为假**时不摆（服务端 docs：读不到 gameHistory = 老服务端，App 不摆战绩 / 回放）；
+   *   还没探到（null）照摆 —— 大厅先进来、健康探测慢半拍是常态，藏起来等于让刚打完的人找不到入口。
+   * ★ 没有记录 / 不是当前账号那一局 → 不摆（理由见 historyLastRoom 的文件头）。
+   */
+  const accountId = currentUser()?.id ?? null;
+  const lastRoomCode = lastHistoryRoomFor(accountId);
+  const showReplay = screen === "home" && lastRoomCode !== null && serverGameHistory() !== false;
 
   // 换一屏就把"上一屏开局失败"那句话收掉：不然回到首屏还挂着一条已经无关的红字
   useEffect(() => {
@@ -191,6 +206,17 @@ export default function Lobby() {
             >
               <span aria-hidden>⚡</span>
               <span className="tabular-nums">{fmtTokens(tokens)}</span>
+            </button>
+          )}
+          {/* 📼 最近一局回放：只有真的打过一局联机、且这台服务器有历史端点时才摆 */}
+          {showReplay && lastRoomCode && (
+            <button
+              type="button"
+              onClick={() => useHistory.getState().openFor({ code: lastRoomCode, myUserId: accountId })}
+              title={t`最近一局：${lastRoomCode}`}
+              className="h-8 flex-none rounded-full bg-white/[0.06] px-2.5 text-[11px] font-semibold text-slate-200 ring-1 ring-white/10 active:bg-white/[0.12]"
+            >
+              <span aria-hidden>📼</span> <Trans>最近一局回放</Trans>
             </button>
           )}
           <button
