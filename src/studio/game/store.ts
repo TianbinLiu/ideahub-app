@@ -38,8 +38,10 @@ import {
   voteEntry,
   abstainVote,
   applyEventChoice,
+  applyOnlineEventChoice,
   settleRoundFromVotes,
   winnersOf,
+  type OnlineEventChoice,
   type RuleFailure,
   type StateResult,
 } from "./rules";
@@ -195,6 +197,11 @@ export interface GameStore {
   onlineSettlement: RemoteSettlement | null;
   /** 服务端给的胜者；null = 还没结束，[] = 结束但平局 */
   onlineWinners: RemoteWinner[] | null;
+  /**
+   * 联机局里**事件只在本机生效**（服务端事件能力位为假 / 那一发不可用 → 退回本机事件）。
+   * ★ 只有这一条路会置真：界面据此写明「事件只在本机生效」（不假装跨端一致）。
+   */
+  onlineLocalEvents: boolean;
 
   /**
    * 开一局。`playerCount` = 大厅给的座位数（缺省沿用上一局，首次是 4）。
@@ -212,8 +219,29 @@ export interface GameStore {
   resumeOnlineRound: (serverRound: number) => boolean;
   /** 服务端推进到展映 / 投票 → 本机阶段跟着走（本机的全员闸不适用，见 phases.onlinePhaseTo） */
   syncOnlinePhase: (phase: "screening" | "voting") => void;
-  /** 服务端结算：写回我的 hp / 淘汰，渲染那一屏；未结束时照旧进入本机事件（事件只在本机） */
-  applyOnlineSettlement: (settlement: RemoteSettlement, winners: RemoteWinner[] | null) => void;
+  /** 服务端结算：写回我的 hp / 淘汰，渲染那一屏；事件按 `eventStart` 走服务端那条还是退回本机 */
+  applyOnlineSettlement: (
+    settlement: RemoteSettlement,
+    winners: RemoteWinner[] | null,
+    eventStart?: OnlineEventStart,
+  ) => void;
+  /** 服务端出题的事件读回来了（比结算晚到一拍）：本机进事件屏（题面在 roundsStore.event） */
+  applyOnlineEvent: (start: { round: number; eventId: string }) => void;
+  /**
+   * 服务端**已经**记下我这一选（`myChoice` 非空，例如中途刷新回来）：本机只补这个表态并收屏。
+   * ★ 不重放 `effects.client`：本机那份效果随刷新 / 杀进程一起丢了（金币 / 卡组都是本机事实），
+   *   再补一次会与重开后的资源对不上（回血那一半是服务端落库的，不会丢）。
+   */
+  markOnlineEventChosen: (optionId: string) => void;
+  /** 服务端那一发事件不可用：退回本机事件（抽一张 + AI 选掉），并记号「只在本机生效」 */
+  fallbackToLocalEvents: () => void;
+  /**
+   * 落一次联机事件选择：扣 `cost` + 只应用 `effects.client`。
+   * ★ hp 不在这里：服务端已经落库，新血量由 `syncOnlineHp` 从房间快照读回来。
+   */
+  chooseOnlineEvent: (choice: OnlineEventChoice) => void;
+  /** 把本机 hp 对齐服务端房间快照里那一份（事件回血由服务端落库） */
+  syncOnlineHp: (hp: number) => void;
   /** 这局已经结束（GAME_OVER，含平局）：本机进 over 并把胜者摆出来 */
   markOnlineOver: (winners: RemoteWinner[]) => void;
   /** 回合服务不可用 / 掉线：把这一局接回**现有本机循环**（补齐 AI 这一期的动作，不留半局） */
@@ -279,6 +307,19 @@ export interface GameStore {
   restart: () => void;
 }
 
+/**
+ * 联机结算之后**事件从哪来**（由 ui/useOnlineRounds 现算好递进 store）：
+ *   · `server` = 服务端出题（同一房间同一回合同一道题；题面在 roundsStore.event）；
+ *   · `local`  = **退回本机事件**（能力位为假 / 接口不可用）—— 界面写明「事件只在本机生效」；
+ *   · `none`   = 这一回合没有事件（第 1/3/5… 回合 / 我已被淘汰 / 能力位还没探到）。
+ * ★ 为什么是界面算：`roundsStore` 与 `game/store` 互不认识（见 roundsStore 文件头），
+ *   而"事件读取的结局"只有界面那一层同时看得见两边。
+ */
+export type OnlineEventStart =
+  | { kind: "server"; round: number; eventId: string }
+  | { kind: "local" }
+  | { kind: "none" };
+
 /** 这一局的随机源（模块作用域，见文件头 ★） */
 let rng: Rng = createRng(1);
 
@@ -342,6 +383,7 @@ export const useGame = create<GameStore>((set, get) => {
     online: null,
     onlineSettlement: null,
     onlineWinners: null,
+    onlineLocalEvents: false,
 
     startGame: (seed, opts) => {
       const nextSeed = typeof seed === "number" && Number.isFinite(seed) ? seed >>> 0 : freshSeed();
@@ -386,6 +428,7 @@ export const useGame = create<GameStore>((set, get) => {
         online,
         onlineSettlement: null,
         onlineWinners: null,
+        onlineLocalEvents: false,
       });
       return true;
     },
@@ -406,6 +449,7 @@ export const useGame = create<GameStore>((set, get) => {
         online: null,
         onlineSettlement: null,
         onlineWinners: null,
+        onlineLocalEvents: false,
       });
     },
 
@@ -447,7 +491,7 @@ export const useGame = create<GameStore>((set, get) => {
       set({ state: next, shopOpen: false, drag: null });
     },
 
-    applyOnlineSettlement: (settlement, winners) => {
+    applyOnlineSettlement: (settlement, winners, eventStart) => {
       const { state, online } = get();
       if (!state || !online) return;
       const myRow = settlement.ranking.find((row) => row.userId === online.myUserId);
@@ -460,24 +504,41 @@ export const useGame = create<GameStore>((set, get) => {
           )
         : state.players;
       const over = winners !== null;
-      let next: GameState = { ...state, players, phase: over ? "over" : "round-end" };
+      // ★ 事件从哪来由界面算好递进来（OnlineEventStart，判据在 roundsStore 的事件读取结局）：
+      //   server = 服务端出题（同一房间同一回合同一道题）、local = 退回本机事件、none = 这回合没有事件。
+      const start: OnlineEventStart = eventStart ?? { kind: "none" };
+      let next: GameState = {
+        ...state,
+        players,
+        phase: over ? "over" : "round-end",
+        // 上一期的事件已经消费掉（单机那一路在 settleRound 里清；联机这一路从来不经它）
+        ...(over ? {} : { currentEventId: null, eventPicks: {} }),
+      };
+      let localEvents = false;
       if (!over) {
-        // 事件仍在本机跑（服务端没有事件端点）：抽一张 + AI 选掉，剩下的那一屏交给真人。
-        // 我这一期被淘汰就不弹了 —— 后面的回合已经跟我无关。
+        // 我这一期被淘汰就不弹事件了 —— 后面的回合已经跟我无关。
         const eliminatedNow = myRow ? myRow.eliminated : (meBefore?.eliminated ?? false);
-        if (!eliminatedNow) {
+        if (!eliminatedNow && start.kind === "server") {
+          // ★ 服务端出题：**不在本机抽**（各抽各的就会两端不是同一道题）。本机只把这一屏切到事件，
+          //   题面（title / options / myChoice / allChosen）在 roundsStore.event，由 ui/OnlineEventPanel 渲染。
+          next = { ...next, phase: "event", currentEventId: start.eventId, eventPicks: {} };
+        } else if (!eliminatedNow && start.kind === "local") {
+          // 退回本机事件（能力位为假 / 接口不可用）：抽一张 + AI 选掉，剩下真人那一屏。
+          // ★ 界面必须写明「事件只在本机生效」（onlineLocalEvents）—— 它影响不到别人，hp 也不回写服务端。
           const evented = onlineEventPhase(next, aiIdsOf(next), rng);
           if (!evented.ok) {
             fail(evented);
             return;
           }
           next = evented.state;
+          localEvents = true;
         }
       }
       done({
         state: next,
         onlineSettlement: settlement,
         onlineWinners: winners,
+        onlineLocalEvents: localEvents,
         eliminatedAtRound: myRow?.eliminated ? state.round : get().eliminatedAtRound,
         shopOpen: false,
         drag: null,
@@ -485,11 +546,83 @@ export const useGame = create<GameStore>((set, get) => {
       });
     },
 
+    applyOnlineEvent: ({ round, eventId }) => {
+      const { state, online } = get();
+      if (!state || !online) return;
+      // 只认这一回合、且还停在结算屏：读事件回来时回合可能已经翻篇（房主点了下一回合）
+      if (state.phase !== "round-end" || state.round !== round) return;
+      const me = state.players.find((player) => player.id === get().meId);
+      if (me?.eliminated) return;
+      set({
+        state: { ...state, phase: "event", currentEventId: eventId, eventPicks: {} },
+        onlineLocalEvents: false,
+        shopOpen: false,
+        drag: null,
+      });
+    },
+
+    fallbackToLocalEvents: () => {
+      const { state, online } = get();
+      if (!state || !online) return;
+      // 只在"结算屏还停着、我还在打"时补：已经进了下一回合 / 已结束 / 已淘汰都不该再弹
+      if (state.phase !== "round-end") return;
+      const me = state.players.find((player) => player.id === get().meId);
+      if (me?.eliminated) return;
+      const evented = onlineEventPhase(state, aiIdsOf(state), rng);
+      if (!evented.ok) {
+        fail(evented);
+        return;
+      }
+      done({ state: evented.state, onlineLocalEvents: evented.state.phase === "event" });
+    },
+
+    chooseOnlineEvent: (choice) => {
+      const { state, meId } = get();
+      if (!state) return;
+      // gate 与"摆哪些选项"那一次同一个（免费账号升不了档；服务端不知道套餐，筛与判都在本机）
+      const chosen = applyOnlineEventChoice(state, meId, choice, rng, modelUpgradeGate());
+      if (!chosen.ok) {
+        fail(chosen);
+        return;
+      }
+      done({ state: chosen.state, onlineLocalEvents: false });
+      // 选择已经记下（服务端那一份也是），但某条 client 效果没落上（罕见：随机卡把背包撑破）：
+      // 状态照常前进，原因说出来 —— 不整项回滚（回滚会跟服务端各说各话）。
+      if (chosen.effectFailure) fail(chosen.effectFailure);
+    },
+
+    markOnlineEventChosen: (optionId) => {
+      const { state, online, meId } = get();
+      if (!state || !online) return;
+      if (state.phase !== "event") return;
+      if (state.eventPicks[meId] !== undefined) return;
+      const me = state.players.find((player) => player.id === meId);
+      if (!me || me.eliminated) return;
+      // ★ 服务端已经记下这一选（幂等、第一选作数）：本机只补这个表态并收屏（回结算屏/阶段条），
+      //   **不重放 client 效果**（理由见接口注释）；hp 那一半服务端早就落了，下一拍从房间快照对齐。
+      set({
+        state: { ...state, eventPicks: { ...state.eventPicks, [meId]: optionId }, phase: "round-end" },
+        drag: null,
+      });
+    },
+
+    syncOnlineHp: (hp) => {
+      const { state, online, onlineLocalEvents, meId } = get();
+      if (!state || !online) return;
+      // 本机事件那条路（onlineLocalEvents）下 hp 是本地事实（事件能回血），下一回合结算再被服务端盖回；
+      // 服务端出题时 hp 只有服务端那一份 —— 这里把它对齐（事件回血由服务端落库，本机不应用）。
+      if (onlineLocalEvents) return;
+      const next = Math.max(0, Math.min(START_HP, Math.floor(hp)));
+      const me = state.players.find((player) => player.id === meId);
+      if (!me || me.hp === next) return;
+      set({ state: { ...state, players: state.players.map((player) => (player.id === meId ? { ...player, hp: next } : player)) } });
+    },
+
     markOnlineOver: (winners) => {
       const { state, online } = get();
       if (!state || !online) return;
       if (state.phase === "over" && get().onlineWinners !== null) {
-        // 结算那一拍已经判定结束了；这里只把 GAME_OVER 的胜者补上（同一份名单，顺序也一样）
+        // 结算那一拍已经判定结束了；这里只把 GAME_OVER / 房间快照的胜者补上（同一份名单，顺序也一样）
         set({ onlineWinners: winners });
         return;
       }
@@ -499,14 +632,14 @@ export const useGame = create<GameStore>((set, get) => {
     fallbackToLocal: () => {
       const { state } = get();
       if (!state) {
-        set({ online: null, onlineSettlement: null, onlineWinners: null });
+        set({ online: null, onlineSettlement: null, onlineWinners: null, onlineLocalEvents: false });
         return;
       }
       const filled = fillLocalOpponents(state, aiIdsOf(state), aiPromptPool(), rng);
       if (!filled.ok) {
         // 补不齐也要退：把原因留着、状态原样切回单机（别再停在一个走不下去的联机阶段上）
         fail(filled);
-        set({ online: null, onlineSettlement: null, onlineWinners: null, drag: null });
+        set({ online: null, onlineSettlement: null, onlineWinners: null, onlineLocalEvents: false, drag: null });
         return;
       }
       set({
@@ -514,6 +647,7 @@ export const useGame = create<GameStore>((set, get) => {
         online: null,
         onlineSettlement: null,
         onlineWinners: null,
+        onlineLocalEvents: false,
         drag: null,
         // 单机事件 / 商店的提示照旧；这里只把"联机"这一层摘掉，不重置这一局的任何进度
         rejection: null,

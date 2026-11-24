@@ -13,9 +13,29 @@
  * ★ 用递归 setTimeout 而不是 setInterval：一拍没回来（弱网 10 秒超时）时不会叠出两三个并发请求。
  */
 import { useEffect, useRef } from "react";
+import { overDecidedOf } from "../onlineHost";
 import { useGame } from "../store";
+import type { OnlineEventStart } from "../store";
 import { useRounds } from "../roundsStore";
 import { ROUND_POLL_MS } from "../roundsStore";
+
+/**
+ * 结算这一拍**事件从哪来**（界面是唯一同时认识两个 store 的地方，见 roundsStore 文件头）。
+ * ★ 判据只有三格：
+ *   · 服务端给了一份属于这一回合的事件 → server（同一房间同一回合，所有人 eventId 一样）；
+ *   · 事件读取结局是 local（能力位为假 / 接口不可用）→ local（退回本机事件，界面要写明只在本机生效）；
+ *   · 其余（这一回合本来没事件 / 我已被淘汰 / 能力位还没探到）→ none（结算屏收尾）。
+ * ★ 结算与事件是**同一拍读回来**的（roundsStore.pullSettlement），所以正常路径下这里一定已经定局；
+ *   "还没探到"那一格落到 none，等事件读回来之后下面那个 effect 再把屏切到 event。
+ */
+function eventStartOf(round: number): OnlineEventStart {
+  const rounds = useRounds.getState();
+  if (rounds.eventState === "server" && rounds.event && rounds.event.round === round) {
+    return { kind: "server", round, eventId: rounds.event.eventId };
+  }
+  if (rounds.eventState === "local") return { kind: "local" };
+  return { kind: "none" };
+}
 
 export function useOnlineRounds(): void {
   const session = useRounds((s) => s.session);
@@ -23,6 +43,9 @@ export function useOnlineRounds(): void {
   const settlement = useRounds((s) => s.settlement);
   const winners = useRounds((s) => s.winners);
   const note = useRounds((s) => s.note);
+  const event = useRounds((s) => s.event);
+  const eventState = useRounds((s) => s.eventState);
+  const memberHp = useRounds((s) => s.memberHp);
   const online = useGame((s) => s.online);
   const state = useGame((s) => s.state);
   const roomCode = session?.roomCode ?? null;
@@ -77,13 +100,45 @@ export function useOnlineRounds(): void {
     const key = `${roomCode}:${round}`;
     if (appliedRound.current === key) return;
     appliedRound.current = key;
-    useGame.getState().applyOnlineSettlement(settlement, winners);
+    useGame.getState().applyOnlineSettlement(settlement, winners, eventStartOf(round));
   }, [online, settlement, winners, roomCode]);
 
-  // ── 这局已经结束（GAME_OVER / 结算里带了胜者）：本机进 over ──
+  // ── 服务端出题的事件读回来了（比结算晚一拍 / 手动结算那一条路）：本机切到事件屏 ──
+  // ★ 只在这一回合**还停在结算屏（或已在事件屏）**时动：已经进下一回合 / 已经结束都不重放。
+  // ★ 服务端已经记过我这一选（myChoice 非空，例如中途刷新回来）：补一个本机表态收屏，不重放效果。
+  const appliedEvent = useRef<string | null>(null);
   useEffect(() => {
-    if (!online || !winners) return;
-    useGame.getState().markOnlineOver(winners);
+    if (!online || !event || !roomCode) return;
+    const key = `${roomCode}:${event.round}:${event.eventId}`;
+    if (appliedEvent.current === key) return;
+    const phase = useGame.getState().state?.phase;
+    if (phase !== "round-end" && phase !== "event") return;
+    appliedEvent.current = key;
+    useGame.getState().applyOnlineEvent({ round: event.round, eventId: event.eventId });
+    if (event.myChoice !== null) useGame.getState().markOnlineEventChosen(event.myChoice);
+  }, [online, event, roomCode]);
+
+  // ── 事件那一发不可用 / 能力位为假：退回现在这套**本机事件**（界面写明「事件只在本机生效」）──
+  // ★ 结算那一拍已经按 local 落过地时这里是 no-op（阶段已经不是 round-end）。
+  useEffect(() => {
+    if (!online || eventState !== "local") return;
+    useGame.getState().fallbackToLocalEvents();
+  }, [online, eventState]);
+
+  // ── 我的 hp 每拍对齐服务端房间快照（`members[].hp` 是唯一真相）──
+  // ★ 服务端事件回血是**服务端落库**的，App 不再应用一次；这里只是把新血量读回来（HUD / 事件屏那个 ❤）。
+  const myHp = session ? memberHp[session.myUserId] : undefined;
+  useEffect(() => {
+    if (!online || myHp === undefined) return;
+    useGame.getState().syncOnlineHp(myHp);
+  }, [online, myHp]);
+
+  // ── 这局已经结束（GAME_OVER / 结算里带了胜者 / 房间快照 state:"over"）：本机进 over ──
+  // ★ 平局（`winners === []`）也是结束：判据走 overDecidedOf（**不是** `!winners.length`），
+  //   写成"有人赢了才算结束"的话，同归于尽那一局会永远停在结算屏（见 onlineHost 那个 ★）。
+  useEffect(() => {
+    if (!online || !overDecidedOf(winners)) return;
+    useGame.getState().markOnlineOver(winners ?? []);
   }, [online, winners]);
 
   // ── 退回单机：把本机 loop 接回来（AI 这一期缺的动作补齐），原因由 roundsReasons 说 ──

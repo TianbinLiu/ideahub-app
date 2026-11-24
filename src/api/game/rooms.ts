@@ -21,8 +21,15 @@ import { serverGameRooms } from "../../data/serverCaps";
 /** 服务端的三种房间模式（`match4` / `match8` 走队列；`custom` 建房 + 房间码邀请）。 */
 export type RemoteRoomMode = "match4" | "match8" | "custom";
 
-/** 房间状态机（服务端 `GameRoom.status`）：waiting → playing；最后一个人离开 = 硬删。 */
-export type RemoteRoomStatus = "waiting" | "playing" | "closed";
+/** 房间状态机（服务端 `GameRoom.status`）：waiting → playing → over；最后一个人离开 = 硬删。 */
+export type RemoteRoomState = "waiting" | "playing" | "over";
+
+/**
+ * 服务端快照里的 `status`（**老字段**：给老包用的，含历史遗留的 `closed`）。
+ * ★ 新代码判阶段 / 判结束只看 `state`（服务端 2026-11-23 起两个都给；契约原文：「判结束只看 state」）。
+ *   这里仍然留着 status，是因为大厅 / 重连那几处读的是"房间还能不能接着玩"，老服务端上只有它。
+ */
+export type RemoteRoomStatus = RemoteRoomState | "closed";
 
 /** 开局卡在哪儿（服务端 `startBlockedBy`；客观原因，不是「看的人能不能点」）。 */
 export type RemoteStartBlock = "not-enough-players" | "not-all-ready" | "already-started" | "closed" | "expired";
@@ -55,18 +62,23 @@ export interface RemoteRoom {
   hostId: string | null;
   members: RemoteRoomMember[];
   status: RemoteRoomStatus;
-  /** `status === "playing"` 的别名（界面只问"开局了没有"） */
+  /**
+   * 服务端认的三态（`waiting` / `playing` / `over`）—— **判结束只看这一位**。
+   * ★ null = 老服务端没有这一位（**不知道**，不是"没结束"）：结束判定改由
+   *   `studio/game/onlineHost.roomOverOf` 的过渡分支按 hp 推（服务端补字段之前的兼容，见 §7.7）。
+   */
+  state: RemoteRoomState | null;
+  /** `status === "playing"` 的别名（界面只问"开局了没有"）；`over` / `closed` 都是 false */
   started: boolean;
   /**
    * 这一局结束了没有。
-   * ★ 2026-11-24 的服务端**没有**这一位（`status` 到结束也一直是 playing，见 docs/game-lobby.md §7.7）：
-   *   这里先认未来字段（`over:true` / `state:"over"` / `finishedAt`）——没有就是 `null`（**不知道**）。
-   *   别把"不知道"读成"没结束"：App 的结束判定在 `studio/game/onlineHost.roomOverOf`（一处）。
+   * ★ 服务端 2026-11-23 起在快照里给了 `state:"over"` + `winners` + `finishedAt`：**有 state 就照它读**。
+   *   老服务端（没有 state）→ null（不知道），交给 `onlineHost.roomOverOf` 的过渡分支推。
    */
   over: boolean | null;
-  /** 服务端给的胜者 userId（空数组 = 平局）；没带这一位 = null（不知道） */
+  /** 服务端给的胜者 userId（空数组 = 平局 / 同归于尽）；没带这一位 = null（不知道） */
   winners: string[] | null;
-  /** 服务端给的结束时刻（未来字段；今天没有） */
+  /** 服务端给的结束时刻（`over` 时才有；今天只用来显示 / 排查） */
   finishedAt: string | null;
   /** 服务端说至少几个**真人**才能开局（custom = 2，不看选了几座） */
   requiredPlayers: number;
@@ -201,19 +213,25 @@ function roomOf(raw: unknown): RemoteRoom | null {
     });
   }
   const statusRaw = strOf(r.status) ?? strOf(r.state) ?? "waiting";
-  const status: RemoteRoomStatus = statusRaw === "playing" || statusRaw === "closed" ? statusRaw : "waiting";
+  const status: RemoteRoomStatus =
+    statusRaw === "playing" || statusRaw === "over" || statusRaw === "closed" ? statusRaw : "waiting";
   const size = numOf(r.seats) ?? numOf(r.size) ?? members.length;
-  // ── 结束位（未来字段；今天的服务端三位都没有）──────────────────────────────
-  // ★ 只认"服务端明说结束了"：`over:true` / `state|status:"over"` / 有 `finishedAt`。
-  //   `over:false` 才是明说"没结束"；都没有 = null（不知道），交给 onlineHost.roomOverOf 按 hp 推。
+  // ── 结束位（服务端 2026-11-23 起给了 state / winners / finishedAt）────────────────────
+  // ★ 有 `state` 时它就是唯一判据：`over` 才是结束，`waiting` / `playing` 都是没结束。
+  //   老服务端没有这一位 → state 为 null、over 为 null（**不知道**），交给 onlineHost.roomOverOf 的
+  //   过渡分支按 hp 推（那段是服务端补字段之前的兼容，攒下证据就能删）。
   const stateRaw = strOf(r.state);
+  const state: RemoteRoomState | null =
+    stateRaw === "waiting" || stateRaw === "playing" || stateRaw === "over" ? stateRaw : null;
   const finishedAt = strOf(r.finishedAt);
   const over: boolean | null =
-    r.over === true || stateRaw === "over" || statusRaw === "over" || finishedAt !== null
-      ? true
-      : r.over === false
-        ? false
-        : null;
+    state !== null
+      ? state === "over"
+      : r.over === true || statusRaw === "over" || finishedAt !== null
+        ? true
+        : r.over === false
+          ? false
+          : null;
   const winners = Array.isArray(r.winners)
     ? r.winners
         .map((one) => (typeof one === "string" ? one : strOf(asRecord(one)?.userId)))
@@ -227,7 +245,9 @@ function roomOf(raw: unknown): RemoteRoom | null {
     hostId: strOf(r.hostId),
     members: members.sort((a, b) => a.seat - b.seat),
     status,
-    started: status === "playing" || r.started === true,
+    state,
+    // `started` 仍然只回答"开局了没有"（大厅等的是它）：结束后房间不能再开局，所以 over 也是 false
+    started: state === "playing" || status === "playing" || r.started === true,
     over,
     winners,
     finishedAt,

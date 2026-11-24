@@ -45,9 +45,11 @@ export function stylePreviewUrl(styleId: string): string {
  * ★ 路径仍从 rules 的 `option.art` 取，这里只做一次 `public/` → 站点根的换算 —— 不抄第二份
  *   映射（抄一份就多一处会忘记改的地方；`scripts/check-event-art.mjs` 核的是 rules 那一份）。
  * ★ 不做"认不出就回一张中性图"的兜底：`art` 是必填字段、10 条都在 rules 里写死，
- *   走到这里就是有值。真加载失败的那条路在 ui/EventPanel 的 onError（回退字形，不留空）。
+ *   走到这里就是有值。真加载失败的那条路在 ui/EventCard 的 onError（回退字形，不留空）。
+ * ★ 只认 `art` 这一格（`Pick<…, "art">`）：联机事件由服务端下发选项，界面按选项 id 拼同一条路径
+ *   （`public/events/<id>.webp`）复用同一张插画 —— 参数放宽到 Pick 之后两处共用这一份换算。
  */
-export function eventArtUrl(option: GameEventOption): string {
+export function eventArtUrl(option: Pick<GameEventOption, "art">): string {
   return option.art.replace(/^public/, "");
 }
 

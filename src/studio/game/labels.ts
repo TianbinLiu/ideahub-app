@@ -329,6 +329,16 @@ export function eventOptionText(option: GameEventOption): string {
 }
 
 /**
+ * 服务端**已经落库**的那一半收益的一句话（联机事件：`effects.server.hp`，见 api/game/rounds）。
+ * ★ 只念、不应用：界面把这句话拼在 `effects.client` 那句后面（回血那一项 client 是空的，
+ *   不念它就只剩一个"免费"的空卡）。App 应用 hp 的那条路**没有**（rules.applyOnlineEventChoice
+ *   会直接把带 hp 的效果数组抛错），新血量从房间快照 `members[].hp` 读回来。
+ */
+export function eventServerText(hp: number): string {
+  return t`回 ${hp} 血（服务端结算）`;
+}
+
+/**
  * 一个事件选项的**卡名**（G4 §5 参照图：每张卡是"标题 + 一行收益 + 花费"三层）。
  *
  * ★ 为什么标题不直接用 `eventOptionText`：那句话是要念的**收益**（带数字、可能两句），
@@ -375,7 +385,7 @@ export function eventOptionName(option: GameEventOption): string {
  *   一块空六边形，与"样式写错"没法区分，所以失败必须看得见是"退回字形"、而不是静默变空。
  * ★ 认不出 id 时回那颗骰子：事件选项都是"抽一下 / 涨一点"，骰子不会说错话。
  */
-export function eventOptionGlyph(option: GameEventOption): string {
+export function eventOptionGlyph(option: Pick<GameEventOption, "id">): string {
   switch (option.id) {
     case "upgrade-draft":
       return "🎞️";

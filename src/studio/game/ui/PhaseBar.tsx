@@ -26,6 +26,7 @@ export default function PhaseBar({ view }: { view: GameView }) {
   const meId = useGame((s) => s.meId);
   const eliminatedAtRound = useGame((s) => s.eliminatedAtRound);
   const online = useGame((s) => s.online);
+  const onlineLocalEvents = useGame((s) => s.onlineLocalEvents);
   const session = useRounds((s) => s.session);
   const snapshot = useRounds((s) => s.snapshot);
   const settlement = useRounds((s) => s.settlement);
@@ -149,7 +150,11 @@ export default function PhaseBar({ view }: { view: GameView }) {
         };
         break;
       case "event":
-        hint = t`这一期的事件：三选一，拿不准可以跳过（事件只在本机生效）`;
+        // ★ 事件从哪儿来这一刻决定这句话：服务端出题时**不许**再说"只在本机生效"（那是退回本机那条路）；
+        //   同一房间同一回合所有人是同一道题 —— 这正是本轮要收的口径。
+        hint = onlineLocalEvents
+          ? t`这一期的事件：三选一，拿不准可以跳过（事件只在本机生效）`
+          : t`这一期的事件由服务端出题：同一房间同一回合，所有人是同一道题`;
         break;
       case "shop":
         hint = t`买卡、换卡、把卡拖到桌面卡位、把道具从右侧栏拖到角色上，然后开始创作`;

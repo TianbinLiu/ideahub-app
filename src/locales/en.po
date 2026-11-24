@@ -1046,7 +1046,7 @@ msgstr "{0} followers"
 #~ msgstr "{0}-loss streak"
 
 #. placeholder {0}: option.cost
-#: src/studio/game/ui/EventPanel.tsx
+#: src/studio/game/ui/EventCard.tsx
 msgid "{0} 金"
 msgstr "{0} gold"
 
@@ -7001,8 +7001,13 @@ msgid "事件"
 msgstr "Event"
 
 #: src/studio/game/ui/EventPanel.tsx
+#: src/studio/game/ui/OnlineEventPanel.tsx
 msgid "事件 · {title}"
 msgstr "Event · {title}"
+
+#: src/studio/game/ui/EventPanel.tsx
+msgid "事件只在本机生效（不会影响别人）"
+msgstr "This event only applies on this device (it doesn't affect anyone else)"
 
 #: src/data/danmaku.ts
 msgid "二刷来了"
@@ -7874,12 +7879,17 @@ msgid "你标的那几帧都落在选中的这一段外面了（选段后来被�
 msgstr "The frames you marked are all outside the selected part (the selection was moved afterwards) — go back, delete the marks and mark again, or switch back to “Auto”."
 
 #: src/studio/game/ui/EventPanel.tsx
+#: src/studio/game/ui/OnlineEventPanel.tsx
 msgid "你现在有多少金"
 msgstr "How much gold you have"
 
 #: src/studio/game/ui/EventPanel.tsx
 msgid "你现在的血量"
 msgstr "Your HP right now"
+
+#: src/studio/game/ui/OnlineEventPanel.tsx
+msgid "你现在的血量（服务端给的数）"
+msgstr "Your HP right now (the server's number)"
 
 #: src/pages/CardDetailPage.tsx
 msgid "你现在能用的出片模型都不参考声音样本（样本先留着，换了能用的模型还用得上）。样本只存在这台设备上，分享卡片不带它。"
@@ -8593,6 +8603,7 @@ msgstr "First, select the part"
 #~ msgstr "Tap an item card first, then a role card"
 
 #: src/studio/game/ui/EventPanel.tsx
+#: src/studio/game/ui/OnlineEventPanel.tsx
 msgid "先点一张卡，再按确认"
 msgstr "Pick a card first, then confirm"
 
@@ -8721,7 +8732,7 @@ msgstr "Lightforge"
 msgid "光线改成黄昏"
 msgstr "Make the light dusk"
 
-#: src/studio/game/ui/EventPanel.tsx
+#: src/studio/game/ui/EventCard.tsx
 msgid "免费"
 msgstr "Free"
 
@@ -12804,6 +12815,10 @@ msgstr "Of the four ways, <0>only Studio forging always costs tokens</0>; extrac
 #: src/components/guide/tours.tsx
 #~ msgid "四条路里<0>只有工坊铸卡一定花 token</0>。从视频圈选提取、自己传图本身<1>不花</1>，只有窗口里那几颗带 AI 的键要钱（价印在键上）；从市场拿也不花。 提取是拖到某一帧、亲手圈出要的人或物，圈出来的画面就是参考图。"
 #~ msgstr "Of the four routes, <0>only minting in the Studio always costs tokens</0>. Extracting by circling in a video and uploading your own images <1>cost nothing</1> in themselves — only the AI buttons inside those windows charge you, and the price is printed on the button; taking from the market is free too. Extracting means dragging to a frame and circling the person or object you want by hand, and what you circle becomes the reference image."
+
+#: src/studio/game/labels.ts
+msgid "回 {hp} 血（服务端结算）"
+msgstr "Heal {hp} HP (resolved by the server)"
 
 #: src/studio/ui/projection.tsx
 msgid "回上一步写一句视频要求，这颗键才亮"
@@ -19671,6 +19686,14 @@ msgstr "The previous set isn’t among the server’s recent sets, so it most li
 msgid "服务端出错"
 msgstr "server error"
 
+#: src/studio/game/ui/OnlineEventPanel.tsx
+msgid "服务端出题（同一道题）· 全员都选好了"
+msgstr "Server-picked event (same for everyone) · everyone has chosen"
+
+#: src/studio/game/ui/OnlineEventPanel.tsx
+msgid "服务端出题（同一道题）· 还有人没选，不挡下一回合"
+msgstr "Server-picked event (same for everyone) · others haven't chosen yet — doesn't block the next round"
+
 #: src/pages/NotificationsPage.tsx
 msgid "服务端升级后即可使用，App 不用重装"
 msgstr "Available after a server upgrade; no need to reinstall the app"
@@ -21336,6 +21359,10 @@ msgstr "Reading your materials…"
 #: src/pages/ProfilePage.tsx
 msgid "正在读取余额…"
 msgstr "Loading balance…"
+
+#: src/studio/game/ui/OnlineEventPanel.tsx
+msgid "正在读取服务端的事件…"
+msgstr "Loading the server's event…"
 
 #: src/studio/game/ui/RoundResultPanel.tsx
 msgid "正在读取服务端的结算…（榜与扣血以服务端为准）"
@@ -25110,6 +25137,7 @@ msgid "硬派明暗对照"
 msgstr "Hard-boiled chiaroscuro"
 
 #: src/studio/game/ui/EventPanel.tsx
+#: src/studio/game/ui/OnlineEventPanel.tsx
 msgid "确认"
 msgstr "Confirm"
 
@@ -25140,6 +25168,7 @@ msgstr "Confirm card image"
 
 #. placeholder {0}: gold - chosen.cost
 #: src/studio/game/ui/EventPanel.tsx
+#: src/studio/game/ui/OnlineEventPanel.tsx
 msgid "确认后剩 {0} 金"
 msgstr "{0} gold left after confirming"
 
@@ -25651,8 +25680,10 @@ msgstr "Voice {0} weight"
 msgid "第 {0} 味音色"
 msgstr "Voice {0}"
 
+#. placeholder {0}: event.round
 #. placeholder {0}: view.hud.round
 #: src/studio/game/ui/EventPanel.tsx
+#: src/studio/game/ui/OnlineEventPanel.tsx
 msgid "第 {0} 回合"
 msgstr "Round {0}"
 
@@ -29012,6 +29043,7 @@ msgstr "Jump to {at}s"
 
 #: src/pages/tutor/TutorRunPage.tsx
 #: src/studio/game/ui/EventPanel.tsx
+#: src/studio/game/ui/OnlineEventPanel.tsx
 msgid "跳过"
 msgstr "Skip"
 
@@ -29302,6 +29334,7 @@ msgstr "{0} still haven't had their say — settle once everyone has"
 
 #. placeholder {0}: chosen.cost - gold
 #: src/studio/game/ui/EventPanel.tsx
+#: src/studio/game/ui/OnlineEventPanel.tsx
 msgid "还差 {0} 金"
 msgstr "{0} gold short"
 
@@ -30196,6 +30229,10 @@ msgstr "You've already voted this round (or abstained) — one vote each"
 msgid "这一期你没有可选的选项（选过了，或者三选一都落不了账）。"
 msgstr "No options available for you this round (already picked, or none of the three can apply)."
 
+#: src/studio/game/ui/OnlineEventPanel.tsx
+msgid "这一期你没有可选的选项（选过了，或者档位不够）。"
+msgstr "No options available for you this round (already picked, or your tier can't take it)."
+
 #: src/studio/game/ui/CreatePanel.tsx
 msgid "这一期已经交过一条占位片（{VIDEO_SECONDS} 秒）——想要真片子就点「🎬 视频生成」。"
 msgstr "This round already has a placeholder clip ({VIDEO_SECONDS}s) — hit 「🎬 Generate video」 to get a real one."
@@ -30232,6 +30269,10 @@ msgstr "This round's event: pick one of three — skip it if unsure"
 #: src/studio/game/ui/PhaseBar.tsx
 msgid "这一期的事件：三选一，拿不准可以跳过（事件只在本机生效）"
 msgstr "This round's event: choose one of three, or skip if unsure (events only apply on this device)"
+
+#: src/studio/game/ui/PhaseBar.tsx
+msgid "这一期的事件由服务端出题：同一房间同一回合，所有人是同一道题"
+msgstr "This round's event comes from the server: same room, same round — everyone gets the same one"
 
 #: src/studio/game/ui/CreatePanel.tsx
 #~ msgid "这一期的提示词"
@@ -32019,6 +32060,7 @@ msgid "这张{label}要什么画面？例：\"他站在门口回头，半身，�
 msgstr "What should this {label} show? e.g. “he looks back at the doorway, half body, warm light”"
 
 #: src/studio/game/ui/EventPanel.tsx
+#: src/studio/game/ui/OnlineEventPanel.tsx
 msgid "这张不要金"
 msgstr "This one costs no gold"
 
@@ -32661,6 +32703,7 @@ msgid "这次不公开，直接发"
 msgstr "Don't share, just publish"
 
 #: src/studio/game/ui/EventPanel.tsx
+#: src/studio/game/ui/OnlineEventPanel.tsx
 msgid "这次不要（跳过）"
 msgstr "Skip this event"
 
@@ -33066,7 +33109,9 @@ msgstr "Selecting segment {seg}: the pipeline only has {total, plural, one {# se
 #~ msgstr "Select this item, then tap a role card"
 
 #. placeholder {0}: eventOptionName(option)
+#. placeholder {0}: nameOf(option)
 #: src/studio/game/ui/EventPanel.tsx
+#: src/studio/game/ui/OnlineEventPanel.tsx
 msgid "选事件选项：{0}"
 msgstr "Choose event option: {0}"
 
@@ -33108,6 +33153,7 @@ msgstr "Choose (or create) a lead, write a scene; the AI splits it into 2–4 sh
 #~ msgstr "Chosen: {0}"
 
 #: src/studio/game/ui/EventPanel.tsx
+#: src/studio/game/ui/OnlineEventPanel.tsx
 msgid "选好了：{pickedLabel}"
 msgstr "Chosen: {pickedLabel}"
 
