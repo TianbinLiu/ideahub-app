@@ -76,6 +76,14 @@ export interface ServerCaps {
    *   当"没有"的代价只是少摆一格、多花一次 token（报价在屏上，用户看得见）。
    */
   gameTickets: boolean;
+  /**
+   * 工坊对局的房间与匹配（2026-11-23 联机接通；服务端 `routes/gameRoom.routes.js`）：
+   * 有 `POST/GET /api/game/rooms*` 与 `POST/GET/DELETE /api/game/queue`。
+   * ★ 读不到这一位 = 老服务端 / 离线包：大厅照旧开，但**一次房间请求都不发**，
+   *   匹配与房间全走本机 AI 补位（api/game/rooms.roomsAvailable 是唯一判据）。
+   *   不按 404 猜：真机上不存在的路径会回 200 + index.html（SPA 回退），状态码说不了这件事。
+   */
+  gameRooms: boolean;
 }
 
 /** 布尔的那几位（serverSupports 只答这几样） */
@@ -92,7 +100,8 @@ export type BoolCap =
   | "templateReward"
   | "minimaxV2"
   | "minimaxV2FreeTextOnly"
-  | "gameTickets";
+  | "gameTickets"
+  | "gameRooms";
 
 /** 健康端点的 JSON → ServerCaps（形状不对的位一律按「没有」）。**唯一解析处** */
 function capsOf(j: Record<string, unknown>): ServerCaps {
@@ -117,6 +126,7 @@ function capsOf(j: Record<string, unknown>): ServerCaps {
     minimaxV2: j.minimaxV2 === true,
     minimaxV2FreeTextOnly: j.minimaxV2FreeTextOnly !== false,
     gameTickets: j.gameTickets === true,
+    gameRooms: j.gameRooms === true,
   };
 }
 
@@ -140,6 +150,7 @@ const NONE: ServerCaps = {
   minimaxV2: false,
   minimaxV2FreeTextOnly: true,
   gameTickets: false,
+  gameRooms: false,
 };
 /**
  * 直连 / 离线：没有服务端那一层，能力全在；免费档清单按档位表（freeVideo null）。
@@ -165,6 +176,7 @@ const ALL: ServerCaps = {
   minimaxV2: false,
   minimaxV2FreeTextOnly: true,
   gameTickets: false,
+  gameRooms: false,
 };
 const listeners = new Set<() => void>();
 
@@ -184,9 +196,15 @@ export function subscribeServerCaps(fn: () => void): () => void {
 /**
  * 探一次（整场会话记住结果：服务端不会在会话中途升级）。探测本身失败（断网）回 null 且不记，下次再问。
  * ★ 直连 / 离线时不发请求，直接回「全在」。
+ * ★ `force`：跳过「dev / 没配 API_BASE 当没有服务端」这一条，照常去问。唯一的调用方是
+ *   `serverGameRooms`（工坊对局的房间服务）：本轮联机验证的环境就是 `npm run dev` + 本地 server，
+ *   而 `noServerLayer()` 的「dev = 直连方舟」只在**没配** `VITE_API_BASE` 时才成立 ——
+ *   配了地址的 dev 是一个真客户端，房间服务那一位不能因此永远读成「没有」。
+ *   别的能力位不受影响（仍然走上面那条早退）。
  */
-export function probeServerCaps(): Promise<ServerCaps | null> {
-  if (noServerLayer()) return Promise.resolve(ALL);
+export function probeServerCaps(force = false): Promise<ServerCaps | null> {
+  if (!API_ON) return Promise.resolve(ALL);
+  if (!force && noServerLayer()) return Promise.resolve(ALL);
   if (caps) return Promise.resolve(caps);
   if (!probe && Date.now() - failedAt < RETRY_MS) return Promise.resolve(null);
   probe ??= fetch(`${API_BASE}/api/ark/health`, { headers: withAppVersion(`${API_BASE}/api/ark/health`), signal: AbortSignal.timeout(10_000) })
@@ -249,5 +267,21 @@ export function serverFreeVideo(): ServerCaps["freeVideo"] {
   if (noServerLayer()) return null;
   if (caps) return caps.freeVideo;
   void probeServerCaps();
+  return null;
+}
+
+/**
+ * 这台服务端有没有「工坊对局的房间服务」（`/api/game/rooms*` + `/api/game/queue`）。
+ * ★ 唯一读法是 api/game/rooms.roomsAvailable()（大厅据此决定发不发房间请求、底栏说哪句）。
+ * ★ 与 serverSupports 分开一个读法的理由见 probeServerCaps 的 force：本轮联机验证跑在
+ *   `npm run dev` + 本地服务端上，而 noServerLayer() 在 dev 里恒真 —— 走 serverSupports
+ *   会把这一位永远读成「没有」，大厅就永远退不回联机（看起来一切正常，只是永远匹配不到人）。
+ * ★ 读不到 = 不知道（null）：调用方当「没有」处理 —— 大厅退回本机 AI 补位、一个房间请求都不发。
+ *   这一位没有「不知道就放行」的余地：老服务端上真发出去的建房 / 进房只会吃 SPA 的 200 + HTML。
+ */
+export function serverGameRooms(): boolean | null {
+  if (!API_ON) return ALL.gameRooms;
+  if (caps) return caps.gameRooms;
+  if (!probe && Date.now() - failedAt >= RETRY_MS) void probeServerCaps(true);
   return null;
 }

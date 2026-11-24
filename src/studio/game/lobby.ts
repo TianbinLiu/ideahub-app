@@ -78,6 +78,13 @@ export interface LobbySeat {
   kind: SeatKind;
   /** 非房主表过态没有（房主不用准备：他开始就是表态，见 canStartRoom） */
   ready: boolean;
+  /**
+   * 展示名（联机接通之后才有的东西：服务端快照里的昵称）。
+   * ★ 本机座位不填（`playerName` 按 id 给「我 / 对手 A」）；真人填服务端昵称 ——
+   *   不填的话界面会把一串账号 `_id` 印在座位上（服务端 username 可能为空，它那边已经退回 id）。
+   * ★ 不是规则字段：lobby.ts 的纯函数一个都不读它。
+   */
+  name?: string;
 }
 
 export interface LobbyRoom {
@@ -162,6 +169,24 @@ export function roomCodeOf(rng: Rng): string {
 
 export function isRoomCode(code: string): boolean {
   return new RegExp(`^[1-9]\\d{${ROOM_CODE_LENGTH - 1}}$`).test(code);
+}
+
+/**
+ * 服务端房号的规范化 —— 大厅「加入房间」那一个输入框用。
+ *
+ * ★ 服务端的房号是 **6 位大写字母数字**（`config/gameRoom.CODE_ALPHABET`，去掉了 I/O/0/1），
+ *   与本机那份纯数字码不是同一个规则；所以不复用 `isRoomCode`（那个只认本机码，检查脚本
+ *   还钉着"不认字母"）。
+ * ★ 去空格 + 转大写：手抄 / 口述 / 小写输入都要认（服务端自己也 normalize，这里只是
+ *   让界面能先拦掉明显不对的串、按钮能灰掉）。
+ * ★ 不强拒 I/O/0/1：服务端不会用它们发码，但"用户抄错一个字符"应该由服务端回
+ *   `ROOM_NOT_FOUND`（与"这间房过期了"同一句话），而不是在客户端编一条"房号不合法"。
+ */
+export function normalizeServerCode(raw: string): string | null {
+  const code = String(raw ?? "")
+    .replace(/\s+/g, "")
+    .toUpperCase();
+  return new RegExp(`^[A-Z0-9]{${ROOM_CODE_LENGTH}}$`).test(code) ? code : null;
 }
 
 // ────────────────────────────── 开一间房 ──────────────────────────────

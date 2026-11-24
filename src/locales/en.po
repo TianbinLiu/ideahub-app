@@ -7680,6 +7680,10 @@ msgstr "Back and forth"
 msgid "你不在这个房间里"
 msgstr "You are not in this room"
 
+#: src/studio/game/lobbyReasons.ts
+msgid "你不在那间房里"
+msgstr "You're not in that room"
+
 #: src/pages/CutPage.tsx
 msgid "你动过片段（裁剪 / 删段 / 换序），而配乐是自动预置的原片音轨——它按原片从头混，合出来会和画面对不上。想对齐就在「音频」里换一条自己的，或把片段改回原样。"
 msgstr "You've changed the clips (trimmed / deleted / reordered), but the music is the auto-added original audio — it's mixed in from the start of the original, so it won't line up with the picture. To match them, swap in your own track under “Audio”, or put the clips back."
@@ -7717,6 +7721,14 @@ msgstr "Hi, I'm {name}, QiMeng's AI support. Ask me about your account, charges,
 #: src/api/admin.ts
 msgid "你已经举报过这一条了，管理员还在处理"
 msgstr "You've already reported this; an admin is still reviewing it"
+
+#: src/studio/game/lobbyReasons.ts
+msgid "你已经在另一个匹配池里：先取消再换人数"
+msgstr "You're already in another matchmaking pool — cancel first, then change the table size"
+
+#: src/studio/game/lobbyReasons.ts
+msgid "你已经在另一间房里：先退出那间再来"
+msgstr "You're already in another room — leave that one first"
 
 #: src/components/recipe/RemixRewardNote.tsx
 msgid "你已经拿到过 {count} 次，共 {earned} token。"
@@ -7838,6 +7850,10 @@ msgstr "Your account is an admin: AI generation uses the no-charge channel, so u
 #: src/studio/game/ui/RoundResultPanel.tsx
 msgid "你第 {0} 名：−{1} 血，剩 {2}"
 msgstr "You finished #{0}: −{1} HP, {2} left"
+
+#: src/studio/game/lobbyReasons.ts
+msgid "你被房主移出房间了，先用 AI 开局"
+msgstr "The host removed you from the room — starting with AI"
 
 #: src/studio/game/ui/RoundResultPanel.tsx
 msgid "你被淘汰了——AI 会把剩下的回合跑完，然后给你最终胜者。"
@@ -9149,6 +9165,10 @@ msgstr "Up to {0, plural, one {# mannequin} other {# mannequins}}"
 #: src/components/TokenCost.tsx
 msgid "最多消耗 {amount} token"
 msgstr "Up to {amount} tokens"
+
+#: src/studio/game/ui/Lobby.tsx
+msgid "最多等 60 秒，没等到真人就先用 AI 开局。"
+msgstr "We'll wait up to 60 seconds; if no real players show up, start with AI."
 
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "最常见的一种：<0>有个人根本没被换成人偶</0>（还是原来的样子）， 尤其是画面正中央、看起来最像主角的那一个。这时清单里就多出一个画面上不存在的位子 ——<1>把它删掉就行，不用重做</1>。 ⚠ 但删完要顺手检查一遍：画面上少了一个人偶，<2>它右边那些人从左数 就都要往左挪一位</2>（这一条是按位置指认独有的，编号版没有）。"
@@ -10503,6 +10523,10 @@ msgstr "Added segment {0}"
 msgid "加入我的卡组"
 msgstr "Add to my deck"
 
+#: src/studio/game/ui/Lobby.tsx
+msgid "加入房间"
+msgstr "Join room"
+
 #. placeholder {0}: storeErr()
 #: src/studio/canvasAgent.ts
 msgid "加段：{0}"
@@ -11798,6 +11822,10 @@ msgstr "Unshare"
 msgid "取消关注没成功：{why}"
 msgstr "Couldn't unfollow: {why}"
 
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "取消准备"
+msgstr "Cancel ready"
+
 #: src/components/WorkshopShareBar.tsx
 msgid "取消分享失败：{err}"
 msgstr "Unsharing failed: {err}"
@@ -11805,6 +11833,10 @@ msgstr "Unsharing failed: {err}"
 #: src/components/WorkshopShareBar.tsx
 msgid "取消分享要先连上服务器：广场上那份在服务器上，离线改不动它。"
 msgstr "Unsharing needs a server connection: the Workshop copy lives on the server and can't be changed offline."
+
+#: src/studio/game/ui/Lobby.tsx
+msgid "取消匹配"
+msgstr "Cancel matchmaking"
 
 #: src/pages/TemplateDetailPage.tsx
 msgid "取消发布"
@@ -12052,6 +12084,10 @@ msgstr "Only me"
 #: src/pages/SupportModelNewPage.tsx
 msgid "只有我自己"
 msgstr "Only me"
+
+#: src/studio/game/lobbyReasons.ts
+msgid "只有房主能做这个动作"
+msgstr "Only the host can do that"
 
 #: src/data/templates.ts
 msgid "只有模板作者能改分类"
@@ -14413,6 +14449,10 @@ msgstr "Closed"
 msgid "已准备"
 msgstr "Ready"
 
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "已准备，等房主开局"
+msgstr "Ready — waiting for the host to start"
+
 #: src/pages/QuickModePage.tsx
 msgid "已出样片"
 msgstr "Sample ready"
@@ -16194,6 +16234,11 @@ msgstr "The host cannot kick themselves — tap Leave room instead"
 msgid "房主开局"
 msgstr "Host starts"
 
+#: src/studio/game/lobbyReasons.ts
+msgid "房间服务回了没见过的错误：{code}"
+msgstr "The room service returned an unknown error: {code}"
+
+#: src/studio/game/ui/Lobby.tsx
 #: src/studio/game/ui/RoomScreen.tsx
 msgid "房间码"
 msgstr "Room code"
@@ -16202,6 +16247,14 @@ msgstr "Room code"
 #: src/studio/game/ui/RoomScreen.tsx
 msgid "房间码 {0}"
 msgstr "Room code {0}"
+
+#: src/studio/game/lobbyReasons.ts
+msgid "房间码是 6 位字母或数字"
+msgstr "Room codes are 6 letters or digits"
+
+#: src/studio/game/lobbyReasons.ts
+msgid "房间请求的参数不对，退回大厅再试一次"
+msgstr "The room request had bad parameters — go back to the lobby and try again"
 
 #: src/ai/arkClient.ts
 msgid "所在地区不提供这一档的出片模型"
@@ -16497,6 +16550,10 @@ msgstr "Group the cards you use most; when rendering, <0>the deck locks characte
 #: src/components/guide/tours.tsx
 #~ msgid "把常用的几张归成一组；出片时<0>人物和场景由卡组锁住，全片保持一致</0>。 散着的卡在「我的卡片」页签，你自己做的模板在「我的模板」。"
 #~ msgstr "Group the cards you use often into a deck; when rendering, <0>the deck locks the characters and scenes so the whole video stays consistent</0>. Loose cards are in the “My cards” tab, and templates you made are in “My templates”."
+
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "把房间码念给朋友：他们在大厅的「加入房间」里输入就能进来。开局时空位由 AI 补上。"
+msgstr "Give the room code to your friends: they can enter it in “Join room” in the lobby. Empty seats are filled by AI when the game starts."
 
 #: src/components/blockout/BoxFramePicker.tsx
 msgid "把播放头挪到第几秒"
@@ -19471,6 +19528,10 @@ msgstr "server error"
 msgid "服务端升级后即可使用，App 不用重装"
 msgstr "Available after a server upgrade; no need to reinstall the app"
 
+#: src/studio/game/lobbyReasons.ts
+msgid "服务端只算真人座位（至少 2 人），已切回本机 AI 补位"
+msgstr "The server only counts real players (at least 2), so we switched back to local AI fill."
+
 #: src/api/auth.ts
 msgid "服务端未返回 token/user"
 msgstr "The server didn't return a token/user"
@@ -19495,6 +19556,11 @@ msgstr "The server returned no content snapshot; only the id is available: {0}"
 #: src/api/support.ts
 msgid "服务端没有返回音频"
 msgstr "The server didn't return audio"
+
+#. placeholder {0}: remote?.requiredPlayers ?? 2
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "服务端要至少 {0} 个真人才开局；现在只有你，点一下先用 AI 补位开一局。"
+msgstr "The server needs at least {0} real players to start; you're the only one here, so tap to start with AI filling the empty seats."
 
 #: src/pages/SupportPage.tsx
 msgid "服务端还没开通 AI 客服，可以直接转人工。"
@@ -21058,6 +21124,12 @@ msgstr "Checking your sign-in…"
 msgid "正在确认这条作品有没有留存工坊工程…"
 msgstr "Checking whether this video has a kept Studio project…"
 
+#. placeholder {0}: queue.queued
+#. placeholder {1}: queue.need || size
+#: src/studio/game/ui/Lobby.tsx
+msgid "正在等真人：这一池 {0}/{1} 人。"
+msgstr "Waiting for real players: {0}/{1} in this pool."
+
 #: src/pages/SettingsStoragePage.tsx
 msgid "正在算可清理的空间…"
 msgstr "Calculating reclaimable space…"
@@ -21122,9 +21194,21 @@ msgstr "Reading this video's dimensions and duration… (the system pauses decod
 msgid "正在读图…"
 msgstr "Reading image…"
 
+#: src/studio/game/ui/Lobby.tsx
+msgid "正在进匹配队列…"
+msgstr "Joining the matchmaking queue…"
+
+#: src/studio/game/ui/Lobby.tsx
+msgid "正在连房间服务…"
+msgstr "Connecting to the room service…"
+
 #: src/components/UpdateSheet.tsx
 msgid "正在连接…"
 msgstr "Connecting…"
+
+#: src/studio/game/ui/Lobby.tsx
+msgid "正在连接房间服务…"
+msgstr "Connecting to the room service…"
 
 #: src/pages/QuickModePage.tsx
 msgid "正在逐段出片…"
@@ -21412,6 +21496,14 @@ msgstr "Couldn’t write it ({why}). {0}"
 #: src/pages/AdminPage.tsx
 msgid "没删掉，请重试"
 msgstr "Couldn't delete it. Please try again"
+
+#: src/studio/game/lobbyReasons.ts
+msgid "没匹配到真人，先用 AI 开局"
+msgstr "No real players matched — starting with AI"
+
+#: src/studio/game/ui/Lobby.tsx
+msgid "没匹配到真人，先用 AI 开局。"
+msgstr "No real players matched — starting with AI"
 
 #: src/components/video/RelatedWorks.tsx
 msgid "没取到 TA 的其他作品"
@@ -21798,6 +21890,10 @@ msgstr "No account? Sign up with email"
 msgid "没有这个座位"
 msgstr "No such seat"
 
+#: src/studio/game/lobbyReasons.ts
+msgid "没有这间房：房间码不对，或者它已经过期解散了"
+msgstr "No such room: the code is wrong, or the room has expired."
+
 #: src/components/support/AdminTicketsView.tsx
 msgid "没有进行中的工单"
 msgstr "No active tickets"
@@ -22060,6 +22156,23 @@ msgstr "failed review: "
 #: src/studio/gridDraftStore.ts
 msgid "没连上出图服务"
 msgstr "Couldn’t reach the image service"
+
+#: src/studio/game/lobbyReasons.ts
+msgid "没连上房间服务，先用 AI 开局"
+msgstr "Couldn't reach the room service — starting with AI"
+
+#: src/studio/game/ui/Lobby.tsx
+msgid "没连上房间服务：现在开局一律由 AI 陪玩补位。"
+msgstr "Couldn't reach the room service: every game will be filled with AI players."
+
+#. placeholder {0}: size - 1
+#: src/studio/game/ui/Lobby.tsx
+msgid "没连上房间服务：这一局 {0} 个座位由 AI 陪玩补齐。"
+msgstr "Couldn't reach the room service: AI players will fill the other {0} seats this game."
+
+#: src/studio/game/lobbyReasons.ts
+msgid "没连上房间服务：这间房可能还挂在服务端"
+msgstr "Couldn't reach the room service: this room may still be open on the server"
 
 #: src/components/video/RelatedWorks.tsx
 msgid "没连上服务器，下面是这台设备上已有的几条"
@@ -23441,6 +23554,10 @@ msgstr "When rendering with {voiceNames}, the AI uses this clip as a voice refer
 msgid "用 AI 开局"
 msgstr "Play with AI"
 
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "用 AI 补位开局"
+msgstr "Start with AI fill"
+
 #: src/pages/LoginPage.tsx
 msgid "用{name}登录"
 msgstr "Sign in with {name}"
@@ -24741,6 +24858,10 @@ msgstr "Videos with real people go through the provider's content review and are
 #: src/pages/CustomCardPage.tsx
 #~ msgid "真人素材扫脸认证"
 #~ msgstr "Real-person face verification"
+
+#: src/studio/game/lobbyReasons.ts
+msgid "真人还不够开局（服务端至少算 2 个真人）"
+msgstr "Not enough real players to start (the server requires at least 2)"
 
 #. placeholder {0}: Math.round(seconds)
 #: src/studio/game/ui/ScreeningPanel.tsx
@@ -26325,6 +26446,10 @@ msgstr "Waiting for the host to start: guests can only ready up or leave"
 msgid "等服务器更新后再来"
 msgstr "Come back after the server is updated"
 
+#: src/studio/game/ui/Lobby.tsx
+msgid "等真人"
+msgstr "Waiting"
+
 #: src/components/flow/DiscardFlowDialog.tsx
 #~ msgid "等这一段炼完才能丢"
 #~ msgstr "Can't discard until this segment finishes"
@@ -27049,13 +27174,27 @@ msgid "聊天记录、发过的文案、随手写的笔记都行"
 msgstr "Chat logs, posts you've written or quick notes all work"
 
 #: src/studio/game/ui/Lobby.tsx
-msgid "联机还没接通：现在开局一律由 AI 陪玩补位，真人匹配要等服务端房间。"
-msgstr "Online play is not wired up yet: every match is filled by AI players for now, and real matchmaking waits on the server rooms"
+msgid "联机已接通：匹配会等真人，空位开局时由 AI 补位。"
+msgstr "Online is available: matchmaking waits for real players, and AI fills empty seats when the game starts."
+
+#. placeholder {0}: remote.memberCount
+#. placeholder {1}: remote.size
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "联机房间：{0}/{1} 个真人，空位开局时由 AI 补齐。"
+msgstr "Online room: {0}/{1} real players; AI fills empty seats when the game starts."
+
+#: src/studio/game/lobbyReasons.ts
+msgid "联机房间暂时不能改人数"
+msgstr "You can't change the table size in an online room yet"
+
+#: src/studio/game/ui/Lobby.tsx
+#~ msgid "联机还没接通：现在开局一律由 AI 陪玩补位，真人匹配要等服务端房间。"
+#~ msgstr "Online play is not wired up yet: every match is filled by AI players for now, and real matchmaking waits on the server rooms"
 
 #. placeholder {0}: size - 1
 #: src/studio/game/ui/Lobby.tsx
-msgid "联机还没接通：这一局 {0} 个座位由 AI 陪玩补齐。"
-msgstr "Online play is not wired up yet: AI players fill this match's {0} seats"
+#~ msgid "联机还没接通：这一局 {0} 个座位由 AI 陪玩补齐。"
+#~ msgstr "Online play is not wired up yet: AI players fill this match's {0} seats"
 
 #: src/studio/game/ui/RoomScreen.tsx
 msgid "联机还没接通：这个码现在只能念给人听，别人还进不来。开局时空位由 AI 补上。"
@@ -28729,6 +28868,10 @@ msgstr "The spinning disc"
 msgid "载入成片…"
 msgstr "Loading video…"
 
+#: src/studio/game/ui/Lobby.tsx
+msgid "输入 6 位房间码"
+msgstr "Enter a 6-character room code"
+
 #: src/components/flow/SkillPanel.tsx
 msgid "输入条里先打好那句话，再来存成技能"
 msgstr "Type the instruction in the input bar first, then save it as a skill"
@@ -28994,6 +29137,14 @@ msgstr "{unrun, plural, one {# item not tried yet.} other {# items not tried yet
 #: src/components/TextTemplateSheet.tsx
 msgid "还有图位没起名：{0}"
 msgstr "Slots still unnamed: {0}"
+
+#: src/studio/game/lobbyReasons.ts
+msgid "还有队友没点准备"
+msgstr "Some teammates aren't ready yet"
+
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "还有队友没点准备——全员准备好之后房主才能开局。"
+msgstr "Some teammates aren't ready — the host can start once everyone is ready."
 
 #: src/data/appUpdate.ts
 msgid "还没允许这个 App 安装应用：先去开启「允许安装未知应用」，再点一次。"
@@ -31192,6 +31343,10 @@ msgstr "This server doesn't support detecting roles (the reply had the wrong sha
 msgid "这台服务器出片只接了 {via}"
 msgstr "This server only has {via} connected for video"
 
+#: src/studio/game/lobbyReasons.ts
+msgid "这台服务器把房间服务关掉了"
+msgstr "This server has turned the room service off"
+
 #: src/studio/game/reasons.ts
 msgid "这台服务器暂时关掉了游戏券出片——这一发没有受理、也没有扣费；改成按 token 出片再试。"
 msgstr "This server has game-ticket generation turned off for now — this call wasn't accepted and nothing was charged; switch to token billing and try again."
@@ -32391,6 +32546,14 @@ msgstr "Couldn’t open this course: {loadError}"
 msgid "这门课还没有可用的教材文本，回上一步传一份。"
 msgstr "This course has no usable material text yet; go back and upload one."
 
+#: src/studio/game/lobbyReasons.ts
+msgid "这间房已经坐满了"
+msgstr "This room is full"
+
+#: src/studio/game/lobbyReasons.ts
+msgid "这间房已经开局了"
+msgstr "This room has already started"
+
 #: src/components/guide/tours.tsx
 msgid "这颗键印着价钱"
 msgstr "The price is on this button"
@@ -32928,6 +33091,10 @@ msgstr "Invite people to this room"
 #: src/components/guide/tours.tsx
 msgid "那一列最下面转着的碟片就是<0>「做同款」</0>；全屏 / 转屏收在长按菜单里（按住画面中间）。"
 msgstr "The spinning disc at the bottom of the rail is <0>Remix</0>; full screen / rotate live in the long-press menu (hold the middle of the picture)."
+
+#: src/studio/game/lobbyReasons.ts
+msgid "那个人已经不在房里了"
+msgstr "That player is no longer in the room"
 
 #: src/data/danmaku.ts
 msgid "那扇门后面是什么"
