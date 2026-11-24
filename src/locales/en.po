@@ -9436,8 +9436,16 @@ msgid "最火作品"
 msgstr "Hottest videos"
 
 #: src/studio/game/ui/Lobby.tsx
-msgid "最近一局：{lastRoomCode}"
-msgstr "Last match: {lastRoomCode}"
+#~ msgid "最近一局：{lastRoomCode}"
+#~ msgstr "Last match: {lastRoomCode}"
+
+#: src/studio/game/ui/Lobby.tsx
+msgid "最近一局：{replayCode}"
+msgstr "Last match: {replayCode}"
+
+#: src/studio/game/ui/Lobby.tsx
+msgid "最近一局：本机对局"
+msgstr "Last match: local match"
 
 #: src/studio/game/ui/Lobby.tsx
 msgid "最近一局回放"
@@ -12842,6 +12850,10 @@ msgstr "Ranking comes from the server's combined boards (score = like rank + vot
 msgid "名次、夺冠与合计都按服务端结算"
 msgstr "Ranking, wins and totals come from the server"
 
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "名次、夺冠与合计都是本机对局里算的"
+msgstr "Ranking, wins and totals are computed in the local match"
+
 #: src/studio/game/reasons.ts
 msgid "名次名单和存活玩家对不上，这次结算没有生效"
 msgstr "The ranking doesn't match the surviving players, so this settlement didn't apply"
@@ -14221,6 +14233,10 @@ msgstr "The match lobby is landscape-only: turn your phone sideways to start a m
 #: src/pages/AdminPage.tsx
 msgid "对局投稿：房间 {0} · 第 {1} 回合"
 msgstr "Match entry: room {0} · round {1}"
+
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "对局本身已经结束（战绩在刚才那一屏上）；本机存储写不进去或读不出来，这一局的回放就没了。"
+msgstr "The match itself has ended (its result is on the previous screen); device storage couldn't be written or read, so this match's replay is gone."
 
 #: src/studio/game/labels.ts
 msgid "对局结束"
@@ -20327,6 +20343,10 @@ msgstr "This service isn't connected to a payment provider yet, so orders can't 
 #: src/pages/CustomCardPage.tsx
 msgid "本机存储写入失败（配额满或隐私模式）"
 msgstr "Couldn't write to device storage (quota full or private mode)"
+
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "本机对局"
+msgstr "Local match"
 
 #: src/studio/game/ui/PlayerPanel.tsx
 #~ msgid "本机局：其余座位由 AI 补位，不能拉黑或举报"
@@ -27952,6 +27972,10 @@ msgstr "You cannot like your own entry in online games"
 msgid "联机还没接通：这个码现在只能念给人听，别人还进不来。开局时空位由 AI 补上。"
 msgstr "Online play is not wired up yet: this code can only be read out for now and nobody can join — empty seats get AI fill when the match starts"
 
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "联机那一局的战绩没读到，这是本机最近一局回放"
+msgstr "Couldn't load the online match's history — this is the replay of your latest local match"
+
 #. placeholder {0}: tk.contactEmail
 #: src/components/support/AdminTicketsView.tsx
 msgid "联系邮箱 {0}"
@@ -30686,6 +30710,10 @@ msgstr "No replay for this match (the room has ended, or this was a local match)
 #: src/studio/game/ui/StylePick.tsx
 msgid "这一局没有抽到风格卡（数据不对）——去右栏结束对局再开一局。"
 msgstr "No style cards were drawn this game (bad data) — end the game in the right rail and start again."
+
+#: src/studio/game/historyReasons.ts
+msgid "这一局的回放没存下来"
+msgstr "This match's replay wasn't saved"
 
 #: src/studio/game/lobbyReasons.ts
 msgid "这一局的房间已经结束"

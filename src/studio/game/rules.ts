@@ -1591,11 +1591,12 @@ export function castCardsOf(player: GamePlayer): GameCard[] {
  * ★ 同一回合可以重交（改提示词 / 重摆卡）：重交不花钱（钱花在生成那一发，由界面自己说清楚）。
  * ★ `videoUrl` = 这一期真出片的结果（game/gen 传进来）：展映屏放它；没出片（空镜 / 没花钱）就没有，
  *   屏上仍按占位色块播，时长落回 VIDEO_SECONDS。
+ * ★ `posterUrl` = 同一发画的那张首帧：本机战绩拿它当回放条封面（联机交片另走 entryPayload.posterUrl）。
  */
 export function submitRoundEntry(
   state: GameState,
   playerId: string,
-  input: { prompt: string; videoUrl?: string; seconds?: number },
+  input: { prompt: string; videoUrl?: string; posterUrl?: string; seconds?: number },
 ): EntryResult {
   if (state.phase !== "create") return reject("wrong-phase");
   const found = findPlayer(state, playerId);
@@ -1619,6 +1620,7 @@ export function submitRoundEntry(
     styleCardId: found.player.styleCardId,
     seconds,
     ...(input.videoUrl ? { videoUrl: input.videoUrl } : {}),
+    ...(input.posterUrl ? { posterUrl: input.posterUrl } : {}),
     likedBy: [],
     votedBy: [],
   };

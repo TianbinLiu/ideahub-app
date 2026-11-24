@@ -846,12 +846,14 @@ custom 房 `LFRRNN`（手机是房主）。
 | `src/api/game/rounds.ts` | `readHistory(code)`（10 秒超时，与其余回合端点同一条）+ `RemoteGameHistory` 系列与严格解析（`settled` / 可选 `settlement` / `summary.perPlayer` 四个计数位缺一个就整份不认） |
 | `src/data/serverCaps.ts` | 能力位 `gameHistory` + `serverGameHistory()`（force 探测，与 gameRooms / gameEvents / gameReports 同一套） |
 | `src/studio/game/history.ts` | **零依赖纯规则**：`historyPlanOf`（发不发请求）/ `historyBarsOf`（从 `settlement.ranking` 取我的名次、从 entries / 结算行取计数）/ `historySummaryRowsOf`（**原样**返回 `perPlayer`）/ `historyFailureOf` / `historyRetryAllowed` |
-| `src/studio/game/historyStore.ts` | 打开时拉一次、失败重试一次、晚到的回包按序号作废；`window.__history` 只在 DEV 挂（假数据验收用） |
+| `src/studio/game/historyStore.ts` | 打开时拉一次、失败重试一次、晚到的回包按序号作废；**两种来源**：联机回包 / 本机记录（本机局、或联机读不到时的退路），界面只多读一位 `source`；`window.__history` 只在 DEV 挂（假数据验收用） |
 | `src/studio/game/ui/MatchHistory.tsx` | 横屏整屏浮层（与大厅同一套壳）：顶部标题 + 房号 + 结束时间；中部每回合一条（封面 96×54、第 N 回合、你第 x 名 / −N 血、❤ / 🗳）；点一条弹原生 `<video controls>`（占位投稿只摆封面 +「占位片，没有成片」）；底部 summary 表（可折叠 + 自己滚动） |
-| `src/studio/game/ui/RoundResultPanel.tsx` | 结束态（联机 / 本机两支持）加「📼 查看回放」；本机局没有房号 → 打开后走"这一局没有回放" |
-| `src/studio/game/ui/Lobby.tsx` | 首屏「📼 最近一局回放」（房号来自 `historyLastRoom` 的 localStorage 记录，按账号对；能力位明确为假 / 没记录 → 不摆） |
+| `src/studio/game/ui/RoundResultPanel.tsx` | 结束态（联机 / 本机两支持）加「📼 查看回放」；本机局没有房号 → 打开后读本机战绩（见第七节），没有记录才说"这一局没有回放" |
+| `src/studio/game/ui/Lobby.tsx` | 首屏「📼 最近一局回放」：联机那一路的房号来自 `historyLastRoom` 的 localStorage 记录（能力位明确为假 / 没记录 → 那一支不摆）；本机那一路读 `localHistory`（见第七节），两路都有时打开**更近**的那一局 |
 | `src/studio/game/historyLastRoom.ts` | 最近一局的房号（开局成功时写；缓存里的记录过期由服务端 404 兜底） |
-| `src/studio/StudioPage.tsx` | 浮层挂在页面层（两个入口同一份）；开屏时进 `canvasCovered`，3D 桌面停帧 |
+| `src/studio/game/localHistory.ts` | **本机战绩**（2026-11-24 晚，第七节）：每期结算 → 联机回包同形状的一回合；整局 summary；localStorage 按账号留最近 5 局 + 读侧校验；"这一局该不该看存储"的判据 `localPickOf`（写失败不许拿上一局顶替） |
+| `src/studio/game/localHistoryOwner.ts` | 本机记录记在谁名下（写 / 读同一个键，唯一一处） |
+| `src/studio/StudioPage.tsx` | 浮层挂在页面层（两个入口同一份）；开屏时进 `canvasCovered`，3D 桌面停帧；**卸载时（延迟一拍避开 StrictMode 假卸载）与大厅同一个清理点关掉回放浮层** |
 
 #### 二、取数映射（App 一个数都不重算）
 
@@ -870,11 +872,10 @@ custom 房 `LFRRNN`（手机是房主）。
 
 | 状态 | 界面说 | 动作 |
 |---|---|---|
-| 本机单机局（没有房号）/ 能力位为假 | 「这一局没有回放（房间已结束或本机对局）」 | 回大厅 / 右上角关闭（**不发请求**：`historyPlanOf` 的 `request:false`，构建门禁 + 浏览器网络面板各核过一次） |
-| 403 `NOT_IN_ROOM` | 「你不在这一局里了，看不到它的回放」 | 回大厅 |
-| 404 `ROOM_NOT_FOUND` | 「这一局的房间已经过期，回放也一起没了」 | 回大厅 |
-| 网络 / 超时（`unavailable`） | 「没连上回放服务」+ 一句"回放不会因为这一下消失" | **重试一次**（第 2 次失败之后不再摆重试键）/ 回大厅 |
-| 503 `GAME_HISTORY_OFF` / `GAME_ROUNDS_OFF` | 与本机局同一句 | 回大厅（不摆重试：重试也不会开） |
+| 本机单机局（没有房号） | 本机战绩有记录 → 正常摆回放条（顶部标「本机对局」）；没有 → 「这一局没有回放（房间已结束或本机对局）」 | 回大厅 / 右上角关闭（**不发请求**：`historyPlanOf` 的 `request:false`，构建门禁 + 浏览器网络面板各核过一次） |
+| 本机局该有记录却没有（写失败 / 存储坏了） | 「这一局的回放没存下来」+ 一句"战绩在刚才那一屏上、存储写不进去或读不出来" | 回大厅 / 右上角关闭 |
+| 能力位为假（这台服务器没有回放） | 本机有记录 → 先摆本机那一局（顶部「本机对局」+「联机那一局的战绩没读到，这是本机最近一局回放」）；没有 → 「这一局没有回放（房间已结束或本机对局）」 | 回大厅 |
+| 403 `NOT_IN_ROOM` / 404 `ROOM_NOT_FOUND` / 网络超时 | 本机有记录 → 先摆本机那一局 + 同一句说明；没有 → 分别显示"你不在这一局里了…" / "这一局的房间已经过期…" / "没连上回放服务" | 回大厅（网络那一支可**重试一次**，第 2 次失败之后不再摆重试键） |
 
 - 断线**不影响**这一屏：它不订阅 roundsStore / 轮询，只在自己打开时拉一发；失败重试一次。
 - 能力位 `null`（健康端点还没答上来）**照发**：历史是只读端点，白跑一发只会多一次"没连上"；
@@ -899,11 +900,13 @@ custom 房 `LFRRNN`（手机是房主）。
 
 #### 五、怎么验的
 
-1. `node scripts/check-game-history.mjs` → **56 条**：回放条数量 = rounds 数（含未结算）、
+1. `node scripts/check-game-history.mjs` → **107 条**：回放条数量 = rounds 数（含未结算）、
    名次只从 `settlement.ranking` 取（反例：entries 顺序与榜相反）、没有我投稿时条数不变、
    summary 行数 = `perPlayer` 且顺序不动、`historyPlanOf` 的四种能力位 / 房号组合（能力位假 → 不发）、
-   403 / 404 / 503 / 网络四种失败分类、重试只一次、界面接线源码断言。
-2. `npm run build` 绿（tsc + lingui extract + 全部 check + vite build）；`check-i18n` → en 缺译 0（本轮 39 条）。
+   403 / 404 / 503 / 网络四种失败分类、重试只一次、界面接线源码断言；
+   第七节那部分另有：本机一期 → 一回合的形状映射（用真的 `historyBarsOf` / `historySummaryRowsOf` 读）、
+   blob 地址当占位片、最多留 5 局、坏数据 / 写失败、"写失败不许拿上一局顶替"（`localPickOf`）。
+2. `npm run build` 绿（tsc + lingui extract + 全部 check + vite build）；`check-i18n` → en 缺译 0。
 3. 800×363 的实测就是上一节那张表；截图没提交（铁律：不提交截图）。
 4. **没打真服务端**：本机 server 的 Mongo Atlas 当前 IP 不在白名单（`server.log` 里那条），
    所以"真 `GET …/rounds/history` 回包 → 界面"这一跳是用**同形状假数据**验的；端点解析由
@@ -913,9 +916,77 @@ custom 房 `LFRRNN`（手机是房主）。
 
 - **服务端只留"房间里"的历史**：房间过期被懒清理之后 404（跨房间的持久战绩 / 回放服务端还没做），
   所以大厅的「最近一局」在房间过期后点开就是"房间已过期"那一屏 —— 不是 App 丢了数据。
-- **本机单机局没有影片存档**：`rounds[]` 只在服务端房间里，本机单机局的 `rules` 投稿不落服务端；
-  这一版的"本机局没有回放"是**如实说**，不是接入了一半。
 - **淘汰后的回合没有我的投稿**：回放条还在（数量 = rounds），点开是"这一回合你没有交片"；
   想回看别人的片子属于"观战席"（benchmark #11），不在这一批。
+- **本机记录只在这台设备上**：换机 / 清数据 / 隐私模式就没了（写完读不出会说"这一局的回放没存下来"）；
+  按账号分开存，没登录时记在 "guest" 名下，登录之后看不到没登录时打的那局（与搜索历史同一条规矩）。
+- **本机记录只留最近 5 局**（`LOCAL_HISTORY_MAX`）：更早的被挤掉，界面上没有"第 6 局"可点。
+- **联机局退回本机之后才开打的那一截**也算本机局：`online = null` 之后的回合才会进本机战绩，
+  整局只有这一截（联机那几回合不会有我的投稿）；这是"退回本机"那条路本来的语义，不是丢数据。
+- **`localHistory` 只记这一场会话里刚打完的那一局**：杀掉 App 再打开，大厅的「最近一局」靠存储读，
+  这时"这一局是不是刚打的那一局"没法再分辨 —— 显示的是存储里最新的一局（带「结束于 …」）。
+
+#### 七、本机战绩：对局结束把每回合存一份（2026-11-24 晚）
+
+**为什么**：本机单机局没有房号，服务端那边更没有它的历史；而每回合的片子（真出片或占位）只活在
+`GameState.entries` 上，`beginRound` 一换回合就清掉。做完这一节，结束屏的「📼 查看回放」与大厅的
+「最近一局回放」对本机局也能打开，摆的是这一局每回合的片子 + 战绩表。
+
+**记录形状**（`localHistory.LocalGameRecord`，与联机 `RemoteGameHistory` 同形）：
+
+```
+{ v: 1, owner: "<账号 id / guest>", savedAt: <毫秒>, meId: "me",
+  history: {
+    room: { code: "", state: "over", winners: [...], finishedAt: "<ISO>" },
+    rounds: [ { round, settled: true,
+                entries: [ 只有「我」这一条：{ entryId, userId, name, prompt, cardNames,
+                           videoUrl, posterUrl, placeholder, modelTier, likes, votes } ],
+                settlement: { ranking: [ 整榜：userId/name/likes/votes/likeRank/voteRank/
+                                         composite/damage/hp/eliminated ] } } ],
+    summary: { roundsPlayed, perPlayer: [{ userId, name, hp, wins, likesTotal, votesTotal, bestRound? }] } } }
+```
+
+- **只收我这一条投稿**：回放条只认我交的片子（`historyBarsOf` 按 `myUserId` 找 entry），别人的片子这一版
+  没有入口（观战席不在这一批），存了只是把 localStorage 撑大。
+- **整榜收进 settlement.ranking**：底部 summary 的 `wins` / `likesTotal` / `votesTotal` / `bestRound`
+  是每个人的数，`localGameOf` 从这些行累加（口径与 server `gameRound.service.getHistory` 逐条对齐）。
+- **`savedAt` = 结束时刻**，大厅拿它和联机那间房的记录比谁更新；`meId` 单独记（本机行 id 是 `me` / `ai-1`，
+  不是账号 id）。
+- **只留活得过重启的地址**：`blob:` / `mock:` 一律写成 `null` + `placeholder: true`（否则点开是一块黑）。
+- **写点**：`store.settle` 每期结算收一条（`localRoundOf`）；真人被淘汰之后由 `playOutAiOnly` 的
+  `onSettled` 回调把 AI 跑完的回合也补进来；打到 `over` 那一刻 `saveLocalHistory` 落盘。
+  落盘结果记在 `store.localHistory`（`saved` / `failed`），开局清空 —— 写失败时界面**不许**拿存储里
+  上一局顶替（`localPickOf`），如实说"这一局的回放没存下来"。
+- **保留策略**：localStorage 键 `ideahub.game.localHistory.v1`，桶 = `owner → 局数组`（新的在前），
+  每人最多 `LOCAL_HISTORY_MAX = 5` 局；读侧逐字段校验，最新那条坏了 = `broken`（不退回上一局）。
+
+**两种来源怎么共用渲染**：本机记录被翻译成**联机回包那一份类型**，所以
+
+| 屏上的东西 | 联机来源 | 本机来源 |
+|---|---|---|
+| 回放条数量 / 名次 / ❤ / 🗳 | `historyBarsOf(remote, myUserId)` | `historyBarsOf(local, meId)` —— **同一个函数** |
+| summary 表 | `historySummaryRowsOf(remote)` | `historySummaryRowsOf(local)` —— **同一个函数** |
+| 回放带 / 播放器 / 占位片文案 | `MatchHistory` 那一套组件 | 同一份（只有顶栏那块标与 summary 的口径说明按 `source` 换一句） |
+
+`historyStore` 只多一位 `source`（`remote` / `local`）与 `fallback`（点的是联机、读不到才摆本机）；
+本机局**一个请求都不发**，联机读不到时先摆本机那一局并在顶部写明
+「联机那一局的战绩没读到，这是本机最近一局回放」。
+
+**800×363 实测**（dev，`800×363` 的 iframe 里跑一局 4 人本机局：第 1 回合真出片地址 + 首帧，其余占位；
+第 7 回合被淘汰、AI 把第 8 回合跑完）：
+
+| 元素 | 实测 |
+|---|---|
+| 跑完整局 | `localHistory = { kind:"saved" }`，存储 6478 字节；`rounds` = **8**（含淘汰后 AI 跑完的第 8 回合，`entries: []`） |
+| 结束屏「📼 查看回放」 | 打开即 `ready` / `source: "local"` / 不发光一个请求 |
+| 浮层 | 788×351（舞台），顶栏 `📼 本局战绩 · 本机对局 · 结束于 11/24 07:23 · 已结算 8 / 8 回合` |
+| 回放带 | **8 条**（104×92.8，封面 96×54）；第 1 回合有封面图（`posterUrl`），其余画占位色 |
+| 第 1 回合播放器 | DOM 里 `<video>` 出现、`controls:true`、`src = https://cdn.example/local-round1.mp4`、`poster` 是那一期首帧 |
+| 第 2 回合（占位） | DOM 里 **0 个 `<video>`** +「占位片，没有成片」+ "这一期只交了占位片…" |
+| summary 表 | 4 行（= `perPlayer`）；口径那句换成「名次、夺冠与合计都是本机对局里算的」 |
+| 离开 `/studio` 再进 | 浮层是**关的**（`open:false` / `status:idle`，DOM 里没有 `[data-match-history]`） |
+| 大厅「最近一局回放」 | 按钮在（title「最近一局：本机对局」）；点开读的是存储里那一份（8 条、无 fallback 说明） |
+| 联机那一局读不到 | 用假房号 `openFor({code:"AB3K7Q"})` → `source:"local"` + `fallback:true` + 顶部那说明 + 8 条照常 |
+| 存储坏掉 | 把键写成坏 JSON 再开 → `block:"local-missing"`，正文「这一局的回放没存下来」+ 一句说明 + 回大厅（不是白屏） |
 
 

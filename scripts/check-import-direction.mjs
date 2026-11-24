@@ -63,6 +63,9 @@ const ZERO_DEP = [
   // 本局战绩 / 回放的取数与退路判据（2026-11-24）：scripts/check-game-history.mjs 直接 import 跑正反例；
   // 只 import type（api/game/rounds 的类型），运行时零依赖。
   "src/studio/game/history.ts",
+  // 本机对局的战绩 / 回放落盘（2026-11-24 晚）：形状映射 + localStorage 读写 + 读侧校验，
+  // scripts/check-game-history.mjs 直接 import 它跑正反例（展示名 / 卡名由调用方递进来，这里不认识界面语言）。
+  "src/studio/game/localHistory.ts",
 ];
 /** ③′ 零 store 依赖（纯函数、不认识 store，但可以用同层的 data 模块） */
 const NO_STORE = ["src/data/recipe.ts"];
