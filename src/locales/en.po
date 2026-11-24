@@ -5252,6 +5252,10 @@ msgstr "Canvas unavailable"
 msgid "Google Play 还在等这笔付款完成，到账后余额会自动更新"
 msgstr "Google Play is still waiting for this payment to clear; your balance updates once it does."
 
+#: src/pages/AdminPage.tsx
+msgid "ID：{id}"
+msgstr "ID: {id}"
+
 #. placeholder {0}: ipRegionLabel(r, activeLang())
 #: src/pages/ProfilePage.tsx
 msgid "IP 属地：{0}"
@@ -7451,6 +7455,10 @@ msgstr "Paid personas are bought on the website, ideahubs.org; once purchased yo
 #: src/pages/AdminPage.tsx
 msgid "代币流水"
 msgstr "Token history"
+
+#: src/pages/AdminPage.tsx
+msgid "以上是受理时抄下的现场（房间可能已过期）"
+msgstr "The above was captured when the report came in (the room may have expired)"
 
 #: src/components/CardModelFit.tsx
 msgid "以卡上的真人照片起拍"
@@ -10924,6 +10932,10 @@ msgstr "Sell “{0}” for {CARD_SELL_GOLD} gold"
 msgid "卖掉了，+{0} 金"
 msgstr "Sold, +{0} gold"
 
+#: src/pages/AdminPage.tsx
+msgid "占位投稿：这一回合没交片"
+msgstr "Placeholder entry: no video was submitted this round"
+
 #: src/components/guide/tours.tsx
 msgid "占的空间在这看、也在这清"
 msgstr "See and clear space here"
@@ -11017,6 +11029,11 @@ msgstr "No cards of that quality left in the pool"
 #: src/studio/ui/projection.tsx
 msgid "卡片"
 msgstr "Cards"
+
+#. placeholder {0}: live?.cardNames?.join("、")
+#: src/pages/AdminPage.tsx
+msgid "卡片：{0}"
+msgstr "Cards: {0}"
 
 #: src/pages/PublishPage.tsx
 msgid "卡片存上了，卡组本身没建成"
@@ -11301,6 +11318,10 @@ msgstr "Original video audio"
 #: src/components/video/RelatedWorks.tsx
 msgid "去 TA 的主页 ›"
 msgstr "Go to their profile ›"
+
+#: src/pages/AdminPage.tsx
+msgid "去「用户」里封禁这个账号 →"
+msgstr "Ban this account under “Users” →"
 
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "去人格市场"
@@ -14119,6 +14140,12 @@ msgstr "Match lobby"
 msgid "对局大厅是横屏的：把手机横过来就能开局。"
 msgstr "The match lobby is landscape-only: turn your phone sideways to start a match."
 
+#. placeholder {0}: roomCode || "—"
+#. placeholder {1}: round ?? "—"
+#: src/pages/AdminPage.tsx
+msgid "对局投稿：房间 {0} · 第 {1} 回合"
+msgstr "Match entry: room {0} · round {1}"
+
 #: src/studio/game/labels.ts
 msgid "对局结束"
 msgstr "Match over"
@@ -14926,6 +14953,10 @@ msgstr "Declared as a real person"
 #: src/pages/AdminPage.tsx
 msgid "已处于下架状态"
 msgstr "Already taken down"
+
+#: src/pages/AdminPage.tsx
+msgid "已处于封禁状态"
+msgstr "Already banned"
 
 #. placeholder {0}: statusLabel(report.status)
 #: src/pages/AdminPage.tsx
@@ -16690,6 +16721,10 @@ msgctxt "丢弃确认卡里「…再回来X」的那个动作（英文用小写�
 msgid "打开草稿"
 msgstr "open the draft"
 
+#: src/pages/AdminPage.tsx
+msgid "打开这条投稿的成片 ↗"
+msgstr "Open this entry’s video ↗"
+
 #: src/components/DraftSheet.tsx
 msgid "打开这条草稿（丢弃上面那条流水线）"
 msgstr "Open this draft (discard the pipeline above)"
@@ -16956,6 +16991,11 @@ msgstr "Voting"
 msgctxt "举报对象的类别（单数）：工坊对局一回合里的一条投稿（提示词 + 生成的片子）"
 msgid "投稿"
 msgstr "Submission"
+
+#. placeholder {0}: live.username
+#: src/pages/AdminPage.tsx
+msgid "投稿人 @{0}"
+msgstr "Submitted by @{0}"
 
 #: src/studio/game/ui/OnlineVotingPanel.tsx
 #: src/studio/game/ui/VotingPanel.tsx
@@ -19920,6 +19960,14 @@ msgstr "Available after a server upgrade; no need to reinstall the app"
 msgid "服务端只算真人座位（至少 2 人），已切回本机 AI 补位"
 msgstr "The server only counts real players (at least 2), so we switched back to local AI fill."
 
+#: src/pages/AdminPage.tsx
+msgid "服务端对这一类只受理、不处置：封人走「用户」，这条举报收尾只能用「驳回」。"
+msgstr "The server only records reports of this kind for now: banning is done under “Users”, so the only way to close this report is “Dismiss”."
+
+#: src/pages/AdminPage.tsx
+msgid "服务端对这一类只受理、不处置：投稿跟着对局房间走（房间过期就整份没了），收尾只能用「驳回」。"
+msgstr "The server only records reports of this kind for now: entries live and die with the match room (an expired room takes them with it), so the only way to close this report is “Dismiss”."
+
 #: src/api/auth.ts
 msgid "服务端未返回 token/user"
 msgstr "The server didn't return a token/user"
@@ -19940,6 +19988,11 @@ msgstr "The server didn't include the video id, so this can't be deleted (the se
 #: src/pages/AdminPage.tsx
 msgid "服务端没有返回内容快照，只能看到 id：{0}"
 msgstr "The server returned no content snapshot; only the id is available: {0}"
+
+#. placeholder {0}: report.targetId
+#: src/pages/AdminPage.tsx
+msgid "服务端没有返回内容快照（可能是房间已过期），只能看到 id：{0}"
+msgstr "The server returned no content snapshot (the room may have expired); only the id is available: {0}"
 
 #: src/api/support.ts
 msgid "服务端没有返回音频"
@@ -22531,6 +22584,7 @@ msgid "没能打开浏览器。可以手动访问：{linkFailed}"
 msgstr "Couldn’t open the browser. You can visit it yourself: {linkFailed}"
 
 #: src/components/support/SafetyCard.tsx
+#: src/pages/AdminPage.tsx
 #: src/pages/SettingsPage.tsx
 #: src/pages/tutor/TutorHomePage.tsx
 #: src/pages/tutor/TutorNewPage.tsx
@@ -23673,6 +23727,14 @@ msgstr "Players"
 msgctxt "举报对象的类别（单数）：工坊对局里的一个真人玩家"
 msgid "玩家"
 msgstr "Player"
+
+#: src/pages/AdminPage.tsx
+msgid "玩家：{name}"
+msgstr "Player: {name}"
+
+#: src/pages/AdminPage.tsx
+msgid "玩家：昵称读不到"
+msgstr "Player: name unavailable"
 
 #: src/components/flow/CameraChips.tsx
 msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜头运动"
@@ -29195,6 +29257,14 @@ msgstr "Thanks for the feedback"
 msgid "账号"
 msgstr "Account"
 
+#: src/pages/AdminPage.tsx
+msgid "账号已由本人注销"
+msgstr "The account was deactivated by its owner"
+
+#: src/pages/AdminPage.tsx
+msgid "账号已经不在了（可能已注销或被删除）—— 这条通常「驳回」就好。"
+msgstr "The account is gone (deactivated or deleted) — “Dismiss” is usually right for this one."
+
 #: src/data/account.ts
 msgid "账号库未装载"
 msgstr "Account data isn't loaded"
@@ -30643,6 +30713,10 @@ msgstr "Hasn't submitted this round"
 #: src/studio/game/reasons.ts
 msgid "这一条你已经点过赞了（同一期同一条只能点一次）"
 msgstr "You've already liked this one (once per film each round)"
+
+#: src/pages/AdminPage.tsx
+msgid "这一条投稿没有写提示词"
+msgstr "This entry has no prompt"
 
 #: src/components/flow/SegmentRecoverCards.tsx
 msgid "这一条暂时收不起来：上游确认这一发没出成，但这次没带回退款的结论——过一会儿再点一次「知道了」（核对不花钱）。"
