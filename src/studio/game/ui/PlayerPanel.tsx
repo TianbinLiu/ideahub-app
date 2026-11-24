@@ -7,28 +7,28 @@
 //   尺寸见下面 PLAYER_PANEL_CLASS 的 ★：宽 17.5vw（800 上是 140px）、高 ≤38vh 且可滚 —— 实测见
 //   docs/game-lobby.md 的"800×363 实测"。
 //
-// ★★ 举报那一格**今天不摆**（这是本仓纪律，不是漏做）：
-//   · 服务端 `models/Report.js` 的 `TARGET_TYPES` 只有 video / comment / danmaku / persona
-//     （2026-11-24 核过 server main），`POST /api/branch/reports` 用 z.enum 逐字校验；
-//     局内的 UGC（昵称 / 交片提示词 / 生成的片子）**没有任何一个**在服务端有可举报的对象 id
-//     —— 回合快照的 entries 只有 userId / prompt / cardNames / videoUrl，没有 BranchVideo id。
-//   · 先接一颗 `targetType: "user"` 的键 = 用户点了必然 400（本仓 api/admin.ts 与
-//     docs/play-store-checklist.md §6c 已经把这条钉成纪律："服务端先加类型、App 再接"）。
-//   · 所以这一格现在只有**真的能用**的那颗：拉黑（`components/BlockButton`，服务端早就有这套关系）。
-//     服务端补上 `user`（或 `game-entry`）目标类型之后，这一行接一颗 `ReportButton`
-//     （`targetType="user"` / `targetId={seat.userId}`）即可 —— 组件、弹层、理由表、
-//     失败话术全都是现成的（铁律六：别新写一套举报流）。
+// ★★ 举报那一格**只摆真能用的那颗键**（2026-11-24 服务端上线之后接上，不再缺）：
+//   · 目标是**玩家本人**：`targetType="user"` / `targetId={seat.userId}`（服务端 `feat/game-ugc-reports`
+//     给 `Report.TARGET_TYPES` 加了 user 与 game-entry，`POST /api/branch/reports` 收这两类且现查靶子）；
+//   · 摆不摆由三件事一起定：能力位 `gameReports === true` **且** 这一行有服务端账号 id（AI 座位没有）
+//     **且** 不是我自己 —— 判据只有 `studio/game/reports.ts` 一处（构建门禁跑正反例）。
+//   · 能力位为假 / 还没探到 → 不摆：老服务端上点下去必然 400，而这是"用户认真提交的一条投诉被丢掉"
+//     （`api/admin.ts` 与 `docs/play-store-checklist.md` §6c 把这条钉成纪律：服务端先加类型、App 再接）。
+//   · 举报与拉黑**并排、不合并**：举报是"交给平台处理"，拉黑是"我自己不想看见"，政策分别要求
+//     （`components/BlockButton` 那套关系服务端早就有）。两者都复用现成组件（铁律六：别新写一套举报流）。
 //
 // ★ 名单本身**一个数都不在这里算**：单机 / 联机两条来源都在 `studio/game/roster.ts`（零依赖纯函数，
 //   `scripts/check-game-ingame.mjs` 直接 import 跑正反例）。这里只负责画。
-// ★ AI 座位没有服务端账号 id（`seat.userId === null`）→ 一颗动作键都不摆（任务点名：AI 不显示举报键；
-//   拉黑同理 —— 服务端那份关系是按 userId 的，AI 没有这个 id）。
+// ★ AI 座位没有服务端账号 id（`seat.userId === null`）→ 一颗动作键都不摆（举报 / 拉黑都认 userId）。
 import { useLingui } from "@lingui/react/macro";
 import BlockButton from "../../../components/BlockButton";
+import ReportButton from "../../../components/ReportButton";
 import { playerName } from "../labels";
+import { playerReportTargetOf } from "../reports";
 import { localRosterOf, onlineRosterOf, type RosterSeat } from "../roster";
 import { useRounds } from "../roundsStore";
 import { useGame } from "../store";
+import { useGameReportsCap } from "./useGameReports";
 
 /**
  * 面板（不是那颗开关键）的尺寸。
@@ -88,6 +88,8 @@ export default function PlayerPanel({ open, onToggle }: { open: boolean; onToggl
   const settlement = useRounds((s) => s.settlement);
   const memberHp = useRounds((s) => s.memberHp);
   const abstainedRound = useRounds((s) => s.abstainedRound);
+  /** 举报能力位（`gameReports`）：探到 / 变了会重画这一块（见 useGameReports 文件头 ★★） */
+  const reportCap = useGameReportsCap();
   if (!state) return null;
 
   /**
@@ -153,6 +155,8 @@ export default function PlayerPanel({ open, onToggle }: { open: boolean; onToggl
             {seats.map((seat) => {
               const name = nameOf(seat);
               const mine = seat.isMe;
+              // 举报键：能力位 / 账号 id / 不是我 三条一起判（判据只有 reports.ts 一处）
+              const report = playerReportTargetOf({ cap: reportCap, userId: seat.userId, mine });
               // ★ 一行一个玩家（2026-11-24 实测：140px 一行放得下"名字 + 血量 + 徽记 + 拉黑"，
               //   8 人局一屏能看到 5 行；拆成两行时同样高度只看得到 3 行 —— 那是"横向挤一挤"换来的可见行数）
               return (
@@ -188,9 +192,11 @@ export default function PlayerPanel({ open, onToggle }: { open: boolean; onToggl
                   {seat.liked === true && <Badge title={t`这一期点过赞`} tone="ok">👍</Badge>}
                   {seat.voted === true && <Badge title={t`这一期表过态`} tone="ok">🗳</Badge>}
                   {/* 动作键：只有拿得到服务端账号 id、且不是我自己时才有（AI 座位 userId 为 null）。
-                      ★ 举报今天不摆，理由见文件头 ★★（服务端没有玩家目标类型，摆了必然 400）。 */}
+                      ★ 举报只在能力位为真时摆（判据在 reports.ts）；两颗键并排不合并 ——
+                        举报交给平台处理、拉黑只是我自己不想看见，政策分别要求（见文件头 ★★）。 */}
                   {seat.userId && !mine && (
-                    <span className="ml-auto flex flex-none items-center">
+                    <span className="ml-auto flex flex-none items-center gap-1">
+                      {report && <ReportButton targetType={report.targetType} targetId={report.targetId} />}
                       <BlockButton userId={seat.userId} userName={name} />
                     </span>
                   )}

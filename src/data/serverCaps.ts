@@ -104,6 +104,17 @@ export interface ServerCaps {
    *   只是流正常时放宽到 15 秒。
    */
   gameRoomStream: boolean;
+  /**
+   * 对局里的 UGC 可被举报（2026-11-24，服务端 `feat/game-ugc-reports`）：`POST /api/branch/reports`
+   * 收 `targetType: "user"`（targetId = 玩家的 userId）与 `"game-entry"`（targetId = 回合投稿的 entryId），
+   * 健康端点的 `gameReports`。
+   * ★ 读不到（老服务端 / 还没探到）**一律不摆**那两颗键：这两类靶子服务端会按 ObjectId 现查，
+   *   老服务端点下去吃的要么是 zod 400、要么是 404 TARGET_NOT_FOUND —— 而这一颗键是
+   *   "用户认认真真提交的一条投诉"，塞不进去就是丢掉了（铁律八）；晚摆一次只是少一个入口。
+   *   与 gameRooms / gameEvents / gameRoomStream 同一条纪律：只看这一位、不按状态码猜
+   *   （真机上不存在的路径回 200 + index.html）。
+   */
+  gameReports: boolean;
 }
 
 /** 布尔的那几位（serverSupports 只答这几样） */
@@ -123,7 +134,8 @@ export type BoolCap =
   | "gameTickets"
   | "gameRooms"
   | "gameEvents"
-  | "gameRoomStream";
+  | "gameRoomStream"
+  | "gameReports";
 
 /** 健康端点的 JSON → ServerCaps（形状不对的位一律按「没有」）。**唯一解析处** */
 function capsOf(j: Record<string, unknown>): ServerCaps {
@@ -151,6 +163,7 @@ function capsOf(j: Record<string, unknown>): ServerCaps {
     gameRooms: j.gameRooms === true,
     gameEvents: j.gameEvents === true,
     gameRoomStream: j.gameRoomStream === true,
+    gameReports: j.gameReports === true,
   };
 }
 
@@ -177,6 +190,7 @@ const NONE: ServerCaps = {
   gameRooms: false,
   gameEvents: false,
   gameRoomStream: false,
+  gameReports: false,
 };
 /**
  * 直连 / 离线：没有服务端那一层，能力全在；免费档清单按档位表（freeVideo null）。
@@ -187,6 +201,7 @@ const NONE: ServerCaps = {
  *   gameTickets 同理（G4 收尾）：dev 的 /api/ark 由 vite 代理直连方舟、不经服务端计费，也没有 /api/game/tickets —— 券没有可扣的地方。
  *   gameEvents / gameRooms / gameRoomStream 同理（联机对局）：dev 里没有 /api/game/rooms*，
  *   事件只能走本机那一套、推送一条流都不开（那条长连接在 dev 里没有任何东西可连）。
+ *   gameReports 同理：举报走服务端 `POST /api/branch/reports`，dev 直连 / 离线包里没有收它的地方。
  */
 const ALL: ServerCaps = {
   res480: true,
@@ -207,6 +222,7 @@ const ALL: ServerCaps = {
   gameRooms: false,
   gameEvents: false,
   gameRoomStream: false,
+  gameReports: false,
 };
 const listeners = new Set<() => void>();
 
@@ -345,6 +361,22 @@ export function serverGameEvents(): boolean | null {
 export function serverGameRoomStream(): boolean | null {
   if (!API_ON) return ALL.gameRoomStream;
   if (caps) return caps.gameRoomStream;
+  if (!probe && Date.now() - failedAt >= RETRY_MS) void probeServerCaps(true);
+  return null;
+}
+
+/**
+ * 这台服务端收不收**对局里的举报**（`POST /api/branch/reports` 的 `user` / `game-entry` 两类）。
+ * ★ 唯一读法是 `studio/game/ui/useGameReports` 的 `useGameReportsCap()`（三块面板据此决定摆不摆那颗键）；
+ *   判据本身在零依赖的 `studio/game/reports.ts`（构建门禁直接 import 跑正反例）。
+ * ★ 与 serverGameRooms / serverGameEvents / serverGameRoomStream 同一份理由单开一个读法
+ *   （force 探测：本轮联机验证跑在 `npm run dev` + 本地服务端上，而 noServerLayer() 在 dev 里恒真）。
+ * ★ 读不到（null）当**没有**：理由见 ServerCaps.gameReports 的 ★ —— 这一颗键点了是往审核队列里塞东西，
+ *   塞不进去就是把用户的一条投诉丢掉；晚摆一次只是少一个入口。
+ */
+export function serverGameReports(): boolean | null {
+  if (!API_ON) return ALL.gameReports;
+  if (caps) return caps.gameReports;
   if (!probe && Date.now() - failedAt >= RETRY_MS) void probeServerCaps(true);
   return null;
 }

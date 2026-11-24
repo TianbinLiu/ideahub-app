@@ -6945,12 +6945,20 @@ msgid "举报这个人格"
 msgstr "Report this persona"
 
 #: src/components/ReportButton.tsx
+msgid "举报这位玩家"
+msgstr "Report this player"
+
+#: src/components/ReportButton.tsx
 msgid "举报这条作品"
 msgstr "Report this video"
 
 #: src/components/ReportButton.tsx
 msgid "举报这条弹幕"
 msgstr "Report this bullet comment"
+
+#: src/components/ReportButton.tsx
+msgid "举报这条投稿"
+msgstr "Report this submission"
 
 #: src/components/ReportButton.tsx
 msgid "举报这条评论"
@@ -16944,6 +16952,11 @@ msgstr "Ballad"
 msgid "投票"
 msgstr "Voting"
 
+#: src/api/admin.ts
+msgctxt "举报对象的类别（单数）：工坊对局一回合里的一条投稿（提示词 + 生成的片子）"
+msgid "投稿"
+msgstr "Submission"
+
 #: src/studio/game/ui/OnlineVotingPanel.tsx
 #: src/studio/game/ui/VotingPanel.tsx
 msgid "投这一条"
@@ -23655,6 +23668,11 @@ msgstr "Status: {status} — tap “Recover” again in a few minutes. This run 
 #: src/studio/game/ui/PlayerPanel.tsx
 msgid "玩家"
 msgstr "Players"
+
+#: src/api/admin.ts
+msgctxt "举报对象的类别（单数）：工坊对局里的一个真人玩家"
+msgid "玩家"
+msgstr "Player"
 
 #: src/components/flow/CameraChips.tsx
 msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜头运动"
@@ -32842,6 +32860,10 @@ msgstr "This video hasn't synced to the server yet. Come back and comment later"
 #: src/data/videos.ts
 msgid "这条作品还没同步到服务器，稍后再试"
 msgstr "This video hasn't synced to the server yet. Try again later"
+
+#: src/api/admin.ts
+msgid "这条内容已经不在了（对局房间可能已经结束），举报没有提交上去"
+msgstr "This content is no longer available (the game room may have ended), so the report was not submitted."
 
 #: src/pages/CutPage.tsx
 msgid "这条只有一段 · 想做成多段的？"

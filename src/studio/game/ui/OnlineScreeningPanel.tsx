@@ -6,14 +6,20 @@
 // ★ 播放顺序**照服务端给的 entries 顺序**，不在这里排序（服务端按座位给序；名次排序是服务端的事）。
 // ★ 联机版**禁止自赞**（服务端 `CANNOT_LIKE_SELF`）：自己那条不摆点赞键，并写一句为什么（不灰着不说话）。
 // ★ 被淘汰的人只能看：服务端会回 `PLAYER_ELIMINATED`，界面先挡住并说清楚。
+// ★ 每条投稿一颗「举报」（2026-11-24 服务端上线 `game-entry` 之后接上）：`targetId` 就是这一条的
+//   `entryId`；**老房间的存量投稿 entryId 为 null、或能力位 `gameReports` 不为真 → 不摆**
+//   （判据在 `studio/game/reports.ts`，与投票面板共用同一份）。自己那条不摆（自己的内容该删不该举报）。
 import { useEffect, useState } from "react";
 import { Trans, useLingui } from "@lingui/react/macro";
+import ReportButton from "../../../components/ReportButton";
 import { placeholderColors, placeholderHue } from "../art";
+import { entryReportTargetOf } from "../reports";
 import { VIDEO_SECONDS } from "../rules";
 import { useGame } from "../store";
 import { useRounds } from "../roundsStore";
 import type { RemoteRoundEntry } from "../../../api/game/rounds";
 import GameBtn from "./GameBtn";
+import { useGameReportsCap } from "./useGameReports";
 
 const TICK_MS = 100;
 
@@ -24,6 +30,8 @@ export default function OnlineScreeningPanel() {
   const busy = useRounds((s) => s.busy);
   const eliminated = useGame((s) => s.state?.players.find((player) => player.id === s.meId)?.eliminated ?? false);
   const entries = snapshot?.entries ?? [];
+  /** 举报能力位（`gameReports`）：探到 / 变了会重画这一条（见 useGameReports 文件头 ★★） */
+  const reportCap = useGameReportsCap();
 
   const [index, setIndex] = useState(0);
   const [elapsedMs, setElapsedMs] = useState(0);
@@ -67,6 +75,8 @@ export default function OnlineScreeningPanel() {
   const progress = Math.min(1, elapsedMs / (seconds * 1000));
   const mine = current.userId === session.myUserId;
   const author = current.name ?? current.userId;
+  // 这一条的举报键：entryId 为空 / 能力位不为真 / 是我自己的 → null（一颗都不摆）
+  const report = entryReportTargetOf({ cap: reportCap, entryId: current.entryId, mine });
   // ★ 服务端是「**一回合每人一票赞**」（hasLiked 按 userId 查，不按目标条目）：这一期已经赞过别人之后，
   //   再点别的条目服务端会**幂等回同一份快照**（计数不涨）。界面上要照实说"这一期的赞已经点了"，
   //   而不是留一颗点了没反应的键（铁律八）。
@@ -94,9 +104,14 @@ export default function OnlineScreeningPanel() {
               </span>
             )}
           </span>
-          <span className="text-slate-300" title={t`点赞：播放中可以给每一条点一次`}>
-            ❤ {current.likes}
-            {current.votes > 0 && <span className="ml-1.5">🗳 {current.votes}</span>}
+          {/* 举报这条投稿：与投票面板同一颗（判据在 reports.ts）。放在点赞数左边 —— 先看内容、
+              再看"要不要点赞 / 要不要举报"，两件事都在这一条上 */}
+          <span className="flex flex-none items-baseline gap-1.5">
+            {report && <ReportButton targetType={report.targetType} targetId={report.targetId} />}
+            <span className="text-slate-300" title={t`点赞：播放中可以给每一条点一次`}>
+              ❤ {current.likes}
+              {current.votes > 0 && <span className="ml-1.5">🗳 {current.votes}</span>}
+            </span>
           </span>
         </div>
         <div className="mt-1 flex items-start gap-2">

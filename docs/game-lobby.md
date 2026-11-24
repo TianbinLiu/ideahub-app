@@ -812,14 +812,17 @@ custom 房 `LFRRNN`（手机是房主）。
 
 #### 六、这一轮剩下的风险
 
-- ★★ **玩家举报还没有服务端目标类型**：`Report.TARGET_TYPES` = `video / comment / danmaku / persona`
-  （2026-11-24 核过 server main `ae60836`），`POST /api/branch/reports` 逐字校验；而局内的 UGC
-  （昵称 / 交片提示词 / 生成的片子）在服务端**没有可举报的对象 id**（回合快照的 entries 只有
-  userId / prompt / cardNames / videoUrl）。所以这一版**只摆真能用得上的那颗：拉黑**
-  （`components/BlockButton`，服务端早就有这套关系），**不摆一颗点了必然 400 的举报键**
-  （本仓 `api/admin.ts` 与 `docs/play-store-checklist.md` §6c 已把这条钉成纪律）。
-  服务端补上 `user`（或 `game-entry`）目标类型之后：`PlayerPanel` 那一行接一颗 `ReportButton`
-  （`targetType="user"`、`targetId={seat.userId}`）即可，弹层 / 理由表 / 失败话术全是现成的。
+- ✅ **局内举报已支持（`user` / `game-entry`）**：`Report.TARGET_TYPES` 现在六类（video / comment / danmaku /
+  persona / **user / game-entry**，服务端 2026-11-24 `feat/game-ugc-reports` 上线），`POST /api/branch/reports`
+  收后两类、且**按 id 现查靶子**（不存在回 404 `TARGET_NOT_FOUND`）。两处挂点：
+  - `PlayerPanel` 每一行（真人 + 不是我）：`ReportButton targetType="user" targetId={seat.userId}`；
+  - 展映 / 投票面板每条投稿：`ReportButton targetType="game-entry" targetId={entry.entryId}`。
+  判据只有 `studio/game/reports.ts` 一处（构建门禁 `scripts/check-game-ingame.mjs` 跑正反例）：
+  能力位 `gameReports !== true`（老服务端 / 还没探到）→ **不摆**（点了必然 400）；
+  **老房间的存量投稿 `entryId` 为 null → 不摆投稿那颗键**（服务端 2026-11-24 才给投稿加 entryId）；
+  不是我自己的内容才摆；靶子 id 必须是 24 位 ObjectId。AI 座位没有 userId，照旧一颗动作键都不摆。
+  失败话术复用 `api/admin.reportErrorText`（404 `TARGET_NOT_FOUND` 单独一句「这条内容已经不在了」，
+  不再冒充"服务端不支持举报"）；后台这两类只剩「驳回」（服务端本轮只受理不处置，`reportActionsFor` 已按它写）。
 - **在线 / 掉线状态没有来源**：服务端房间快照的成员只有 userId / displayName / seat / ready / isHost /
   avatarUrl / hp，**没有在线位**；这一版不猜（面板里不摆）。要它就等于服务端补一列（心跳时间或 `online`）。
 - **面板尺寸是被硬卡出来的**：800×363 上宽 140（HUD 左沿）/ 高 87（创作面板上沿），所以 8 人局

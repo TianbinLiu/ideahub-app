@@ -1,16 +1,19 @@
 #!/usr/bin/env node
-// 构建门禁：对局内 P0 的三条（2026-11-24，docs/game-lobby-ui-benchmark.md §2.2 的 #2 / #10 / #6 前半）。
+// 构建门禁：对局内 P0 的三条（2026-11-24，docs/game-lobby-ui-benchmark.md §2.2 的 #2 / #10 / #6 前半）
+// + 局内举报那两颗键（同日服务端 `feat/game-ugc-reports` 上线之后接的，判据在 `studio/game/reports.ts`）。
 //
-// ★★ 为什么要单独一道：这三条里**有两件的错都长在眼睛看不见的地方**——
+// ★★ 为什么要单独一道：这几条里**有三件的错都长在眼睛看不见的地方**——
 //   · 玩家名单的派生字段（谁交片 / 谁点过赞 / 谁房主 / 谁淘汰）在联机与单机两种来源上口径不同：
 //     写错了界面上只会"多一个徽记 / 少一个徽记"，对着屏幕点永远发现不了；
 //     尤其是联机局里**别人的点赞 / 投票服务端根本没下发**，用计数反推就是编数据；
 //   · 顶部横幅的红 / 黄分岔：被房主踢出房间与"这一拍没连上"原来都被压成同一句 fallback，
 //     界面上分不出来（这才是本轮要修的那条），所以这里把 mapping 逐条钉住；
 //   · 本地计时（阶段切换清零 / 负数 / 跨分）是一个纯算术，但错了只表现为"秒数怪怪的"。
+//   · 举报键的判据（能力位 / entryId / 是不是自己的）摆错了不是难看，是**用户认真提交的投诉被 400/404 丢掉**；
+//     而"老房间存量投稿没有 entryId"这一支只有真去翻老房间才会遇到 —— 只能靠这里钉。
 //
-// ★ 本文件**不重写一条规则**：import 的就是线上那三份纯模块（roster / connection / phaseClock），
-//   界面接线用源码断言钉住（第 4 节）—— 那几处要 React，Node 跑不起来。
+// ★ 本文件**不重写一条规则**：import 的就是线上那四份纯模块（roster / connection / phaseClock / reports），
+//   界面接线用源码断言钉住（第 5 节）—— 那几处要 React，Node 跑不起来。
 //
 // 用法：node scripts/check-game-ingame.mjs
 import fs from "node:fs";
@@ -22,6 +25,7 @@ const load = (rel) => import(url.pathToFileURL(path.join(root, rel)).href);
 const R = await load("src/studio/game/roster.ts");
 const C = await load("src/studio/game/connection.ts");
 const K = await load("src/studio/game/phaseClock.ts");
+const P = await load("src/studio/game/reports.ts");
 
 const problems = [];
 let positive = 0;
@@ -260,15 +264,28 @@ console.log("5) 源码断言（接线）");
   ok("拉黑复用 BlockButton（现成组件，不新写一套）", panel.includes("<BlockButton"));
   ok("名单从纯模块来（单机 / 联机两条来源都在那儿）", panel.includes("localRosterOf(") && panel.includes("onlineRosterOf("));
   ok("AI 座位没有 userId → 一颗动作键都不摆", panel.includes("seat.userId"));
-  // ★★ 举报那一格**故意不摆**（PlayerPanel 文件头 ★★）：服务端 Report.TARGET_TYPES 里没有
-  //   user / game-entry，局内的 UGC 在服务端没有可举报的对象 id —— 摆一颗点了必然 400 的键
-  //   就是本仓明令禁止的"永远点不动的选项"。服务端补上类型之后，把这里改成
-  //   ok("举报复用 ReportButton", panel.includes("<ReportButton"))，并在那一行接上即可。
-  ok(
-    "举报没有死键（服务端今天没有「玩家」目标类型 → 不摆 ReportButton）",
-    !panel.includes("<ReportButton"),
-  );
-  ok("举报缺口的理由写在面板文件头（不是悄悄不做）", panel.includes("TARGET_TYPES"));
+  ok("玩家举报复用 ReportButton（铁律六：不新写一套举报流）", panel.includes("<ReportButton"));
+  ok("举报键的判据走纯模块（能力位 / userId / 是不是我）", panel.includes("playerReportTargetOf("));
+  ok("举报与拉黑并排、不合并成一个菜单", panel.includes("<BlockButton") && panel.includes("<ReportButton"));
+
+  const screening = read("src/studio/game/ui/OnlineScreeningPanel.tsx");
+  ok("展映面板每条投稿有举报键（targetType 由判据给）", screening.includes("<ReportButton"));
+  ok("展映面板的举报判据走纯模块（entryId / 能力位 / 是不是我）", screening.includes("entryReportTargetOf("));
+
+  const voting = read("src/studio/game/ui/OnlineVotingPanel.tsx");
+  ok("投票面板每条投稿有举报键", voting.includes("<ReportButton"));
+  ok("投票面板与展映共用同一份举报判据", voting.includes("entryReportTargetOf("));
+
+  const reportCore = read("src/studio/game/reports.ts");
+  ok("判据模块是零依赖（只可能 import type）", !/^\s*import\s+(?!type\b)/m.test(reportCore));
+  ok("两类 targetType 与 server models/Report.js 逐字相等", reportCore.includes('"user" | "game-entry"'));
+
+  const rounds = read("src/api/game/rounds.ts");
+  ok("回合快照解析 entryId（老房间为 null）", rounds.includes("entryId: strOf(e.entryId)"));
+
+  const caps = read("src/data/serverCaps.ts");
+  ok("能力位 gameReports 在健康端点解析处", caps.includes("gameReports: j.gameReports === true"));
+  ok("能力位 gameReports 有独立读法（force 探测：dev + 本地服务端要能问到）", caps.includes("export function serverGameReports("));
 
   const phase = read("src/studio/game/ui/PhaseBar.tsx");
   ok("阶段条挂本地计时", phase.includes("<PhaseClock"));
@@ -283,6 +300,93 @@ console.log("5) 源码断言（接线）");
   const reduceBlock = css.slice(css.lastIndexOf("@media (prefers-reduced-motion: reduce)"));
   ok("横幅 / 面板的入场与转圈都登记进 reduced-motion 段", /\.ingame-rise,\s*\.ingame-spin \{ animation: none !important; \}/.test(reduceBlock));
   ok("对局内动效只有这一对类名（别偷偷再起一条循环动画）", (css.match(/animation:[^;]*ingame/g) ?? []).length === 2);
+}
+
+// ── 6. 局内举报键的判据（reports.ts）──────────────────────────────────────────
+// 服务端 2026-11-24（`feat/game-ugc-reports`）给 `Report.TARGET_TYPES` 加了 user / game-entry，
+// `POST /api/branch/reports` 收这两类且**按 id 现查靶子**。所以"摆不摆"这件事的错法只有一种：
+// 摆了一颗点了必然 400/404 的键（用户的一条投诉被丢掉）—— 这里把三种不摆的判据逐条钉住。
+console.log("6) 局内举报键（playerReportTargetOf / entryReportTargetOf）");
+{
+  // 服务端两类靶子的合法形状：mongoose ObjectId（24 位十六进制）
+  const uid = "0123456789abcdef01234567";
+  const eid = "abcdef0123456789abcdef01";
+  const notId = "not-an-object-id";
+
+  // ── 玩家举报（PlayerPanel 每一行）──
+  eq(
+    "能力位为真 + 真人有合法 userId → 摆「玩家」举报键",
+    P.playerReportTargetOf({ cap: true, userId: uid, mine: false }),
+    { targetType: "user", targetId: uid },
+  );
+  eq(
+    "能力位为假（老服务端）→ 不摆",
+    P.playerReportTargetOf({ cap: false, userId: uid, mine: false }),
+    null,
+  );
+  eq(
+    "能力位还没探到（null）→ 不摆（不知道 ≠ 有，理由见 reports.ts）",
+    P.playerReportTargetOf({ cap: null, userId: uid, mine: false }),
+    null,
+  );
+  eq(
+    "AI 座位（userId 为 null）→ 不摆（本机局整张板一颗动作键都没有）",
+    P.playerReportTargetOf({ cap: true, userId: null, mine: false }),
+    null,
+  );
+  eq(
+    "我自己那一行 → 不摆（自己的账号该删不该举报）",
+    P.playerReportTargetOf({ cap: true, userId: uid, mine: true }),
+    null,
+  );
+  eq(
+    "userId 不是 24 位 ObjectId → 不摆（服务端按 id 现查，形状不对就报不上）",
+    P.playerReportTargetOf({ cap: true, userId: notId, mine: false }),
+    null,
+  );
+
+  // ── 投稿举报（展映 / 投票面板每条投稿）──
+  eq(
+    "能力位为真 + entryId 合法 → 摆「投稿」举报键",
+    P.entryReportTargetOf({ cap: true, entryId: eid, mine: false }),
+    { targetType: "game-entry", targetId: eid },
+  );
+  eq(
+    "能力位为假 → 不摆（老服务端没有 game-entry 目标类型）",
+    P.entryReportTargetOf({ cap: false, entryId: eid, mine: false }),
+    null,
+  );
+  eq(
+    "能力位还没探到（null）→ 不摆",
+    P.entryReportTargetOf({ cap: null, entryId: eid, mine: false }),
+    null,
+  );
+  eq(
+    "老房间的存量投稿 entryId 为 null → 不摆（拿 null 去报必然 404 TARGET_NOT_FOUND）",
+    P.entryReportTargetOf({ cap: true, entryId: null, mine: false }),
+    null,
+  );
+  eq(
+    "entryId 是空串 → 不摆（把空串当 id 是另一种「点了才知道是假的」）",
+    P.entryReportTargetOf({ cap: true, entryId: "", mine: false }),
+    null,
+  );
+  eq(
+    "entryId 不是 24 位 ObjectId → 不摆",
+    P.entryReportTargetOf({ cap: true, entryId: notId, mine: false }),
+    null,
+  );
+  eq(
+    "自己交的那条 → 不摆",
+    P.entryReportTargetOf({ cap: true, entryId: eid, mine: true }),
+    null,
+  );
+
+  // ★ 两条判据共用一个形状：ReportButton 的 targetType 只认这两个字符串（与 api/admin.ReportTargetType 对得上）
+  eq("两类的 targetType 就是服务端的两个值", [
+    P.playerReportTargetOf({ cap: true, userId: uid, mine: false }).targetType,
+    P.entryReportTargetOf({ cap: true, entryId: eid, mine: false }).targetType,
+  ], ["user", "game-entry"]);
 }
 
 // ── 结论 ─────────────────────────────────────────────────────────────────────
