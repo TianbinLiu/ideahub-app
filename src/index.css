@@ -389,6 +389,46 @@ canvas {
   animation: drop-ring 1.6s ease-in-out infinite;
 }
 
+/* ── 大厅视觉 P0（2026-11-24，docs/game-lobby-ui-benchmark.md §1.4）────────────
+   只动 transform / opacity / box-shadow（合成层），全部在文件末尾的
+   prefers-reduced-motion 段里登记。
+   ★ 一屏最多一个"持续动"：首屏只有选中态的一次性过渡、等匹配只有雷达、房间只有复制浮字（一次性）。
+   ★ 动效不承担信息：排队秒数、预计等待、房号都是静态文本，动画只是强调。 */
+
+/* 模式卡选中态：描边 + 轻微上浮 0.15s（上浮的位移写在 JSX 的 -translate-y-0.5 上，这里给过渡） */
+.lobby-mode-card {
+  transition: transform 150ms ease-out, box-shadow 150ms ease-out, background-color 150ms ease-out;
+}
+
+/* 等匹配的雷达：conic-gradient 扇面 + mask 裁成一圈。不单开 Canvas（为一圈动画不值一块画布）。 */
+@keyframes lobby-radar-sweep {
+  to { transform: rotate(360deg); }
+}
+.lobby-radar {
+  background: conic-gradient(from 0deg, rgb(56 189 248 / 0) 0deg, rgb(56 189 248 / 0) 250deg, rgb(56 189 248 / 0.6) 360deg);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 4px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 4px));
+  animation: lobby-radar-sweep 2.4s linear infinite;
+}
+/* 雷达中心的呼吸光：只呼吸 box-shadow 的扩散，不动位置 */
+@keyframes lobby-radar-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(56 189 248 / 0.28); }
+  50% { box-shadow: 0 0 0 6px rgb(56 189 248 / 0); }
+}
+.lobby-radar-glow {
+  animation: lobby-radar-glow 2.4s ease-in-out infinite;
+}
+
+/* 复制成功浮字：往上飘 12px 再淡出（一次性 1.2s，与 RoomScreen 的 1.4s 停留配套） */
+@keyframes lobby-copy-pop {
+  0% { opacity: 0; transform: translateY(6px); }
+  15%, 70% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-12px); }
+}
+.lobby-copy-pop {
+  animation: lobby-copy-pop 1.2s ease-out both;
+}
+
 /* ── 底栏 ➕ 上的宠物（见 components/CreatePerch.tsx）──────────────────────
    与右栏/Tab 那六个挂件共用 .perch-pop（辉光 + 接触阴影）与 perch-run（翻页），
    但**没有自己的进出场编排** —— 她是常驻的，不存在"进场/退场"这回事。
@@ -413,6 +453,15 @@ canvas {
   /* 点赞粒子：减少动效时只留那颗心，不飞星星 */
   .burst-fly { display: none !important; }
 
+  /* 大厅视觉 P0（2026-11-24）：选中态不做过渡（描边照旧，位置瞬间到位）、
+     等匹配的雷达停成静态圆环（转圈没有信息，别转）、复制浮字只淡不飘。
+     ★ 复制浮字**不能**写 animation: none —— 它靠动画自己走完把透明度带到 0，
+       停掉的话那行字会一直挂着（与上面弹幕那条同一个理由）。 */
+  .lobby-mode-card { transition: none !important; }
+  .lobby-radar,
+  .lobby-radar-glow { animation: none !important; }
+  .lobby-copy-pop { animation-name: lobby-copy-fade !important; }
+
   /* 弹幕改成"字幕"：不横飘，在左上角原地淡入淡出。
      ★ 不能写 animation: none —— 那样它既不动、也**永远不会触发 animationend**，
        而移除是挂在 animationend 上的，弹幕会一条条堆在容器左边不走，越堆越多。
@@ -428,6 +477,13 @@ canvas {
   0% { opacity: 0; }
   6%, 30% { opacity: 1; }
   40%, 100% { opacity: 0; }
+}
+
+/* 减少动效时的复制浮字：只淡入淡出，不位移（时长与 .lobby-copy-pop 一致） */
+@keyframes lobby-copy-fade {
+  0% { opacity: 0; }
+  15%, 80% { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 /* 铸卡师"正在斟酌"的三点。只动 transform/opacity：这窗盖在实时渲染的 3D 画面上，

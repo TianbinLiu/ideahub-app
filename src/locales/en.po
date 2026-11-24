@@ -5371,6 +5371,10 @@ msgstr "Topics they won't discuss. The platform's safety baseline is added separ
 msgid "TA 还没有发布作品"
 msgstr "They haven't published any videos yet"
 
+#: src/studio/game/ui/Lobby.tsx
+msgid "token 余额：出片 / 对话要花它；点开钱包"
+msgstr "Token balance: videos and chats spend it. Tap to open your wallet."
+
 #: src/studio/cutNarration.ts
 msgid "token 余额不够，配音没做成"
 msgstr "Not enough tokens — the voiceover wasn't made"
@@ -5723,6 +5727,11 @@ msgstr "Drag right <0>past the last segment</0> to find two tiles: one <1>adds t
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "一组一问一答，最多 {0} 组、每句 {1} 字以内。"
 msgstr "One exchange per group; up to {0} groups, {1} characters per line."
+
+#. placeholder {0}: room.code
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "一起开局吧：打开 App → 开工坊对局 → 加入房间，房间码 {0}。"
+msgstr "Let's start a match: open the app → Workshop match → Join room. Room code {0}."
 
 #: src/studio/cutAutoEdit.ts
 msgid "一键成片"
@@ -7036,6 +7045,10 @@ msgstr "second watch, here I am"
 #: src/components/flow/CastPicker.tsx
 msgid "二次元"
 msgstr "Anime"
+
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "二维码"
+msgstr "QR code"
 
 #: src/data/danmaku.ts
 msgid "云海倒卷这一下太燃了"
@@ -8740,6 +8753,10 @@ msgstr "Pick a reason first"
 msgid "先选一张封面"
 msgstr "Pick a cover first"
 
+#: src/studio/game/ui/Lobby.tsx
+msgid "先选一种开局方式，再点下面那颗键开始；点卡片只选中，不会直接开局。"
+msgstr "Pick a way to start, then tap the button below. Tapping a card only selects it — it won't start a match."
+
 #: src/pages/RecipePage.tsx
 msgid "先选角"
 msgstr "Cast first"
@@ -9940,6 +9957,7 @@ msgstr "Split into shots: no end frame"
 
 #: src/pages/FeedPage.tsx
 #: src/pages/VideoPage.tsx
+#: src/studio/game/ui/RoomScreen.tsx
 msgid "分享"
 msgstr "Share"
 
@@ -9967,6 +9985,10 @@ msgstr "Share or save this video"
 #: src/components/ShareSheet.tsx
 msgid "分享这条作品"
 msgstr "Share this video"
+
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "分享邀请"
+msgstr "Share invite"
 
 #: src/data/account.ts
 msgid "分享需要先连接服务器并登录"
@@ -10149,6 +10171,10 @@ msgstr "Creator"
 #: src/components/TemplateCreateCard.tsx
 msgid "创建属于你的视频模板"
 msgstr "Create your own video template"
+
+#: src/studio/game/ui/Lobby.tsx
+msgid "创建房间"
+msgstr "Create room"
 
 #: src/components/guide/tours.tsx
 #: src/pages/WorkshopPage.tsx
@@ -10602,6 +10628,10 @@ msgstr "The rewrite is ready: back on the canvas, open “Rewrite by theme” fr
 msgid "剧本没改成，回去看原因"
 msgstr "Couldn't rewrite the script — go back to see why"
 
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "剪贴板不可用：长按房间码手动选中"
+msgstr "Clipboard unavailable: press and hold the room code to select it"
+
 #: src/pages/CutPage.tsx
 msgid "剪辑"
 msgstr "Edit"
@@ -10803,6 +10833,14 @@ msgstr "There isn't a single file we recognize in the package. A Live2D package 
 #: src/live2d/bundlePreview.ts
 msgid "包里没有找到 *.model3.json。它是 Cubism 4（Version 3）导出的入口文件，缺了它我们不知道该加载什么。"
 msgstr "No *.model3.json found in the package. It's the entry file that Cubism 4 (Version 3) exports; without it we don't know what to load."
+
+#: src/studio/game/ui/Lobby.tsx
+msgid "匹配 4 人局"
+msgstr "Match 4 players"
+
+#: src/studio/game/ui/Lobby.tsx
+msgid "匹配 8 人局"
+msgstr "Match 8 players"
 
 #: src/studio/game/labels.ts
 msgid "医疗补给"
@@ -13377,6 +13415,7 @@ msgid "处理举报（下架 / 驳回 / 删除）· 平台数据"
 msgstr "Handle reports (take down / dismiss / delete) · platform data"
 
 #: src/pages/CardDetailPage.tsx
+#: src/studio/game/ui/RoomScreen.tsx
 msgid "复制"
 msgstr "Copy"
 
@@ -13388,9 +13427,17 @@ msgstr "Copy failed. Copy it manually: {url}"
 msgid "复制失败，请手动分享"
 msgstr "Couldn't copy — please share it manually"
 
+#: src/components/ShareSheet.tsx
+msgid "复制失败：长按下面这段字手动复制"
+msgstr "Copy failed: press and hold the text below to copy it"
+
 #: src/studio/game/ui/RoomScreen.tsx
 msgid "复制房间码"
 msgstr "Copy room code"
+
+#: src/components/ShareSheet.tsx
+msgid "复制邀请文案"
+msgstr "Copy invite text"
 
 #: src/components/ShareSheet.tsx
 msgid "复制链接"
@@ -14962,6 +15009,10 @@ msgstr "Replaced with the subject-only image"
 msgid "已换成只留主体的这张，出片按它走（卡面封面不跟着换）"
 msgstr "Replaced with the subject-only image. Videos will use it (the card cover stays as it was)."
 
+#: src/studio/game/ui/Lobby.tsx
+msgid "已排队 {waitedSec} 秒 · {etaText}"
+msgstr "Queued {waitedSec}s · {etaText}"
+
 #. placeholder {0}: nodes.length
 #: src/pages/RecipePage.tsx
 msgid "已接上 {0} 段"
@@ -16450,6 +16501,10 @@ msgstr "The host cannot kick themselves — tap Leave room instead"
 msgid "房主开局"
 msgstr "Host starts"
 
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "房间二维码"
+msgstr "Room QR code"
+
 #: src/studio/game/lobbyReasons.ts
 msgid "房间服务回了没见过的错误：{code}"
 msgstr "The room service returned an unknown error: {code}"
@@ -16467,6 +16522,10 @@ msgstr "Room code"
 #: src/studio/game/ui/RoomScreen.tsx
 msgid "房间码 {0}"
 msgstr "Room code {0}"
+
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "房间码已复制"
+msgstr "Room code copied"
 
 #: src/studio/game/lobbyReasons.ts
 msgid "房间码是 6 位字母或数字"
@@ -16622,6 +16681,10 @@ msgstr "Running…"
 #: src/components/VolcCompatToggle.tsx
 msgid "扫脸认证新的"
 msgstr "Verify a new face"
+
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "扫这张码能拿到同一段邀请文案（房号 + 怎么进房）"
+msgstr "Scanning gives the same invite text (room code + how to join)"
 
 #: src/studio/game/labels.ts
 msgid "批量采购"
@@ -22712,6 +22775,10 @@ msgstr "Rendering video"
 msgid "游戏券：出片扣 {perGen} 张，不扣 token（每月 {0} 张，{resetDay} 号刷新；做任务也能领）"
 msgstr "Game tickets: {perGen} per generation, no tokens charged ({0} per month, refresh on day {resetDay}; tasks can earn more)"
 
+#: src/studio/game/ui/Lobby.tsx
+msgid "游戏券：每月 {ticketLimit} 张，出片扣 {ticketPerGen} 张、不扣 token（{ticketResetDay} 号刷新）；点开钱包"
+msgstr "Game tickets: {ticketLimit} per month; a video costs {ticketPerGen} ticket(s) and no tokens (refreshes on day {ticketResetDay}). Tap to open your wallet."
+
 #: src/studio/game/reasons.ts
 msgid "游戏券只能用在出片上：这一发不是出片（出图 / 对话 / 建模），所以没有受理、也没有扣费。"
 msgstr "Game tickets only cover video generation: this call isn't a video (image / chat / 3D model), so it wasn't accepted and nothing was charged."
@@ -23053,6 +23120,10 @@ msgstr "Tap to rename"
 #: src/pages/WorkshopMinePage.tsx
 msgid "点卡片加入 / 移出"
 msgstr "Tap cards to add / remove"
+
+#: src/studio/game/ui/Lobby.tsx
+msgid "点卡片只选中，不会直接开局；键盘上按 Enter 也能开始。"
+msgstr "Tapping a card only selects it. On a keyboard, press Enter to start."
 
 #: src/components/guide/tours.tsx
 msgid "点卡片底部那枚按钮进去：工坊先到<0>对局大厅</0>（4/8 人匹配或自定义房），开一局之后才是桌面；简约落到一步一屏的向导。出片之后都汇到<1>同一个剪辑页</1>，再从那里发布。"
@@ -26947,6 +27018,10 @@ msgstr "Quality"
 #: src/data/economy.ts
 msgid "精绘"
 msgstr "Master"
+
+#: src/components/ShareSheet.tsx
+msgid "系统分享"
+msgstr "System share"
 
 #: src/components/DataLossNotice.tsx
 msgid "系统在打开本机数据库时发现文件已经损坏，把它清空后重建了一个新的。只存在这台设备上的东西 —— 草稿、剪到一半的成片、还没传上去的作品、本机模板 —— 没有了，救不回来。"
@@ -33256,8 +33331,8 @@ msgid "选一段视频（传完再框选）"
 msgstr "Choose a video (select the part after it uploads)"
 
 #: src/studio/game/ui/Lobby.tsx
-msgid "选一种开局方式：4 人 / 8 人匹配，或者开一间自定义房间。"
-msgstr "Pick how to start: a 4-player or 8-player match, or open a custom room"
+#~ msgid "选一种开局方式：4 人 / 8 人匹配，或者开一间自定义房间。"
+#~ msgstr "Pick how to start: a 4-player or 8-player match, or open a custom room"
 
 #: src/components/flow/DialogueWizard.tsx
 msgid "选两个说话的人：先点的是第一个人（站在画面左边），后点的是第二个人。可以再挑一张场景卡当地点。"
@@ -33595,12 +33670,20 @@ msgid "道具栏"
 msgstr "Item rail"
 
 #: src/studio/game/ui/RoomScreen.tsx
-msgid "邀请"
-msgstr "Invite"
+#~ msgid "邀请"
+#~ msgstr "Invite"
 
 #: src/studio/game/ui/RoomScreen.tsx
 msgid "邀请别人进这间房"
 msgstr "Invite people to this room"
+
+#: src/components/ShareSheet.tsx
+msgid "邀请文案已复制，去粘给朋友吧"
+msgstr "Invite copied — paste it to your friends"
+
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "邀请朋友进这间房"
+msgstr "Invite friends to this room"
 
 #: src/components/guide/tours.tsx
 #~ msgid "那一列最下面单独一枚是全屏键，点了只留画面；<0>横屏的片子会连屏幕一起转过来</0>，所以它在横屏片上写的是「转屏」。退出点右上角那枚缩小键。"
@@ -34469,6 +34552,22 @@ msgstr "The preview plays <0>the whole video</0> you merged in the video editor,
 #: src/components/ShareSheet.tsx
 msgid "预览链接已复制，去贴给朋友吧"
 msgstr "Preview link copied. Paste it to your friends"
+
+#. placeholder {0}: Math.floor(queue.etaSec / 60)
+#. placeholder {1}: String(queue.etaSec % 60).padStart(2, "0")
+#: src/studio/game/ui/Lobby.tsx
+msgid "预计 {0} 分 {1} 秒"
+msgstr "About {0} min {1} sec"
+
+#. placeholder {0}: Math.max(1, Math.floor(queue.etaSec))
+#: src/studio/game/ui/Lobby.tsx
+msgid "预计 {0} 秒"
+msgstr "About {0} sec"
+
+#. placeholder {0}: Math.floor(QUEUE_TIMEOUT_MS / 60_000)
+#: src/studio/game/ui/Lobby.tsx
+msgid "预计最多 {0} 分 00 秒"
+msgstr "Up to {0} min 00 sec"
 
 #. placeholder {0}: fmtTokens(mainCost)
 #: src/pages/FlowPage.tsx

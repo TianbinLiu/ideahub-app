@@ -10,7 +10,7 @@ import { useLingui } from "@lingui/react/macro";
 import qrcode from "qrcode-generator";
 import { useMemo } from "react";
 
-export default function QrCode({ text, size = 176 }: { text: string; size?: number }) {
+export default function QrCode({ text, size = 176, label }: { text: string; size?: number; label?: string }) {
   const { t } = useLingui();
   const { path, count } = useMemo(() => {
     const qr = qrcode(0, "M");
@@ -37,7 +37,7 @@ export default function QrCode({ text, size = 176 }: { text: string; size?: numb
       viewBox={`0 0 ${vb} ${vb}`}
       shapeRendering="crispEdges"
       role="img"
-      aria-label={t`授权二维码`}
+      aria-label={label ?? t`授权二维码`}
       style={{ background: "#fff", borderRadius: 8 }}
     >
       <path d={path} fill="#000" transform={`translate(${quiet} ${quiet})`} />

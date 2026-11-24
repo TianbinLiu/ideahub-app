@@ -14,8 +14,8 @@
 | `src/studio/game/lobby.ts` | **大厅 / 房间的纯状态机（零依赖）**：座位 id（`seatIdsFor` / `aiSeatIds`）、房间码（`roomCodeOf`，本机 6 位数字；`normalizeServerCode`，服务端 6 位字母数字）、开房（`createRoom`）、改人数（`setRoomSize`）、踢人（`kickSeat`）、准备（`toggleReady`）、离开（`leaveRoom`）、开局怎么坐（`roomStartPlan` / `canStartRoom`）。**一条 UI 都没有** |
 | `src/studio/game/lobbyStore.ts` | 大厅界面状态（zustand）：开没开、停在哪一屏（`home` / `matching` / `room`）、房间那份状态、**联机快照 / 队列现状 / 底栏原因 / 退本机**。规矩递回 `lobby.ts`，网络递去 `api/game/rooms`，建局递出去（`ui/startFromLobby`） |
 | `src/studio/game/lobbyReasons.ts` | `LobbyFailure` / 服务端错误码 / `LobbyNote` → 那一句人话（**唯一一处**，与 `reasons.ts` 同一条分工） |
-| `src/studio/game/ui/Lobby.tsx` | 大厅外壳 + 首屏三张入口卡 + 凭码加入 + 4/8 人匹配那一屏（联机等真人 / 退回后 AI 补位） |
-| `src/studio/game/ui/RoomScreen.tsx` | 自定义房间：房间码 / 成员表 / 房主开局、踢人（联机时藏改人数）/ 非房主准备 / 邀请卡 |
+| `src/studio/game/ui/Lobby.tsx` | 大厅外壳 + 顶栏货币条（🎟 券 / ⚡ token）+ 首屏三张模式卡（**点一下只选中**）+ 底部实心主键 + 凭码加入 + 4/8 人匹配那一屏（雷达 / 已排队与预计等待 / 取消；联机等真人 / 退回后 AI 补位） |
+| `src/studio/game/ui/RoomScreen.tsx` | 自定义房间：房间码 / 复制 / 二维码 / 分享 / 成员表 / 房主开局、踢人（联机时藏改人数）/ 非房主准备 / 邀请卡 |
 | `src/studio/game/ui/useLobbyOnline.ts` | **联机轮询的唯一一处定时器**：等匹配 2 秒一拍（60 秒上限）、房间快照 2 秒一拍、服务端开局后建本机局；换屏 / 卸载即 cleanup |
 | `src/studio/game/ui/startFromLobby.ts` | 大厅 → 对局的**唯一**那一下（App 里唯一同时认识三个 store 的地方）；开局交接时**不退房**（回合引擎还要房间码），对局结束才退 |
 | `src/api/game/rooms.ts` | **联机 HTTP 层**：`createRoom` / `joinRoom` / `readRoom` / `kickMember` / `setReady` / `startRoom` / `leaveRoom` / `findMatch` / `readQueue` / `cancelMatch` + `roomsAvailable()`（能力位） |
@@ -31,15 +31,17 @@
 | `scripts/check-game-lobby.mjs` | 大厅 / 房间状态机 **100 条断言**（正例 85 / 反例 15），`npm run build` 里跑 |
 | `scripts/check-game-online.mjs` | 联机回合编排 **93 条断言**（阶段对齐 / 下一回合 / 第 9 回合 / 掉线补齐 AI / 本机事件），`npm run build` 里跑 |
 
-## 一、大厅：三张入口卡
+## 一、大厅：先选模式，再点主键（2026-11-24 视觉 P0 拆成两步）
 
 ```
 创作入口「开始做完整作品」（src/pages/CreatePage，2026-11-24 起）→ `/studio?lobby=1`
 ▶ 开局（工坊顶栏，原来直接建局）→ lobbyStore.openLobby()
-   └→ 大厅（横屏；铺满舞台的实底，3D 停帧）
-        ├─ 4 人匹配   → 等匹配那一屏（我 + 3 个 AI 补位）→「用 AI 开局」→ 4 人局
-        ├─ 8 人匹配   → 等匹配那一屏（我 + 7 个 AI 补位）→「用 AI 开局」→ 8 人局
-        └─ 自定义房间 → 房间屏（房间码 + 成员表 + 房主动作）→「开始对局」→ 房间人数的局
+   └→ 大厅首屏（横屏；铺满舞台的实底，3D 停帧）
+        ├─ 点模式卡（4 人 / 8 人 / 自定义）＝ **只选中**（高亮，不会直接开局）
+        └─ 点底部实心主键（匹配 4 人局 / 匹配 8 人局 / 创建房间）＝ 真的开始
+             ├─ 4/8 人匹配 → 等匹配那一屏（联机：队列人数 + 已排队 / 预计等待 + 取消；
+             │                没接通：我 + AI 补位 →「用 AI 开局」）
+             └─ 自定义房间 → 房间屏（房间码 + 复制 / 二维码 / 分享 + 成员表 + 房主动作）→「开始对局」
 ```
 
 - **两个入口、一条落点**（2026-11-24）：创作入口那颗「开始做完整作品」不再直接落到 3D 铸卡桌面，
@@ -47,8 +49,30 @@
   同一套做法）。**不新造路由**：大厅本来就是这块舞台上的浮层，另开一条会把模型与场景挂两遍。
   不带标记进 `/studio`（我的仓库 / 回炉重做 / 发布之后回工坊）照旧落在 3D 桌面上。
   已开着一局时 `?lobby=1` 不抢（不把人从牌桌上拽走）。
-- 大厅**不摆金币 / 券 / 血量**（主人点名"别塞"）：它只回答"这一局怎么开"。那些数是**对局中**的读数，
-  摆在大厅就要跟着对局状态走，两处（大厅与局内 HUD）一漂就是同一件事两个数。
+- **模式卡只选中、主键才开始**（2026-11-24 视觉 P0 = 文档 `docs/game-lobby-ui-benchmark.md` #13）：
+  以前点卡片直接进队 / 建房，误触一次就是一次开局。现在选中的是页内 state（默认 4 人），
+  卡片 `aria-pressed` + 描边 + 轻微上浮（0.15s，`prefers-reduced-motion` 下不做位移与过渡）；
+  主键文案跟着选中卡变，键盘 Tab 到它按 Enter 是原生行为；焦点不在任何可交互元素上时全局 Enter
+  也触发主键（焦点在输入框 / 卡片上时归它们各自的默认动作）。
+- **大厅顶栏摆货币条**（视觉 P0 = 文档 #4）：🎟 游戏券余额（`gameTickets` 能力位为真**且**读到余额才摆）
+  + ⚡ token 余额（钱包快照有才摆），点进 `/me?wallet=1`（`components/UpgradeLink.UPGRADE_HREF`）。
+  **局内金币 / 血量仍然不进大厅**（原来那条判断成立：那是对局中的读数）。
+- **等匹配那一屏有"等多久"**（视觉 P0 = 文档 #17 / #19）：雷达（纯 CSS）+「已排队 N 秒 · 预计 x 分 xx 秒」
+  —— `queue.etaSec` 是服务端的估算，null 时按客户端 `QUEUE_TIMEOUT_MS`（60 秒）说「预计最多 1 分 00 秒」，
+  两个数不混成一个；「取消匹配」保留（取消是安全操作，不加确认弹窗）。
+- **房间码的传播**（视觉 P0 = 文档 #22 / #23）：房间屏除了念房号，还有「复制 / 二维码 / 分享」。
+  二维码编码的是**邀请文案**（房号 + 打开 App → 开工坊对局 → 加入房间）——今天没有"扫码直接进房"的
+  路由，编码一条打不开的房间链接比编码一段能照做的文字更坏（将来加 `#/room/:code` 时只换这一处 payload）。
+  分享走 `components/ShareSheet` 的纯文案变体（`TextShareSheet`，与视频分享同一层底壳、同一套
+  `copyText` 退路）；复制成功给 1.4 秒浮字，失败说"剪贴板不可用，长按选中"。
+- **离开 `/studio` 会收掉大厅**（视觉 P0 顺手修）：`lobbyStore.open` 是整场会话的持久值 ——
+  以前带 `?lobby=1` 进来过、按系统返回键离开 `/studio` 之后，下次不带标记进来仍会看见大厅。
+  现在 `StudioPage` 卸载时延迟一拍（避开 StrictMode 假卸载）调 `closeLobby()`，
+  顺带退房 / 取消排队（`release()`）。
+- **800×363 实测**（headless Chrome DeviceMetrics，舞台 788×351）：顶栏 788×42.8、模式卡 184×104、
+  底部主键 256×36（y 277.8，底栏 y 333）、凭码输入 128×32、房间码 chip 88×26.5、邀请卡 352×251.6
+  （二维码 88×88）；1384×797 对照：卡 192×104、主键 320×44。完整数字与验法见
+  `docs/game-lobby-ui-benchmark.md` §2.5。
 - 大厅**不挂 3D**：`absolute inset-0` 实底铺满舞台，同时把工坊画布的 `frameloop` 停掉
   （`StudioPage.canvasCovered` 认大厅，与画布浮层同一条理由；时钟由 `SceneClockKeeper` 接住）。
 - 「结束对局」之后**回到大厅**（刚打完一局，下一个动作通常是换一张桌再来），不是回到空桌面。
