@@ -3351,6 +3351,10 @@ msgstr "■ 停止"
 msgid "▭ 框"
 msgstr "▭ 框"
 
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "▲ 收起"
+msgstr "▲ 收起"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "▶ 再跑一遍"
 msgstr "▶ 再跑一遍"
@@ -3401,6 +3405,10 @@ msgstr "▸ 对不上怎么办？<0>多数情况删掉那个位子就行，不�
 #: src/components/blockout/RoleConfirmSheet.tsx
 #~ msgid "▸ 对不上怎么办？<0>多数情况删掉那个位子就行，不用重炼</0>"
 #~ msgstr "▸ 对不上怎么办？<0>多数情况删掉那个位子就行，不用重炼</0>"
+
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "▼ 展开"
+msgstr "▼ 展开"
 
 #: src/studio/game/ui/ShopPanel.tsx
 msgid "▾ 收起商店"
@@ -3902,6 +3910,10 @@ msgstr "✓ 这段满意，去下一段"
 msgid "✕ 关掉"
 msgstr "✕ 关掉"
 
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "✕ 关闭"
+msgstr "✕ 关闭"
+
 #: src/studio/StudioPage.tsx
 msgid "✕ 结束对局"
 msgstr "✕ 结束对局"
@@ -4062,6 +4074,14 @@ msgstr "✨ 重新生成这一套的画面"
 #: src/studio/game/ui/RoundResultPanel.tsx
 msgid "❤ 点赞榜"
 msgstr "❤ 点赞榜"
+
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "❤ 累计"
+msgstr "❤ 累计"
+
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "❤ 血量"
+msgstr "❤ 血量"
 
 #: src/studio/game/ui/PhaseBar.tsx
 msgid "➡ 下一回合"
@@ -4377,6 +4397,10 @@ msgstr "🏁 本局结束"
 msgid "🏁 返回大厅"
 msgstr "🏁 返回大厅"
 
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "🏆 夺冠"
+msgstr "🏆 夺冠"
+
 #: src/studio/game/ui/OnlineScreeningPanel.tsx
 #: src/studio/game/ui/ScreeningPanel.tsx
 msgid "👍 点赞这一条"
@@ -4473,6 +4497,10 @@ msgstr "📸 截这一帧"
 #: src/components/flow/DraftModeBox.tsx
 msgid "📼 先出样片（480p 预览，满意再定稿成 1080p）"
 msgstr "📼 先出样片（480p 预览，满意再定稿成 1080p）"
+
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "📼 查看回放"
+msgstr "📼 查看回放"
 
 #: src/components/flow/DraftModeBox.tsx
 msgid "📼 这是 480p 样片"
@@ -4737,6 +4765,10 @@ msgstr "🗳 投票：给别人的一条片子"
 #: src/studio/game/ui/RoundResultPanel.tsx
 msgid "🗳 投票榜"
 msgstr "🗳 投票榜"
+
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "🗳 累计"
+msgstr "🗳 累计"
 
 #: src/components/DraftSheet.tsx
 #~ msgid "🧩 工作流模式"
@@ -7784,6 +7816,10 @@ msgstr "你：{0}"
 msgid "你一句我一句"
 msgstr "你一句我一句"
 
+#: src/studio/game/historyReasons.ts
+msgid "你不在这一局里了，看不到它的回放"
+msgstr "你不在这一局里了，看不到它的回放"
+
 #: src/studio/game/lobbyReasons.ts
 msgid "你不在这个房间里"
 msgstr "你不在这个房间里"
@@ -8000,6 +8036,14 @@ msgstr "你的账号不是管理员。权限由服务端保管，改不了本地
 #: src/pages/SettingsPage.tsx
 msgid "你的账号是管理员：AI 生成走的是免扣费通道，消耗不从钱包里扣。"
 msgstr "你的账号是管理员：AI 生成走的是免扣费通道，消耗不从钱包里扣。"
+
+#. placeholder {0}: bar.mine.rank
+#. placeholder {0}: mine.rank
+#. placeholder {1}: bar.mine.damage
+#. placeholder {1}: mine.damage
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "你第 {0} 名 / −{1} 血"
+msgstr "你第 {0} 名 / −{1} 血"
 
 #. placeholder {0}: mine.rank
 #. placeholder {0}: mineIndex + 1
@@ -8999,7 +9043,9 @@ msgstr "公开制作过程需要联网；这台设备当前是离线模式。"
 msgid "公开着的还是上一版的制作过程（这一版回炉后还没更新），别人现在看不到。"
 msgstr "公开着的还是上一版的制作过程（这一版回炉后还没更新），别人现在看不到。"
 
+#. placeholder {0}: bars.length
 #. placeholder {0}: state.round
+#: src/studio/game/ui/MatchHistory.tsx
 #: src/studio/game/ui/RoundResultPanel.tsx
 msgid "共 {0} 回合"
 msgstr "共 {0} 回合"
@@ -9126,6 +9172,10 @@ msgstr "关键帧还在画（约 20~30 秒），画完才能另挑特效。"
 #: src/studio/ui/modals.tsx
 msgid "关闭"
 msgstr "关闭"
+
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "关闭回放"
+msgstr "关闭回放"
 
 #: src/studio/stage/StageOverlay.tsx
 msgid "关闭导演台"
@@ -9388,6 +9438,14 @@ msgstr "最火"
 #: src/pages/DiscoverPage.tsx
 msgid "最火作品"
 msgstr "最火作品"
+
+#: src/studio/game/ui/Lobby.tsx
+msgid "最近一局：{lastRoomCode}"
+msgstr "最近一局：{lastRoomCode}"
+
+#: src/studio/game/ui/Lobby.tsx
+msgid "最近一局回放"
+msgstr "最近一局回放"
 
 #: src/pages/SettingsPage.tsx
 msgid "最近几版各改了什么"
@@ -10944,6 +11002,10 @@ msgstr "卖掉了，+{0} 金"
 msgid "占位投稿：这一回合没交片"
 msgstr "占位投稿：这一回合没交片"
 
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "占位片，没有成片"
+msgstr "占位片，没有成片"
+
 #: src/components/guide/tours.tsx
 msgid "占的空间在这看、也在这清"
 msgstr "占的空间在这看、也在这清"
@@ -12465,6 +12527,10 @@ msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief �
 msgid "可能已经花掉一张券"
 msgstr "可能已经花掉一张券"
 
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "可能是网络抖了一下；回放不会因为这一下消失。"
+msgstr "可能是网络抖了一下；回放不会因为这一下消失。"
+
 #: src/pages/SettingsPage.tsx
 msgid "可能是网络没通，或者这个版本的清单里还没有这一项。"
 msgstr "可能是网络没通，或者这个版本的清单里还没有这一项。"
@@ -12780,6 +12846,10 @@ msgstr "名次 = 两个榜相加（并列看投票）"
 msgid "名次 = 服务端按两个榜合出来的顺序（分 = 点赞名次 + 投票名次，越小越好）"
 msgstr "名次 = 服务端按两个榜合出来的顺序（分 = 点赞名次 + 投票名次，越小越好）"
 
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "名次、夺冠与合计都按服务端结算"
+msgstr "名次、夺冠与合计都按服务端结算"
+
 #: src/studio/game/reasons.ts
 msgid "名次名单和存活玩家对不上，这次结算没有生效"
 msgstr "名次名单和存活玩家对不上，这次结算没有生效"
@@ -13044,6 +13114,7 @@ msgid "回复用户（会发通知 + 邮件）"
 msgstr "回复用户（会发通知 + 邮件）"
 
 #: src/studio/game/ui/ConnectionBanner.tsx
+#: src/studio/game/ui/MatchHistory.tsx
 msgid "回大厅"
 msgstr "回大厅"
 
@@ -13054,6 +13125,11 @@ msgstr "回收失败（网络不可用）"
 #: src/api/uploads.ts
 msgid "回收超时"
 msgstr "回收超时"
+
+#. placeholder {0}: failure.code
+#: src/studio/game/historyReasons.ts
+msgid "回放服务回了没见过的错误：{0}"
+msgstr "回放服务回了没见过的错误：{0}"
 
 #: src/pages/EditPage.tsx
 msgctxt "丢弃确认卡里「…再回来X」的那个动作（英文用小写动词短语）"
@@ -15320,6 +15396,16 @@ msgstr "已经选满 {LEAD_CAST_MAX} 个人：官方说一段里超过 4 个人�
 msgid "已经选满 {max} 个人，「{name}」收进了卡片库但没选上——先取下一个再点它"
 msgstr "已经选满 {max} 个人，「{name}」收进了卡片库但没选上——先取下一个再点它"
 
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "已结束"
+msgstr "已结束"
+
+#. placeholder {0}: history.summary.roundsPlayed
+#. placeholder {1}: history.rounds.length
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "已结算 {0} / {1} 回合"
+msgstr "已结算 {0} / {1} 回合"
+
 #: src/studio/ui/projection.tsx
 msgid "已自动取它的首尾帧当本段首尾帧；可细调、加中间帧（最多 {CUSTOM_MID_MAX} 张）"
 msgstr "已自动取它的首尾帧当本段首尾帧；可细调、加中间帧（最多 {CUSTOM_MID_MAX} 张）"
@@ -16395,6 +16481,7 @@ msgstr "成片预览（各段按时间线依次播放）"
 
 #: src/studio/game/labels.ts
 #: src/studio/game/ui/Lobby.tsx
+#: src/studio/game/ui/MatchHistory.tsx
 msgid "我"
 msgstr "我"
 
@@ -18439,6 +18526,10 @@ msgstr "播放头处分割"
 msgid "播放进度"
 msgstr "播放进度"
 
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "播的是我这一回合交的那条片子"
+msgstr "播的是我这一回合交的那条片子"
+
 #: src/api/companion.ts
 msgid "操作太频繁了，稍等几秒再试。"
 msgstr "操作太频繁了，稍等几秒再试。"
@@ -20221,9 +20312,21 @@ msgstr "本地预览"
 msgid "本局出片档位升到 {0}"
 msgstr "本局出片档位升到 {0}"
 
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "本局战绩"
+msgstr "本局战绩"
+
 #: src/studio/ui/SceneRails.tsx
 #~ msgid "本局打完了（共 {round} 回合）· 底部按「再来一局」重开"
 #~ msgstr "本局打完了（共 {round} 回合）· 底部按「再来一局」重开"
+
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "本局统计"
+msgstr "本局统计"
+
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "本局还没结束"
+msgstr "本局还没结束"
 
 #: src/pages/ProfilePage.tsx
 msgid "本服务尚未接入支付渠道，下单后无法完成付款"
@@ -21683,6 +21786,10 @@ msgstr "正在读取服务端的结算…（榜与扣血以服务端为准）"
 msgid "正在读取视频…"
 msgstr "正在读取视频…"
 
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "正在读取这一局的回放…"
+msgstr "正在读取这一局的回放…"
+
 #: src/components/blockout/BlockoutTrimmer.tsx
 msgid "正在读取这段视频的画面尺寸与时长…（应用切到后台时系统会暂停解码，这一步会一直等着）"
 msgstr "正在读取这段视频的画面尺寸与时长…（应用切到后台时系统会暂停解码，这一步会一直等着）"
@@ -21861,6 +21968,10 @@ msgstr "每个界面第一次打开时会自动放一遍使用引导，之后不
 #~ msgid "每出一段自动存草稿，随时接着做"
 #~ msgstr "每出一段自动存草稿，随时接着做"
 
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "每回合回放"
+msgstr "每回合回放"
+
 #. placeholder {0}: CARD_TYPE_LABELS[dearest]
 #: src/studio/ui/NpcDialog.tsx
 msgid "每张卡最多 {maxSlots} 张图 —— 卡种交给铸卡师判，这里先按最贵的{0}报价；少画的那张不会去调出图，也就不计费"
@@ -21980,6 +22091,10 @@ msgstr "永久删除该账号"
 #: src/components/support/SafetyCard.tsx
 msgid "求助热线"
 msgstr "求助热线"
+
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "没你的名次"
+msgstr "没你的名次"
 
 #: src/components/guide/tours.tsx
 msgid "没做完的半成品在这一格"
@@ -22667,6 +22782,10 @@ msgstr "没连上出图服务"
 msgid "没连上回合服务，暂时回不到那一局（下次打开再试）"
 msgstr "没连上回合服务，暂时回不到那一局（下次打开再试）"
 
+#: src/studio/game/historyReasons.ts
+msgid "没连上回放服务"
+msgstr "没连上回放服务"
+
 #: src/studio/game/lobbyReasons.ts
 msgid "没连上房间服务，先用 AI 开局"
 msgstr "没连上房间服务，先用 AI 开局"
@@ -23202,6 +23321,10 @@ msgstr "点一张图，把它写进句子（@名字）。"
 msgid "点一条就试听"
 msgstr "点一条就试听"
 
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "点一条播我这一回合交的片子"
+msgstr "点一条播我这一回合交的片子"
+
 #: src/studio/game/ui/GameLayer.tsx
 msgid "点了个赞"
 msgstr "点了个赞"
@@ -23727,6 +23850,7 @@ msgstr "特效那一段铺好了——关键帧当开头。"
 msgid "状态：{status}——过几分钟再点一次「取回」。这一发的钱已经花过了，取回不再花一分钱"
 msgstr "状态：{status}——过几分钟再点一次「取回」。这一发的钱已经花过了，取回不再花一分钱"
 
+#: src/studio/game/ui/MatchHistory.tsx
 #: src/studio/game/ui/PlayerPanel.tsx
 msgid "玩家"
 msgstr "玩家"
@@ -26042,12 +26166,19 @@ msgstr "第 {0} 味权重"
 msgid "第 {0} 味音色"
 msgstr "第 {0} 味音色"
 
+#. placeholder {0}: bar.round
 #. placeholder {0}: event.round
 #. placeholder {0}: view.hud.round
 #: src/studio/game/ui/EventPanel.tsx
+#: src/studio/game/ui/MatchHistory.tsx
 #: src/studio/game/ui/OnlineEventPanel.tsx
 msgid "第 {0} 回合"
 msgstr "第 {0} 回合"
+
+#. placeholder {0}: bar.round
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "第 {0} 回合回放"
+msgstr "第 {0} 回合回放"
 
 #. placeholder {0}: state.round
 #: src/studio/game/ui/PhaseBar.tsx
@@ -27036,6 +27167,10 @@ msgstr "等房主推进（要先全员交片）"
 #~ msgid "等替换"
 #~ msgstr "等替换"
 
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "等有人交片、结算之后，这里会按回合摆出回放条。"
+msgstr "等有人交片、结算之后，这里会按回合摆出回放条。"
+
 #: src/components/WorkflowShelf.tsx
 msgid "等服务器更新后再来"
 msgstr "等服务器更新后再来"
@@ -27387,6 +27522,10 @@ msgstr "绑定"
 msgctxt "嵌在句子里的名词：这张结尾帧 / 融成结尾帧"
 msgid "结尾帧"
 msgstr "结尾帧"
+
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "结束于 {finishedAt}"
+msgstr "结束于 {finishedAt}"
 
 #: src/data/templates.ts
 #~ msgid "结果取回来了，但服务器返回的模板缺少参考视频地址——钱在开炼那一步已经付过，请去「我的模板」确认后再决定要不要重来。"
@@ -30119,6 +30258,10 @@ msgstr "还没登录，改不了。"
 msgid "还没登录，装不了。"
 msgstr "还没登录，装不了。"
 
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "还没结算"
+msgstr "还没结算"
+
 #: src/studio/flowStore.ts
 msgid "还没给任何人偶挂卡，先去挂卡再合成预览"
 msgstr "还没给任何人偶挂卡，先去挂卡再合成预览"
@@ -30447,9 +30590,17 @@ msgstr "这一句问了模型（{price} token）"
 msgid "这一回合你已经选过了"
 msgstr "这一回合你已经选过了"
 
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "这一回合你没有交片"
+msgstr "这一回合你没有交片"
+
 #: src/studio/game/roundsReasons.ts
 msgid "这一回合已经开始了"
 msgstr "这一回合已经开始了"
+
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "这一回合我没有影片（淘汰后的回合由 AI 跑完）。"
+msgstr "这一回合我没有影片（淘汰后的回合由 AI 跑完）。"
 
 #: src/studio/game/ui/OnlineVotingPanel.tsx
 msgid "这一回合没有别人的片子可投（只有你自己）"
@@ -30470,6 +30621,10 @@ msgstr "这一回合还没有人交片，结算不了"
 #: src/studio/game/ui/RoundResultPanel.tsx
 msgid "这一回合还没有结算——先投票，再按「结算」。"
 msgstr "这一回合还没有结算——先投票，再按「结算」。"
+
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "这一回合还没结算，影片还在路上。"
+msgstr "这一回合还没结算，影片还在路上。"
 
 #: src/studio/flowStore.ts
 msgid "这一套方案还没有剧情——先写点什么，我才知道要画成什么样"
@@ -30532,6 +30687,10 @@ msgstr "这一局打完了"
 msgid "这一局按 {0} 个真人开：服务端的回合只算真人，空位不参加。"
 msgstr "这一局按 {0} 个真人开：服务端的回合只算真人，空位不参加。"
 
+#: src/studio/game/historyReasons.ts
+msgid "这一局没有回放（房间已结束或本机对局）"
+msgstr "这一局没有回放（房间已结束或本机对局）"
+
 #: src/studio/game/ui/StylePick.tsx
 msgid "这一局没有抽到风格卡（数据不对）——去右栏结束对局再开一局。"
 msgstr "这一局没有抽到风格卡（数据不对）——去右栏结束对局再开一局。"
@@ -30540,6 +30699,10 @@ msgstr "这一局没有抽到风格卡（数据不对）——去右栏结束对
 msgid "这一局的房间已经结束"
 msgstr "这一局的房间已经结束"
 
+#: src/studio/game/historyReasons.ts
+msgid "这一局的房间已经过期，回放也一起没了"
+msgstr "这一局的房间已经过期，回放也一起没了"
+
 #: src/studio/game/ui/ConnectionBanner.tsx
 msgid "这一局的联机房间已经结束"
 msgstr "这一局的联机房间已经结束"
@@ -30547,6 +30710,10 @@ msgstr "这一局的联机房间已经结束"
 #: src/studio/game/ui/GenPreview.tsx
 msgid "这一局还没有出过片——摆好卡，点「🎬 视频生成」先画首帧，再出片。"
 msgstr "这一局还没有出过片——摆好卡，点「🎬 视频生成」先画首帧，再出片。"
+
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "这一局还没有打完的回合"
+msgstr "这一局还没有打完的回合"
 
 #: src/studio/game/reasons.ts
 msgid "这一局里找不到你"
@@ -30652,6 +30819,10 @@ msgstr "这一期你没有可选的选项（选过了，或者三选一都落不
 #: src/studio/game/ui/OnlineEventPanel.tsx
 msgid "这一期你没有可选的选项（选过了，或者档位不够）。"
 msgstr "这一期你没有可选的选项（选过了，或者档位不够）。"
+
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "这一期只交了占位片（没有真实成片），回放里只留一张封面。"
+msgstr "这一期只交了占位片（没有真实成片），回放里只留一张封面。"
 
 #: src/studio/game/ui/PlayerPanel.tsx
 msgid "这一期已经交片"
@@ -33343,6 +33514,7 @@ msgid "进卡的那一张"
 msgstr "进卡的那一张"
 
 #: src/components/support/AdminTicketsView.tsx
+#: src/studio/game/ui/MatchHistory.tsx
 msgid "进行中"
 msgstr "进行中"
 
@@ -34253,6 +34425,7 @@ msgstr "重认会<0>覆盖现有描述</0>（你自己改过的也会没），�
 #: src/pages/tutor/TutorRunPage.tsx
 #: src/pages/VideoPage.tsx
 #: src/pages/WorkshopPage.tsx
+#: src/studio/game/ui/MatchHistory.tsx
 msgid "重试"
 msgstr "重试"
 

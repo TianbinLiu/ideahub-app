@@ -3351,6 +3351,10 @@ msgstr "■ Stop"
 msgid "▭ 框"
 msgstr "▭ Box"
 
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "▲ 收起"
+msgstr "▲ Collapse"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "▶ 再跑一遍"
 msgstr "▶ Run again"
@@ -3401,6 +3405,10 @@ msgstr "▸ What if they don't match? <0>Usually just delete that slot — no re
 #: src/components/blockout/RoleConfirmSheet.tsx
 #~ msgid "▸ 对不上怎么办？<0>多数情况删掉那个位子就行，不用重炼</0>"
 #~ msgstr "▸ Doesn't match? <0>Usually you just delete that slot — no re-render needed</0>"
+
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "▼ 展开"
+msgstr "▼ Expand"
 
 #: src/studio/game/ui/ShopPanel.tsx
 msgid "▾ 收起商店"
@@ -3902,6 +3910,10 @@ msgstr "✓ Happy with this, next segment"
 msgid "✕ 关掉"
 msgstr "✕ Close"
 
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "✕ 关闭"
+msgstr "✕ Close"
+
 #: src/studio/StudioPage.tsx
 msgid "✕ 结束对局"
 msgstr "✕ End game"
@@ -4062,6 +4074,14 @@ msgstr "✨ Regenerate this plan's frames"
 #: src/studio/game/ui/RoundResultPanel.tsx
 msgid "❤ 点赞榜"
 msgstr "❤ Likes"
+
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "❤ 累计"
+msgstr "❤ Total likes"
+
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "❤ 血量"
+msgstr "❤ HP"
 
 #: src/studio/game/ui/PhaseBar.tsx
 msgid "➡ 下一回合"
@@ -4377,6 +4397,10 @@ msgstr "🏁 Match over"
 msgid "🏁 返回大厅"
 msgstr "🏁 Back to lobby"
 
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "🏆 夺冠"
+msgstr "🏆 Wins"
+
 #: src/studio/game/ui/OnlineScreeningPanel.tsx
 #: src/studio/game/ui/ScreeningPanel.tsx
 msgid "👍 点赞这一条"
@@ -4473,6 +4497,10 @@ msgstr "📸 Capture frame"
 #: src/components/flow/DraftModeBox.tsx
 msgid "📼 先出样片（480p 预览，满意再定稿成 1080p）"
 msgstr "📼 Preview draft first (480p preview; finalize at 1080p if you like it)"
+
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "📼 查看回放"
+msgstr "📼 View replay"
 
 #: src/components/flow/DraftModeBox.tsx
 msgid "📼 这是 480p 样片"
@@ -4737,6 +4765,10 @@ msgstr "🗳 Vote: pick one of the others' films"
 #: src/studio/game/ui/RoundResultPanel.tsx
 msgid "🗳 投票榜"
 msgstr "🗳 Votes"
+
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "🗳 累计"
+msgstr "🗳 Total votes"
 
 #: src/components/DraftSheet.tsx
 #~ msgid "🧩 工作流模式"
@@ -7780,6 +7812,10 @@ msgstr "You: {0}"
 msgid "你一句我一句"
 msgstr "Back and forth"
 
+#: src/studio/game/historyReasons.ts
+msgid "你不在这一局里了，看不到它的回放"
+msgstr "You're no longer in this match, so you can't see its replay"
+
 #: src/studio/game/lobbyReasons.ts
 msgid "你不在这个房间里"
 msgstr "You are not in this room"
@@ -7996,6 +8032,14 @@ msgstr "Your account isn't an admin. Permissions are kept on the server, so chan
 #: src/pages/SettingsPage.tsx
 msgid "你的账号是管理员：AI 生成走的是免扣费通道，消耗不从钱包里扣。"
 msgstr "Your account is an admin: AI generation uses the no-charge channel, so usage isn't deducted from your wallet."
+
+#. placeholder {0}: bar.mine.rank
+#. placeholder {0}: mine.rank
+#. placeholder {1}: bar.mine.damage
+#. placeholder {1}: mine.damage
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "你第 {0} 名 / −{1} 血"
+msgstr "You: #{0} / −{1} HP"
 
 #. placeholder {0}: mine.rank
 #. placeholder {0}: mineIndex + 1
@@ -8995,7 +9039,9 @@ msgstr "Sharing the making-of needs a connection; this device is offline right n
 msgid "公开着的还是上一版的制作过程（这一版回炉后还没更新），别人现在看不到。"
 msgstr "The shared process is still the previous version (not updated since this revision); nobody can see it right now."
 
+#. placeholder {0}: bars.length
 #. placeholder {0}: state.round
+#: src/studio/game/ui/MatchHistory.tsx
 #: src/studio/game/ui/RoundResultPanel.tsx
 msgid "共 {0} 回合"
 msgstr "{0} rounds in total"
@@ -9122,6 +9168,10 @@ msgstr "The keyframe is still being drawn (about 20–30 seconds) — you can pi
 #: src/studio/ui/modals.tsx
 msgid "关闭"
 msgstr "Close"
+
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "关闭回放"
+msgstr "Close replay"
 
 #: src/studio/stage/StageOverlay.tsx
 msgid "关闭导演台"
@@ -9384,6 +9434,14 @@ msgstr "Hottest"
 #: src/pages/DiscoverPage.tsx
 msgid "最火作品"
 msgstr "Hottest videos"
+
+#: src/studio/game/ui/Lobby.tsx
+msgid "最近一局：{lastRoomCode}"
+msgstr "Last match: {lastRoomCode}"
+
+#: src/studio/game/ui/Lobby.tsx
+msgid "最近一局回放"
+msgstr "Last match replay"
 
 #: src/pages/SettingsPage.tsx
 msgid "最近几版各改了什么"
@@ -10936,6 +10994,10 @@ msgstr "Sold, +{0} gold"
 msgid "占位投稿：这一回合没交片"
 msgstr "Placeholder entry: no video was submitted this round"
 
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "占位片，没有成片"
+msgstr "Placeholder clip — no finished video"
+
 #: src/components/guide/tours.tsx
 msgid "占的空间在这看、也在这清"
 msgstr "See and clear space here"
@@ -12457,6 +12519,10 @@ msgctxt "失败提示括号里说钱的短语（会被当占位符 moneyBrief �
 msgid "可能已经花掉一张券"
 msgstr "May have spent one ticket"
 
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "可能是网络抖了一下；回放不会因为这一下消失。"
+msgstr "The network may have hiccuped; the replay won't disappear because of it."
+
 #: src/pages/SettingsPage.tsx
 msgid "可能是网络没通，或者这个版本的清单里还没有这一项。"
 msgstr "The network may be down, or this version's manifest doesn't carry it yet."
@@ -12772,6 +12838,10 @@ msgstr "Rank = likes rank + votes rank (ties go to votes)"
 msgid "名次 = 服务端按两个榜合出来的顺序（分 = 点赞名次 + 投票名次，越小越好）"
 msgstr "Ranking comes from the server's combined boards (score = like rank + vote rank; lower is better)"
 
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "名次、夺冠与合计都按服务端结算"
+msgstr "Ranking, wins and totals come from the server"
+
 #: src/studio/game/reasons.ts
 msgid "名次名单和存活玩家对不上，这次结算没有生效"
 msgstr "The ranking doesn't match the surviving players, so this settlement didn't apply"
@@ -13036,6 +13106,7 @@ msgid "回复用户（会发通知 + 邮件）"
 msgstr "Reply to the user (sends a notification + email)"
 
 #: src/studio/game/ui/ConnectionBanner.tsx
+#: src/studio/game/ui/MatchHistory.tsx
 msgid "回大厅"
 msgstr "Back to lobby"
 
@@ -13046,6 +13117,11 @@ msgstr "Cleanup failed (network unavailable)"
 #: src/api/uploads.ts
 msgid "回收超时"
 msgstr "Cleanup timed out"
+
+#. placeholder {0}: failure.code
+#: src/studio/game/historyReasons.ts
+msgid "回放服务回了没见过的错误：{0}"
+msgstr "The replay service returned an unknown error: {0}"
 
 #: src/pages/EditPage.tsx
 msgctxt "丢弃确认卡里「…再回来X」的那个动作（英文用小写动词短语）"
@@ -15312,6 +15388,16 @@ msgstr "{LEAD_CAST_MAX} people is the limit: the official guide says more than 4
 msgid "已经选满 {max} 个人，「{name}」收进了卡片库但没选上——先取下一个再点它"
 msgstr "You’ve already picked {max} people, so “{name}” was saved to your library but not picked — remove someone first, then tap it"
 
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "已结束"
+msgstr "Finished"
+
+#. placeholder {0}: history.summary.roundsPlayed
+#. placeholder {1}: history.rounds.length
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "已结算 {0} / {1} 回合"
+msgstr "{0} of {1} rounds settled"
+
 #: src/studio/ui/projection.tsx
 msgid "已自动取它的首尾帧当本段首尾帧；可细调、加中间帧（最多 {CUSTOM_MID_MAX} 张）"
 msgstr "Its first and last frames are now this segment's first and last frames; you can fine-tune them and add middle frames (up to {CUSTOM_MID_MAX})"
@@ -16387,6 +16473,7 @@ msgstr "Video preview (segments play in timeline order)"
 
 #: src/studio/game/labels.ts
 #: src/studio/game/ui/Lobby.tsx
+#: src/studio/game/ui/MatchHistory.tsx
 msgid "我"
 msgstr "Me"
 
@@ -18431,6 +18518,10 @@ msgstr "Split at playhead"
 msgid "播放进度"
 msgstr "Playback progress"
 
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "播的是我这一回合交的那条片子"
+msgstr "Playing the clip I submitted for this round"
+
 #: src/api/companion.ts
 msgid "操作太频繁了，稍等几秒再试。"
 msgstr "Too many requests. Wait a few seconds and try again."
@@ -20213,9 +20304,21 @@ msgstr "Local preview"
 msgid "本局出片档位升到 {0}"
 msgstr "Video tier for this match improves to {0}"
 
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "本局战绩"
+msgstr "Match results"
+
 #: src/studio/ui/SceneRails.tsx
 #~ msgid "本局打完了（共 {round} 回合）· 底部按「再来一局」重开"
 #~ msgstr "Match over ({round} rounds) · tap “Play again” at the bottom to restart"
+
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "本局统计"
+msgstr "Match stats"
+
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "本局还没结束"
+msgstr "This match hasn't finished"
 
 #: src/pages/ProfilePage.tsx
 msgid "本服务尚未接入支付渠道，下单后无法完成付款"
@@ -21675,6 +21778,10 @@ msgstr "Loading the server's settlement… (rankings and damage come from the se
 msgid "正在读取视频…"
 msgstr "Loading video…"
 
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "正在读取这一局的回放…"
+msgstr "Loading this match's replay…"
+
 #: src/components/blockout/BlockoutTrimmer.tsx
 msgid "正在读取这段视频的画面尺寸与时长…（应用切到后台时系统会暂停解码，这一步会一直等着）"
 msgstr "Reading this video's dimensions and duration… (the system pauses decoding while the app is in the background, so this step waits until you're back)"
@@ -21853,6 +21960,10 @@ msgstr "Each screen plays its guide automatically the first time you open it and
 #~ msgid "每出一段自动存草稿，随时接着做"
 #~ msgstr "Each finished segment is auto-saved to a draft — pick up any time"
 
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "每回合回放"
+msgstr "Round replays"
+
 #. placeholder {0}: CARD_TYPE_LABELS[dearest]
 #: src/studio/ui/NpcDialog.tsx
 msgid "每张卡最多 {maxSlots} 张图 —— 卡种交给铸卡师判，这里先按最贵的{0}报价；少画的那张不会去调出图，也就不计费"
@@ -21972,6 +22083,10 @@ msgstr "Permanently delete this account"
 #: src/components/support/SafetyCard.tsx
 msgid "求助热线"
 msgstr "Crisis helplines"
+
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "没你的名次"
+msgstr "No ranking for you"
 
 #: src/components/guide/tours.tsx
 msgid "没做完的半成品在这一格"
@@ -22659,6 +22774,10 @@ msgstr "Couldn’t reach the image service"
 msgid "没连上回合服务，暂时回不到那一局（下次打开再试）"
 msgstr "Couldn’t reach the round service, so this game can’t be resumed right now (it will retry next time you open the app)"
 
+#: src/studio/game/historyReasons.ts
+msgid "没连上回放服务"
+msgstr "Couldn't reach the replay service"
+
 #: src/studio/game/lobbyReasons.ts
 msgid "没连上房间服务，先用 AI 开局"
 msgstr "Couldn't reach the room service — starting with AI"
@@ -23194,6 +23313,10 @@ msgstr "Tap an image to mention it in the prompt (@name)."
 msgid "点一条就试听"
 msgstr "Tap a voice to hear it"
 
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "点一条播我这一回合交的片子"
+msgstr "Tap one to play the clip I submitted that round"
+
 #: src/studio/game/ui/GameLayer.tsx
 msgid "点了个赞"
 msgstr "Liked it"
@@ -23719,6 +23842,7 @@ msgstr "The effect segment is added — it starts from the keyframe."
 msgid "状态：{status}——过几分钟再点一次「取回」。这一发的钱已经花过了，取回不再花一分钱"
 msgstr "Status: {status} — tap “Recover” again in a few minutes. This run has already been paid for; recovering costs nothing more"
 
+#: src/studio/game/ui/MatchHistory.tsx
 #: src/studio/game/ui/PlayerPanel.tsx
 msgid "玩家"
 msgstr "Players"
@@ -26034,12 +26158,19 @@ msgstr "Voice {0} weight"
 msgid "第 {0} 味音色"
 msgstr "Voice {0}"
 
+#. placeholder {0}: bar.round
 #. placeholder {0}: event.round
 #. placeholder {0}: view.hud.round
 #: src/studio/game/ui/EventPanel.tsx
+#: src/studio/game/ui/MatchHistory.tsx
 #: src/studio/game/ui/OnlineEventPanel.tsx
 msgid "第 {0} 回合"
 msgstr "Round {0}"
+
+#. placeholder {0}: bar.round
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "第 {0} 回合回放"
+msgstr "Round {0} replay"
 
 #. placeholder {0}: state.round
 #: src/studio/game/ui/PhaseBar.tsx
@@ -27028,6 +27159,10 @@ msgstr "Waiting for the host (everyone must submit first)"
 #~ msgid "等替换"
 #~ msgstr "Awaiting swap"
 
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "等有人交片、结算之后，这里会按回合摆出回放条。"
+msgstr "Once players submit and rounds settle, replay cards will appear here round by round."
+
 #: src/components/WorkflowShelf.tsx
 msgid "等服务器更新后再来"
 msgstr "Come back after the server is updated"
@@ -27379,6 +27514,10 @@ msgstr "Link"
 msgctxt "嵌在句子里的名词：这张结尾帧 / 融成结尾帧"
 msgid "结尾帧"
 msgstr "ending frame"
+
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "结束于 {finishedAt}"
+msgstr "Finished {finishedAt}"
 
 #: src/data/templates.ts
 #~ msgid "结果取回来了，但服务器返回的模板缺少参考视频地址——钱在开炼那一步已经付过，请去「我的模板」确认后再决定要不要重来。"
@@ -30111,6 +30250,10 @@ msgstr "You're not signed in, so this can't be changed."
 msgid "还没登录，装不了。"
 msgstr "You're not signed in, so it can't be added."
 
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "还没结算"
+msgstr "Not settled yet"
+
 #: src/studio/flowStore.ts
 msgid "还没给任何人偶挂卡，先去挂卡再合成预览"
 msgstr "No mannequins have cards yet — place cards first, then compose a preview"
@@ -30439,9 +30582,17 @@ msgstr "This one asked the model ({price} tokens)"
 msgid "这一回合你已经选过了"
 msgstr "You already picked one this round"
 
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "这一回合你没有交片"
+msgstr "You didn't submit a clip this round"
+
 #: src/studio/game/roundsReasons.ts
 msgid "这一回合已经开始了"
 msgstr "This round has already started"
+
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "这一回合我没有影片（淘汰后的回合由 AI 跑完）。"
+msgstr "I have no clip for this round (rounds after elimination are run by AI)."
 
 #: src/studio/game/ui/OnlineVotingPanel.tsx
 msgid "这一回合没有别人的片子可投（只有你自己）"
@@ -30462,6 +30613,10 @@ msgstr "No one has submitted this round, so it cannot be settled"
 #: src/studio/game/ui/RoundResultPanel.tsx
 msgid "这一回合还没有结算——先投票，再按「结算」。"
 msgstr "This round isn't settled yet — vote first, then tap “Settle”."
+
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "这一回合还没结算，影片还在路上。"
+msgstr "This round isn't settled yet; the clip is still on its way."
 
 #: src/studio/flowStore.ts
 msgid "这一套方案还没有剧情——先写点什么，我才知道要画成什么样"
@@ -30524,6 +30679,10 @@ msgstr "This match is over"
 msgid "这一局按 {0} 个真人开：服务端的回合只算真人，空位不参加。"
 msgstr "This game runs with {0} real players: the server's rounds count real players only, and empty seats do not join."
 
+#: src/studio/game/historyReasons.ts
+msgid "这一局没有回放（房间已结束或本机对局）"
+msgstr "No replay for this match (the room has ended, or this was a local match)"
+
 #: src/studio/game/ui/StylePick.tsx
 msgid "这一局没有抽到风格卡（数据不对）——去右栏结束对局再开一局。"
 msgstr "No style cards were drawn this game (bad data) — end the game in the right rail and start again."
@@ -30532,6 +30691,10 @@ msgstr "No style cards were drawn this game (bad data) — end the game in the r
 msgid "这一局的房间已经结束"
 msgstr "This game’s room has ended"
 
+#: src/studio/game/historyReasons.ts
+msgid "这一局的房间已经过期，回放也一起没了"
+msgstr "This match's room has expired, so its replay is gone too"
+
 #: src/studio/game/ui/ConnectionBanner.tsx
 msgid "这一局的联机房间已经结束"
 msgstr "This game's online room has ended"
@@ -30539,6 +30702,10 @@ msgstr "This game's online room has ended"
 #: src/studio/game/ui/GenPreview.tsx
 msgid "这一局还没有出过片——摆好卡，点「🎬 视频生成」先画首帧，再出片。"
 msgstr "No clips in this match yet — place your cards, hit 「🎬 Generate video」 to draw the first frame, then generate."
+
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "这一局还没有打完的回合"
+msgstr "This match has no finished rounds yet"
 
 #: src/studio/game/reasons.ts
 msgid "这一局里找不到你"
@@ -30644,6 +30811,10 @@ msgstr "No options available for you this round (already picked, or none of the 
 #: src/studio/game/ui/OnlineEventPanel.tsx
 msgid "这一期你没有可选的选项（选过了，或者档位不够）。"
 msgstr "No options available for you this round (already picked, or your tier can't take it)."
+
+#: src/studio/game/ui/MatchHistory.tsx
+msgid "这一期只交了占位片（没有真实成片），回放里只留一张封面。"
+msgstr "Only a placeholder clip was submitted this round (no finished video), so the replay keeps just a cover."
 
 #: src/studio/game/ui/PlayerPanel.tsx
 msgid "这一期已经交片"
@@ -33335,6 +33506,7 @@ msgid "进卡的那一张"
 msgstr "Image for the card"
 
 #: src/components/support/AdminTicketsView.tsx
+#: src/studio/game/ui/MatchHistory.tsx
 msgid "进行中"
 msgstr "Active"
 
@@ -34245,6 +34417,7 @@ msgstr "Re-detecting <0>overwrites the current descriptions</0> (including your 
 #: src/pages/tutor/TutorRunPage.tsx
 #: src/pages/VideoPage.tsx
 #: src/pages/WorkshopPage.tsx
+#: src/studio/game/ui/MatchHistory.tsx
 msgid "重试"
 msgstr "Retry"
 

@@ -115,6 +115,17 @@ export interface ServerCaps {
    *   （真机上不存在的路径回 200 + index.html）。
    */
   gameReports: boolean;
+  /**
+   * 这台服务端有**历史回合 + 战绩**读取（`GET /api/game/rooms/:code/rounds/history`，2026-11-24，
+   * 健康端点 `gameHistory`）。战绩 / 回放屏靠它一次读全一局的全部回合与 summary。
+   * ★ 读不到这一位 = 老服务端：`serverGameHistory()` 回 null → 战绩屏**不发请求**还是发？
+   *   这一位与 gameReports 不同：它是"读"，一发打在不存在的路径上只会吃 SPA 回退的 200 + HTML
+   *   （形状不认识 → unavailable），代价是一次白跑 + 一句"没连上"。所以**不知道时也允许发**
+   *   （配了 API_BASE 的 dev + 本机服务端要能问到这一位；第一次探测慢半拍不该把回放藏起来），
+   *   `false`（明确没有 / 运维关了）才是"不发、直接说这一局没有回放"。
+   *   判据只在 `studio/game/history.historyPlanOf`（构建门禁直接跑正反例），界面不自己看能力位。
+   */
+  gameHistory: boolean;
 }
 
 /** 布尔的那几位（serverSupports 只答这几样） */
@@ -135,7 +146,8 @@ export type BoolCap =
   | "gameRooms"
   | "gameEvents"
   | "gameRoomStream"
-  | "gameReports";
+  | "gameReports"
+  | "gameHistory";
 
 /** 健康端点的 JSON → ServerCaps（形状不对的位一律按「没有」）。**唯一解析处** */
 function capsOf(j: Record<string, unknown>): ServerCaps {
@@ -164,6 +176,7 @@ function capsOf(j: Record<string, unknown>): ServerCaps {
     gameEvents: j.gameEvents === true,
     gameRoomStream: j.gameRoomStream === true,
     gameReports: j.gameReports === true,
+    gameHistory: j.gameHistory === true,
   };
 }
 
@@ -191,6 +204,7 @@ const NONE: ServerCaps = {
   gameEvents: false,
   gameRoomStream: false,
   gameReports: false,
+  gameHistory: false,
 };
 /**
  * 直连 / 离线：没有服务端那一层，能力全在；免费档清单按档位表（freeVideo null）。
@@ -202,6 +216,7 @@ const NONE: ServerCaps = {
  *   gameEvents / gameRooms / gameRoomStream 同理（联机对局）：dev 里没有 /api/game/rooms*，
  *   事件只能走本机那一套、推送一条流都不开（那条长连接在 dev 里没有任何东西可连）。
  *   gameReports 同理：举报走服务端 `POST /api/branch/reports`，dev 直连 / 离线包里没有收它的地方。
+ *   gameHistory 同理：历史回合是服务端房间文档里的一份数据，dev 直连 / 离线包没有 `/api/game/rooms*`。
  */
 const ALL: ServerCaps = {
   res480: true,
@@ -223,6 +238,7 @@ const ALL: ServerCaps = {
   gameEvents: false,
   gameRoomStream: false,
   gameReports: false,
+  gameHistory: false,
 };
 const listeners = new Set<() => void>();
 
@@ -377,6 +393,23 @@ export function serverGameRoomStream(): boolean | null {
 export function serverGameReports(): boolean | null {
   if (!API_ON) return ALL.gameReports;
   if (caps) return caps.gameReports;
+  if (!probe && Date.now() - failedAt >= RETRY_MS) void probeServerCaps(true);
+  return null;
+}
+
+/**
+ * 这台服务端有没有**历史回合 + 战绩**（`GET /api/game/rooms/:code/rounds/history`，2026-11-24）。
+ * ★ 唯一读法是 `studio/game/history.historyPlanOf` 的入参（`historyStore.openFor` 调用）：
+ *   判据（`false` = 不发请求 / 直接说"这一局没有回放"；`null` = 还没探到、照发）写在那一处，
+ *   构建门禁 `check-game-history.mjs` 直接 import 跑正反例。
+ * ★ 与 serverGameRooms / gameEvents / gameRoomStream / gameReports 同一份理由单开一个读法
+ *   （force 探测：本轮验证跑在 `npm run dev` + 本地服务端上，而 noServerLayer() 在 dev 里恒真）。
+ * ★ 读不到（null）**不**当"没有"：历史是只读端点，白跑一发的代价只是可能多一次"没连上"；
+ *   而把"还没探到"当成"老服务端"会把刚上线的能力藏到 App 重启（见 ServerCaps.gameHistory 的 ★）。
+ */
+export function serverGameHistory(): boolean | null {
+  if (!API_ON) return ALL.gameHistory;
+  if (caps) return caps.gameHistory;
   if (!probe && Date.now() - failedAt >= RETRY_MS) void probeServerCaps(true);
   return null;
 }

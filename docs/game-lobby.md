@@ -832,4 +832,90 @@ custom 房 `LFRRNN`（手机是房主）。
   改窄或让面板换个位置 —— 那是下一轮的重排，不在这一批。
 - 绿条只在"黄 → 正常"那一拍出现；**红条不会变绿**（会话已经收掉，再报"恢复了"是骗人）。
 
+### 7.14 本局战绩 + 每回合影片回放（2026-11-24 晚；服务端 `GET …/rounds/history`）
+
+服务端同日上线历史回合端点（`/api/ark/health` 的 `gameHistory`，server#162）。这一轮 App 侧**不接新依赖、
+服务端一行不改**，只做"一局打完之后能按回合回看"这一屏。契约正本在 **server 仓**
+`docs/api-contract.md`「历史回合与战绩」；App 仓这份 `docs/api-contract.md` 还没有工坊对局那几节，
+所以形状以 `api/game/rounds.ts` 的 `RemoteGameHistory` 与 server 那份为准。
+
+#### 一、落点
+
+| 文件 | 做什么 |
+|---|---|
+| `src/api/game/rounds.ts` | `readHistory(code)`（10 秒超时，与其余回合端点同一条）+ `RemoteGameHistory` 系列与严格解析（`settled` / 可选 `settlement` / `summary.perPlayer` 四个计数位缺一个就整份不认） |
+| `src/data/serverCaps.ts` | 能力位 `gameHistory` + `serverGameHistory()`（force 探测，与 gameRooms / gameEvents / gameReports 同一套） |
+| `src/studio/game/history.ts` | **零依赖纯规则**：`historyPlanOf`（发不发请求）/ `historyBarsOf`（从 `settlement.ranking` 取我的名次、从 entries / 结算行取计数）/ `historySummaryRowsOf`（**原样**返回 `perPlayer`）/ `historyFailureOf` / `historyRetryAllowed` |
+| `src/studio/game/historyStore.ts` | 打开时拉一次、失败重试一次、晚到的回包按序号作废；`window.__history` 只在 DEV 挂（假数据验收用） |
+| `src/studio/game/ui/MatchHistory.tsx` | 横屏整屏浮层（与大厅同一套壳）：顶部标题 + 房号 + 结束时间；中部每回合一条（封面 96×54、第 N 回合、你第 x 名 / −N 血、❤ / 🗳）；点一条弹原生 `<video controls>`（占位投稿只摆封面 +「占位片，没有成片」）；底部 summary 表（可折叠 + 自己滚动） |
+| `src/studio/game/ui/RoundResultPanel.tsx` | 结束态（联机 / 本机两支持）加「📼 查看回放」；本机局没有房号 → 打开后走"这一局没有回放" |
+| `src/studio/game/ui/Lobby.tsx` | 首屏「📼 最近一局回放」（房号来自 `historyLastRoom` 的 localStorage 记录，按账号对；能力位明确为假 / 没记录 → 不摆） |
+| `src/studio/game/historyLastRoom.ts` | 最近一局的房号（开局成功时写；缓存里的记录过期由服务端 404 兜底） |
+| `src/studio/StudioPage.tsx` | 浮层挂在页面层（两个入口同一份）；开屏时进 `canvasCovered`，3D 桌面停帧 |
+
+#### 二、取数映射（App 一个数都不重算）
+
+| 屏上的东西 | 从哪来 |
+|---|---|
+| 回放条**数量** | `rounds.length`（含正在打的那一回合；`settled:false` 也有一条） |
+| 封面 | 我这一回合投稿的 `posterUrl`；没有就画占位色块（`art.placeholderColors`） |
+| 「你第 x 名 / −N 血」 | `round.settlement.ranking` 里我的**位置 + 1**（服务端已按 composite → voteRank → votes → likes → userId 排成不并列一列）；`damage` / `hp` 取同一行。没结算 / 没进榜 → 不编数字（「还没结算」/「没你的名次」） |
+| 回放条的 ❤ / 🗳 | 我这一期投稿的 `likes` / `votes`（服务端计数；没有投稿时取结算行同一对计数）。**谁投给谁不暴露** |
+| 播放器 | 我这一回合投稿的 `videoUrl`；`placeholder` 为真或没有地址 → 不摆空 `<video>`，说「占位片，没有成片」 |
+| summary 表 | `summary.perPlayer` **原样**：名字 / `hp` / `wins` / `likesTotal` / `votesTotal`；顺序 = 座位；`userId === myUserId` 那一行高亮 |
+| 顶部「已结算 N / M 回合」 | `summary.roundsPlayed` / `rounds.length` |
+| 结束时间 | `room.finishedAt`（ISO → `Intl.DateTimeFormat`，界面语言）；`room.state !== "over"` 时写「本局还没结束」 |
+
+#### 三、入口与退路（4 种，都不是空白页）
+
+| 状态 | 界面说 | 动作 |
+|---|---|---|
+| 本机单机局（没有房号）/ 能力位为假 | 「这一局没有回放（房间已结束或本机对局）」 | 回大厅 / 右上角关闭（**不发请求**：`historyPlanOf` 的 `request:false`，构建门禁 + 浏览器网络面板各核过一次） |
+| 403 `NOT_IN_ROOM` | 「你不在这一局里了，看不到它的回放」 | 回大厅 |
+| 404 `ROOM_NOT_FOUND` | 「这一局的房间已经过期，回放也一起没了」 | 回大厅 |
+| 网络 / 超时（`unavailable`） | 「没连上回放服务」+ 一句"回放不会因为这一下消失" | **重试一次**（第 2 次失败之后不再摆重试键）/ 回大厅 |
+| 503 `GAME_HISTORY_OFF` / `GAME_ROUNDS_OFF` | 与本机局同一句 | 回大厅（不摆重试：重试也不会开） |
+
+- 断线**不影响**这一屏：它不订阅 roundsStore / 轮询，只在自己打开时拉一发；失败重试一次。
+- 能力位 `null`（健康端点还没答上来）**照发**：历史是只读端点，白跑一发只会多一次"没连上"；
+  把"还没探到"当成"老服务端"会把刚上线的能力藏到 App 重启。能力位明确 `false` 才是不发。
+
+#### 四、800×363 实测（headless Chrome + `Emulation.setDeviceMetricsOverride`，dev 本机模式，假数据）
+
+舞台 788×351（StudioPage 的 6px 边）；数据用 `window.__history.setState(...)` 摆两回合 + 一回合进行中：
+
+| 元素 | 实测 |
+|---|---|
+| 浮层 | x 6、y 6、788×351，铺满舞台，背景实底 |
+| 顶栏 | 788×41（y 6） |
+| 回放带那一段 | 788×121.8（y 47）；回放条 **104×92.8**；封面 **96×54** |
+| 回放条（3 条 / 4 人局） | 3 条；横向可滚；进行中那条有「进行中」角标 |
+| summary 表 | 宽 764、4 行（= `perPlayer`）；表头 + 行高 95；容器视口 164、`overflow-y:auto`；我那一行 `rgba(56,189,248,.15)`（品牌蓝 15%） |
+| 占位播放器 | 点第 1 回合 → 弹层有封面 +「Placeholder clip — no finished video」，DOM 里 **0 个 `<video>`** |
+| 真成片 | 把第 2 回合的 `videoUrl` 填上再点 → DOM 里 `<video>` 出现、`controls:true`、`src` 就是那一条 |
+| 能力位为假 | `openFor` 之后状态 = `blocked` / `block:"off"`，正文是那句"没有回放"，**网络面板里 `/rounds/history` 请求数 0** |
+| 403 / 404 | 分别显示"你不在这一局里了…" / "这一局的房间已经过期…" |
+| 重试 | `unavailable` + attempts=1 时有「重试」；attempts=2 时没有 |
+
+#### 五、怎么验的
+
+1. `node scripts/check-game-history.mjs` → **56 条**：回放条数量 = rounds 数（含未结算）、
+   名次只从 `settlement.ranking` 取（反例：entries 顺序与榜相反）、没有我投稿时条数不变、
+   summary 行数 = `perPlayer` 且顺序不动、`historyPlanOf` 的四种能力位 / 房号组合（能力位假 → 不发）、
+   403 / 404 / 503 / 网络四种失败分类、重试只一次、界面接线源码断言。
+2. `npm run build` 绿（tsc + lingui extract + 全部 check + vite build）；`check-i18n` → en 缺译 0（本轮 39 条）。
+3. 800×363 的实测就是上一节那张表；截图没提交（铁律：不提交截图）。
+4. **没打真服务端**：本机 server 的 Mongo Atlas 当前 IP 不在白名单（`server.log` 里那条），
+   所以"真 `GET …/rounds/history` 回包 → 界面"这一跳是用**同形状假数据**验的；端点解析由
+   `check-game-history` 用契约同形状回包跑过。真服务端的联调留给有白名单的机器补一次。
+
+#### 六、剩下的风险
+
+- **服务端只留"房间里"的历史**：房间过期被懒清理之后 404（跨房间的持久战绩 / 回放服务端还没做），
+  所以大厅的「最近一局」在房间过期后点开就是"房间已过期"那一屏 —— 不是 App 丢了数据。
+- **本机单机局没有影片存档**：`rounds[]` 只在服务端房间里，本机单机局的 `rules` 投稿不落服务端；
+  这一版的"本机局没有回放"是**如实说**，不是接入了一半。
+- **淘汰后的回合没有我的投稿**：回放条还在（数量 = rounds），点开是"这一回合你没有交片"；
+  想回看别人的片子属于"观战席"（benchmark #11），不在这一批。
+
 

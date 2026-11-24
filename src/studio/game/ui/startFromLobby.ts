@@ -17,6 +17,7 @@ import { useGame } from "../store";
 import { useLobby } from "../lobbyStore";
 import { useRounds } from "../roundsStore";
 import { saveOnlineResume } from "../onlineResume";
+import { saveLastHistoryRoom } from "../historyLastRoom";
 import { LOCAL_SEAT_ID } from "../lobby";
 import { START_HP } from "../rules";
 
@@ -80,5 +81,8 @@ export function startOnlineFromLobby(remote: RemoteRoom, round: RemoteRound): bo
   // 记下"这一局是联机的、房间码是多少"：App 被杀 / 切后台回来时靠它找回同一局（ui/OnlineResumeGate）。
   // ★ 只在**联机局真的开起来之后**写：写早了会在"开局失败"时留下一条恢复不了的记录。
   saveOnlineResume({ roomCode: remote.code, myUserId });
+  // 大厅「最近一局回放」的入口靠这一条：结束之后 game store / roundsStore 都会把房号收掉，
+  // 而回放要的服务端历史是按房号读的（见 historyLastRoom 的文件头）。
+  saveLastHistoryRoom({ code: remote.code, userId: myUserId });
   return true;
 }
