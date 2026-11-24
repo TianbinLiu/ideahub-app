@@ -1654,6 +1654,10 @@ msgstr "{n} 张真人卡要先勾「火山引擎适用」"
 msgid "{n}. {head} · 演示"
 msgstr "{n}. {head} · 演示"
 
+#: src/studio/game/ui/PlayerPanel.tsx
+msgid "{name}（房主：这一局由他推进阶段）"
+msgstr "{name}（房主：这一局由他推进阶段）"
+
 #: src/pages/LoginPage.tsx
 msgid "{name}登录（暂未接入）"
 msgstr "{name}登录（暂未接入）"
@@ -5206,6 +5210,10 @@ msgstr "AI 自拟首尾帧"
 #: src/studio/game/ui/RoomScreen.tsx
 msgid "AI 补位"
 msgstr "AI 补位"
+
+#: src/studio/game/ui/PlayerPanel.tsx
+msgid "AI 补位：这一桌没有这么多真人，空位由 AI 顶上"
+msgstr "AI 补位：这一桌没有这么多真人，空位由 AI 顶上"
 
 #: src/components/ShareSheet.tsx
 msgid "AI 逐段生成的短片 · 来自启梦"
@@ -9024,6 +9032,10 @@ msgstr "关掉生成小窗"
 msgid "关掉这条提示"
 msgstr "关掉这条提示"
 
+#: src/studio/game/ui/ConnectionBanner.tsx
+msgid "关掉这条横幅"
+msgstr "关掉这条横幅"
+
 #: src/pages/ProfilePage.tsx
 msgctxt "主页统计栏：我关注了多少人（名词，点开是关注列表）"
 msgid "关注"
@@ -9673,6 +9685,7 @@ msgstr "出场：{leadName}（主角）"
 msgid "出场：{leadName}（主角）、{others}"
 msgstr "出场：{leadName}（主角）、{others}"
 
+#: src/studio/game/ui/PlayerPanel.tsx
 #: src/studio/game/ui/RoundResultPanel.tsx
 msgid "出局"
 msgstr "出局"
@@ -13001,6 +13014,10 @@ msgstr "回复了你的评论"
 msgid "回复用户（会发通知 + 邮件）"
 msgstr "回复用户（会发通知 + 邮件）"
 
+#: src/studio/game/ui/ConnectionBanner.tsx
+msgid "回大厅"
+msgstr "回大厅"
+
 #: src/api/uploads.ts
 msgid "回收失败（网络不可用）"
 msgstr "回收失败（网络不可用）"
@@ -14022,10 +14039,15 @@ msgid "实习生导演"
 msgstr "实习生导演"
 
 #: src/studio/game/roundsReasons.ts
-msgid "实时连接中"
-msgstr "实时连接中"
+#~ msgid "实时连接中"
+#~ msgstr "实时连接中"
 
 #: src/studio/game/roundsReasons.ts
+msgid "实时连接恢复了"
+msgstr "实时连接恢复了"
+
+#: src/studio/game/roundsReasons.ts
+#: src/studio/game/ui/ConnectionBanner.tsx
 msgid "实时连接断了，正在用轮询"
 msgstr "实时连接断了，正在用轮询"
 
@@ -14642,6 +14664,10 @@ msgstr "已举报"
 msgid "已买走"
 msgstr "已买走"
 
+#: src/studio/game/ui/PlayerPanel.tsx
+msgid "已交"
+msgstr "已交"
+
 #: src/studio/game/ui/GameLayer.tsx
 msgid "已交片，等其他人"
 msgstr "已交片，等其他人"
@@ -15121,6 +15147,10 @@ msgstr "已经下好的一小截（不到 0.1MB）留着了，再点一次会接
 #: src/pages/SupportModelNewPage.tsx
 msgid "已经公开到形象市场，别人能搜到它了。"
 msgstr "已经公开到形象市场，别人能搜到它了。"
+
+#: src/studio/game/ui/PlayerPanel.tsx
+msgid "已经出局"
+msgstr "已经出局"
 
 #. placeholder {0}: sel.durSec
 #. placeholder {1}: sel.durSec
@@ -16496,6 +16526,10 @@ msgstr "截帧中…"
 #: src/studio/game/ui/RoomScreen.tsx
 msgid "房主"
 msgstr "房主"
+
+#: src/studio/game/ui/PlayerPanel.tsx
+#~ msgid "房主：这一局由他推进阶段"
+#~ msgstr "房主：这一局由他推进阶段"
 
 #: src/studio/game/lobbyReasons.ts
 msgid "房主不用准备：点「开始对局」就是表态"
@@ -18494,6 +18528,10 @@ msgstr "收起方案"
 msgid "收起方案台"
 msgstr "收起方案台"
 
+#: src/studio/game/ui/PlayerPanel.tsx
+msgid "收起玩家列表"
+msgstr "收起玩家列表"
+
 #: src/studio/studioStore.ts
 msgid "收起画布"
 msgstr "收起画布"
@@ -19973,6 +20011,10 @@ msgstr "服装细节"
 msgid "朝向"
 msgstr "朝向"
 
+#: src/studio/game/ui/PlayerPanel.tsx
+msgid "未交"
+msgstr "未交"
+
 #: src/studio/game/ui/RoomScreen.tsx
 msgid "未准备"
 msgstr "未准备"
@@ -20087,6 +20129,10 @@ msgstr "本人扫码"
 msgid "本人跟读录制"
 msgstr "本人跟读录制"
 
+#: src/studio/game/ui/PhaseClock.tsx
+msgid "本回合 {elapsed}"
+msgstr "本回合 {elapsed}"
+
 #. placeholder {0}: hud.income.interest
 #: src/studio/game/ui/GameHud.tsx
 #~ msgid "本回合利息 +{0}"
@@ -20095,6 +20141,10 @@ msgstr "本人跟读录制"
 #: src/pages/QuickModePage.tsx
 msgid "本地上传"
 msgstr "本地上传"
+
+#: src/studio/game/ui/PhaseClock.tsx
+msgid "本地计时：从进入这个阶段算起，阶段一换就归零。服务器没给截止时间，所以这不是倒计时。"
+msgstr "本地计时：从进入这个阶段算起，阶段一换就归零。服务器没给截止时间，所以这不是倒计时。"
 
 #: src/studio/live2dUploadStore.ts
 msgid "本地预览"
@@ -20116,6 +20166,10 @@ msgstr "本服务尚未接入支付渠道，下单后无法完成付款"
 #: src/pages/CustomCardPage.tsx
 msgid "本机存储写入失败（配额满或隐私模式）"
 msgstr "本机存储写入失败（配额满或隐私模式）"
+
+#: src/studio/game/ui/PlayerPanel.tsx
+#~ msgid "本机局：其余座位由 AI 补位，不能拉黑或举报"
+#~ msgstr "本机局：其余座位由 AI 补位，不能拉黑或举报"
 
 #: src/utils/nativeCamera.ts
 msgid "本机没有系统相机（Android 11 起只认预装相机）——改用「上传本地图片」"
@@ -20151,6 +20205,18 @@ msgstr "本机那份画布已经不在了——这条作品没法再补留存了
 #: src/components/guide/tours.tsx
 msgid "本来就是白模片"
 msgstr "本来就是白模片"
+
+#: src/studio/game/ui/PlayerPanel.tsx
+msgid "本桌玩家"
+msgstr "本桌玩家"
+
+#: src/studio/game/ui/PlayerPanel.tsx
+msgid "本桌玩家：名字 / 血量 / 交片与投票状态"
+msgstr "本桌玩家：名字 / 血量 / 交片与投票状态"
+
+#: src/studio/game/ui/PlayerPanel.tsx
+msgid "本桌玩家：名字 / 血量 / 交片与投票状态（本机局：其余座位由 AI 补位）"
+msgstr "本桌玩家：名字 / 血量 / 交片与投票状态（本机局：其余座位由 AI 补位）"
 
 #. placeholder {0}: modelLabel(tier.model)
 #: src/studio/ui/NpcDialog.tsx
@@ -23593,6 +23659,10 @@ msgstr "特效那一段铺好了——关键帧当开头。"
 #: src/ai/real.ts
 msgid "状态：{status}——过几分钟再点一次「取回」。这一发的钱已经花过了，取回不再花一分钱"
 msgstr "状态：{status}——过几分钟再点一次「取回」。这一发的钱已经花过了，取回不再花一分钱"
+
+#: src/studio/game/ui/PlayerPanel.tsx
+msgid "玩家"
+msgstr "玩家"
 
 #: src/components/flow/CameraChips.tsx
 msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜头运动"
@@ -30382,6 +30452,10 @@ msgstr "这一局没有抽到风格卡（数据不对）——去右栏结束对
 msgid "这一局的房间已经结束"
 msgstr "这一局的房间已经结束"
 
+#: src/studio/game/ui/ConnectionBanner.tsx
+msgid "这一局的联机房间已经结束"
+msgstr "这一局的联机房间已经结束"
+
 #: src/studio/game/ui/GenPreview.tsx
 msgid "这一局还没有出过片——摆好卡，点「🎬 视频生成」先画首帧，再出片。"
 msgstr "这一局还没有出过片——摆好卡，点「🎬 视频生成」先画首帧，再出片。"
@@ -30491,6 +30565,10 @@ msgstr "这一期你没有可选的选项（选过了，或者三选一都落不
 msgid "这一期你没有可选的选项（选过了，或者档位不够）。"
 msgstr "这一期你没有可选的选项（选过了，或者档位不够）。"
 
+#: src/studio/game/ui/PlayerPanel.tsx
+msgid "这一期已经交片"
+msgstr "这一期已经交片"
+
 #: src/studio/game/ui/CreatePanel.tsx
 msgid "这一期已经交过一条占位片（{VIDEO_SECONDS} 秒）——想要真片子就点「🎬 视频生成」。"
 msgstr "这一期已经交过一条占位片（{VIDEO_SECONDS} 秒）——想要真片子就点「🎬 视频生成」。"
@@ -30520,6 +30598,10 @@ msgstr "这一期没有片子可放（数据不对）——去右栏结束对局
 msgid "这一期没有这条片子"
 msgstr "这一期没有这条片子"
 
+#: src/studio/game/ui/PlayerPanel.tsx
+msgid "这一期点过赞"
+msgstr "这一期点过赞"
+
 #: src/studio/game/ui/PhaseBar.tsx
 msgid "这一期的事件：三选一，拿不准可以跳过"
 msgstr "这一期的事件：三选一，拿不准可以跳过"
@@ -30539,6 +30621,14 @@ msgstr "这一期的事件由服务端出题：同一房间同一回合，所有
 #: src/studio/game/ui/OnlineScreeningPanel.tsx
 msgid "这一期的赞已经点给别的片子了（一回合每人一票赞）"
 msgstr "这一期的赞已经点给别的片子了（一回合每人一票赞）"
+
+#: src/studio/game/ui/PlayerPanel.tsx
+msgid "这一期表过态"
+msgstr "这一期表过态"
+
+#: src/studio/game/ui/PlayerPanel.tsx
+msgid "这一期还没交片"
+msgstr "这一期还没交片"
 
 #: src/studio/game/reasons.ts
 msgid "这一条你已经点过赞了（同一期同一条只能点一次）"

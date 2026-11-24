@@ -1654,6 +1654,10 @@ msgstr "{n, plural, one {# real-person card needs “Volcengine verified” tick
 msgid "{n}. {head} · 演示"
 msgstr "{n}. {head} · demo"
 
+#: src/studio/game/ui/PlayerPanel.tsx
+msgid "{name}（房主：这一局由他推进阶段）"
+msgstr "{name} (host: advances the phases of this game)"
+
 #: src/pages/LoginPage.tsx
 msgid "{name}登录（暂未接入）"
 msgstr "{name} sign-in (not available yet)"
@@ -5202,6 +5206,10 @@ msgstr "AI draws first and last frames"
 #: src/studio/game/ui/RoomScreen.tsx
 msgid "AI 补位"
 msgstr "AI fill"
+
+#: src/studio/game/ui/PlayerPanel.tsx
+msgid "AI 补位：这一桌没有这么多真人，空位由 AI 顶上"
+msgstr "AI fill-in: not enough humans at this table, so AI takes the empty seats"
 
 #: src/components/ShareSheet.tsx
 msgid "AI 逐段生成的短片 · 来自启梦"
@@ -9020,6 +9028,10 @@ msgstr "Close the generation window"
 msgid "关掉这条提示"
 msgstr "Dismiss this message"
 
+#: src/studio/game/ui/ConnectionBanner.tsx
+msgid "关掉这条横幅"
+msgstr "Dismiss this banner"
+
 #: src/pages/ProfilePage.tsx
 msgctxt "主页统计栏：我关注了多少人（名词，点开是关注列表）"
 msgid "关注"
@@ -9669,6 +9681,7 @@ msgstr "Cast: {leadName} (lead)"
 msgid "出场：{leadName}（主角）、{others}"
 msgstr "Cast: {leadName} (lead), {others}"
 
+#: src/studio/game/ui/PlayerPanel.tsx
 #: src/studio/game/ui/RoundResultPanel.tsx
 msgid "出局"
 msgstr "Out"
@@ -12993,6 +13006,10 @@ msgstr "replied to your comment"
 msgid "回复用户（会发通知 + 邮件）"
 msgstr "Reply to the user (sends a notification + email)"
 
+#: src/studio/game/ui/ConnectionBanner.tsx
+msgid "回大厅"
+msgstr "Back to lobby"
+
 #: src/api/uploads.ts
 msgid "回收失败（网络不可用）"
 msgstr "Cleanup failed (network unavailable)"
@@ -14014,10 +14031,15 @@ msgid "实习生导演"
 msgstr "Intern Director"
 
 #: src/studio/game/roundsReasons.ts
-msgid "实时连接中"
-msgstr "Live connection active"
+#~ msgid "实时连接中"
+#~ msgstr "Live connection active"
 
 #: src/studio/game/roundsReasons.ts
+msgid "实时连接恢复了"
+msgstr "Live connection restored"
+
+#: src/studio/game/roundsReasons.ts
+#: src/studio/game/ui/ConnectionBanner.tsx
 msgid "实时连接断了，正在用轮询"
 msgstr "Live connection lost — polling instead"
 
@@ -14634,6 +14656,10 @@ msgstr "Reported"
 msgid "已买走"
 msgstr "Sold"
 
+#: src/studio/game/ui/PlayerPanel.tsx
+msgid "已交"
+msgstr "Sent"
+
 #: src/studio/game/ui/GameLayer.tsx
 msgid "已交片，等其他人"
 msgstr "Submitted — waiting for the others"
@@ -15113,6 +15139,10 @@ msgstr "The small part already downloaded (under 0.1MB) is kept — tap again to
 #: src/pages/SupportModelNewPage.tsx
 msgid "已经公开到形象市场，别人能搜到它了。"
 msgstr "It's now public in the look market, and others can find it."
+
+#: src/studio/game/ui/PlayerPanel.tsx
+msgid "已经出局"
+msgstr "Eliminated"
 
 #. placeholder {0}: sel.durSec
 #. placeholder {1}: sel.durSec
@@ -16488,6 +16518,10 @@ msgstr "Capturing…"
 #: src/studio/game/ui/RoomScreen.tsx
 msgid "房主"
 msgstr "Host"
+
+#: src/studio/game/ui/PlayerPanel.tsx
+#~ msgid "房主：这一局由他推进阶段"
+#~ msgstr "Host: advances the phases of this game"
 
 #: src/studio/game/lobbyReasons.ts
 msgid "房主不用准备：点「开始对局」就是表态"
@@ -18486,6 +18520,10 @@ msgstr "Close plans"
 msgid "收起方案台"
 msgstr "Collapse plan board"
 
+#: src/studio/game/ui/PlayerPanel.tsx
+msgid "收起玩家列表"
+msgstr "Collapse the player list"
+
 #: src/studio/studioStore.ts
 msgid "收起画布"
 msgstr "Close canvas"
@@ -19965,6 +20003,10 @@ msgstr "Outfit detail"
 msgid "朝向"
 msgstr "Facing"
 
+#: src/studio/game/ui/PlayerPanel.tsx
+msgid "未交"
+msgstr "Not sent"
+
 #: src/studio/game/ui/RoomScreen.tsx
 msgid "未准备"
 msgstr "Not ready"
@@ -20079,6 +20121,10 @@ msgstr "Scan on their phone"
 msgid "本人跟读录制"
 msgstr "Recorded by me reading along"
 
+#: src/studio/game/ui/PhaseClock.tsx
+msgid "本回合 {elapsed}"
+msgstr "This round {elapsed}"
+
 #. placeholder {0}: hud.income.interest
 #: src/studio/game/ui/GameHud.tsx
 #~ msgid "本回合利息 +{0}"
@@ -20087,6 +20133,10 @@ msgstr "Recorded by me reading along"
 #: src/pages/QuickModePage.tsx
 msgid "本地上传"
 msgstr "Uploaded from this device"
+
+#: src/studio/game/ui/PhaseClock.tsx
+msgid "本地计时：从进入这个阶段算起，阶段一换就归零。服务器没给截止时间，所以这不是倒计时。"
+msgstr "Local timer: it starts when this phase begins and resets on every phase change. The server sends no deadline, so this is not a countdown."
 
 #: src/studio/live2dUploadStore.ts
 msgid "本地预览"
@@ -20108,6 +20158,10 @@ msgstr "This service isn't connected to a payment provider yet, so orders can't 
 #: src/pages/CustomCardPage.tsx
 msgid "本机存储写入失败（配额满或隐私模式）"
 msgstr "Couldn't write to device storage (quota full or private mode)"
+
+#: src/studio/game/ui/PlayerPanel.tsx
+#~ msgid "本机局：其余座位由 AI 补位，不能拉黑或举报"
+#~ msgstr "Local game: the other seats are filled by AI and can't be blocked or reported"
 
 #: src/utils/nativeCamera.ts
 msgid "本机没有系统相机（Android 11 起只认预装相机）——改用「上传本地图片」"
@@ -20143,6 +20197,18 @@ msgstr "The canvas on this device is gone — this video's project can no longer
 #: src/components/guide/tours.tsx
 msgid "本来就是白模片"
 msgstr "It's already a blockout"
+
+#: src/studio/game/ui/PlayerPanel.tsx
+msgid "本桌玩家"
+msgstr "Players at this table"
+
+#: src/studio/game/ui/PlayerPanel.tsx
+msgid "本桌玩家：名字 / 血量 / 交片与投票状态"
+msgstr "Players at this table: names, HP, submission and vote status"
+
+#: src/studio/game/ui/PlayerPanel.tsx
+msgid "本桌玩家：名字 / 血量 / 交片与投票状态（本机局：其余座位由 AI 补位）"
+msgstr "Players at this table: names, HP, submission and vote status (local game: the other seats are filled by AI)"
 
 #. placeholder {0}: modelLabel(tier.model)
 #: src/studio/ui/NpcDialog.tsx
@@ -23585,6 +23651,10 @@ msgstr "The effect segment is added — it starts from the keyframe."
 #: src/ai/real.ts
 msgid "状态：{status}——过几分钟再点一次「取回」。这一发的钱已经花过了，取回不再花一分钱"
 msgstr "Status: {status} — tap “Recover” again in a few minutes. This run has already been paid for; recovering costs nothing more"
+
+#: src/studio/game/ui/PlayerPanel.tsx
+msgid "玩家"
+msgstr "Players"
 
 #: src/components/flow/CameraChips.tsx
 msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜头运动"
@@ -30374,6 +30444,10 @@ msgstr "No style cards were drawn this game (bad data) — end the game in the r
 msgid "这一局的房间已经结束"
 msgstr "This game’s room has ended"
 
+#: src/studio/game/ui/ConnectionBanner.tsx
+msgid "这一局的联机房间已经结束"
+msgstr "This game's online room has ended"
+
 #: src/studio/game/ui/GenPreview.tsx
 msgid "这一局还没有出过片——摆好卡，点「🎬 视频生成」先画首帧，再出片。"
 msgstr "No clips in this match yet — place your cards, hit 「🎬 Generate video」 to draw the first frame, then generate."
@@ -30483,6 +30557,10 @@ msgstr "No options available for you this round (already picked, or none of the 
 msgid "这一期你没有可选的选项（选过了，或者档位不够）。"
 msgstr "No options available for you this round (already picked, or your tier can't take it)."
 
+#: src/studio/game/ui/PlayerPanel.tsx
+msgid "这一期已经交片"
+msgstr "Has submitted this round"
+
 #: src/studio/game/ui/CreatePanel.tsx
 msgid "这一期已经交过一条占位片（{VIDEO_SECONDS} 秒）——想要真片子就点「🎬 视频生成」。"
 msgstr "This round already has a placeholder clip ({VIDEO_SECONDS}s) — hit 「🎬 Generate video」 to get a real one."
@@ -30512,6 +30590,10 @@ msgstr "No films to screen this round (bad data) — end the match from the righ
 msgid "这一期没有这条片子"
 msgstr "There's no such film this round"
 
+#: src/studio/game/ui/PlayerPanel.tsx
+msgid "这一期点过赞"
+msgstr "Has liked this round"
+
 #: src/studio/game/ui/PhaseBar.tsx
 msgid "这一期的事件：三选一，拿不准可以跳过"
 msgstr "This round's event: pick one of three — skip it if unsure"
@@ -30531,6 +30613,14 @@ msgstr "This round's event comes from the server: same room, same round — ever
 #: src/studio/game/ui/OnlineScreeningPanel.tsx
 msgid "这一期的赞已经点给别的片子了（一回合每人一票赞）"
 msgstr "This round's like already went to another entry (one like per player per round)"
+
+#: src/studio/game/ui/PlayerPanel.tsx
+msgid "这一期表过态"
+msgstr "Has voted this round"
+
+#: src/studio/game/ui/PlayerPanel.tsx
+msgid "这一期还没交片"
+msgstr "Hasn't submitted this round"
 
 #: src/studio/game/reasons.ts
 msgid "这一条你已经点过赞了（同一期同一条只能点一次）"

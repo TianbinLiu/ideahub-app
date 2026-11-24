@@ -19,6 +19,7 @@ import { roundViewOf } from "../view";
 import type { GameView } from "../view";
 import { quitGameToLobby } from "./quitGame";
 import GameBtn from "./GameBtn";
+import PhaseClock from "./PhaseClock";
 
 export default function PhaseBar({ view }: { view: GameView }) {
   const { t } = useLingui();
@@ -208,6 +209,9 @@ export default function PhaseBar({ view }: { view: GameView }) {
 
   return (
     <div className="pointer-events-auto flex max-w-[44rem] items-center gap-2 rounded-xl bg-panel/90 px-2 py-1 text-[10px] leading-snug ring-1 ring-white/10 backdrop-blur">
+      {/* 本回合已进行多久（本地计时；服务端没有截止时间字段，见 ui/PhaseClock 的 ★★）。
+          ★ 摆在最左边：它是这一段唯一的"时间"读数，位置固定了才不会被文案的长短挤来挤去。 */}
+      <PhaseClock round={state.round} phase={state.phase} />
       <span className="truncate text-slate-300">{hint}</span>
       {waitingForHost && <span className="flex-none font-semibold text-gold-200">{waitingForHost}</span>}
       {action && (

@@ -65,11 +65,14 @@ export function roundCodeText(code: string): string {
  * 底栏那一句。
  * ★ "回合服务没响应，这一局改成单机继续"是任务点名的那一句：它只在**真的退回单机**时出现
  *   （`fallback`），不是每一拍网络抖动都说 —— 抖动那一句是 `unavailable`，还能重试。
+ * ★ ★ 2026-11-24（对局内 P0-2）：`fallback` 带着业务码时**说那条码**（被移出房间 / 房间没了 /
+ *   回合服务被关），而不是笼统的"没响应" —— 那句话同时是顶部红条的文案，
+ *   而红条要给的是「回大厅」，挂在一句"没响应"下面会让人以为再等等就好了。
  */
 export function roundsNoteText(note: RoundNote): string {
   switch (note.kind) {
     case "fallback":
-      return t`回合服务没响应，这一局改成单机继续`;
+      return note.code ? roundCodeText(note.code) : t`回合服务没响应，这一局改成单机继续`;
     case "unavailable":
       return t`这一拍没连上回合服务，正在重试`;
     case "code":
@@ -78,20 +81,28 @@ export function roundsNoteText(note: RoundNote): string {
 }
 
 /**
- * 底栏那一行推送状态小字（`null` = 不摆那一行）。
+ * 顶部黄条那一句（`null` = 不摆那条横幅）。
  * ★ 玩家只需要知道两件事：现在是实时的，还是掉回轮询了。
  *   `retrying`（正在退避重连）与 `polling`（重连 5 次都没成）对他是**同一件事** ——
  *   现在靠轮询在跑、对局照样能打完；分成两句说只会让人追问"还要等多久"（答案我们也不知道）。
- * ★ `off`（能力位为假 / 单机局 / 对局已结束）不摆：没有推送这件事不该占底栏一行字。
+ * ★ ★ 2026-11-24 起 `live` 也返回 null：原来底栏常驻一行「实时连接中」，
+ *   正常的时候它只是噪音（任务点名"正常时不打扰"）。断开才摆横幅，恢复了由界面补一条
+ *   2 秒的绿条（ui/ConnectionBanner）；`off`（能力位为假 / 单机局 / 对局已结束）同样不摆。
  */
 export function roundStreamText(state: RoundStreamState): string | null {
   switch (state) {
-    case "live":
-      return t`实时连接中`;
     case "retrying":
     case "polling":
       return t`实时连接断了，正在用轮询`;
     default:
       return null;
   }
+}
+
+/**
+ * 绿条那一句（推送从"断了 / 正在轮询"恢复成正常时，停 2 秒自己消失）。
+ * ★ 与黄条同一处说：同一件事（通道状态）的几句话只在这里。
+ */
+export function roundStreamRecoveredText(): string {
+  return t`实时连接恢复了`;
 }

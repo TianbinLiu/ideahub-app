@@ -88,7 +88,15 @@ export interface OnlineRoundSession {
  *   code = 服务端明确拒了这一步（认码，不认 message）
  */
 export type RoundNote =
-  | { kind: "fallback" }
+  /**
+   * ★ `code`（2026-11-24 对局内 P0-2 补）：退回单机时**服务端到底说了什么**。
+   *   被房主移出 / 房间过期 / 回合服务被关掉（`NOT_IN_ROOM` / `ROOM_NOT_FOUND` /
+   *   `GAME_ROUNDS_OFF`）与"这一拍没连上"是两件事：前者要弹红条 + 回大厅，
+   *   后者只该留一句"这一局改成单机继续"。原来 abandon 把码吞掉了，界面上只能看到同一句，
+   *   于是"我被踢了"和"网络抖了一下"长得一模一样（铁律八：别把两种结局压成一句）。
+   *   null / 缺省 = 传输层失败（超时 / 断网）或那条路本来就没有码。
+   */
+  | { kind: "fallback"; code?: string | null }
   | { kind: "unavailable" }
   | { kind: "code"; code: string };
 
@@ -589,8 +597,10 @@ export const useRounds = create<RoundsStore>((set, get) => {
         }
         // ★ 轮询是这一局的"心跳"：它失败就是真的断了（一两发的业务错误不会走到这儿）。
         //   按任务要求**不静默**：留一句 fallback，界面（ui/useOnlineRounds）据此把本地 loop 接回来。
+        // ★ 业务码**原样带上**（2026-11-24 对局内 P0-2）：被移出房间 / 房间过期 / 回合服务被关，
+        //   与"这一拍没连上"是两种结局 —— 顶部红条只认前一种（connection.isRoomGone 一处判）。
         console.warn("[rounds] 回合快照轮询失败，这一局退回单机", roundRes.reason === "code" ? roundRes.code : "unavailable");
-        abandon({ kind: "fallback" });
+        abandon(roundRes.reason === "code" ? { kind: "fallback", code: roundRes.code } : { kind: "fallback" });
         return "fallback";
       }
       // 房间这一发失败（超时 / 老服务端）**不切单机**：沿用上一份房主 / 血量，下一拍再问；
