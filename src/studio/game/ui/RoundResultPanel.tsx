@@ -51,7 +51,7 @@ export default function RoundResultPanel() {
           <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px]">
             {winnerNames.length === 0 ? (
               <span className="text-slate-300">
-                <Trans>这局没有胜者（同归于尽）</Trans>
+                <Trans>平局（同归于尽）</Trans>
               </span>
             ) : (
               winnerNames.map((winner, index) => (

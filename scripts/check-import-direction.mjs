@@ -57,6 +57,9 @@ const ZERO_DEP = [
   // ★ 它值引用 rules.ts（那一个也是零依赖模块，座位数上下界只有一份），这不是违反 ③ 而是 ③ 允许的
   //   "值 import 只许来自表里另一个零依赖模块"。
   "src/studio/game/lobby.ts",
+  // 联机房的"谁是房主 / 这局结束没有"判据（2026-11-24 房主转移 + 平局收口）：
+  // scripts/check-game-online.mjs 直接 import 它跑正反例；值引用 rules.ts（表里另一个零依赖模块）。
+  "src/studio/game/onlineHost.ts",
 ];
 /** ③′ 零 store 依赖（纯函数、不认识 store，但可以用同层的 data 模块） */
 const NO_STORE = ["src/data/recipe.ts"];

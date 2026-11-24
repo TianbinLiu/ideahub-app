@@ -14,6 +14,7 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useGame } from "../store";
 import { useRounds } from "../roundsStore";
+import { phaseKeyOf } from "../onlineHost";
 import { roundViewOf } from "../view";
 import type { GameView } from "../view";
 import { useLobby } from "../lobbyStore";
@@ -29,6 +30,7 @@ export default function PhaseBar({ view }: { view: GameView }) {
   const snapshot = useRounds((s) => s.snapshot);
   const settlement = useRounds((s) => s.settlement);
   const abstainedRound = useRounds((s) => s.abstainedRound);
+  const memberHp = useRounds((s) => s.memberHp);
   const roundsBusy = useRounds((s) => s.busy);
   if (!state) return null;
   const me = view.player;
@@ -43,12 +45,23 @@ export default function PhaseBar({ view }: { view: GameView }) {
   if (online && session) {
     const mySubmitted = Boolean(snapshot?.entries.some((entry) => entry.userId === session.myUserId));
     const submittedCount = snapshot?.entries.length ?? 0;
-    const aliveCount = Math.max(0, session.members.filter((member) => member.hp > 0).length);
+    // 同桌还活着几个人：hp 读 roundsStore 的**跨回合**记录（开局房间快照 + 每次结算覆盖），
+    // session.members.hp 是开局那一刻的，用它在第 2 回合之后会把淘汰的人又数成活人
+    const aliveCount = Math.max(
+      0,
+      session.members.filter((member) => (memberHp[member.userId] ?? member.hp) > 0).length,
+    );
     const allSubmitted = snapshot?.allSubmitted ?? false;
     const pendingVotes = snapshot?.votesPending ?? 0;
     const abstained = abstainedRound === state.round;
     const spoken =
       abstained || Boolean(snapshot?.entries.some((entry) => entry.votedByMe));
+    /**
+     * 这一阶段由谁按哪颗键 —— 判据只在 onlineHost.phaseKeyOf（房主转移之后 session.isHost
+     * 每 2 秒被轮询刷新一次，这里读的就是刷新后的值；旧房主退出后剩下的人**不用退出重进**）。
+     * ★ 非房主不是没有键：voting + 全员表态后任何成员都能结算（服务端契约）。
+     */
+    const key = phaseKeyOf(session.isHost ? "host" : "guest", state.phase, { votesPending: pendingVotes });
 
     switch (state.phase) {
       case "create":
@@ -61,7 +74,7 @@ export default function PhaseBar({ view }: { view: GameView }) {
         } else {
           hint = t`交片后其他人也能看到：全员交片之后房主才能开始展映`;
         }
-        if (session.isHost) {
+        if (key === "screening") {
           action = {
             label: t`▶ 开始展映`,
             onClick: () => void useRounds.getState().advance("screening"),
@@ -74,7 +87,7 @@ export default function PhaseBar({ view }: { view: GameView }) {
         break;
       case "screening":
         hint = me.eliminated ? t`你已被淘汰，只能观看展映` : t`展映中：给别人的片子点赞（联机版不能给自己点赞）`;
-        if (session.isHost) {
+        if (key === "voting") {
           action = {
             label: t`🗳 去投票`,
             onClick: () => void useRounds.getState().advance("voting"),
@@ -94,7 +107,7 @@ export default function PhaseBar({ view }: { view: GameView }) {
           hint = t`给别人的一条片子投票（不能投自己），或者弃权`;
         }
         // 房主随时可结算（服务端允许）；非房主要等全员投完（那就是"自动结算"那一拍）
-        if (session.isHost || pendingVotes === 0) {
+        if (key === "settle") {
           action = {
             label: t`📊 结算`,
             onClick: () => void useRounds.getState().settle(),
@@ -109,7 +122,7 @@ export default function PhaseBar({ view }: { view: GameView }) {
         hint = settlement
           ? t`第 ${state.round} 回合结算完了——榜与扣血是服务端给的`
           : t`第 ${state.round} 回合结算完了`;
-        if (session.isHost) {
+        if (key === "next") {
           action = {
             label: t`➡ 下一回合`,
             onClick: () => void useRounds.getState().next(),

@@ -53,6 +53,7 @@ import TutorHomePage from "./pages/tutor/TutorHomePage";
 import TutorNewPage from "./pages/tutor/TutorNewPage";
 import TutorRunPage from "./pages/tutor/TutorRunPage";
 import StudioPage from "./studio/StudioPage";
+import OnlineResumeGate from "./studio/game/ui/OnlineResumeGate";
 import TabBar from "./components/TabBar";
 import { bootData, type BootFailure } from "./data/boot";
 import { installGlobalFailureHooks } from "./data/clientEvents";
@@ -289,6 +290,8 @@ export default function App() {
     <>
       {/* 挂在路由树里（需要 useNavigate / useLocation），但不渲染任何东西 */}
       <OauthDeepLinkBridge />
+      {/* App 被杀 / 刷新之后回到同一局联机（2026-11-24 轻量重连）：没有记录时它一次请求都不发 */}
+      <OnlineResumeGate />
       <OrientationGuard />
       <UpdateGate />
       <PlayPurchaseSweep />

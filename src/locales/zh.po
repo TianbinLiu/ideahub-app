@@ -15338,6 +15338,10 @@ msgstr "平台数据 · 点卡片进入管理"
 msgid "平台通知"
 msgstr "平台通知"
 
+#: src/studio/game/ui/RoundResultPanel.tsx
+msgid "平局（同归于尽）"
+msgstr "平局（同归于尽）"
+
 #: src/studio/stage/stageState.ts
 msgid "平视"
 msgstr "平视"
@@ -22319,6 +22323,10 @@ msgstr "没过审核："
 #: src/studio/gridDraftStore.ts
 msgid "没连上出图服务"
 msgstr "没连上出图服务"
+
+#: src/studio/game/lobbyReasons.ts
+msgid "没连上回合服务，暂时回不到那一局（下次打开再试）"
+msgstr "没连上回合服务，暂时回不到那一局（下次打开再试）"
 
 #: src/studio/game/lobbyReasons.ts
 msgid "没连上房间服务，先用 AI 开局"
@@ -30086,6 +30094,10 @@ msgstr "这一局按 {0} 个真人开：服务端的回合只算真人，空位�
 #: src/studio/game/ui/StylePick.tsx
 msgid "这一局没有抽到风格卡（数据不对）——去右栏结束对局再开一局。"
 msgstr "这一局没有抽到风格卡（数据不对）——去右栏结束对局再开一局。"
+
+#: src/studio/game/lobbyReasons.ts
+msgid "这一局的房间已经结束"
+msgstr "这一局的房间已经结束"
 
 #: src/studio/game/ui/GenPreview.tsx
 msgid "这一局还没有出过片——摆好卡，点「🎬 视频生成」先画首帧，再出片。"

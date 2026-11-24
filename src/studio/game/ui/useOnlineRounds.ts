@@ -65,15 +65,20 @@ export function useOnlineRounds(): void {
     if (snapshot.phase === "screening" || snapshot.phase === "voting") game.syncOnlinePhase(snapshot.phase);
   }, [online, snapshot]);
 
-  // ── 服务端结算 → 本机 hp / 结算屏（**只应用一次**：同一个回合的 settlement / winners 会各触发一次渲染） ──
-  const appliedRound = useRef<number | null>(null);
+  // ── 服务端结算 → 本机 hp / 结算屏（**同一局的同一回合只应用一次**） ──
+  // ★ 去重键是 `房间码:回合号`，不是回合号：结束一局再开一局时 GameLayer 不会重挂，
+  //   只按回合号去重会让新一局的第 1 回合结算被上一局第 1 回合的"已应用"挡掉 ——
+  //   症状是投票完了界面一直停在投票屏、榜单不出来（2026-11-24 两个账号连着开第二局时撞见）。
+  const appliedRound = useRef<string | null>(null);
   useEffect(() => {
-    if (!online || !settlement) return;
+    if (!online || !settlement || !roomCode) return;
     const round = useRounds.getState().snapshot?.round ?? null;
-    if (round === null || appliedRound.current === round) return;
-    appliedRound.current = round;
+    if (round === null) return;
+    const key = `${roomCode}:${round}`;
+    if (appliedRound.current === key) return;
+    appliedRound.current = key;
     useGame.getState().applyOnlineSettlement(settlement, winners);
-  }, [online, settlement, winners]);
+  }, [online, settlement, winners, roomCode]);
 
   // ── 这局已经结束（GAME_OVER / 结算里带了胜者）：本机进 over ──
   useEffect(() => {

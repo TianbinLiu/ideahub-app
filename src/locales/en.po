@@ -15330,6 +15330,10 @@ msgstr "Platform stats · tap a card to manage"
 msgid "平台通知"
 msgstr "Platform notice"
 
+#: src/studio/game/ui/RoundResultPanel.tsx
+msgid "平局（同归于尽）"
+msgstr "Draw (mutual elimination)"
+
 #: src/studio/stage/stageState.ts
 msgid "平视"
 msgstr "Eye level"
@@ -22311,6 +22315,10 @@ msgstr "failed review: "
 #: src/studio/gridDraftStore.ts
 msgid "没连上出图服务"
 msgstr "Couldn’t reach the image service"
+
+#: src/studio/game/lobbyReasons.ts
+msgid "没连上回合服务，暂时回不到那一局（下次打开再试）"
+msgstr "Couldn’t reach the round service, so this game can’t be resumed right now (it will retry next time you open the app)"
 
 #: src/studio/game/lobbyReasons.ts
 msgid "没连上房间服务，先用 AI 开局"
@@ -30078,6 +30086,10 @@ msgstr "This game runs with {0} real players: the server's rounds count real pla
 #: src/studio/game/ui/StylePick.tsx
 msgid "这一局没有抽到风格卡（数据不对）——去右栏结束对局再开一局。"
 msgstr "No style cards were drawn this game (bad data) — end the game in the right rail and start again."
+
+#: src/studio/game/lobbyReasons.ts
+msgid "这一局的房间已经结束"
+msgstr "This game’s room has ended"
 
 #: src/studio/game/ui/GenPreview.tsx
 msgid "这一局还没有出过片——摆好卡，点「🎬 视频生成」先画首帧，再出片。"

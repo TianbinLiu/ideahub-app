@@ -57,6 +57,17 @@ export interface RemoteRoom {
   status: RemoteRoomStatus;
   /** `status === "playing"` 的别名（界面只问"开局了没有"） */
   started: boolean;
+  /**
+   * 这一局结束了没有。
+   * ★ 2026-11-24 的服务端**没有**这一位（`status` 到结束也一直是 playing，见 docs/game-lobby.md §7.7）：
+   *   这里先认未来字段（`over:true` / `state:"over"` / `finishedAt`）——没有就是 `null`（**不知道**）。
+   *   别把"不知道"读成"没结束"：App 的结束判定在 `studio/game/onlineHost.roomOverOf`（一处）。
+   */
+  over: boolean | null;
+  /** 服务端给的胜者 userId（空数组 = 平局）；没带这一位 = null（不知道） */
+  winners: string[] | null;
+  /** 服务端给的结束时刻（未来字段；今天没有） */
+  finishedAt: string | null;
   /** 服务端说至少几个**真人**才能开局（custom = 2，不看选了几座） */
   requiredPlayers: number;
   memberCount: number;
@@ -192,6 +203,22 @@ function roomOf(raw: unknown): RemoteRoom | null {
   const statusRaw = strOf(r.status) ?? strOf(r.state) ?? "waiting";
   const status: RemoteRoomStatus = statusRaw === "playing" || statusRaw === "closed" ? statusRaw : "waiting";
   const size = numOf(r.seats) ?? numOf(r.size) ?? members.length;
+  // ── 结束位（未来字段；今天的服务端三位都没有）──────────────────────────────
+  // ★ 只认"服务端明说结束了"：`over:true` / `state|status:"over"` / 有 `finishedAt`。
+  //   `over:false` 才是明说"没结束"；都没有 = null（不知道），交给 onlineHost.roomOverOf 按 hp 推。
+  const stateRaw = strOf(r.state);
+  const finishedAt = strOf(r.finishedAt);
+  const over: boolean | null =
+    r.over === true || stateRaw === "over" || statusRaw === "over" || finishedAt !== null
+      ? true
+      : r.over === false
+        ? false
+        : null;
+  const winners = Array.isArray(r.winners)
+    ? r.winners
+        .map((one) => (typeof one === "string" ? one : strOf(asRecord(one)?.userId)))
+        .filter((id): id is string => Boolean(id))
+    : null;
   return {
     code,
     roomId: strOf(r.roomId) ?? "",
@@ -201,6 +228,9 @@ function roomOf(raw: unknown): RemoteRoom | null {
     members: members.sort((a, b) => a.seat - b.seat),
     status,
     started: status === "playing" || r.started === true,
+    over,
+    winners,
+    finishedAt,
     requiredPlayers: numOf(r.requiredPlayers) ?? size,
     memberCount: numOf(r.memberCount) ?? members.length,
     canStart: r.canStart === true,

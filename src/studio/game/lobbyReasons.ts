@@ -96,6 +96,11 @@ export function lobbyNoteText(note: LobbyNote): string {
       return t`房间码是 6 位字母或数字`;
     case "kicked":
       return t`你被房主移出房间了，先用 AI 开局`;
+    case "resume-gone":
+      // 轻量重连（§7.7）：房间在服务端已经结束 / 过期，或我已经不在成员表里 —— 人已经回大厅
+      return t`这一局的房间已经结束`;
+    case "resume-offline":
+      return t`没连上回合服务，暂时回不到那一局（下次打开再试）`;
     case "code":
       return roomCodeText(note.code);
   }
