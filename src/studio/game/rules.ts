@@ -857,10 +857,17 @@ function rollShopCards(round: number, rng: Rng, serial: number): { cards: (GameC
  * 开一回合：ready（第一回合，不发收入）或 round-end（下一回合，先发上回合收入）。
  * §2.3：每回合开始自动刷新 5 张；锁定的商店不自动刷（锁定免费），解锁后才刷。
  * ★ 收入按**发钱前**的金币算利息：先算后加，别写反（写反等于按新金币给利息，多 1~2 金）。
+ * ★ `allowPastLimit`（联机专用）：服务端的回合引擎**没有 8 回合上限**（它只按「剩到胜者名额」收局），
+ *   而本机这份单机循环有。联机局打到第 9 回合时本机要能跟着开 —— 只放行这一格，单机那几条路
+ *   一个都不许传（否则 MAX_ROUNDS 这条设计就只剩一句注释）。
  */
-export function beginRound(state: GameState, rng: Rng): StateResult {
+export function beginRound(
+  state: GameState,
+  rng: Rng,
+  opts?: { allowPastLimit?: boolean },
+): StateResult {
   if (state.phase !== "ready" && state.phase !== "round-end") return reject("wrong-phase");
-  if (state.phase === "round-end" && state.round >= MAX_ROUNDS) {
+  if (state.phase === "round-end" && state.round >= MAX_ROUNDS && opts?.allowPastLimit !== true) {
     return reject("round-limit", { count: state.round, cap: MAX_ROUNDS });
   }
 
@@ -1368,19 +1375,16 @@ export function settleRound(state: GameState, ranking: readonly string[], rng: R
   const winners = winnersOf(candidate);
   const over = isGameOver(candidate);
 
-  let phase: GamePhase = "round-end";
-  let currentEventId: string | null = null;
-  const drawnEventIds = [...state.drawnEventIds];
-  if (!over && EVENT_AFTER_ROUNDS.includes(state.round)) {
-    const pool = GAME_EVENTS.filter((event) => !drawnEventIds.includes(event.id));
-    if (pool.length > 0) {
-      const event = pickOne(pool, rng);
-      drawnEventIds.push(event.id);
-      currentEventId = event.id;
-      phase = "event";
-    }
-  }
-  if (over) phase = "over";
+  const settled: GameState = {
+    ...candidate,
+    phase: over ? "over" : "round-end",
+    // 上一期的事件已经被 applyEventChoice 消费掉（currentEventId 那时就是 null）；这里清一次是兜底，
+    // 免得某条路把事件带进下一期。
+    currentEventId: null,
+    eventPicks: {},
+  };
+  // 事件（§2.3b）：第 2/4/6 回合结算之后抽一个不重样的 —— 抽哪张与联机版共用一处（见 drawEventAfterRound）
+  const evented = over ? settled : drawEventAfterRound(settled, rng);
 
   const summary: RoundSettlement = {
     round: state.round,
@@ -1394,8 +1398,30 @@ export function settleRound(state: GameState, ranking: readonly string[], rng: R
   return {
     ok: true,
     // lastRanking = 本期名次：下一期展映按它**倒序**播（§2.5「落后先放」），排序在 screeningOrderOf 一处。
-    state: { ...candidate, phase, drawnEventIds, currentEventId, eventPicks: {}, lastRanking: rankingIds },
+    state: { ...evented, lastRanking: rankingIds },
     summary,
+  };
+}
+
+/**
+ * 结算之后按回合数抽一个事件（§2.3b：第 2/4/6 回合、一局里不重样）。
+ *
+ * ★ 单机（settleRound）与联机（服务端只算 hp / 名次，事件仍在本机跑）**共用这一份**：
+ *   两处各写一遍「哪几回合出事件 / 从池子里不重样地抽」，改一处另一处就会悄悄漂。
+ * ★ 已经抽过（`currentEventId` 非空）/ 不是事件回合 / 池子空了 → 原样返回 state（调用方不用先判）。
+ */
+export function drawEventAfterRound(state: GameState, rng: Rng): GameState {
+  if (state.currentEventId !== null) return state;
+  if (!EVENT_AFTER_ROUNDS.includes(state.round)) return state;
+  const pool = GAME_EVENTS.filter((event) => !state.drawnEventIds.includes(event.id));
+  if (pool.length === 0) return state;
+  const event = pickOne(pool, rng);
+  return {
+    ...state,
+    drawnEventIds: [...state.drawnEventIds, event.id],
+    currentEventId: event.id,
+    eventPicks: {},
+    phase: "event",
   };
 }
 

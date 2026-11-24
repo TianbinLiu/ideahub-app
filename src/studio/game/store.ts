@@ -31,6 +31,7 @@ import {
   returnToBag,
   sellCard,
   skipEventChoice,
+  START_HP,
   submitRoundEntry,
   toggleShopLock,
   unequipAll,
@@ -42,11 +43,24 @@ import {
   type RuleFailure,
   type StateResult,
 } from "./rules";
-import { aiEventChoices, openRound, playOutAiOnly, startMatch, toCreation, toScreening, toVoting } from "./phases";
+import {
+  aiEventChoices,
+  beginOnlineRound as beginOnlineRoundPhases,
+  fillLocalOpponents,
+  onlineEventPhase,
+  onlinePhaseTo,
+  openRound,
+  playOutAiOnly,
+  startMatch,
+  toCreation,
+  toScreening,
+  toVoting,
+} from "./phases";
 import { aiPromptPool } from "./labels";
 import { modelUpgradeGate } from "./genTier";
 // 座位 id 与人数换算在 lobby.ts（大厅和这一层认同一份：大厅给几个座位、这里就开几个人的局）
 import { LOCAL_SEAT_ID, seatIdsFor } from "./lobby";
+import type { RemoteSettlement, RemoteWinner } from "../../api/game/rounds";
 import type { GameCard, GameState, RoundSettlement, RoundTally, Rng, TableSlot } from "./types";
 
 /**
@@ -83,7 +97,9 @@ export type GameNoticeKind =
   | "generated"
   | "liked"
   | "voted"
-  | "abstained";
+  | "abstained"
+  // 联机回合：交片已经交给服务端（任务点名要显式说"已交片，等其他人"）
+  | "online-submitted";
 
 export interface GameNotice {
   kind: GameNoticeKind;
@@ -122,6 +138,24 @@ export interface RoundReport {
   tally: RoundTally;
 }
 
+/**
+ * 这一局是不是"从服务端房间开出来的"（联机回合）。
+ * ★ 只记**开局那一刻**从大厅/DOM 接过的事实：房间码、我是哪个服务端账号、我是不是房主、开局时我的血。
+ *   之后的回合事实（entries / 点赞 / 投票 / 结算）全在 `roundsStore`，这一层不重复存 ——
+ *   两边各存一份，"榜显示了新 hp、HUD 还是旧 hp"这种漂就是必然的。
+ * ★ 单机版这一格恒为 null（协议与流程一个字都没变）。
+ */
+export interface OnlineGameHandoff {
+  roomCode: string;
+  /** 服务端账号 id（快照 entries 里的 userId）；不是本机座位的 "me" */
+  myUserId: string;
+  myName: string;
+  isHost: boolean;
+  /** 开局时服务端记的血（房间快照 members[].hp；老房间按满血兜底） */
+  hp: number;
+  eliminated: boolean;
+}
+
 export interface GameStore {
   /** null = 没在对局里（工坊照旧，一个新按钮都不多） */
   state: GameState | null;
@@ -153,12 +187,33 @@ export interface GameStore {
    */
   playerCount: number;
 
+  // ── 联机回合（2026-11-24；null = 单机那一套） ──
+  /** 这一局从服务端房间开出来的凭据（null = 单机；单机流程一个字段都不读它） */
+  online: OnlineGameHandoff | null;
+  /** 服务端给的结算（联机时结算屏**只渲染它**，不在本机重算榜 / 扣血） */
+  onlineSettlement: RemoteSettlement | null;
+  /** 服务端给的胜者；null = 还没结束，[] = 结束但平局 */
+  onlineWinners: RemoteWinner[] | null;
+
   /**
    * 开一局。`playerCount` = 大厅给的座位数（缺省沿用上一局，首次是 4）。
+   * `online` = 这一局从服务端房间开出来（联机回合）；缺省就是原来那份单机循环。
    * ★ 回 boolean：大厅那一屏要知道"这一局开没开起来"（开不起来就把失败原因留在界面上，
    *   别先把大厅收掉、让玩家对着没开局的桌面猜）。
    */
-  startGame: (seed?: number, opts?: { playerCount?: number }) => boolean;
+  startGame: (seed?: number, opts?: { playerCount?: number; online?: OnlineGameHandoff }) => boolean;
+  /** 轮询读到服务端新回合（round + 1）→ 本机也开下一回合（收入 + 商店；AI 不在联机里行动） */
+  beginOnlineRound: (serverRound: number) => void;
+  /** 服务端推进到展映 / 投票 → 本机阶段跟着走（本机的全员闸不适用，见 phases.onlinePhaseTo） */
+  syncOnlinePhase: (phase: "screening" | "voting") => void;
+  /** 服务端结算：写回我的 hp / 淘汰，渲染那一屏；未结束时照旧进入本机事件（事件只在本机） */
+  applyOnlineSettlement: (settlement: RemoteSettlement, winners: RemoteWinner[] | null) => void;
+  /** 这局已经结束（GAME_OVER，含平局）：本机进 over 并把胜者摆出来 */
+  markOnlineOver: (winners: RemoteWinner[]) => void;
+  /** 回合服务不可用 / 掉线：把这一局接回**现有本机循环**（补齐 AI 这一期的动作，不留半局） */
+  fallbackToLocal: () => void;
+  /** 交片已经交给服务端（轻提示「已交片，等其他人」） */
+  markOnlineSubmitted: () => void;
   endGame: () => void;
   /** 选风格卡：选定后（连同 3 个 AI 的选择）进第一回合商店 */
   pickStyle: (styleCardId: string) => void;
@@ -278,6 +333,9 @@ export const useGame = create<GameStore>((set, get) => {
     previewOpen: false,
     // 还没开过局时的默认桌 = 4 人（§5-1 的默认值；大厅一进来就是 4 人匹配那张卡）
     playerCount: 4,
+    online: null,
+    onlineSettlement: null,
+    onlineWinners: null,
 
     startGame: (seed, opts) => {
       const nextSeed = typeof seed === "number" && Number.isFinite(seed) ? seed >>> 0 : freshSeed();
@@ -294,18 +352,34 @@ export const useGame = create<GameStore>((set, get) => {
         fail(started);
         return false;
       }
+      let state = started.state;
+      const online = opts?.online ?? null;
+      if (online) {
+        // 开局血用**服务端快照里的那一份**（房间可能已经打过几回合？今天不会，但接进同一份口径最省事）。
+        // 夹 0~START_HP：服务端记的血不会超出这个范围，本地 HUD 按 100 归一画条。
+        const hp = Math.max(0, Math.min(START_HP, Math.floor(online.hp)));
+        state = {
+          ...state,
+          players: state.players.map((player) =>
+            player.id === LOCAL_PLAYER_ID ? { ...player, hp, eliminated: online.eliminated || hp <= 0 } : player,
+          ),
+        };
+      }
       set({
-        state: started.state,
+        state,
         seed: nextSeed,
         playerCount: seats.length,
         shopOpen: false,
         rejection: null,
         notice: null,
         report: null,
-        eliminatedAtRound: null,
+        eliminatedAtRound: online?.eliminated ? 1 : null,
         drag: null,
         createPrompt: "",
         previewOpen: false,
+        online,
+        onlineSettlement: null,
+        onlineWinners: null,
       });
       return true;
     },
@@ -323,8 +397,111 @@ export const useGame = create<GameStore>((set, get) => {
         drag: null,
         createPrompt: "",
         previewOpen: false,
+        online: null,
+        onlineSettlement: null,
+        onlineWinners: null,
       });
     },
+
+    // ─────────────────────────── 联机回合（服务端是真相） ───────────────────────────
+    // ★ 这一节只做两件事：把服务端推来的阶段 / 回合写进本机状态（单机 rules 的闸不在这里重跑），
+    //   以及把服务端的 hp / 结算原样摆给界面。**一个名次、一滴血都不重算**（任务：榜与扣血只渲染服务端回包）。
+
+    beginOnlineRound: (serverRound) => {
+      const { state, online } = get();
+      if (!state || !online) return;
+      const opened = beginOnlineRoundPhases(state, serverRound, rng);
+      if (!opened.ok) {
+        fail(opened);
+        return;
+      }
+      if (opened.state === state) return;
+      done({ state: opened.state, shopOpen: true, onlineSettlement: null, onlineWinners: null, drag: null });
+    },
+
+    syncOnlinePhase: (phase) => {
+      const { state, online } = get();
+      if (!state || !online) return;
+      const next = onlinePhaseTo(state, phase);
+      if (next === state) return;
+      // 阶段是服务端推的：本机的 entries / spoken 闸不适用（联机版的全员 = 服务端房间成员）
+      set({ state: next, shopOpen: false, drag: null });
+    },
+
+    applyOnlineSettlement: (settlement, winners) => {
+      const { state, online } = get();
+      if (!state || !online) return;
+      const myRow = settlement.ranking.find((row) => row.userId === online.myUserId);
+      const meBefore = state.players.find((player) => player.id === LOCAL_PLAYER_ID);
+      const players = myRow
+        ? state.players.map((player) =>
+            player.id === LOCAL_PLAYER_ID
+              ? { ...player, hp: Math.max(0, Math.min(START_HP, Math.floor(myRow.hp))), eliminated: myRow.eliminated }
+              : player,
+          )
+        : state.players;
+      const over = winners !== null;
+      let next: GameState = { ...state, players, phase: over ? "over" : "round-end" };
+      if (!over) {
+        // 事件仍在本机跑（服务端没有事件端点）：抽一张 + AI 选掉，剩下的那一屏交给真人。
+        // 我这一期被淘汰就不弹了 —— 后面的回合已经跟我无关。
+        const eliminatedNow = myRow ? myRow.eliminated : (meBefore?.eliminated ?? false);
+        if (!eliminatedNow) {
+          const evented = onlineEventPhase(next, aiIdsOf(next), rng);
+          if (!evented.ok) {
+            fail(evented);
+            return;
+          }
+          next = evented.state;
+        }
+      }
+      done({
+        state: next,
+        onlineSettlement: settlement,
+        onlineWinners: winners,
+        eliminatedAtRound: myRow?.eliminated ? state.round : get().eliminatedAtRound,
+        shopOpen: false,
+        drag: null,
+        report: null,
+      });
+    },
+
+    markOnlineOver: (winners) => {
+      const { state, online } = get();
+      if (!state || !online) return;
+      if (state.phase === "over" && get().onlineWinners !== null) {
+        // 结算那一拍已经判定结束了；这里只把 GAME_OVER 的胜者补上（同一份名单，顺序也一样）
+        set({ onlineWinners: winners });
+        return;
+      }
+      set({ state: { ...state, phase: "over" }, onlineWinners: winners, shopOpen: false, drag: null });
+    },
+
+    fallbackToLocal: () => {
+      const { state } = get();
+      if (!state) {
+        set({ online: null, onlineSettlement: null, onlineWinners: null });
+        return;
+      }
+      const filled = fillLocalOpponents(state, aiIdsOf(state), aiPromptPool(), rng);
+      if (!filled.ok) {
+        // 补不齐也要退：把原因留着、状态原样切回单机（别再停在一个走不下去的联机阶段上）
+        fail(filled);
+        set({ online: null, onlineSettlement: null, onlineWinners: null, drag: null });
+        return;
+      }
+      set({
+        state: filled.state,
+        online: null,
+        onlineSettlement: null,
+        onlineWinners: null,
+        drag: null,
+        // 单机事件 / 商店的提示照旧；这里只把"联机"这一层摘掉，不重置这一局的任何进度
+        rejection: null,
+      });
+    },
+
+    markOnlineSubmitted: () => set({ notice: { kind: "online-submitted", at: Date.now() } }),
 
     pickStyle: (styleCardId) => {
       const { state, meId } = get();
@@ -679,6 +856,9 @@ export const useGame = create<GameStore>((set, get) => {
     },
 
     restart: () => {
+      // 联机局不在这里重开：服务端那间房还挂着，重开本机局会把对局和房间拆成两份（界面在联机局结束
+      // 时走的是「返回大厅」，由 ui/PhaseBar 决定；这里留一道防线，真被调到时什么也不做）。
+      if (get().online) return;
       // 同一张桌（人数沿用）：8 人局点「再来一局」还是 8 人，不掉回默认 4 人
       get().startGame(undefined, { playerCount: get().playerCount });
     },

@@ -180,7 +180,7 @@ export default function Lobby() {
           </p>
         ) : serverOnline === true ? (
           <p className="text-center text-[10px] leading-snug text-slate-400">
-            <Trans>联机已接通：匹配会等真人，空位开局时由 AI 补位。</Trans>
+            <Trans>联机已接通：匹配会等真人；自定义房间的空位不参加回合。</Trans>
           </p>
         ) : serverOnline === false ? (
           <p className="text-center text-[10px] leading-snug text-slate-400">

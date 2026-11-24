@@ -317,6 +317,11 @@ msgid "· {roleCount} 角色 / {0} 场景 / {itemCount} 道具"
 msgstr "· {roleCount} characters / {0} scene / {itemCount} items"
 
 #. placeholder {0}: opponent.hp
+#: src/studio/game/ui/OpponentStrip.tsx
+msgid "· ❤ {0}"
+msgstr " · ❤ {0}"
+
+#. placeholder {0}: opponent.hp
 #. placeholder {1}: opponent.cards
 #: src/studio/game/ui/OpponentStrip.tsx
 msgid "· ❤ {0} · {1} 卡"
@@ -575,6 +580,7 @@ msgstr " (⚠ this segment's request is too long: the last {storyOver, plural, o
 #~ msgid "（⚠ 这一段的要求太长，末尾 {storyOver} 字没能发出去：提示词上限 {VIDEO_PROMPT_MAX} 字，其中素材设定与形象点名句占了 {reserved} 字——把要求写短些，或少挂一张卡）"
 #~ msgstr " (⚠ this segment's request is too long: the last {storyOver, plural, one {# character} other {# characters}} couldn't be sent — the prompt limit is {VIDEO_PROMPT_MAX} characters, and asset details and casting lines take up {reserved} of them; shorten the request or attach one fewer card)"
 
+#: src/studio/game/ui/OnlineVotingPanel.tsx
 #: src/studio/game/ui/VotingPanel.tsx
 msgid "（一人一票，不能投自己；投「专业评价」，点赞另算）"
 msgstr "(One vote each, you can't vote for yourself; this is the professional pick — likes are separate.)"
@@ -1012,6 +1018,7 @@ msgid "{0} 秒"
 msgstr "{0}s"
 
 #. placeholder {0}: Math.round(seconds)
+#: src/studio/game/ui/OnlineScreeningPanel.tsx
 #: src/studio/game/ui/ScreeningPanel.tsx
 msgid "{0} 秒占位片"
 msgstr "{0}s placeholder clip"
@@ -3318,6 +3325,7 @@ msgstr "<0>This step isn't perfect every time.</0> In practice, every few render
 msgid "⏳ 接着等上一组（图不再收钱）"
 msgstr "⏳ Pick up the previous set (pictures aren’t charged again)"
 
+#: src/studio/game/ui/OnlineScreeningPanel.tsx
 #: src/studio/game/ui/ScreeningPanel.tsx
 msgid "⏸ 暂停"
 msgstr "⏸ Pause"
@@ -3363,6 +3371,7 @@ msgstr "▶ Start test run"
 msgid "▶ 开局"
 msgstr "▶ Start a game"
 
+#: src/studio/game/ui/OnlineScreeningPanel.tsx
 #: src/studio/game/ui/ScreeningPanel.tsx
 msgid "▶ 继续"
 msgstr "▶ Resume"
@@ -3389,6 +3398,7 @@ msgstr "▸ What if they don't match? <0>Usually just delete that slot — no re
 msgid "▾ 收起商店"
 msgstr "▾ Hide shop"
 
+#: src/studio/game/ui/OnlineScreeningPanel.tsx
 #: src/studio/game/ui/ScreeningPanel.tsx
 msgid "◀ 上一条"
 msgstr "◀ Previous"
@@ -3741,6 +3751,10 @@ msgstr "✂ Use this area"
 #: src/studio/ui/projection.tsx
 msgid "✂ 编辑"
 msgstr "✂ Edit"
+
+#: src/studio/game/ui/CreatePanel.tsx
+msgid "✅ 已交片，等其他人（{submittedCount}/{aliveCount} 已交）——全员交片后房主才能开始展映。"
+msgstr "✅ Submitted — waiting for the others ({submittedCount}/{aliveCount} submitted). The host can start the screening once everyone has submitted."
 
 #. placeholder {0}: slot0.tag
 #: src/pages/CustomCardPage.tsx
@@ -4347,6 +4361,11 @@ msgstr "🎵 Music suggestion: {0} (pick one of your own under the Audio tab)"
 msgid "🏁 本局结束"
 msgstr "🏁 Match over"
 
+#: src/studio/game/ui/PhaseBar.tsx
+msgid "🏁 返回大厅"
+msgstr "🏁 Back to lobby"
+
+#: src/studio/game/ui/OnlineScreeningPanel.tsx
 #: src/studio/game/ui/ScreeningPanel.tsx
 msgid "👍 点赞这一条"
 msgstr "👍 Like this one"
@@ -4371,6 +4390,11 @@ msgstr "💬 History"
 #: src/studio/game/ui/RoundResultPanel.tsx
 msgid "📊 第 {0} 回合结算"
 msgstr "📊 Round {0} results"
+
+#. placeholder {0}: state.round
+#: src/studio/game/ui/RoundResultPanel.tsx
+msgid "📊 第 {0} 回合结算（联机）"
+msgstr "📊 Round {0} results (online)"
 
 #: src/studio/game/ui/PhaseBar.tsx
 msgid "📊 结算"
@@ -4693,6 +4717,7 @@ msgstr "🗑 Delete a segment"
 msgid "🗳 去投票"
 msgstr "🗳 Go vote"
 
+#: src/studio/game/ui/OnlineVotingPanel.tsx
 #: src/studio/game/ui/VotingPanel.tsx
 msgid "🗳 投票：给别人的一条片子"
 msgstr "🗳 Vote: pick one of the others' films"
@@ -5744,6 +5769,10 @@ msgstr "Pick one of three (skip it if unsure)"
 msgid "上一句还没念完，这一句晚 {0} 秒开始。"
 msgstr "The previous line is still being read, so this one starts {0}s late."
 
+#: src/studio/game/roundsReasons.ts
+msgid "上一回合还没结算"
+msgstr "The previous round has not been settled yet"
+
 #: src/utils/nativeCamera.ts
 msgid "上一张还没拍完"
 msgstr "The previous photo isn't finished yet"
@@ -6146,6 +6175,7 @@ msgstr "Next round's prompt limit +{0}%"
 msgid "下一回合能出 {0} 段"
 msgstr "Next round you can shoot {0} segments"
 
+#: src/studio/game/ui/OnlineScreeningPanel.tsx
 #: src/studio/game/ui/ScreeningPanel.tsx
 msgid "下一条 ▶"
 msgstr "Next ▶"
@@ -6619,6 +6649,10 @@ msgstr "You can publish without a cover; it shows as a blank card in the market.
 msgid "不能投给自己——选别人的一条"
 msgstr "You can't vote for yourself — pick one of the others"
 
+#: src/studio/game/roundsReasons.ts
+msgid "不能投自己那条片子"
+msgstr "You cannot vote for your own entry"
+
 #: src/api/blocking.ts
 msgid "不能拉黑自己。"
 msgstr "You can't block yourself."
@@ -7049,6 +7083,10 @@ msgstr "Back to auto"
 #: src/studio/game/ui/PhaseBar.tsx
 msgid "交片了：{0} 张卡 + 一句提示词（{1} 秒）"
 msgstr "Submitted: {0} cards + one prompt ({1}s)"
+
+#: src/studio/game/ui/PhaseBar.tsx
+msgid "交片后其他人也能看到：全员交片之后房主才能开始展映"
+msgstr "Once submitted, your entry is visible to everyone. The host can start the screening when all entries are in."
 
 #: src/studio/ui/NpcDialog.tsx
 msgid "交给铸卡师炼卡"
@@ -7684,6 +7722,10 @@ msgstr "You are not in this room"
 msgid "你不在那间房里"
 msgstr "You're not in that room"
 
+#: src/studio/game/roundsReasons.ts
+msgid "你不在那间房里了"
+msgstr "You are no longer in that room"
+
 #: src/pages/CutPage.tsx
 msgid "你动过片段（裁剪 / 删段 / 换序），而配乐是自动预置的原片音轨——它按原片从头混，合出来会和画面对不上。想对齐就在「音频」里换一条自己的，或把片段改回原样。"
 msgstr "You've changed the clips (trimmed / deleted / reordered), but the music is the auto-added original audio — it's mixed in from the start of the original, so it won't line up with the picture. To match them, swap in your own track under “Audio”, or put the clips back."
@@ -7738,11 +7780,49 @@ msgstr "{count, plural, one {You've received it # time} other {You've received i
 msgid "你已经淘汰了，不能再操作"
 msgstr "You're eliminated — no more actions"
 
+#. placeholder {0}: snapshot.votesPending
+#: src/studio/game/ui/OnlineVotingPanel.tsx
+msgid "你已经表过态了——还差 {0} 个人，全员表态后自动结算"
+msgstr "You have voted — waiting for {0} more. The round settles automatically once everyone has voted."
+
+#: src/studio/game/ui/PhaseBar.tsx
+msgid "你已经表过态了——还差 {pendingVotes} 个人，全员表态后自动结算"
+msgstr "You have voted — waiting for {pendingVotes} more. The round settles automatically once everyone has voted."
+
 #. placeholder {0}: roundView.pending
 #: src/studio/game/ui/PhaseBar.tsx
 msgid "你已经表过态了——还有 {0} 个人没表态（AI 会自己投）"
 msgstr "You've had your say — {0} still haven't (the AIs vote on their own)"
 
+#: src/studio/game/ui/PhaseBar.tsx
+msgid "你已经被淘汰——这一局只能看别人打"
+msgstr "You have been eliminated — you can only watch the rest of this game"
+
+#: src/studio/game/ui/CreatePanel.tsx
+msgid "你已经被淘汰——这一局只能看别人打，交片 / 点赞 / 投票都不再收你的。"
+msgstr "You have been eliminated — you can only watch. Submissions, likes and votes are no longer accepted from you."
+
+#: src/studio/game/roundsReasons.ts
+msgid "你已经被淘汰，这一局只能看别人打"
+msgstr "You have been eliminated — you can only watch the rest of this game"
+
+#: src/studio/game/ui/OnlineScreeningPanel.tsx
+msgid "你已被淘汰，只能观看"
+msgstr "You have been eliminated; you can only watch"
+
+#: src/studio/game/ui/PhaseBar.tsx
+msgid "你已被淘汰，只能观看展映"
+msgstr "You have been eliminated and can only watch the screening"
+
+#: src/studio/game/ui/PhaseBar.tsx
+msgid "你已被淘汰，等其他人投完"
+msgstr "You have been eliminated — waiting for the others to vote"
+
+#: src/studio/game/ui/OnlineVotingPanel.tsx
+msgid "你已被淘汰，这一票不收你的"
+msgstr "You have been eliminated; your vote does not count"
+
+#: src/studio/game/ui/OnlineVotingPanel.tsx
 #: src/studio/game/ui/VotingPanel.tsx
 msgid "你弃权了"
 msgstr "You abstained"
@@ -7777,7 +7857,9 @@ msgstr "This tier's video model isn't available in your region."
 msgid "你手上这一版已经停止支持了，更新之后才能接着用。"
 msgstr "This version is no longer supported. Update to keep using the app."
 
+#. placeholder {0}: myVote.name ?? myVote.userId
 #. placeholder {0}: playerName(myVote.playerId)
+#: src/studio/game/ui/OnlineVotingPanel.tsx
 #: src/studio/game/ui/VotingPanel.tsx
 msgid "你投给了 {0}"
 msgstr "You voted for {0}"
@@ -7845,7 +7927,9 @@ msgid "你的账号是管理员：AI 生成走的是免扣费通道，消耗不�
 msgstr "Your account is an admin: AI generation uses the no-charge channel, so usage isn't deducted from your wallet."
 
 #. placeholder {0}: mine.rank
+#. placeholder {0}: mineIndex + 1
 #. placeholder {1}: mine.damage
+#. placeholder {2}: mine.hp
 #. placeholder {2}: mine.hpAfter
 #: src/studio/game/ui/RoundResultPanel.tsx
 msgid "你第 {0} 名：−{1} 血，剩 {2}"
@@ -8691,6 +8775,10 @@ msgstr "On the free plan, MiniMax videos are text-only, and this segment include
 msgid "全不选"
 msgstr "Select none"
 
+#: src/studio/game/ui/PhaseBar.tsx
+msgid "全员都交片了（{submittedCount}/{aliveCount}）"
+msgstr "Everyone has submitted ({submittedCount}/{aliveCount})"
+
 #: src/components/PlayerControls.tsx
 msgid "全屏"
 msgstr "Full screen"
@@ -8826,6 +8914,11 @@ msgstr "The shared process is still the previous version (not updated since this
 #: src/studio/game/ui/RoundResultPanel.tsx
 msgid "共 {0} 回合"
 msgstr "{0} rounds in total"
+
+#. placeholder {0}: state.round
+#: src/studio/game/ui/RoundResultPanel.tsx
+msgid "共 {0} 回合（联机）"
+msgstr "Rounds: {0} (online)"
 
 #. placeholder {0}: cards.length
 #: src/pages/WorkshopMinePage.tsx
@@ -9787,6 +9880,11 @@ msgstr "Draw panels"
 #: src/pages/TemplateDetailPage.tsx
 msgid "出过了？刷新状态"
 msgstr "Already made one? Refresh status"
+
+#. placeholder {0}: row.composite
+#: src/studio/game/ui/RoundResultPanel.tsx
+msgid "分 {0}"
+msgstr "Score {0}"
 
 #: src/studio/ui/PlanBoard.tsx
 msgid "分了镜头：不用结束画面"
@@ -12534,6 +12632,10 @@ msgstr "Name (optional; lines are matched to speakers by this name)"
 msgid "名次 = 两个榜相加（并列看投票）"
 msgstr "Rank = likes rank + votes rank (ties go to votes)"
 
+#: src/studio/game/ui/RoundResultPanel.tsx
+msgid "名次 = 服务端按两个榜合出来的顺序（分 = 点赞名次 + 投票名次，越小越好）"
+msgstr "Ranking comes from the server's combined boards (score = like rank + vote rank; lower is better)"
+
 #: src/studio/game/reasons.ts
 msgid "名次名单和存活玩家对不上，这次结算没有生效"
 msgstr "The ranking doesn't match the surviving players, so this settlement didn't apply"
@@ -12754,6 +12856,14 @@ msgstr "See why ›"
 #: src/components/GenerationPill.tsx
 msgid "回去看看 ›"
 msgstr "Take a look ›"
+
+#: src/studio/game/roundsReasons.ts
+msgid "回合服务回了没见过的错误：{code}"
+msgstr "The round service returned an unknown error: {code}"
+
+#: src/studio/game/roundsReasons.ts
+msgid "回合服务没响应，这一局改成单机继续"
+msgstr "The round service is not responding — this game continues in single-player mode"
 
 #: src/studio/game/labels.ts
 msgid "回合结算"
@@ -14161,6 +14271,10 @@ msgstr "Show description"
 msgid "展映"
 msgstr "Screening"
 
+#: src/studio/game/ui/PhaseBar.tsx
+msgid "展映中：给别人的片子点赞（联机版不能给自己点赞）"
+msgstr "Screening: like other players' entries (you cannot like your own in online games)"
+
 #: src/components/guide/tours.tsx
 msgid "工作台里的「删除」不是从列表里划掉：<0>云端那段模板视频和原始素材会一起没掉</0>， 谁都找不回。所以要点两下才认。"
 msgstr "“Delete” in the workbench doesn't just cross it off a list: <0>the template video in the cloud and the original footage are gone along with it</0>, and no one can get them back. That's why it takes two taps."
@@ -14385,6 +14499,14 @@ msgstr "Reported"
 #: src/studio/game/ui/ShopPanel.tsx
 msgid "已买走"
 msgstr "Sold"
+
+#: src/studio/game/ui/GameLayer.tsx
+msgid "已交片，等其他人"
+msgstr "Submitted — waiting for the others"
+
+#: src/studio/game/ui/PhaseBar.tsx
+msgid "已交片，等其他人（{submittedCount}/{aliveCount} 已交）"
+msgstr "Submitted — waiting for the others ({submittedCount}/{aliveCount} submitted)"
 
 #: src/pages/EditPage.tsx
 msgid "已从模板市场下架（制作过程照样公开着）"
@@ -14825,6 +14947,7 @@ msgstr "Added"
 msgid "已清理 {n} 个文件"
 msgstr "Cleaned up {n, plural, one {# file} other {# files}}"
 
+#: src/studio/game/ui/OnlineScreeningPanel.tsx
 #: src/studio/game/ui/ScreeningPanel.tsx
 msgid "已点赞 ❤"
 msgstr "Liked ❤"
@@ -15407,6 +15530,7 @@ msgctxt "丢弃确认卡里「…再回来X」的那个动作（英文用小写�
 msgid "开新的这条"
 msgstr "start the new one"
 
+#: src/studio/game/ui/OnlineVotingPanel.tsx
 #: src/studio/game/ui/VotingPanel.tsx
 msgid "弃权"
 msgstr "Abstain"
@@ -16105,6 +16229,7 @@ msgstr "I've checked each one — numbers are correct"
 
 #: src/components/support/VoiceMarket.tsx
 #: src/components/TabBar.tsx
+#: src/studio/game/ui/OnlineScreeningPanel.tsx
 #: src/studio/game/ui/ScreeningPanel.tsx
 msgid "我的"
 msgstr "Me"
@@ -16255,6 +16380,10 @@ msgstr "Room codes are 6 letters or digits"
 #: src/studio/game/lobbyReasons.ts
 msgid "房间请求的参数不对，退回大厅再试一次"
 msgstr "The room request had bad parameters — go back to the lobby and try again"
+
+#: src/studio/game/roundsReasons.ts
+msgid "房间还没开局"
+msgstr "The room has not started yet"
 
 #: src/ai/arkClient.ts
 msgid "所在地区不提供这一档的出片模型"
@@ -16552,8 +16681,12 @@ msgstr "Group the cards you use most; when rendering, <0>the deck locks characte
 #~ msgstr "Group the cards you use often into a deck; when rendering, <0>the deck locks the characters and scenes so the whole video stays consistent</0>. Loose cards are in the “My cards” tab, and templates you made are in “My templates”."
 
 #: src/studio/game/ui/RoomScreen.tsx
-msgid "把房间码念给朋友：他们在大厅的「加入房间」里输入就能进来。开局时空位由 AI 补上。"
-msgstr "Give the room code to your friends: they can enter it in “Join room” in the lobby. Empty seats are filled by AI when the game starts."
+#~ msgid "把房间码念给朋友：他们在大厅的「加入房间」里输入就能进来。开局时空位由 AI 补上。"
+#~ msgstr "Give the room code to your friends: they can enter it in “Join room” in the lobby. Empty seats are filled by AI when the game starts."
+
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "把房间码念给朋友：他们在大厅的「加入房间」里输入就能进来。服务端的回合只算真人，空位不参加。"
+msgstr "Read the room code to your friends: they can join in the lobby's “Join room”. The server's rounds count real players only; empty seats do not take part."
 
 #: src/components/blockout/BoxFramePicker.tsx
 msgid "把播放头挪到第几秒"
@@ -16619,6 +16752,7 @@ msgstr "Ballad"
 msgid "投票"
 msgstr "Voting"
 
+#: src/studio/game/ui/OnlineVotingPanel.tsx
 #: src/studio/game/ui/VotingPanel.tsx
 msgid "投这一条"
 msgstr "Vote for this"
@@ -17722,6 +17856,10 @@ msgstr "Prompt"
 msgid "提示词 {length}/{limit} 字"
 msgstr "Prompt {length}/{limit} chars"
 
+#: src/studio/game/roundsReasons.ts
+msgid "提示词不能是空的"
+msgstr "The prompt cannot be empty"
+
 #: src/studio/blockoutPrompt.ts
 msgid "提示词合成失败：AI 什么都没返回——这一段的要求请自己写，或用下面那份默认写法。"
 msgstr "Couldn't compose the prompt: the AI returned nothing — write this segment's request yourself, or use the default version below."
@@ -17763,6 +17901,10 @@ msgstr "Couldn't compose the prompt ({why}) — write this segment's request you
 #: src/studio/game/reasons.ts
 msgid "提示词太长了：最多 {0} 字，现在 {1} 字"
 msgstr "Prompt is too long: {0} chars max, currently {1}"
+
+#: src/studio/game/roundsReasons.ts
+msgid "提示词太长了（联机版最多 80 字）"
+msgstr "The prompt is too long (at most 80 characters online)"
 
 #: src/ai/minimaxVideo.ts
 msgid "提示词或图片没过 MiniMax 的内容审核——改一改再出片"
@@ -17984,6 +18126,7 @@ msgstr "Undo"
 msgid "撤销 / 重做要单独说：这一句里别的改动没有办，撤完再说一次"
 msgstr "Undo / redo has to be said on its own: the other changes in this sentence weren't made — say them again after the undo"
 
+#: src/studio/game/ui/OnlineScreeningPanel.tsx
 #: src/studio/game/ui/ScreeningPanel.tsx
 msgid "播完了"
 msgstr "Playback finished"
@@ -19594,6 +19737,10 @@ msgstr "The server doesn't have speech recognition yet (the response isn't JSON)
 msgid "服务端还没有这个功能，等后端更新后再来。"
 msgstr "The server doesn't have this feature yet. Check back after it's updated."
 
+#: src/studio/game/ui/OnlineScreeningPanel.tsx
+msgid "服务端这一回合还没有收到片子——等其他人交片。"
+msgstr "The server has not received any entries for this round yet — waiting for the others to submit."
+
 #: src/pages/tutor/TutorNewPage.tsx
 msgid "服务端验收…"
 msgstr "Server is verifying…"
@@ -20302,6 +20449,10 @@ msgstr "Checking the video's specs…"
 msgctxt "人偶的主色（挂卡提醒那句话里显示）"
 msgid "棕"
 msgstr "brown"
+
+#: src/studio/game/ui/RoundResultPanel.tsx
+msgid "榜与扣血来自服务端"
+msgstr "Rankings and damage come from the server"
 
 #. placeholder {0}: tierModelLabel(tierOf(editor.videoTier))
 #: src/studio/ui/projection.tsx
@@ -21181,6 +21332,10 @@ msgstr "Reading your materials…"
 #: src/pages/ProfilePage.tsx
 msgid "正在读取余额…"
 msgstr "Loading balance…"
+
+#: src/studio/game/ui/RoundResultPanel.tsx
+msgid "正在读取服务端的结算…（榜与扣血以服务端为准）"
+msgstr "Loading the server's settlement… (rankings and damage come from the server)"
 
 #: src/components/blockout/VideoStage.tsx
 msgid "正在读取视频…"
@@ -22858,6 +23013,7 @@ msgstr "Like"
 msgid "点赞 · {likes}"
 msgstr "Like · {likes}"
 
+#: src/studio/game/ui/OnlineScreeningPanel.tsx
 #: src/studio/game/ui/ScreeningPanel.tsx
 msgid "点赞：播放中可以给每一条点一次"
 msgstr "Likes: once per film while it plays"
@@ -22866,6 +23022,7 @@ msgstr "Likes: once per film while it plays"
 msgid "点赞失败，稍后再试。"
 msgstr "Like failed. Try again later."
 
+#: src/studio/game/ui/OnlineVotingPanel.tsx
 #: src/studio/game/ui/VotingPanel.tsx
 msgid "点赞数（热度）"
 msgstr "Likes (popularity)"
@@ -23247,6 +23404,10 @@ msgstr "Can't append right now (a segment may be generating); try again later"
 #: src/studio/studioStore.ts
 msgid "现在接不上这一段，稍后再试。"
 msgstr "Can’t extend this segment right now — try again later."
+
+#: src/studio/game/roundsReasons.ts
+msgid "现在是另一个阶段，这一步现在做不了"
+msgstr "The round is in a different phase, so this action is not available now"
 
 #: src/studio/cutAgent.ts
 msgid "现在是演示模式（没有连上模型），只听得懂直白的句式。"
@@ -24674,6 +24835,7 @@ msgid "看着满意就定稿：把这同一份样片升成 1080p 成片（画面
 msgstr "If you like it, finalize: this same draft is upgraded to a 1080p video (frames, motion and sound all follow the draft; nothing is re-rolled). {mins, plural, one {# minute} other {# minutes}} left to finalize."
 
 #. placeholder {0}: dot + 1
+#: src/studio/game/ui/OnlineScreeningPanel.tsx
 #: src/studio/game/ui/ScreeningPanel.tsx
 msgid "看第 {0} 条"
 msgstr "Show film {0}"
@@ -24864,6 +25026,7 @@ msgid "真人还不够开局（服务端至少算 2 个真人）"
 msgstr "Not enough real players to start (the server requires at least 2)"
 
 #. placeholder {0}: Math.round(seconds)
+#: src/studio/game/ui/OnlineScreeningPanel.tsx
 #: src/studio/game/ui/ScreeningPanel.tsx
 msgid "真出片的那一条（{0} 秒）"
 msgstr "A real generated clip ({0}s)"
@@ -25358,10 +25521,12 @@ msgstr "An empty deck can't be shared. Add some cards first."
 msgid "空行分段；「# 标题」会自成一块"
 msgstr "Blank lines split paragraphs; a “# heading” becomes its own block"
 
+#: src/studio/game/ui/OnlineVotingPanel.tsx
 #: src/studio/game/ui/VotingPanel.tsx
 msgid "空镜"
 msgstr "Empty shot"
 
+#: src/studio/game/ui/OnlineScreeningPanel.tsx
 #: src/studio/game/ui/ScreeningPanel.tsx
 msgid "空镜（没放卡）"
 msgstr "Empty shot (no cards)"
@@ -25433,7 +25598,9 @@ msgid "童话森林"
 msgstr "Fairytale forest"
 
 #. placeholder {0}: index + 1
+#. placeholder {1}: entries.length
 #. placeholder {1}: playlist.length
+#: src/studio/game/ui/OnlineScreeningPanel.tsx
 #: src/studio/game/ui/ScreeningPanel.tsx
 msgid "第 {0} / {1} 条"
 msgstr "Film {0} / {1}"
@@ -25485,6 +25652,16 @@ msgstr "Round {0}"
 #: src/studio/game/ui/PhaseBar.tsx
 msgid "第 {0} 回合结束"
 msgstr "End of round {0}"
+
+#. placeholder {0}: state.round
+#: src/studio/game/ui/PhaseBar.tsx
+msgid "第 {0} 回合结算完了"
+msgstr "Round {0} has been settled"
+
+#. placeholder {0}: state.round
+#: src/studio/game/ui/PhaseBar.tsx
+msgid "第 {0} 回合结算完了——榜与扣血是服务端给的"
+msgstr "Round {0} settled — rankings and damage come from the server"
 
 #. placeholder {0}: Number(m[1])
 #. placeholder {0}: i + 1
@@ -26438,6 +26615,22 @@ msgstr "Waiting for Volcengine verification…"
 msgid "等房主开一局：非房主只能准备或离开"
 msgstr "Waiting for the host to start: guests can only ready up or leave"
 
+#: src/studio/game/ui/PhaseBar.tsx
+msgid "等房主开下一回合"
+msgstr "Waiting for the host to start the next round"
+
+#: src/studio/game/ui/PhaseBar.tsx
+msgid "等房主开始展映"
+msgstr "Waiting for the host to start the screening"
+
+#: src/studio/game/ui/PhaseBar.tsx
+msgid "等房主开始投票"
+msgstr "Waiting for the host to start the vote"
+
+#: src/studio/game/ui/PhaseBar.tsx
+msgid "等房主推进（要先全员交片）"
+msgstr "Waiting for the host (everyone must submit first)"
+
 #: src/studio/game/ui/ShopPanel.tsx
 #~ msgid "等替换"
 #~ msgstr "Awaiting swap"
@@ -27174,18 +27367,37 @@ msgid "聊天记录、发过的文案、随手写的笔记都行"
 msgstr "Chat logs, posts you've written or quick notes all work"
 
 #: src/studio/game/ui/Lobby.tsx
-msgid "联机已接通：匹配会等真人，空位开局时由 AI 补位。"
-msgstr "Online is available: matchmaking waits for real players, and AI fills empty seats when the game starts."
+#~ msgid "联机已接通：匹配会等真人，空位开局时由 AI 补位。"
+#~ msgstr "Online is available: matchmaking waits for real players, and AI fills empty seats when the game starts."
+
+#: src/studio/game/ui/Lobby.tsx
+msgid "联机已接通：匹配会等真人；自定义房间的空位不参加回合。"
+msgstr "Online is connected: matchmaking waits for real players, and empty seats in custom rooms do not join the rounds."
 
 #. placeholder {0}: remote.memberCount
 #. placeholder {1}: remote.size
 #: src/studio/game/ui/RoomScreen.tsx
-msgid "联机房间：{0}/{1} 个真人，空位开局时由 AI 补齐。"
-msgstr "Online room: {0}/{1} real players; AI fills empty seats when the game starts."
+#~ msgid "联机房间：{0}/{1} 个真人，空位开局时由 AI 补齐。"
+#~ msgstr "Online room: {0}/{1} real players; AI fills empty seats when the game starts."
+
+#. placeholder {0}: remote.memberCount
+#. placeholder {1}: remote.size
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "联机房间：{0}/{1} 个真人；服务端的回合只算真人，空位不参加这一局。"
+msgstr "Online room: {0}/{1} real players. The server's rounds count real players only; empty seats do not join this game."
+
+#: src/studio/game/ui/CreatePanel.tsx
+msgid "联机房间：交片会同步给所有人；提交之后这里会写「已交片，等其他人」。"
+msgstr "Online room: your entry is shared with everyone. After submitting, this line will say “Submitted — waiting for the others”."
 
 #: src/studio/game/lobbyReasons.ts
 msgid "联机房间暂时不能改人数"
 msgstr "You can't change the table size in an online room yet"
+
+#: src/studio/game/roundsReasons.ts
+#: src/studio/game/ui/OnlineScreeningPanel.tsx
+msgid "联机版不能给自己的片子点赞"
+msgstr "You cannot like your own entry in online games"
 
 #: src/studio/game/ui/Lobby.tsx
 #~ msgid "联机还没接通：现在开局一律由 AI 陪玩补位，真人匹配要等服务端房间。"
@@ -27245,6 +27457,10 @@ msgstr "Background"
 #: src/types.ts
 msgid "背景卡"
 msgstr "Background card"
+
+#: src/studio/game/ui/RoundResultPanel.tsx
+msgid "胜者由服务端判定"
+msgstr "Winners are decided by the server"
 
 #: src/studio/game/labels.ts
 msgid "胶片颗粒 ＋ 50mm 浅景深"
@@ -29081,6 +29297,10 @@ msgstr "{0} still haven't had their say — settle once everyone has"
 msgid "还差 {0} 金"
 msgstr "{0} gold short"
 
+#: src/studio/game/ui/PhaseBar.tsx
+msgid "还差 {pendingVotes} 个人表态"
+msgstr "{pendingVotes} more player(s) have yet to vote"
+
 #: src/pages/SupportPage.tsx
 msgid "还想补充什么？任务号、大概时间、屏幕上的提示…"
 msgstr "Anything to add? Task ID, rough time, what the screen said…"
@@ -29132,6 +29352,10 @@ msgstr "{emptyCount, plural, one {# role slot has} other {# role slots have}} no
 #: src/pages/SupportModelNewPage.tsx
 msgid "还有 {unrun} 项没试。"
 msgstr "{unrun, plural, one {# item not tried yet.} other {# items not tried yet.}}"
+
+#: src/studio/game/roundsReasons.ts
+msgid "还有人没交片——全员交片之后房主才能开始展映"
+msgstr "Some players have not submitted yet — the host can start the screening once everyone has"
 
 #. placeholder {0}: rewritten.missing.map(slotLabel).join("、")
 #: src/components/TextTemplateSheet.tsx
@@ -29374,6 +29598,10 @@ msgstr "No drafts yet — you can save them in the Studio and the workflow"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "还没有草稿。"
 msgstr "No draft yet."
+
+#: src/studio/game/ui/OnlineVotingPanel.tsx
+msgid "还没有表态：投一条或弃权。全员表态之后自动结算（房主也可以直接结算）。"
+msgstr "You have not voted yet: pick an entry or abstain. The round settles automatically once everyone has voted (the host can settle it too)."
 
 #: src/components/CommentSheet.tsx
 #: src/components/SocialPanel.tsx
@@ -29766,9 +29994,25 @@ msgstr "This one asked the model ({price} tokens)"
 msgid "这一回合你已经选过了"
 msgstr "You already picked one this round"
 
+#: src/studio/game/roundsReasons.ts
+msgid "这一回合已经开始了"
+msgstr "This round has already started"
+
+#: src/studio/game/ui/OnlineVotingPanel.tsx
+msgid "这一回合没有别人的片子可投（只有你自己）"
+msgstr "There are no other entries to vote for this round (only yours)"
+
 #: src/studio/game/reasons.ts
 msgid "这一回合没有抽到事件"
 msgstr "No event was drawn this round"
+
+#: src/studio/game/roundsReasons.ts
+msgid "这一回合还没开（或者房间已经散了）"
+msgstr "This round has not started (or the room is gone)"
+
+#: src/studio/game/roundsReasons.ts
+msgid "这一回合还没有人交片，结算不了"
+msgstr "No one has submitted this round, so it cannot be settled"
 
 #: src/studio/game/ui/RoundResultPanel.tsx
 msgid "这一回合还没有结算——先投票，再按「结算」。"
@@ -29818,9 +30062,18 @@ msgstr "This chunk has been uploading for {hardMin} minutes and still isn't done
 msgid "这一小段有 {stallSec} 秒没传出去一个字节——网络断了或太不稳，换个网络再试"
 msgstr "This chunk hasn't sent a single byte in {stallSec} seconds — the connection dropped or is too unstable. Switch networks and try again"
 
+#: src/studio/game/roundsReasons.ts
+msgid "这一局已经结束了"
+msgstr "This game is already over"
+
 #: src/studio/game/ui/PhaseBar.tsx
 msgid "这一局打完了"
 msgstr "This match is over"
+
+#. placeholder {0}: remote?.memberCount ?? 0
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "这一局按 {0} 个真人开：服务端的回合只算真人，空位不参加。"
+msgstr "This game runs with {0} real players: the server's rounds count real players only, and empty seats do not join."
 
 #: src/studio/game/ui/StylePick.tsx
 msgid "这一局没有抽到风格卡（数据不对）——去右栏结束对局再开一局。"
@@ -29907,6 +30160,10 @@ msgstr "No “{typeLabel}” cards in this batch"
 msgid "这一批里没有可保存的文件。"
 msgstr "There are no files to save in this batch."
 
+#: src/studio/game/roundsReasons.ts
+msgid "这一拍没连上回合服务，正在重试"
+msgstr "Lost connection to the round service for this poll — retrying"
+
 #: src/components/flow/RefStrip.tsx
 msgid "这一排就是出片时视频模型会收到的图，按发送顺序编号。素材卡是谁、哪几张图是他，由系统自动写进提示词；你另加的参考图没在句子里点名时，系统按「用途」替它说一句。想自己说清楚某张图管什么，就在句子里写 @名字（或点这一排上的图）——出片时会在名字后面接上模型认的编号「图片N」。"
 msgstr "This row is exactly what the video model receives when the segment is rendered, numbered in sending order. Which card is who, and which images belong to them, is written into the prompt automatically; for an extra reference image you add without mentioning it, the system describes it by its “purpose”. To say what an image is for yourself, write @name in the prompt (or tap an image in this row) — at render time the model's own number (image N) is appended after the name."
@@ -29960,9 +30217,17 @@ msgstr "There's no such film this round"
 msgid "这一期的事件：三选一，拿不准可以跳过"
 msgstr "This round's event: pick one of three — skip it if unsure"
 
+#: src/studio/game/ui/PhaseBar.tsx
+msgid "这一期的事件：三选一，拿不准可以跳过（事件只在本机生效）"
+msgstr "This round's event: choose one of three, or skip if unsure (events only apply on this device)"
+
 #: src/studio/game/ui/CreatePanel.tsx
 #~ msgid "这一期的提示词"
 #~ msgstr "This round's prompt"
+
+#: src/studio/game/ui/OnlineScreeningPanel.tsx
+msgid "这一期的赞已经点给别的片子了（一回合每人一票赞）"
+msgstr "This round's like already went to another entry (one like per player per round)"
 
 #: src/studio/game/reasons.ts
 msgid "这一条你已经点过赞了（同一期同一条只能点一次）"
@@ -29975,6 +30240,10 @@ msgstr "Can't dismiss this one yet: upstream confirmed this run didn't come out,
 #: src/components/flow/SegmentRecoverCards.tsx
 msgid "这一条暂时收不起来：没能向上游核对到这一发的结局——过一会儿再点一次「知道了」（核对不花钱）。"
 msgstr "Can't dismiss this one yet: we couldn't confirm this run's outcome with upstream — tap “Got it” again in a moment (checking is free)."
+
+#: src/studio/game/ui/OnlineScreeningPanel.tsx
+msgid "这一条的首帧"
+msgstr "The opening frame of this entry"
 
 #: src/studio/game/lobbyReasons.ts
 msgid "这一格上还坐着人，不能把房间缩到这么小"
@@ -30187,6 +30456,10 @@ msgstr "This step renders nothing and swaps nobody; it only pays for “finding 
 msgid "这一步不花钱：框好要用的那一段点「下一步」，下一步在<0>框出来的这一段</0>上标帧，报价也在那一步、按「做成模板」之前整句报出。"
 msgstr "This step costs nothing: box the part you want and tap “Next”; on the next step you'll mark frames on <0>the part you boxed</0>, and the price is spelled out in full there, before “Make template”."
 
+#: src/studio/game/roundsReasons.ts
+msgid "这一步只有房主能做"
+msgstr "Only the host can do this"
+
 #. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
 #. 一句完整的、自带句号的话，会被当占位符（moneyLine）嵌进别的失败提示里：译文首尾不要留空格
 #: src/ai/failCharge.ts
@@ -30207,6 +30480,10 @@ msgstr "This step maps “our performance protocol” onto “your model's own n
 #: src/studio/game/reasons.ts
 msgid "这一步没成功（规则回的原因：{0}）"
 msgstr "That step didn't go through (rule reason: {0})"
+
+#: src/studio/game/roundsReasons.ts
+msgid "这一步的参数不对，刷新之后再试一次"
+msgstr "The request parameters are invalid — refresh and try again"
 
 #. placeholder {0}: fmtTokens(visionTokens)
 #: src/components/blockout/BlockoutTrimmer.tsx
@@ -31342,6 +31619,10 @@ msgstr "This server doesn't support detecting roles (the reply had the wrong sha
 #: src/data/account.ts
 msgid "这台服务器出片只接了 {via}"
 msgstr "This server only has {via} connected for video"
+
+#: src/studio/game/roundsReasons.ts
+msgid "这台服务器把回合服务关掉了"
+msgstr "This server has turned the round service off"
 
 #: src/studio/game/lobbyReasons.ts
 msgid "这台服务器把房间服务关掉了"
@@ -33096,6 +33377,10 @@ msgstr "The spinning disc at the bottom of the rail is <0>Remix</0>; full screen
 msgid "那个人已经不在房里了"
 msgstr "That player is no longer in the room"
 
+#: src/studio/game/roundsReasons.ts
+msgid "那个人已经不在这一局里了"
+msgstr "That player is no longer in this game"
+
 #: src/data/danmaku.ts
 msgid "那扇门后面是什么"
 msgstr "what's behind that door"
@@ -33120,6 +33405,7 @@ msgstr "Email code"
 msgid "部分用得上"
 msgstr "Partly"
 
+#: src/studio/game/ui/OnlineVotingPanel.tsx
 #: src/studio/game/ui/VotingPanel.tsx
 msgid "都不投也算一种表态"
 msgstr "Not voting is also a choice"
