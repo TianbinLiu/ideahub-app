@@ -135,18 +135,18 @@ const shopOf = (state, id) => state.shops[id];
  * ★ 真人这里**只走 rules 的公开改法**（buyShopCard / submitRoundEntry / likeEntry / voteEntry / …），
  *   与界面上的点法完全同一条路 —— 脚本要是能绕过一条闸，那条闸就等于没测。
  */
-function playOne(seed) {
+function playOne(seed, ids = IDS, ai = AI) {
   const rng = R.createRng(seed);
-  let state = must("开局", P.startMatch(IDS, AI, rng)).state;
+  let state = must("开局", P.startMatch(ids, ai, rng)).state;
   state = must("真人选风格", R.pickStyleCard(state, ME, find(state, ME).styleChoices[0])).state;
-  state = must("开第一回合", P.openRound(state, AI, rng)).state;
+  state = must("开第一回合", P.openRound(state, ai, rng)).state;
 
   const rounds = [];
   for (let guard = 0; guard < 40; guard += 1) {
     if (state.phase === "over") break;
     // 真人被淘汰：剩下的回合让 AI 跑完（store 在被淘汰的那一拍也走这一条路），再把最终胜者收走
     if (find(state, ME)?.eliminated) {
-      const played = must("真人淘汰后跑完剩下的回合", P.playOutAiOnly(state, AI, PROMPTS, rng));
+      const played = must("真人淘汰后跑完剩下的回合", P.playOutAiOnly(state, ai, PROMPTS, rng));
       ok("被淘汰后还能跑到本局结束", played.rounds >= 1);
       state = played.state;
       break;
@@ -163,7 +163,7 @@ function playOne(seed) {
     }
 
     // ② 创作：AI 自动交片 + 真人交最好的三张卡
-    state = must("进创作", P.toCreation(state, AI, PROMPTS, rng)).state;
+    state = must("进创作", P.toCreation(state, ai, PROMPTS, rng)).state;
     eq(`第 ${state.round} 回合 AI 都交了片`, state.entries.length, aliveOf(state).length - 1);
     // ★ G4 §2：一期作品的卡从**桌面**派生（走到创作阶段时真人桌上是空的 = 空镜），
     //   所以这里只递提示词 —— 摆卡是另一件事（真人自己拖，AI 走 aiTablePlan）。
@@ -174,17 +174,21 @@ function playOne(seed) {
     const playlist = R.screeningOrderOf(state);
     eq(`第 ${state.round} 回合排片条数 = 存活人数`, playlist.length, aliveOf(state).length);
     if (state.lastRanking.length === 0) {
-      eq(`第 1 回合排片按座位表`, playlist.map((e) => e.playerId), IDS);
+      eq(`第 1 回合排片按座位表`, playlist.map((e) => e.playerId), ids);
     } else {
-      eq(`第 ${state.round} 回合排片按上一期名次倒序`, playlist.map((e) => e.playerId), [...state.lastRanking].reverse());
+      // ★ 上一期被淘汰的人这一期不再交片（entries 里没有他），所以期望名单要按"这一期真有片子的人"过滤。
+      //   4 人局里先出局的总是真人（于是 playOutAiOnly 接手、这段没机会跑到）；8 人局 AI 会先出局，
+      //   2026-11-23 加 8 人整跑时才第一次走到这里 —— 不过滤的话这条断言会把"规则对、期望错"报成红。
+      const ranked = [...state.lastRanking].reverse().filter((id) => playlist.some((e) => e.playerId === id));
+      eq(`第 ${state.round} 回合排片按上一期名次倒序`, playlist.map((e) => e.playerId), ranked);
     }
-    state = must("进展映", P.toScreening(state, AI, rng)).state;
+    state = must("进展映", P.toScreening(state, ai, rng)).state;
     state = must("真人点赞", R.likeEntry(state, ME, playlist[0].id)).state;
     const likedBy = state.entries.flatMap((e) => e.likedBy);
     eq(`第 ${state.round} 回合点赞没重复（一条一次）`, new Set(likedBy.map((id, i) => `${i}:${id}`)).size, likedBy.length);
 
     // ④ 投票：AI 已投完，真人投除自己外的第一条
-    state = must("进投票", P.toVoting(state, AI, rng)).state;
+    state = must("进投票", P.toVoting(state, ai, rng)).state;
     const target = R.screeningOrderOf(state).find((entry) => entry.playerId !== ME);
     state = must("真人投票", R.voteEntry(state, ME, target.id)).state;
     eq(`第 ${state.round} 回合全员表态完毕`, R.votesPendingOf(state), []);
@@ -219,14 +223,14 @@ function playOne(seed) {
     //   不加这一步的话，淘汰之后再进"真人的事件三选一"会拿到 wrong-phase（事件阶段已经不请他表态了）——
     //   G4 第 3 步之后 AI 会摆卡、票数变了，真人更早出局，这条路才第一次被走到。
     if (find(state, ME)?.eliminated) {
-      const played = must("真人淘汰后跑完剩下的回合", P.playOutAiOnly(state, AI, PROMPTS, rng));
+      const played = must("真人淘汰后跑完剩下的回合", P.playOutAiOnly(state, ai, PROMPTS, rng));
       state = played.state;
       break;
     }
 
     // ⑥ 事件（第 2/4/6 回合之后）：AI 先选，真人从便宜的往贵的试（落不了账就试下一个，都不行才跳过）
     if (state.phase === "event") {
-      state = must("AI 选事件", P.aiEventChoices(state, AI, rng)).state;
+      state = must("AI 选事件", P.aiEventChoices(state, ai, rng)).state;
       const options = must("真人的事件选项", R.eventOptionsFor(state, ME)).options;
       ok(`第 ${state.round} 回合的事件有可选项`, options.length > 0);
       let chosen = null;
@@ -244,7 +248,7 @@ function playOne(seed) {
 
     if (state.phase === "round-end") {
       eq(`第 ${state.round} 回合结束了但还没打满`, state.round < R.MAX_ROUNDS, true);
-      state = must("下一回合", P.openRound(state, AI, rng)).state;
+      state = must("下一回合", P.openRound(state, ai, rng)).state;
       continue;
     }
     break;
@@ -281,6 +285,45 @@ function playOne(seed) {
     `  整局（seed=${seed}）：${first.rounds.length} 回合 · 事件 ${state.drawnEventIds.length} 次 → ` +
       `${first.rounds.map((r) => `R${r.round}[${r.damages.map(([id, dmg, hp]) => `${id}-${dmg}/${hp}`).join(" ")}]${r.eliminated.length ? ` 淘汰${r.eliminated.join(",")}` : ""}`).join(" · ")}` +
       ` · 胜者 ${winners.join(",")}`,
+  );
+}
+
+// ────────────────────────────── 1b. 8 人局整跑（2026-11-23 大厅：人数参数化 2~8） ──────────────────────────────
+//
+// ★ 为什么另跑一局 8 人：4 人局跑通**不能**证明 8 人局也对 —— 这一局里变的不只是人数：
+//   扣血按「人数/4」缩放成 40/30/20/10×5（最后一名 3 回合就出局）、连胜线抬到前 4、
+//   AI 的买卡 / 交片 / 点赞 / 投票要跑 7 条、`playOutAiOnly` 要跑更多回合。
+//   这些在界面上只表现为"这局怎么这么快结束 / 名字怎么少了一个"。
+{
+  const AI8 = ["ai-1", "ai-2", "ai-3", "ai-4", "ai-5", "ai-6", "ai-7"];
+  const IDS8 = [ME, ...AI8];
+  const seed = 20261123;
+  const first = playOne(seed, IDS8, AI8);
+  const state = first.state;
+  eq("8 人局开局就是 8 个座位", state.players.length, 8);
+  eq("8 人局对手 7 个（AI 补位）", state.players.filter((p) => p.id !== ME).length, 7);
+  eq("8 人局跑到 over", state.phase, "over");
+  ok("8 人局至少打了 1 回合", first.rounds.length >= 1);
+  ok("8 人局不超过 8 回合（§5-2）", first.rounds.length <= R.MAX_ROUNDS);
+  // 第 1 回合全员都在：扣血从好到差 = 10/10/10/10/10/20/30/40（8 人阶梯，见 rules.DAMAGE_LADDER）
+  eq("8 人局第 1 回合 8 个人都掉血", first.rounds[0].damages.length, 8);
+  eq(
+    "8 人局第 1 回合扣血：前 5 名各 10、后三名 20/30/40",
+    first.rounds[0].damages.map((row) => row[1]),
+    [10, 10, 10, 10, 10, 20, 30, 40],
+  );
+  const winners8 = R.winnersOf(state);
+  ok("8 人局结束时给 1~2 名胜者", winners8.length === 1 || winners8.length === 2);
+  ok("8 人局胜者都还活着", winners8.every((id) => !find(state, id).eliminated));
+  ok("8 人局结束时剩 ≤2 人（或打满 8 回合）", aliveOf(state).length <= 2 || state.round >= R.MAX_ROUNDS);
+  // 复盘：同一 seed 再跑一遍逐字段一致（AI 的顺序与人数都不会在两次之间漂）
+  const again = playOne(seed, IDS8, AI8);
+  eq("8 人局同一个 seed 跑出同一局（可复盘）", show(again.rounds), show(first.rounds));
+  eq("8 人局同一个 seed 收在同一个状态", show(again.state), show(state));
+  console.log(
+    `  8 人局（seed=${seed}）：${first.rounds.length} 回合 · 事件 ${state.drawnEventIds.length} 次 → ` +
+      `${first.rounds.map((r) => `R${r.round}[${r.damages.map(([id, dmg, hp]) => `${id}-${dmg}/${hp}`).join(" ")}]${r.eliminated.length ? ` 淘汰${r.eliminated.join(",")}` : ""}`).join(" · ")}` +
+      ` · 胜者 ${winners8.join(",")}`,
   );
 }
 

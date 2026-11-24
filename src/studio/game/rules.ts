@@ -68,8 +68,18 @@ export const START_HP = 100;
  */
 export const START_GOLD = 4;
 
-/** §5-1 默认值：4 人（含 AI）；3 人也能跑（扣血缩放的用例），8 人封顶只是座位表的防呆。 */
-export const MIN_PLAYERS = 3;
+/**
+ * §5-1 的「4 人」是**默认值**，不是固定值（2026-11-23 大厅上线时改）：
+ * 人数由大厅决定（4 人匹配 / 8 人匹配 / 自定义房间 2~8），规则层只认"这一局有几个座位"。
+ *
+ * ★ 2 人为什么是下界而不是 3：自定义房间允许两个人开一局（一对一）。原来这里写 3 是
+ *   "扣血缩放用例够用"的防呆，不是规则要求 —— 大厅要的是 2~8 的连续区间。
+ *   ★ 但 2 人局的**胜负口径要跟着收**：设计稿 §2.5 的"最后两人胜出"在两人局里开局那一刻
+ *   就成立（见 winnersOf 的 winnerTargetOf），不收的话这一局第 1 回合结算完就"两人都是胜者"。
+ * ★ 8 人封顶是座位表 / 商店 / 桌面卡位的实际承载上限（一局 8 人 × 4 角色位已经摆满一屏）。
+ * ★ 越界是**程序员的错**（不是玩家操作被拒）：createGame 直接抛，不静默开一局 0 人。
+ */
+export const MIN_PLAYERS = 2;
 export const MAX_PLAYERS = 8;
 
 /** §5-2 默认值：打满 8 回合或剩下 ≤2 人结束。 */
@@ -99,8 +109,22 @@ export const STREAK_BONUS_BY_LENGTH: readonly number[] = [0, 0, 1, 2, 2, 3];
 
 /**
  * §2.5 扣血阶梯：最后一名 -20、倒数第二 -15、倒数第三 -10、其余 -5。
- * ★ 人少时按存活人数 / 4 等比缩放、向下取到 5 的整数倍、最低 5：
- *   4 人 = 20/15/10/5，3 人 = 15/10/5，2 人 = 10/5。不做 7.5 这种半滴血（界面按整数念）。
+ * ★★ 人数不等于 4 时按**「人数 / 4」等比缩放**（2026-11-23 大厅把人数参数化到 2~8 时写清的公式）：
+ *
+ *     base(r)  = DAMAGE_LADDER[r]（r = 0 是最后一名、1 倒数第二、2 倒数第三），再往后统一 DAMAGE_OTHERS
+ *     damage   = max(DAMAGE_GRID, floor(base(r) × 人数 / 4 / DAMAGE_GRID) × DAMAGE_GRID)
+ *
+ *   也就是"先按人数/4 放大缩小，再向下取到 5 的整数倍、最少 5 滴"—— 不做 7.5 这种半滴血
+ *   （界面按整数念、血条也是整数段）。4 人时人数/4 = 1，公式退化成 §2.5 原表。
+ *
+ *   实际跑出来的数（r 从最后一名往前数；到 r=3 之后都取 DAMAGE_OTHERS 那一档）：
+ *     4 人 = 20 / 15 / 10 / 5            （人数/4 = 1，原表）
+ *     3 人 = 15 / 10 /  5                （×3/4 再向下取 5：11.25→10、7.5→5）
+ *     2 人 = 10 /  5                     （×2/4：10、7.5→5）
+ *     8 人 = 40 / 30 / 20 / 10 / 10 / 10 / 10 / 10   （×8/4 = ×2；不止三个人掉血，"其余"那一档也翻倍）
+ *   ★ 8 人局的这一列是**有意这么推广的**：§2.5 只钉了 4 人桌，而"人数越多每回合掉得越多"
+ *     与参照游戏（TFT 8 人）同向；代价是 8 人局最后一名 3 回合内就出局，整局 5~6 回合打完
+ *     （docs/game-lobby.md 记了这条后果）。
  */
 export const DAMAGE_LADDER: readonly number[] = [20, 15, 10];
 export const DAMAGE_OTHERS = 5;
@@ -411,8 +435,8 @@ export function styleCardOf(player: GamePlayer): StyleCard | null {
 }
 
 /**
- * 开一局：4 人（§5-1）100 血、初始金币、全员 L1（§2.3 ★ 所有人开局最低档），
- * 每人抽 3 张风格卡（§2.2），phase = "style"。
+ * 开一局：**人数由大厅给（2~8，MIN_PLAYERS~MAX_PLAYERS）**、100 血、初始金币、全员 L1
+ * （§2.3 ★ 所有人开局最低档），每人抽 3 张风格卡（§2.2），phase = "style"。
  * ★ 人数 / id 这些是**程序员的错**（不是玩家操作被拒），直接抛：静默开一局 0 人比崩掉更难查。
  */
 export function createGame(playerIds: readonly string[], rng: Rng): GameState {
@@ -1212,7 +1236,10 @@ export const EVENT_SKIP_PICK = "skip";
 // ────────────────────────────── 回合结算与胜负（§2.5） ──────────────────────────────
 /**
  * §2.5 扣血：rankFromLast = 0 是最后一名。
- * 缩放 = 存活人数 / 4，向下取到 DAMAGE_GRID 的整数倍、最低 5（见 DAMAGE_LADDER 的注释）。
+ * 公式（与 DAMAGE_LADDER 头上那段逐字对应）：
+ *   `damage = max(DAMAGE_GRID, floor(base × count / 4 / DAMAGE_GRID) × DAMAGE_GRID)`
+ * ★ 只在这里算：结算（settleRound）、界面读数（damagesViewOf）、检查脚本都问它 ——
+ *   三处各乘一遍人数就会漂，而扣血漂了没有任何报错（只有"名次怪的"）。
  */
 export function damageForRank(playerCount: number, rankFromLast: number): number {
   const count = Math.max(0, Math.floor(playerCount));
@@ -1224,7 +1251,8 @@ export function damageForRank(playerCount: number, rankFromLast: number): number
 
 /**
  * 连胜 / 连败按名次的前一半算（§2.3 只说要连胜/连败，没说四人局怎么算）。
- * ★ 照 TFT「前 4/8 算胜」压到 4 人：名次前 2 算胜、后 2 算负；3 人局前 2 算胜。
+ * ★ 照 TFT「前 4/8 算胜」压到 4 人：名次前 2 算胜、后 2 算负；人数参数化之后这条**照人数推广**
+ *   （ceil(人数/2)：3 人局前 2 算胜、8 人局前 4 算胜）。
  *   4 人局第 2 名既赢一轮又扣 15 血 —— 这是有意的：「赢」是连胜口径，跟扣血是两回事。
  */
 export function streakOutcomeOf(playerCount: number, rank: number): StreakOutcome {
@@ -1238,28 +1266,47 @@ export function alivePlayers(state: GameState): GamePlayer[] {
 }
 
 /**
- * §2.5 胜者：剩下 ≤2 人时给出（血多的排前面；同血看金币，再同按 id 定序 —— 回放要稳定）。
- * ★ 打满 MAX_ROUNDS（§5-2 的 8 回合）还没打完时，取存活者里血最多的两名（设计稿只说「两名胜者」，
+ * 一局里**最多留几个胜者**（设计稿 §2.5「最后两人胜出」）。
+ *
+ * ★★ 为什么它随开局人数变（2026-11-23 大厅支持 2 人局时补的）：两人局里"剩 ≤2 人"在**开局那一刻
+ *   就成立** —— 照字面判，第 1 回合结算完就是"两人都是胜者"，这一局等于没打。
+ *   所以胜者名额按座位数收：`min(2, 座位数 − 1)`（4/8 人局 = 2，2 人局 = 1，只剩最后一个人赢）。
+ * ★ 座位数 = `state.players.length`（含被淘汰的人，建局之后不再变）：拿存活人数算的话，
+ *   淘汰一个胜者名额就少一个 —— 那是"越打越容易赢"，与 §2.5 相反。
+ */
+export function winnerTargetOf(playerCount: number): number {
+  const count = Math.max(1, Math.floor(playerCount));
+  return Math.max(1, Math.min(2, count - 1));
+}
+
+/**
+ * §2.5 胜者：存活人数缩到 `winnerTargetOf(座位数)` 时给出（血多的排前面；同血看金币，
+ * 再同按 id 定序 —— 回放要稳定）。
+ * ★ 打满 MAX_ROUNDS（§5-2 的 8 回合）还没打完时，取存活者里血最多的那几名（设计稿只说「两名胜者」，
  *   没说打满怎么挑；这是规则层拍的，报告里单列）。0 人存活 = 平局，回空数组。
+ * ★ 2 人局的名额是 1（见 winnerTargetOf）：打满 8 回合时按血量取第一名，不再"两个人都是赢家"。
  */
 export function winnersOf(state: GameState): string[] {
   const alive = [...alivePlayers(state)].sort((a, b) => b.hp - a.hp || b.gold - a.gold || (a.id < b.id ? -1 : 1));
+  const target = winnerTargetOf(state.players.length);
   if (alive.length === 0) return [];
-  if (alive.length <= 2) return alive.map((p) => p.id);
-  if (state.round >= MAX_ROUNDS) return alive.slice(0, 2).map((p) => p.id);
+  if (alive.length <= target) return alive.map((p) => p.id);
+  if (state.round >= MAX_ROUNDS) return alive.slice(0, target).map((p) => p.id);
   return [];
 }
 
 export function isGameOver(state: GameState): boolean {
   const alive = alivePlayers(state);
   if (alive.length === 0) return true; // 同归于尽：本局平局（winnersOf 回空）
-  if (alive.length <= 2) return true;
+  // 名额按**座位数**算（见 winnerTargetOf）：2 人局要剩 1 人才结束，4/8 人局剩 2 人结束
+  if (alive.length <= winnerTargetOf(state.players.length)) return true;
   return state.round >= MAX_ROUNDS;
 }
 
 /**
  * §2.5 回合结算：传本期名次（从好到差）→ 扣血、淘汰、更新连胜/连败 →
- * 剩下 ≤2 人 / 打满 8 回合就 over；否则第 2/4/6 回合抽一个不重样的事件进 event，其余进 round-end。
+ * 存活人数缩到胜者名额（winnersOf / winnerTargetOf：4/8 人局 2 名、2 人局 1 名）或打满 8 回合就 over；
+ * 否则第 2/4/6 回合抽一个不重样的事件进 event，其余进 round-end。
  * ★ ranking 必须**恰好**是当前存活玩家、不重不漏：少一个人会让某个人的名次错位、扣错血（零报错），
  *   所以整份排名称拒并回 ranking-mismatch。
  * ★ 时效增益在**结算这一回合时清掉**（它们是在上一个事件里发的、本来只保这一个回合）；

@@ -20,6 +20,10 @@ import AvatarSwapButton from "./ui/AvatarSwapButton";
 // 对局态（G2 第二块）：HUD / 商店 / 背包 / 风格卡那一层 2D 覆盖层。只在横屏且真的开了一局时挂载，
 // 竖屏与没开局时这一行等于不存在（施工单"竖屏沿用现有布局"）。
 import GameLayer from "./game/ui/GameLayer";
+// 对局大厅（2026-11-23）：进对局之前先选开局方式（4 人匹配 / 8 人匹配 / 自定义房间）。
+// 它与 GameLayer 是**前后两屏**：大厅在"还没有 state"的那一拍，对局 UI 在有了 state 之后。
+import Lobby from "./game/ui/Lobby";
+import { useLobby } from "./game/lobbyStore";
 import { useGame } from "./game/store";
 import { cancelPendingStop, stopSpeakingSoon } from "./speech";
 import { useCastReturn } from "../hooks/useCastReturn";
@@ -277,12 +281,20 @@ export default function StudioPage() {
   // 存草稿走 useFlowActions（本页已经在用它给画布浮层供状态）——此前这里还自持一份，
   // 同一颗按钮在工坊顶栏与画布顶栏各走各的实现（铁律六）
   /**
-   * 画布浮层盖着没有：与下面挂 FlowCanvas 的判据是同一个值。
+   * 大厅开着没有（2026-11-23）：顶栏「▶ 开局」不再直接开局，而是先开大厅。
+   * ★ 它同时是"3D 停帧"的判据之一：大厅是铺满舞台的实底、里面一张卡都没有，
+   *   而它开着的那几秒里桌面仍会每帧画 NPC / 卡面轮播（看不见，电照烧）——
+   *   所以进 canvasCovered（与画布浮层同一条理由，时钟由 SceneClockKeeper 接住）。
+   */
+  const lobbyOpen = useLobby((s) => s.open);
+  /**
+   * 画布浮层 / 大厅盖着没有：与下面挂 FlowCanvas、挂 Lobby 的判据是同一个值。
    * ★ G4 第 1 步起桌面上的节点卡撤了（换成对局卡位），**画布就是新建流水线的入口** ——
    *   空流水线也照开（FlowCanvas 自带空态 + 「对画布说话」输入条，见 EmptyPipelineHint）。
    *   以前 0 段时这颗键只吐一句"先点虚线卡位"，而那条虚线卡位现在不存在了。
+   * ★ 大厅也算"盖着"（2026-11-23）：不进对局的那几屏不挂 3D —— 大厅铺满舞台、纯 2D 入口卡。
    */
-  const canvasCovered = canvasOpen;
+  const canvasCovered = canvasOpen || lobbyOpen;
 
   /**
    * 横屏宽布局（G1 施工单 docs/g1-scene-plan.md §2 A）：左右各一条常驻条，3D 桌面留在中间。
@@ -353,7 +365,13 @@ export default function StudioPage() {
         <div className="pointer-events-auto flex min-w-0 items-center gap-2 pt-1.5">
           {isLand && (
             <button
-              onClick={() => (inGame ? useGame.getState().endGame() : useGame.getState().startGame())}
+              onClick={() => {
+                // 2026-11-23 起「▶ 开局」**先开大厅**（4 人 / 8 人匹配、自定义房间都在那一屏），
+                // 再由大厅里的开局把对局建起来（ui/startFromLobby）。这一颗键不再知道人数。
+                // 结束对局之后回到大厅：刚打完一局，下一个动作通常是换一张桌再来。
+                if (inGame) useGame.getState().endGame();
+                useLobby.getState().openLobby();
+              }}
               // 键面就是状态：没开局是实心主键，开局后变成"结束对局"的灰键（与删掉的那条右栏同一个动作）
               className={`h-9 rounded-full px-3 text-xs font-bold backdrop-blur ${
                 inGame ? "bg-panel/85 text-slate-200" : "bg-brand text-ink"
@@ -455,6 +473,10 @@ export default function StudioPage() {
       {/* 对局覆盖层（G2 第二块）：只在横屏挂 —— 竖屏时它一个像素都不出现（施工单要求）。
           没有开局时组件自己 return null，所以这里不需要再判一次对局状态。 */}
       {isLand && <GameLayer />}
+      {/* 大厅（2026-11-23）：横屏才挂（与对局一致；竖屏一个像素都不出现）。
+          它自己判 lobbyStore.open 与"有没有开着局"（对局中不出现），所以这里不重复判。
+          层级 z-40：盖住顶栏那颗「▶ 开局」（大厅里有自己的「✕ 返回工坊」）。 */}
+      {isLand && <Lobby />}
       <StudioLoader />
       {/* ── 工作流画布：同一条流水线的另一个面，就地铺满这一屏（2026-08-30 合并）──
           ★ 它自带 z-40 全屏 portal，所以挂在这里不影响上面那些浮层的层级关系。
@@ -462,8 +484,9 @@ export default function StudioPage() {
             hooks/useFlowActions，挂卡入参在 FlowPage.castEditorState（回程 useCastReturn
             两页共用）—— 画布照旧只借按钮与状态，工坊这一面不抄第二份（铁律六）。
           ★ ✕ 与「🎴 工坊」都是关掉浮层回到桌面：合并之后它们不再是"去另一页"。
-          ★ 判据 canvasCovered 与上面 Canvas 的 frameloop 是同一个值（盖上才停帧，见那边的 ★）。 */}
-      {canvasCovered && (
+          ★ 判据是 **canvasOpen**（不是 canvasCovered）：后者 2026-11-23 起也含大厅
+            （大厅开着同样要停帧），而大厅开着时不该把画布一起铺上来。 */}
+      {canvasOpen && (
         <FlowCanvas
           onExit={() => setCanvasOpen(false)}
           onLinear={() => setCanvasOpen(false)}

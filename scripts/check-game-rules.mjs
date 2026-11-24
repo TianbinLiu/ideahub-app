@@ -215,8 +215,17 @@ const source = fs.readFileSync(modPath, "utf8");
     for (const id of player.styleChoices) ok(`${player.id} 抽到的风格卡 ${id} 在池里`, R.STYLE_POOL.some((s) => s.id === id));
     eq(`${player.id} 还没锁定风格`, player.styleCardId, null);
   }
+  // ★ 2026-11-23 大厅上线：人数从"固定 4"改成参数化 2~8（4 人匹配 / 8 人匹配 / 自定义房间 2~8），
+  //   所以原来那条「2 人开局要抛」的用例变成下面这条**正例**：2 人是合法的一局（一对一）。
+  //   原来那条守的是"§5-1 默认 4 人"的防呆，不是规则要求 —— 见 rules.MIN_PLAYERS 的 ★。
+  const duo = R.createGame(["a", "b"], R.createRng(1));
+  eq("2 人开局合法（大厅 2~8）", duo.players.map((p) => p.id), ["a", "b"]);
+  eq("2 人局也是每人 3 张风格卡", duo.players.map((p) => p.styleChoices.length), [3, 3]);
+  const full = R.createGame(["a", "b", "c", "d", "e", "f", "g", "h"], R.createRng(1));
+  eq("8 人开局合法（8 人匹配）", full.players.length, R.MAX_PLAYERS);
   // 反例：人数 / 重复 id 是程序员的错，必须抛 —— 静默开一局少一个人比崩掉更难查。
-  throws("2 人开局（§5-1 默认 4 人，至少 3 人）", () => R.createGame(["a", "b"], R.createRng(1)));
+  throws("1 人开局（下限 2）", () => R.createGame(["a"], R.createRng(1)));
+  throws("9 人开局（上限 8）", () => R.createGame(["a", "b", "c", "d", "e", "f", "g", "h", "i"], R.createRng(1)));
   throws("重复 id 开局", () => R.createGame(["a", "a", "b"], R.createRng(1)));
   throws("空 id 开局", () => R.createGame(["a", "", "c"], R.createRng(1)));
 
@@ -797,6 +806,19 @@ const source = fs.readFileSync(modPath, "utf8");
   eq("3 人局按 3/4 缩放（向下取 5）：15/10/5", [R.damageForRank(3, 0), R.damageForRank(3, 1), R.damageForRank(3, 2)], [15, 10, 5]);
   eq("2 人局按 2/4 缩放：10/5", [R.damageForRank(2, 0), R.damageForRank(2, 1)], [10, 5]);
   eq("4 人局第一名 -5（其余也掉血）", R.damageForRank(4, 3), 5);
+  // ★ 2026-11-23 大厅：人数参数化到 2~8 之后，扣血公式（DAMAGE_LADDER 头上那段）
+  //   要在 4 人以外的两端也钉住 —— 8 人局按 8/4 = ×2，连"其余"那一档也翻倍。
+  eq(
+    "8 人局从最后往前：40/30/20/10/10/10/10/10",
+    [0, 1, 2, 3, 4, 5, 6, 7].map((r) => R.damageForRank(8, r)),
+    [40, 30, 20, 10, 10, 10, 10, 10],
+  );
+  eq("8 人局第一名也掉 10（其余档 ×2）", R.damageForRank(8, 7), 10);
+  eq("6 人局按 6/4 = ×1.5 向下取 5：30/20/15/5", [0, 1, 2, 3].map((r) => R.damageForRank(6, r)), [30, 20, 15, 5]);
+  eq("5 人局按 5/4 向下取 5：25/15/10/5", [0, 1, 2, 3].map((r) => R.damageForRank(5, r)), [25, 15, 10, 5]);
+  // 名次前一半算胜照人数推广（ceil(人数/2)）：8 人局前 4 算胜、2 人局前 1 算胜
+  eq("8 人局前 4 算胜", [0, 1, 2, 3, 4].map((r) => R.streakOutcomeOf(8, r)), ["win", "win", "win", "win", "lose"]);
+  eq("2 人局只有第 1 名算胜", [R.streakOutcomeOf(2, 0), R.streakOutcomeOf(2, 1)], ["win", "lose"]);
   eq("名次前一半算胜（4 人：1/2 名）", [R.streakOutcomeOf(4, 0), R.streakOutcomeOf(4, 1), R.streakOutcomeOf(4, 2), R.streakOutcomeOf(4, 3)], ["win", "win", "lose", "lose"]);
   eq("3 人局前 2 算胜", [R.streakOutcomeOf(3, 1), R.streakOutcomeOf(3, 2)], ["win", "lose"]);
 
@@ -890,6 +912,27 @@ const source = fs.readFileSync(modPath, "utf8");
   );
   eq("打满 8 回合取血最多的两名", R.winnersOf(capped), ["p2", "p3"]);
   eq("0 人存活不给胜者（平局）", R.winnersOf(withPlayer(match.state, "p1", { eliminated: true })), []);
+}
+
+// ────────────────────────────── 9b. 2 人局（2026-11-23 大厅：自定义房间 2~8）的胜负口径 ──────────────────────────────
+// ★★ 为什么这一段必须钉住：设计稿 §2.5 的「剩 ≤2 人胜出」在两人局里**开局就成立** ——
+//   照字面判，第 1 回合结算完就"两人都是胜者"，这一局等于没打。winnerTargetOf 按座位数收名额
+//   （4/8 人局 2 名、2 人局 1 名），这里把三个时刻各钉一条。
+{
+  const duo = R.createGame(["a", "b"], R.createRng(31));
+  eq("2 人局的胜者名额是 1", R.winnerTargetOf(2), 1);
+  eq("4 人局的胜者名额是 2（§2.5 不变）", R.winnerTargetOf(4), 2);
+  eq("8 人局的胜者名额也是 2", R.winnerTargetOf(8), 2);
+  eq("2 人局开局不算结束", R.isGameOver(duo), false);
+  eq("2 人局开局不给胜者", R.winnersOf(duo), []);
+  // 一对一摔到只剩 1 人：那一个就是胜者，且本局结束
+  const duelOver = withPlayer(duo, "b", { eliminated: true, hp: 0 });
+  eq("2 人局剩 1 人 = 本局结束", R.isGameOver(duelOver), true);
+  eq("2 人局剩 1 人时那 1 个是胜者", R.winnersOf(duelOver), ["a"]);
+  // 打满 8 回合还两人都在：按血量取第一名（名额 1），不是"两人都是赢家"
+  const cappedDuo = withPlayer(withPlayer({ ...duo, round: R.MAX_ROUNDS }, "a", { hp: 40 }), "b", { hp: 70 });
+  eq("2 人局打满 8 回合只取血多的那 1 名", R.winnersOf(cappedDuo), ["b"]);
+  eq("2 人局打满 8 回合 = 结束", R.isGameOver({ ...duo, round: R.MAX_ROUNDS }), true);
 }
 
 // ────────────────────────────── 10. 阶段机（§2.0 的 ①②③④） ──────────────────────────────
