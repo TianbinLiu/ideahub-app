@@ -128,8 +128,18 @@ export function autoQualityOnFirstVisit(): Quality | null {
   return q;
 }
 
-export function setQuality(q: Quality) {
+/**
+ * 换档。
+ *
+ * ★★ `reload` 这一位是对局设置页加的（2026-11-24）：那一页在**对局里**，而整页重载会把
+ *   这一局连同刚出的片一起丢掉（对局状态只活在内存里）。所以对局里传 `{ reload: false }`：
+ *   只写偏好，**下一次进工坊生效**（模型 URL 是渲染时按 getQuality() 现取的，StudioPage 重挂
+ *   就会换 URL 重新加载）—— 页面上那句话写的就是这个意思，别改成"立即生效"。
+ * ★ 本体只有这一处写盘：两条入口（设置页要与不要重载）走同一个函数，不存在第二份 KEY 写入。
+ */
+export function setQuality(q: Quality, opts?: { reload?: boolean }) {
   localStorage.setItem(KEY, q);
+  if (opts?.reload === false) return;
   // 模型经 useLoader 按 URL 缓存且骨骼/材质已实例化——整页重载最干净
   location.reload();
 }

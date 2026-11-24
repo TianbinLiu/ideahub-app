@@ -3386,6 +3386,10 @@ msgstr "▶ Preview"
 msgid "▶ 试听 {0}s"
 msgstr "▶ Listen {0}s"
 
+#: src/studio/game/ui/GameSettings.tsx
+msgid "▶ 返回游戏"
+msgstr "▶ Back to game"
+
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "▸ 对不上怎么办？<0>多数情况删掉那个位子就行，不用重做</0>"
 msgstr "▸ What if they don't match? <0>Usually just delete that slot — no redo needed</0>"
@@ -3901,6 +3905,10 @@ msgstr "✕ End game"
 #: src/studio/game/ui/Lobby.tsx
 msgid "✕ 返回工坊"
 msgstr "✕ Back to Studio"
+
+#: src/studio/game/ui/GameSettings.tsx
+msgid "✕ 返回游戏"
+msgstr "✕ Back to game"
 
 #: src/studio/ui/modals.tsx
 msgid "✦ 全息实体 3D"
@@ -4966,6 +4974,10 @@ msgstr "3D desk"
 msgid "3D 桌面摆卡、推演走向"
 msgstr "Lay out cards on the 3D table and explore directions"
 
+#: src/pages/CreatePage.tsx
+#~ msgid "4 人 / 8 人匹配或开一间自定义房：每回合用卡和提示词出一条片，全员展映、点赞投票，按名次扣血，100 血打到只剩一人。"
+#~ msgstr "4- or 8-player matchmaking, or a custom room: each round you make a clip from your cards and a prompt, everyone watches, likes and votes, and the bottom places lose HP — 100 HP down to the last player standing."
+
 #: src/studio/game/ui/Lobby.tsx
 msgid "4 人匹配"
 msgstr "4-player match"
@@ -4977,6 +4989,10 @@ msgstr "4-player match"
 #: src/pages/CustomCardPage.tsx
 msgid "④ 标签（选填）"
 msgstr "④ Tags (optional)"
+
+#: src/pages/CreatePage.tsx
+msgid "4/8 人匹配或自定义房开一局：每回合买卡出片、展映投票，100 血打到只剩一人。"
+msgstr "Start a 4/8-player matchmade or custom room: buy cards and render a clip each round, screen and vote — 100 HP down to the last player standing."
 
 #: src/data/economy.ts
 msgid "480p 省钱档 · 与「{hd}」同一个模型、画面小一号；可直接用素材卡的形象参考图出片 · 出片带 AI 生成的环境音"
@@ -6734,6 +6750,10 @@ msgstr "Personalization"
 msgid "中国大陆"
 msgstr "mainland China"
 
+#: src/studio/game/ui/GameSettings.tsx
+msgid "中文"
+msgstr "Chinese"
+
 #: src/studio/stage/stageState.ts
 msgid "中景"
 msgstr "Medium shot"
@@ -7488,6 +7508,10 @@ msgstr "This replaces {replaced} of your current captions; where the text change
 #: src/pages/PublishPage.tsx
 msgid "会替换《{originTitle}》的内容，链接不变。"
 msgstr "This replaces the content of “{originTitle}”; the link stays the same."
+
+#: src/studio/game/ui/GameSettings.tsx
+msgid "会直接离开这间房，其他人照常打完；这一局的名次不算你，已经花掉的游戏券与 token 不退。"
+msgstr "You leave this room right away and the others play on; this match won't count for you, and the game tickets and tokens already spent aren't refunded."
 
 #: src/api/companion.ts
 msgid "会表情"
@@ -9897,6 +9921,10 @@ msgstr "Shows up in Home, Discover and search. Anyone can watch"
 msgid "出画面"
 msgstr "Draw panels"
 
+#: src/pages/CreatePage.tsx
+msgid "出的片都进同一条流水线，赛后能接着剪、发布"
+msgstr "Every clip lands in the same pipeline — cut and publish it after the match"
+
 #: src/pages/TemplateDetailPage.tsx
 msgid "出过了？刷新状态"
 msgstr "Already made one? Refresh status"
@@ -11119,6 +11147,10 @@ msgstr "Card faces are done ({noteList})"
 msgid "卡面预览"
 msgstr "Card preview"
 
+#: src/studio/game/ui/GameSettings.tsx
+msgid "卸下：把右侧栏最上面的「🧹 拆除」拖到一张角色卡上，一次卸光它身上的道具。"
+msgstr "Remove: drag the “🧹 Remove” tool at the top of the right rail onto a character card to strip all its items at once."
+
 #: src/studio/game/ui/GameLayer.tsx
 msgid "卸下了，道具回到背包"
 msgstr "Unequipped — the item is back in your bag"
@@ -12139,6 +12171,10 @@ msgstr "Only the path you just watched ({0, plural, one {# segment} other {# seg
 msgid "只展示"
 msgstr "Display only"
 
+#: src/studio/game/ui/GameSettings.tsx
+msgid "只影响 3D 桌面的人物模型。换档下次进工坊才换（对局中途不重载，免得把这一局丢掉）。"
+msgstr "Only affects the character models on the 3D table. A new level loads the next time you enter the Studio (no reload mid-match — that would throw this match away)."
+
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "只把 TA 说的话送去分析，不然会把你自己的说话方式也学进去。"
 msgstr "Only their lines are sent for analysis; otherwise your own way of talking gets learned too."
@@ -12784,6 +12820,10 @@ msgstr "Shop"
 msgid "商店 · 本回合利息 +{0}"
 msgstr "Shop · This round's interest +{0}"
 
+#: src/studio/game/ui/GameSettings.tsx
+msgid "商店：底部右侧那颗商店键开 / 关；点商店栏外面也会收起。"
+msgstr "Shop: the shop key at the bottom right opens and closes it; tapping outside the shop bar closes it too."
+
 #: src/studio/game/ui/GameLayer.tsx
 msgid "商店刷新了"
 msgstr "Shop refreshed"
@@ -13148,8 +13188,8 @@ msgstr "Circling needs this segment's frame stream, which failed to load: {why} 
 #~ msgstr "Lay out cards on the 3D crafting table: for each segment AI plans three directions, you pick one and render it, building the video segment by segment. “🧩 Workflow canvas” in the top bar shows the same pipeline as a canvas."
 
 #: src/pages/CreatePage.tsx
-msgid "在 3D 铸卡桌面上摆素材卡，AI 每段推演三套走向，挑一套生成一段，逐段往下铺；顶栏「🧩 工作流画布」把同一条流水线换成画布那一面。"
-msgstr "Lay material cards on the 3D card table; the AI derives three directions per segment, you pick one and generate that segment, building on segment by segment. “🧩 Workflow canvas” in the top bar shows the same pipeline as a canvas."
+#~ msgid "在 3D 铸卡桌面上摆素材卡，AI 每段推演三套走向，挑一套生成一段，逐段往下铺；顶栏「🧩 工作流画布」把同一条流水线换成画布那一面。"
+#~ msgstr "Lay material cards on the 3D card table; the AI derives three directions per segment, you pick one and generate that segment, building on segment by segment. “🧩 Workflow canvas” in the top bar shows the same pipeline as a canvas."
 
 #: src/components/guide/tours.tsx
 #~ msgid "在「卡组」页签里：<0>「＋ 新建卡组」</0>开一组新的；先点「编辑」<1>再</1>点卡片，才是加进来或拿出去；卡角能定封面。 组名点上去直接改。删掉整组<2>不会删卡</2>。"
@@ -13383,6 +13423,10 @@ msgstr "One more seat"
 #: src/components/video/RemakeCard.tsx
 msgid "多个档位"
 msgstr "Several tiers"
+
+#: src/pages/CreatePage.tsx
+msgid "多人对局"
+msgstr "Multiplayer match"
 
 #: src/components/flow/SegPlayer.tsx
 #~ msgid "多半是刚换过走向或重推了方案。挑回原来那一套（或炼完这一套）就能回看"
@@ -13878,8 +13922,8 @@ msgid "完成视频 ›"
 msgstr "Finish video ›"
 
 #: src/pages/CreatePage.tsx
-msgid "完整作品"
-msgstr "Full videos"
+#~ msgid "完整作品"
+#~ msgstr "Full videos"
 
 #: src/pages/ProfilePage.tsx
 msgid "完整资料还看不到 · 服务更新之后就有，App 不用重装"
@@ -13993,6 +14037,10 @@ msgstr "Fix mismatches in place: edit the mark, “Delete” extra slots, or <0>
 #: src/studio/game/ui/Lobby.tsx
 msgid "对局大厅"
 msgstr "Match lobby"
+
+#: src/studio/StudioPage.tsx
+msgid "对局大厅是横屏的：把手机横过来就能开局。"
+msgstr "The match lobby is landscape-only: turn your phone sideways to start a match."
 
 #: src/studio/game/labels.ts
 msgid "对局结束"
@@ -14307,6 +14355,10 @@ msgstr "Screening"
 msgid "展映中：给别人的片子点赞（联机版不能给自己点赞）"
 msgstr "Screening: like other players' entries (you cannot like your own in online games)"
 
+#: src/pages/CreatePage.tsx
+msgid "展映看全员的片，点赞榜 + 投票榜"
+msgstr "Watch everyone's clips at the screening — a likes board and a votes board"
+
 #: src/components/guide/tours.tsx
 msgid "工作台里的「删除」不是从列表里划掉：<0>云端那段模板视频和原始素材会一起没掉</0>， 谁都找不回。所以要点两下才认。"
 msgstr "“Delete” in the workbench doesn't just cross it off a list: <0>the template video in the cloud and the original footage are gone along with it</0>, and no one can get them back. That's why it takes two taps."
@@ -14379,6 +14431,10 @@ msgstr "Ticket #{short} submitted. A support agent will reply in Notifications."
 msgid "工坊"
 msgstr "Workshop"
 
+#: src/pages/CreatePage.tsx
+msgid "工坊对局"
+msgstr "Studio match"
+
 #: src/data/projects.ts
 msgid "工坊工程没能留在这台设备上（存储空间不足或浏览器隐私模式）——这条片发出去之后不能回炉"
 msgstr "The Studio project couldn't be kept on this device (not enough storage, or the browser is in private mode) — this video can't be remade after publishing"
@@ -14388,7 +14444,6 @@ msgstr "The Studio project couldn't be kept on this device (not enough storage, 
 #~ msgstr "What the Studio is"
 
 #: src/components/DraftSheet.tsx
-#: src/pages/CreatePage.tsx
 msgid "工坊模式"
 msgstr "Studio mode"
 
@@ -17168,6 +17223,10 @@ msgstr "Rewrite the whole script to a theme"
 msgid "按住屏幕<0>两侧</0>是临时 {HOLD_SPEED} 倍速，松手就恢复；按住<1>中间</1>弹出更多操作：调倍速、清屏观看、举报等。"
 msgstr "Hold either <0>side</0> of the screen to play at {HOLD_SPEED}× until you let go; hold the <1>middle</1> for more options: playback speed, clear-screen viewing, report and more."
 
+#: src/studio/game/ui/GameSettings.tsx
+msgid "按住看手势说明"
+msgstr "Hold for gestures"
+
 #: src/components/support/HoldToTalk.tsx
 msgid "按住说话"
 msgstr "Hold to talk"
@@ -17175,6 +17234,10 @@ msgstr "Hold to talk"
 #: src/pages/SupportPage.tsx
 msgid "按住说话，或问{name}：哪里不对？"
 msgstr "Hold to talk, or ask {name}: what's wrong?"
+
+#: src/studio/game/ui/GameSettings.tsx
+msgid "按住这一行不放，看手势说明。"
+msgstr "Keep holding this row to see the gestures."
 
 #: src/pages/AdminPage.tsx
 msgid "按作品筛（作品标题或 id）"
@@ -17537,6 +17600,10 @@ msgstr "A fresh batch of directions is projected in front of you — open it and
 #: src/components/flow/ModePicker.tsx
 msgid "换人不换景"
 msgstr "Swap the people, keep the scene"
+
+#: src/studio/game/ui/GameSettings.tsx
+msgid "换位 / 收回：按住桌上的卡拖到别的卡位；拖回底部背包条就是收回。"
+msgstr "Move / take back: drag a card on the table to another slot; drop it on the bag bar to put it back."
 
 #. placeholder {0}: ask.label
 #: src/components/flow/TierRow.tsx
@@ -18094,6 +18161,10 @@ msgstr "Comedy"
 msgid "摆到桌面上了"
 msgstr "Placed on the table"
 
+#: src/studio/game/ui/GameSettings.tsx
+msgid "摆卡：按住背包里的卡拖到桌上，松手在空白处也行（自动找同类的空位）。"
+msgstr "Place: drag a card from your bag onto the table — dropping it on empty space works too (it takes the next free slot of its kind)."
+
 #: src/studio/game/ui/CreatePanel.tsx
 msgid "摆好卡、写好提示词：点「🎬 视频生成」真出片（先看首帧）；不想花 token 就交占位片。"
 msgstr "Place your cards and write the prompt: 「🎬 Generate video」 makes a real clip (first frame first); if you do not want to spend tokens, submit a placeholder clip."
@@ -18218,6 +18289,10 @@ msgstr "Too many requests. Wait a few seconds and try again."
 msgid "操作失败"
 msgstr "Action failed"
 
+#: src/studio/game/ui/GameSettings.tsx
+msgid "操作提示"
+msgstr "Gestures"
+
 #: src/pages/ProfilePage.tsx
 msgid "支付未成功，额度未到账"
 msgstr "Payment failed; no tokens were credited"
@@ -18327,6 +18402,10 @@ msgstr "Hide conversation"
 #: src/studio/studioStore.ts
 msgid "收起市场"
 msgstr "Close market"
+
+#: src/studio/game/ui/GameSettings.tsx
+msgid "收起手势说明"
+msgstr "Hide gestures"
 
 #: src/components/FeedActionSheet.tsx
 msgid "收起按钮和文字"
@@ -18452,6 +18531,10 @@ msgstr "After you change the cards, the request below is <0>re-composed</0> with
 #: src/studio/ui/projection.tsx
 msgid "改完挂卡会按新的映射<0>重新合成</0>下面那段要求，你改过的字会被替换掉。"
 msgstr "After you change the casting, the request below is <0>regenerated</0> from the new mapping, replacing any edits you made."
+
+#: src/studio/game/ui/GameSettings.tsx
+msgid "改完立刻生效，对局不会中断（画质下一局换模型）"
+msgstr "Changes apply right away and won't interrupt the match (quality swaps models next game)"
 
 #: src/pages/FlowPage.tsx
 msgid "改完这句话可以「重新生成方案」；挑定一套之后按钮才变回「生成本段」"
@@ -21572,8 +21655,8 @@ msgid "每个界面第一次打开时会自动放一遍使用引导，之后不�
 msgstr "Each screen plays its guide automatically the first time you open it and not again after that; to rewatch one screen, tap the<0> ? </0>in its corner. This resets <1>all</1> guides to “not seen” — each screen will show its guide again the next time you open it."
 
 #: src/pages/CreatePage.tsx
-msgid "每出一段自动存草稿，随时接着做"
-msgstr "Each finished segment is auto-saved to a draft — pick up any time"
+#~ msgid "每出一段自动存草稿，随时接着做"
+#~ msgstr "Each finished segment is auto-saved to a draft — pick up any time"
 
 #. placeholder {0}: CARD_TYPE_LABELS[dearest]
 #: src/studio/ui/NpcDialog.tsx
@@ -21600,6 +21683,10 @@ msgstr "How many items each character can carry"
 msgid "每张角色能挂的道具 +{0}"
 msgstr "Items per character +{0}"
 
+#: src/pages/CreatePage.tsx
+msgid "每月 6 张游戏券：出片扣一张，不扣 token"
+msgstr "6 game tickets a month: one per render, no tokens"
+
 #. placeholder {0}: PERSONA_LIMITS.catchphrase
 #. placeholder {1}: PERSONA_LIMITS.catchphrases
 #: src/pages/SupportPersonaNewPage.tsx
@@ -21620,8 +21707,8 @@ msgid "每段一套已挑定的方案，镜头字段进方案台与出片提示�
 msgstr "Each segment gets one picked plan; the shot fields go into the plan board and the video prompt"
 
 #: src/pages/CreatePage.tsx
-msgid "每段三选一，可回头改"
-msgstr "Pick one of three for each segment; change it later if you like"
+#~ msgid "每段三选一，可回头改"
+#~ msgstr "Pick one of three for each segment; change it later if you like"
 
 #: src/components/flow/GridShotsWizard.tsx
 msgid "每段时长"
@@ -22633,6 +22720,10 @@ msgstr "Game tickets only cover video generation: this call isn't a video (image
 msgid "游戏英雄登场"
 msgstr "Game hero entrance"
 
+#: src/studio/game/ui/GameSettings.tsx
+msgid "游戏里还没有背景音乐与音效（现在会出声的只有铸卡师语音）。这两档先记下你的偏好，接上音源就按它放。"
+msgstr "The game has no music or sound effects yet (only the card smith's voice speaks). These two just remember your preference until there's audio to play."
+
 #: src/studio/game/labels.ts
 msgid "湿壁画质感 ＋ 伦勃朗光"
 msgstr "Fresco texture + Rembrandt light"
@@ -22964,8 +23055,12 @@ msgid "点卡片加入 / 移出"
 msgstr "Tap cards to add / remove"
 
 #: src/components/guide/tours.tsx
-msgid "点卡片底部那枚按钮进去：工坊落到 3D 铸卡桌面，简约落到一步一屏的向导。出片之后都汇到<0>同一个剪辑页</0>，再从那里发布。"
-msgstr "Tap the button at the bottom of the card: Studio opens the 3D forging table, Simple opens a step-by-step wizard. After rendering, both land on <0>the same edit page</0> to publish from."
+msgid "点卡片底部那枚按钮进去：工坊先到<0>对局大厅</0>（4/8 人匹配或自定义房），开一局之后才是桌面；简约落到一步一屏的向导。出片之后都汇到<1>同一个剪辑页</1>，再从那里发布。"
+msgstr "Tap the button at the bottom of the card: the Studio drops you into the <0>match lobby</0> first (4/8-player matchmaking or a custom room) — the table only comes after a match starts; Simple mode goes to its one-step-per-screen wizard. Either way the clips meet in <1>the same editor</1>, and you publish from there."
+
+#: src/components/guide/tours.tsx
+#~ msgid "点卡片底部那枚按钮进去：工坊落到 3D 铸卡桌面，简约落到一步一屏的向导。出片之后都汇到<0>同一个剪辑页</0>，再从那里发布。"
+#~ msgstr "Tap the button at the bottom of the card: Studio opens the 3D forging table, Simple opens a step-by-step wizard. After rendering, both land on <0>the same edit page</0> to publish from."
 
 #: src/components/guide/tours.tsx
 msgid "点卡面只是<0>看详情</0>，下面那颗「＋ 添加」才是收进自己的库； 卡组能整套装走。都<1>不花钱</1>。"
@@ -23490,6 +23585,14 @@ msgstr "No video models are available right now."
 msgid "现在没有被下架的作品"
 msgstr "No videos are taken down right now"
 
+#: src/studio/game/ui/GameSettings.tsx
+msgid "现在的界面是中文。切了立刻重渲，不会打断在途的出片。"
+msgstr "The interface is in Chinese right now. Switching re-renders immediately and won't interrupt a render in flight."
+
+#: src/studio/game/ui/GameSettings.tsx
+msgid "现在的界面是英文。切了立刻重渲，不会打断在途的出片。"
+msgstr "The interface is in English right now. Switching re-renders immediately and won't interrupt a render in flight."
+
 #: src/components/guide/tours.tsx
 msgid "现在筛的是什么"
 msgstr "What you're filtering by"
@@ -23927,8 +24030,8 @@ msgid "用空格或逗号分隔，最多 {TAG_MAX} 个"
 msgstr "Separate with spaces or commas, up to {TAG_MAX}"
 
 #: src/pages/CreatePage.tsx
-msgid "用素材卡定人物场景，全片一致"
-msgstr "Cards pin down characters and scenes, consistent across the video"
+#~ msgid "用素材卡定人物场景，全片一致"
+#~ msgstr "Cards pin down characters and scenes, consistent across the video"
 
 #: src/pages/tutor/TutorHomePage.tsx
 msgid "用自己的教材做一位 AI 老师"
@@ -24111,6 +24214,7 @@ msgid "画成了 {got} 格拼图"
 msgstr "came out as a {got}-panel collage"
 
 #: src/components/flow/TierRow.tsx
+#: src/studio/game/ui/GameSettings.tsx
 msgid "画质"
 msgstr "Quality"
 
@@ -27210,6 +27314,10 @@ msgstr "Continue remake"
 msgid "继续建课"
 msgstr "Continue setup"
 
+#: src/studio/game/ui/GameSettings.tsx
+msgid "继续玩"
+msgstr "Keep playing"
+
 #: src/studio/game/labels.ts
 msgid "绿"
 msgstr "Green"
@@ -27789,6 +27897,10 @@ msgstr "Socratic"
 msgid "若安装时提示「应用未安装」，多半是早期测试包的签名不同，先卸载旧版再装即可"
 msgstr "If installing says “App not installed”, an early test build probably has a different signature. Uninstall the old version, then install again"
 
+#: src/studio/game/ui/GameSettings.tsx
+msgid "英文"
+msgstr "English"
+
 #: src/components/TemplateShelf.tsx
 #: src/studio/game/labels.ts
 msgid "草稿"
@@ -28027,6 +28139,10 @@ msgstr "Couldn't equip it — try again later."
 msgid "装了这个形象、自己又还没挑过人格 / 声音的人，会拿到你推荐的这两样；已经自己挑过的人不受影响。"
 msgstr "People who equip this look and haven't picked a persona or voice yet get the two you recommend. People who already picked their own aren't affected."
 
+#: src/studio/game/ui/GameSettings.tsx
+msgid "装备：按住右侧栏的道具，拖到一张角色卡上（每张角色最多 3 件）。"
+msgstr "Equip: drag an item from the right rail onto a character card (up to 3 per character)."
+
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "装备为当前人格"
 msgstr "Equip as current persona"
@@ -28230,6 +28346,14 @@ msgstr "Found a {0}-beat timeline running to {1}s. Only Cinema follows timelines
 msgid "认好了 ✓"
 msgstr "Detected ✓"
 
+#: src/studio/game/ui/GameSettings.tsx
+msgid "认输并退出"
+msgstr "Forfeit and leave"
+
+#: src/studio/game/ui/GameSettings.tsx
+msgid "认输并退出？"
+msgstr "Forfeit and leave?"
+
 #: src/components/flow/SongWizard.tsx
 msgid "让 AI 写（选填）"
 msgstr "Let the AI write (optional)"
@@ -28346,8 +28470,14 @@ msgstr "Set as cover"
 
 #: src/pages/ProfilePage.tsx
 #: src/pages/SettingsPage.tsx
+#: src/studio/game/ui/GameSettings.tsx
+#: src/studio/StudioPage.tsx
 msgid "设置"
 msgstr "Settings"
+
+#: src/studio/StudioPage.tsx
+msgid "设置：音量 / 画质 / 语言 / 操作提示 / 退出游戏"
+msgstr "Settings: volume / quality / language / gestures / leave the game"
 
 #: src/components/support/VoiceMarket.tsx
 msgid "设置中…"
@@ -28556,6 +28686,10 @@ msgstr "This segment's video failed to generate or is in demo mode; a first/last
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "语气"
 msgstr "Tone"
+
+#: src/studio/game/ui/GameSettings.tsx
+msgid "语言"
+msgstr "Language"
 
 #: src/components/support/VoiceSheet.tsx
 #: src/pages/SettingsVoicePage.tsx
@@ -29050,6 +29184,10 @@ msgstr "Follow ({0})"
 msgid "跟随人格/模型"
 msgstr "Follow persona/model"
 
+#: src/studio/game/ui/GameSettings.tsx
+msgid "跟随系统"
+msgstr "Follow system"
+
 #. placeholder {0}: LANG_NAME[active]
 #. placeholder {0}: LANG_NAME[systemLang()]
 #: src/pages/SettingsPage.tsx
@@ -29148,6 +29286,10 @@ msgstr "Rotate to watch"
 #: src/components/guide/tours.tsx
 msgid "转着的碟片"
 msgstr "The spinning disc"
+
+#: src/studio/game/ui/GameSettings.tsx
+msgid "转视角：在桌面上按住拖动；商店开着时只能绕正面半圈。"
+msgstr "Look around: drag on the table; with the shop open you can only swing around the front half."
 
 #: src/components/CoverPicker.tsx
 msgid "载入成片…"
@@ -30135,6 +30277,10 @@ msgstr "This chunk hasn't sent a single byte in {stallSec} seconds — the conne
 #: src/studio/game/roundsReasons.ts
 msgid "这一局已经结束了"
 msgstr "This game is already over"
+
+#: src/studio/game/ui/GameSettings.tsx
+msgid "这一局当场结束、回到大厅；已经花掉的游戏券与 token 不退。"
+msgstr "This match ends right now and you go back to the lobby; the game tickets and tokens already spent aren't refunded."
 
 #: src/studio/game/ui/PhaseBar.tsx
 msgid "这一局打完了"
@@ -33005,6 +33151,10 @@ msgstr "Exit remake"
 msgid "退出对话"
 msgstr "Exit conversation"
 
+#: src/studio/game/ui/GameSettings.tsx
+msgid "退出游戏"
+msgstr "Leave the game"
+
 #: src/pages/SettingsPage.tsx
 msgid "退出登录"
 msgstr "Log out"
@@ -34073,6 +34223,10 @@ msgstr "The extra person in the mirror"
 msgid "镜面球"
 msgstr "Mirror Ball"
 
+#: src/studio/game/ui/GameSettings.tsx
+msgid "长按查看手势说明。"
+msgstr "Hold to see the gestures."
+
 #: src/components/guide/tours.tsx
 msgid "长按画面"
 msgstr "Press and hold"
@@ -34233,6 +34387,14 @@ msgstr "Facial features, hairstyle and hair color; sent to the AI first when ren
 msgid "面部近照（选）"
 msgstr "Face close-up (optional)"
 
+#: src/studio/game/ui/GameSettings.tsx
+msgid "音乐"
+msgstr "Music"
+
+#: src/studio/game/ui/GameSettings.tsx
+msgid "音效"
+msgstr "Sound effects"
+
 #: src/studio/segmentGen.ts
 msgid "音色点名句没能发出去（提示词已经写满）——台词仍会被配音，但音色随机；把要求写短些就能带上"
 msgstr "The voice line couldn't be sent (the prompt is full) — dialogue is still voiced, but with random voices; shorten the request to include it"
@@ -34250,6 +34412,7 @@ msgid "音轨没能取下来（{audioName}）——这一条先按无声导出�
 msgstr "Couldn't get the audio track ({audioName}) — this merge will export without sound. For sound, pick a different local audio file and merge again."
 
 #: src/pages/CutPage.tsx
+#: src/studio/game/ui/GameSettings.tsx
 msgid "音量"
 msgstr "Volume"
 

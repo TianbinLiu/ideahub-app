@@ -2,7 +2,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { Trans, useLingui } from "@lingui/react/macro";
 import ErrorBoundary from "../components/ErrorBoundary";
 import TableScene from "./scene/TableScene";
@@ -23,6 +23,12 @@ import GameLayer from "./game/ui/GameLayer";
 // 对局大厅（2026-11-23）：进对局之前先选开局方式（4 人匹配 / 8 人匹配 / 自定义房间）。
 // 它与 GameLayer 是**前后两屏**：大厅在"还没有 state"的那一拍，对局 UI 在有了 state 之后。
 import Lobby from "./game/ui/Lobby";
+// 对局内设置（2026-11-24）：顶栏 ⚙ 打开，整屏盖住对局 UI（音量 / 画质 / 语言 / 操作提示 / 退出游戏）。
+// 它挂在**页面**这一层而不是 GameLayer 里：选风格那一屏 GameLayer 是早退的（只画 StylePick），
+// 挂在那儿的话在那一屏点 ⚙ 会"点了没反应"。
+import GameSettings from "./game/ui/GameSettings";
+// 退出对局那一下（退房 + 收局 + 开大厅）的唯一实现，与设置页的「退出游戏」共用
+import { quitGameToLobby } from "./game/ui/quitGame";
 import { useLobby } from "./game/lobbyStore";
 import { useGame } from "./game/store";
 import { cancelPendingStop, stopSpeakingSoon } from "./speech";
@@ -288,14 +294,37 @@ export default function StudioPage() {
    */
   const lobbyOpen = useLobby((s) => s.open);
   /**
+   * 对局内的设置页（2026-11-24）：只在横屏且开着一局时才有入口（顶栏那颗 ⚙）。
+   * ★ 放页面本地 state、不进 game store：它同时决定两件事 —— 盖不盖这一屏、以及 3D 桌面停不停帧
+   *   （canvasCovered 与大厅同一条理由）。搬进 store 只会多出一份"结束对局时要记得清"的值。
+   */
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  /**
+   * 「开始做完整作品」那条入口（src/pages/CreatePage）落到 `/studio?lobby=1`：进来就直接开大厅。
+   * ★ 为什么是地址里的一个标记、不新造一条路由：大厅本来就是这块 3D 舞台上的一个浮层
+   *   （lobbyStore.open），另开路由会把模型与场景整整挂两遍。
+   * ★ 标记**用完就抹掉**（与 /me?wallet=1 同一个做法）：留着的话关掉大厅一刷新又弹出来；而
+   *   「我的仓库 / 回炉重做 / 发布之后回工坊」这些不带标记的入口必须照旧落在 3D 桌面上 ——
+   *   这条是主人点名要保住的（3D 工坊桌面仍可单独进入）。
+   * ★ 已经开着一局时不抢：那一局还在跑，把大厅盖上去等于把人从牌桌上拽走（Lobby 也会按 inGame 隐身）。
+   */
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get("lobby") !== "1") return;
+    if (!useGame.getState().state) useLobby.getState().openLobby();
+    const next = new URLSearchParams(searchParams);
+    next.delete("lobby");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
+  /**
    * 画布浮层 / 大厅盖着没有：与下面挂 FlowCanvas、挂 Lobby 的判据是同一个值。
    * ★ G4 第 1 步起桌面上的节点卡撤了（换成对局卡位），**画布就是新建流水线的入口** ——
    *   空流水线也照开（FlowCanvas 自带空态 + 「对画布说话」输入条，见 EmptyPipelineHint）。
    *   以前 0 段时这颗键只吐一句"先点虚线卡位"，而那条虚线卡位现在不存在了。
    * ★ 大厅也算"盖着"（2026-11-23）：不进对局的那几屏不挂 3D —— 大厅铺满舞台、纯 2D 入口卡。
+   * ★ 对局设置页也算（2026-11-24）：它同样是整屏实底，盖着的时候桌面还在每帧画 NPC（看不见、电照烧）。
    */
-  const canvasCovered = canvasOpen || lobbyOpen;
-
+  const canvasCovered = canvasOpen || lobbyOpen || settingsOpen;
   /**
    * 横屏宽布局（G1 施工单 docs/g1-scene-plan.md §2 A）：左右各一条常驻条，3D 桌面留在中间。
    * ★ 判据只有一份（hooks/useIsLandscape）：`(orientation: landscape)`，也就是画布宽 > 高。
@@ -310,6 +339,11 @@ export default function StudioPage() {
    * 以及 GameLayer 挂不挂。对局状态本身在 game/store 里，切页 / 转屏都不会丢。
    */
   const inGame = useGame((s) => s.state !== null);
+  // 这一局没了（结束对局 / 认输退出 / 服务端判结束）就把设置页一并收掉：它只在"有一局"时才成立，
+  // 留着的话下一局开局会莫名其妙停在一张设置页上（而那一页上的"返回游戏"看着像能点）。
+  useEffect(() => {
+    if (!inGame) setSettingsOpen(false);
+  }, [inGame]);
   /**
    * 横屏/竖屏两套桌面卡位（layout.sceneLayout）：市场一页几张、摊开排摆几张。
    * 判据与 isLand 同一个 —— 别再在这里判一次 `orientation`。
@@ -368,9 +402,10 @@ export default function StudioPage() {
               onClick={() => {
                 // 2026-11-23 起「▶ 开局」**先开大厅**（4 人 / 8 人匹配、自定义房间都在那一屏），
                 // 再由大厅里的开局把对局建起来（ui/startFromLobby）。这一颗键不再知道人数。
-                // 结束对局之后回到大厅：刚打完一局，下一个动作通常是换一张桌再来。
-                if (inGame) useGame.getState().endGame();
-                useLobby.getState().openLobby();
+                // 2026-11-24 起结束对局走 ui/quitGame 那一份（退房 + 收局 + 开大厅）：与设置页的
+                // 「退出游戏」同一条路，联机时不会把账号留在服务端那间房里。
+                if (inGame) quitGameToLobby();
+                else useLobby.getState().openLobby();
               }}
               // 键面就是状态：没开局是实心主键，开局后变成"结束对局"的灰键（与删掉的那条右栏同一个动作）
               className={`h-9 rounded-full px-3 text-xs font-bold backdrop-blur ${
@@ -378,6 +413,19 @@ export default function StudioPage() {
               }`}
             >
               {inGame ? <Trans>✕ 结束对局</Trans> : <Trans>▶ 开局</Trans>}
+            </button>
+          )}
+          {/* ⚙ 设置（2026-11-24）：**只在开着一局时**摆 —— 音量 / 退出游戏这些字段都是对局里的东西，
+              没开局时它只会是一颗空页入口（画质与语言在「我的 → 设置」里也有，但那是另一套页面）。
+              位置紧跟「✕ 结束对局」：两颗都是"这一局"的键，放一起才不会被当成工坊的设置。 */}
+          {isLand && inGame && (
+            <button
+              onClick={() => setSettingsOpen(true)}
+              title={t`设置：音量 / 画质 / 语言 / 操作提示 / 退出游戏`}
+              aria-label={t`设置`}
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-panel/85 text-slate-100 backdrop-blur"
+            >
+              <Icon name="settings" size={18} />
             </button>
           )}
           {/* 「🧩 工作流」：**对局里 = 纯预览**（G4 施工单 §2 第三条：只展示本局每段视频的信息，
@@ -477,6 +525,20 @@ export default function StudioPage() {
           它自己判 lobbyStore.open 与"有没有开着局"（对局中不出现），所以这里不重复判。
           层级 z-40：盖住顶栏那颗「▶ 开局」（大厅里有自己的「✕ 返回工坊」）。 */}
       {isLand && <Lobby />}
+      {/* 对局设置页（2026-11-24）：z-50，盖住对局 UI 与顶栏那一排键。
+          ★ 挂在这一层而不是 GameLayer 里：选风格那一屏 GameLayer 会早退（只画 StylePick），
+            挂在那儿的话在那一屏点 ⚙ 点了没反应（铁律八）。
+          ★ 只在这一局还开着时挂（inGame）：认输退出之后这一页当场消失，不用等一个 effect 去收。 */}
+      {isLand && inGame && settingsOpen && <GameSettings onClose={() => setSettingsOpen(false)} />}
+      {/* 竖屏 + 大厅：大厅那一屏只在横屏挂（与对局一致），而「开始做完整作品」可能落在竖屏窗口里
+          （dev 浏览器拖成竖的）。不说这一句的话，点进来看见的是 3D 桌面，像是在"没落地"。 */}
+      {!isLand && lobbyOpen && (
+        <div className="pointer-events-none absolute inset-x-0 top-1/2 z-40 flex -translate-y-1/2 justify-center px-6">
+          <div className="rounded-xl bg-panel/95 px-4 py-3 text-center text-xs leading-relaxed text-slate-200 ring-1 ring-white/10">
+            <Trans>对局大厅是横屏的：把手机横过来就能开局。</Trans>
+          </div>
+        </div>
+      )}
       <StudioLoader />
       {/* ── 工作流画布：同一条流水线的另一个面，就地铺满这一屏（2026-08-30 合并）──
           ★ 它自带 z-40 全屏 portal，所以挂在这里不影响上面那些浮层的层级关系。

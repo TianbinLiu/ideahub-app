@@ -17,7 +17,7 @@ import { useRounds } from "../roundsStore";
 import { phaseKeyOf } from "../onlineHost";
 import { roundViewOf } from "../view";
 import type { GameView } from "../view";
-import { useLobby } from "../lobbyStore";
+import { quitGameToLobby } from "./quitGame";
 import GameBtn from "./GameBtn";
 
 export default function PhaseBar({ view }: { view: GameView }) {
@@ -141,10 +141,9 @@ export default function PhaseBar({ view }: { view: GameView }) {
         action = {
           label: t`🏁 返回大厅`,
           onClick: () => {
-            // 结束对局 → 回到大厅（与 StudioPage 顶栏那颗键同一条路）；联机房间由
-            // ui/useOnlineRounds 在 state 变 null 时退掉
-            useGame.getState().endGame();
-            useLobby.getState().openLobby();
+            // 结束对局 → 回到大厅：走 ui/quitGame 那一份（退房 + 收局 + 开大厅），与工坊顶栏
+            // 那颗「✕ 结束对局」、设置页的「退出游戏」同一条路（铁律六：一处实现）
+            quitGameToLobby();
           },
           tone: "gold",
         };

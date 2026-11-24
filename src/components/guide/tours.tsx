@@ -267,11 +267,14 @@ export const TOURS: GuideTour[] = [
         ),
       },
       {
+        // ★ 2026-11-24 改口、**未升 version**：工坊这一颗按钮的落点从 3D 桌面改到了对局大厅
+        //   （CreatePage 的 `?lobby=1`）。老文案说的是"落到哪一屏"，不是教一个已经不存在的操作 ——
+        //   按 data/guide 的口径，「改了内容就重弹」不是默认行为；看过的人不必为一句落点说明重看一遍。
         title: msg`挑定了就进去`,
         anchor: "create-cta",
         body: (
           <Trans>
-            点卡片底部那枚按钮进去：工坊落到 3D 铸卡桌面，简约落到一步一屏的向导。出片之后都汇到<b className="font-bold text-slate-100">同一个剪辑页</b>，再从那里发布。
+            点卡片底部那枚按钮进去：工坊先到<b className="font-bold text-slate-100">对局大厅</b>（4/8 人匹配或自定义房），开一局之后才是桌面；简约落到一步一屏的向导。出片之后都汇到<b className="font-bold text-slate-100">同一个剪辑页</b>，再从那里发布。
           </Trans>
         ),
       },
