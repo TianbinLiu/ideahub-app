@@ -139,10 +139,10 @@ Play 对 **Social / Dating / 匿名随机聊天** 类应用强制这一项。我
 
 ### 6c. UGC 政策要的两个功能 ✅（2026-09-03 已上线，缺一不可）
 
-- **举报**：`ReportButton`，作品 / 评论 / 弹幕 / 人格市场（`/support/personas` 每张别人的人格卡上，2026-10-26 接上）四处，八类理由（`src/api/admin.ts` 的 `REPORT_REASONS`，第一项「涉及未成年人」），后台人工复核（下架 / 删除 / 驳回；人格只有下架 / 驳回，见 `reportActionsFor`）。
-  ⚠ **还缺四处**（Play 的 AI 生成内容政策要求「应用内、不离开应用就能举报或标记」AI 生成的内容）：AI 客服的回答、Live2D 形象市场、声音模板市场，以及**工坊对局里的玩家**（2026-11-24 加：局内面板已有「👥 玩家」与拉黑，举报那一格卡在同一处）。
-  服务端 `Report.TARGET_TYPES` 里还没有这几类（只有 video / comment / danmaku / persona；对局内的 UGC —— 昵称 / 交片提示词 / 生成的片子 —— 也没有任何可举报的对象 id），得**服务端先加类型**、App 再接 `ReportButton`；
-  反过来先接 App 的话用户点了必然 400（`docs/game-lobby.md` §7.13 记了对局内那一格的具体落点）。上架前要补齐。
+- **举报**：`ReportButton`，作品 / 评论 / 弹幕 / 人格市场（`/support/personas` 每张别人的人格卡上，2026-10-26 接上）/ **工坊对局里的玩家与回合投稿**（2026-11-24 服务端 `feat/game-ugc-reports` 上线 `user` / `game-entry` 之后接上：局内「👥 玩家」面板每行一颗、展映 / 投票面板每条投稿一颗）六处，八类理由（`src/api/admin.ts` 的 `REPORT_REASONS`，第一项「涉及未成年人」），后台人工复核（下架 / 删除 / 驳回；人格只有下架 / 驳回，见 `reportActionsFor`）。
+  ⚠ **还缺三处**（Play 的 AI 生成内容政策要求「应用内、不离开应用就能举报或标记」AI 生成的内容）：AI 客服的回答、Live2D 形象市场、声音模板市场。
+  服务端 `Report.TARGET_TYPES` 里还没有这三类（现在有 video / comment / danmaku / persona / user / game-entry），得**服务端先加类型**、App 再接 `ReportButton`；
+  反过来先接 App 的话用户点了必然 400（`docs/game-lobby.md` §7.13 记着对局那两格的具体落点）。上架前要补齐。
 - **拉黑**：`BlockButton` 挂在举报旁边，「我的 → 设置 → 已拉黑的人」可解除。
   ⚠ 两者**不能合并成一个菜单里的两项**：政策分别要求，而且合并会让举报变难点到。
 

@@ -7,8 +7,9 @@
  *   不认 `message`（英文、给老 App 兜底，改措辞不该牵着界面改）。
  * ★ 回包形状（照服务端逐字段核过）：
  *   · start / entries / current / phase / like / vote → **回合快照**
- *     `{ ok, round, phase, entries:[{userId,name,prompt,cardNames,videoUrl,posterUrl,placeholder,
+ *     `{ ok, round, phase, entries:[{entryId,userId,name,prompt,cardNames,videoUrl,posterUrl,placeholder,
  *       likes,likedByMe,votes,votedByMe}], allSubmitted, likesPending, votesPending }`
+ *     （`entryId` 是 2026-11-24 加的；老房间的存量投稿为 null）
  *   · settle → `{ ok, round, phase:"settled", settlement:{ ranking:[{userId,name,likes,votes,
  *       likeRank,voteRank,composite,damage,hp,eliminated}], winners? } }`（`winners` 是 userId 数组，
  *     只在「剩到胜者名额」时出现；没有这一位 = 还没结束）
@@ -28,6 +29,13 @@ export type RemoteRoundPhase = "creating" | "screening" | "voting" | "settled";
 /** 一条交片（服务端快照里的一项；**谁投给谁不暴露**，只有计数与我的视角）。 */
 export interface RemoteRoundEntry {
   userId: string;
+  /**
+   * 这条投稿的稳定 id（2026-11-24 服务端 `feat/game-ugc-reports` 加；`game-entry` 举报的 targetId）。
+   * ★ **老房间的存量投稿是 `null`**：服务端只在首次交片时生成 entryId（覆盖提交不变），
+   *   本轮之前写进去的那批没有；拿不到就**不摆**那颗举报键（拿 null 去报必然 404 TARGET_NOT_FOUND），
+   *   判据在 `studio/game/reports.ts`。
+   */
+  entryId: string | null;
   /** 服务端昵称（账号没设置 username 时是 null） */
   name: string | null;
   prompt: string;
@@ -228,6 +236,8 @@ function entryOf(raw: unknown): RemoteRoundEntry | null {
   if (!userId) return null;
   return {
     userId,
+    // 老房间的存量投稿没有这一格（服务端 2026-11-24 才给投稿加 entryId）→ null，不是空串
+    entryId: strOf(e.entryId),
     name: strOf(e.name),
     prompt: typeof e.prompt === "string" ? e.prompt : "",
     cardNames: Array.isArray(e.cardNames) ? e.cardNames.filter((name): name is string => typeof name === "string") : [],

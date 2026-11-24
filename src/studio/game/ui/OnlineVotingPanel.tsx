@@ -5,13 +5,32 @@
 // ★ **不能投自己**（服务端 `CANNOT_VOTE_SELF`）：自己那条不列出来（与单机同一条产品口径）。
 // ★ 服务端快照不暴露"我弃权了"（只有 votedByMe），弃权记在本机 roundsStore.abstainedRound 上；
 //   这一句只影响界面，不影响服务端已经落账的选择。
+// ★ 每条投稿一颗「举报」（2026-11-24 服务端上线 `game-entry` 之后接上）：`targetId` 就是这一条的
+//   `entryId`；**老房间的存量投稿 entryId 为 null、或能力位 `gameReports` 不为真 → 不摆**
+//   （判据在 `studio/game/reports.ts`，与展映面板共用同一份）。自己那条不在 votable 里，天然没有举报键。
 import { Trans, useLingui } from "@lingui/react/macro";
+import ReportButton from "../../../components/ReportButton";
+import { entryReportTargetOf, type InGameReportTarget } from "../reports";
 import { useGame } from "../store";
 import { useRounds } from "../roundsStore";
 import type { RemoteRoundEntry } from "../../../api/game/rounds";
 import GameBtn from "./GameBtn";
+import { useGameReportsCap } from "./useGameReports";
 
-function VoteCard({ entry, spoken, eliminated, busy }: { entry: RemoteRoundEntry; spoken: boolean; eliminated: boolean; busy: boolean }) {
+function VoteCard({
+  entry,
+  spoken,
+  eliminated,
+  busy,
+  report,
+}: {
+  entry: RemoteRoundEntry;
+  spoken: boolean;
+  eliminated: boolean;
+  busy: boolean;
+  /** 这一条的举报键（null = 不摆：能力位不为真 / entryId 为空） */
+  report: InGameReportTarget | null;
+}) {
   const { t } = useLingui();
   const author = entry.name ?? entry.userId;
   return (
@@ -35,14 +54,18 @@ function VoteCard({ entry, spoken, eliminated, busy }: { entry: RemoteRoundEntry
         )}
       </div>
       <p className="mt-1 line-clamp-2 text-[10px] leading-snug text-slate-300">{entry.prompt}</p>
-      <GameBtn
-        onClick={() => void useRounds.getState().vote(entry.userId)}
-        tone="primary"
-        className="mt-1 w-full"
-        disabled={spoken || eliminated || busy}
-      >
-        <Trans>投这一条</Trans>
-      </GameBtn>
+      {/* 投票键 + 举报键一行：举报是"这条内容有问题"，投票是"这条拍得好"，两件事不互相占用 */}
+      <div className="mt-1 flex items-center gap-1">
+        <GameBtn
+          onClick={() => void useRounds.getState().vote(entry.userId)}
+          tone="primary"
+          className="min-w-0 flex-1"
+          disabled={spoken || eliminated || busy}
+        >
+          <Trans>投这一条</Trans>
+        </GameBtn>
+        {report && <ReportButton targetType={report.targetType} targetId={report.targetId} className="shrink-0" />}
+      </div>
     </div>
   );
 }
@@ -53,6 +76,8 @@ export default function OnlineVotingPanel() {
   const abstainedRound = useRounds((s) => s.abstainedRound);
   const busy = useRounds((s) => s.busy);
   const eliminated = useGame((s) => s.state?.players.find((player) => player.id === s.meId)?.eliminated ?? false);
+  /** 举报能力位（`gameReports`）：探到 / 变了会重画这一屏（见 useGameReports 文件头 ★★） */
+  const reportCap = useGameReportsCap();
   if (!snapshot || !session) return null;
 
   const entries = snapshot.entries;
@@ -87,7 +112,14 @@ export default function OnlineVotingPanel() {
       </div>
       <div className="flex items-stretch gap-1.5 overflow-x-auto">
         {votable.map((entry) => (
-          <VoteCard key={entry.userId} entry={entry} spoken={spoken} eliminated={eliminated} busy={busy} />
+          <VoteCard
+            key={entry.userId}
+            entry={entry}
+            spoken={spoken}
+            eliminated={eliminated}
+            busy={busy}
+            report={entryReportTargetOf({ cap: reportCap, entryId: entry.entryId, mine: false })}
+          />
         ))}
         {votable.length === 0 && (
           <div className="flex w-[clamp(8rem,20vw,12rem)] flex-none items-center justify-center rounded-lg border border-dashed border-white/15 p-2 text-center text-[10px] leading-snug text-slate-400">

@@ -1,4 +1,6 @@
-// 举报入口。**作品 / 评论 / 弹幕 / 人格市场四处共用这一份**（铁律六；人格 2026-10-26 接上，Play 的 AI 生成内容与 UGC 政策都要应用内举报）：
+// 举报入口。**作品 / 评论 / 弹幕 / 人格市场 / 对局里的玩家与投稿六处共用这一份**（铁律六；
+// 人格 2026-10-26 接上，对局里的两类 2026-11-24 服务端上线 `user` / `game-entry` 后接上 ——
+// Play 的 AI 生成内容与 UGC 政策都要应用内举报）：
 // "谁能举报 / 有哪些理由 / 重复举报怎么说 / 失败怎么说" 这四条一旦分叉，就会出现
 // "评论举报得了、弹幕举报不了"或者"一边说重复了、一边只说 HTTP 409"这种
 // 只有用户才发现得了的差异。
@@ -93,7 +95,7 @@ export default function ReportButton({
 
   if (!canReport({ mine, targetId })) return null;
 
-  // ★ 每类各写整句，不拿类别名往「举报这条…」里拼（量词也不一样：人格是「这个」）
+  // ★ 每类各写整句，不拿类别名往「举报这条…」里拼（量词也不一样：人格是「这个」、玩家是「这位」）
   const title =
     targetType === "video"
       ? t`举报这条作品`
@@ -101,7 +103,11 @@ export default function ReportButton({
         ? t`举报这条评论`
         : targetType === "persona"
           ? t`举报这个人格`
-          : t`举报这条弹幕`;
+          : targetType === "user"
+            ? t`举报这位玩家`
+            : targetType === "game-entry"
+              ? t`举报这条投稿`
+              : t`举报这条弹幕`;
 
   async function submit() {
     if (busy || !reason) return;

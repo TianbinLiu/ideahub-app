@@ -6949,12 +6949,20 @@ msgid "举报这个人格"
 msgstr "举报这个人格"
 
 #: src/components/ReportButton.tsx
+msgid "举报这位玩家"
+msgstr "举报这位玩家"
+
+#: src/components/ReportButton.tsx
 msgid "举报这条作品"
 msgstr "举报这条作品"
 
 #: src/components/ReportButton.tsx
 msgid "举报这条弹幕"
 msgstr "举报这条弹幕"
+
+#: src/components/ReportButton.tsx
+msgid "举报这条投稿"
+msgstr "举报这条投稿"
 
 #: src/components/ReportButton.tsx
 msgid "举报这条评论"
@@ -16952,6 +16960,11 @@ msgstr "抒情民谣"
 msgid "投票"
 msgstr "投票"
 
+#: src/api/admin.ts
+msgctxt "举报对象的类别（单数）：工坊对局一回合里的一条投稿（提示词 + 生成的片子）"
+msgid "投稿"
+msgstr "投稿"
+
 #: src/studio/game/ui/OnlineVotingPanel.tsx
 #: src/studio/game/ui/VotingPanel.tsx
 msgid "投这一条"
@@ -23661,6 +23674,11 @@ msgid "状态：{status}——过几分钟再点一次「取回」。这一发�
 msgstr "状态：{status}——过几分钟再点一次「取回」。这一发的钱已经花过了，取回不再花一分钱"
 
 #: src/studio/game/ui/PlayerPanel.tsx
+msgid "玩家"
+msgstr "玩家"
+
+#: src/api/admin.ts
+msgctxt "举报对象的类别（单数）：工坊对局里的一个真人玩家"
 msgid "玩家"
 msgstr "玩家"
 
@@ -32850,6 +32868,10 @@ msgstr "这条作品还没同步到服务器，稍后再来评论"
 #: src/data/videos.ts
 msgid "这条作品还没同步到服务器，稍后再试"
 msgstr "这条作品还没同步到服务器，稍后再试"
+
+#: src/api/admin.ts
+msgid "这条内容已经不在了（对局房间可能已经结束），举报没有提交上去"
+msgstr "这条内容已经不在了（对局房间可能已经结束），举报没有提交上去"
 
 #: src/pages/CutPage.tsx
 msgid "这条只有一段 · 想做成多段的？"
