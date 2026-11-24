@@ -7953,6 +7953,15 @@ msgstr "The host removed you from the room — starting with AI"
 msgid "你被淘汰了——AI 会把剩下的回合跑完，然后给你最终胜者。"
 msgstr "You're out — the AIs will finish the remaining rounds and show you the winner."
 
+#: src/studio/game/lobbyReasons.ts
+msgid "你还在别的房间里，退出后重试"
+msgstr "You're still in another room — leave it and try again"
+
+#. placeholder {0}: note.code
+#: src/studio/game/lobbyReasons.ts
+msgid "你还在房间 {0}，退出后重试"
+msgstr "You're still in room {0} — leave it and try again"
+
 #: src/hooks/useFlowActions.ts
 msgid "你还有一条剪到一半的成片（那几段都是花过 token 出的）。先去「我的」把它剪完发出去，或在那条横幅上丢掉它，再来组这一条 —— 直接组会把它顶掉。"
 msgstr "You still have a half-edited video (those segments cost tokens to generate). Go to “Me” to finish and publish it, or discard it from that banner, then assemble this one — assembling now would replace it."
@@ -16390,6 +16399,10 @@ msgstr "Host starts"
 msgid "房间服务回了没见过的错误：{code}"
 msgstr "The room service returned an unknown error: {code}"
 
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "房间状态还没同步上：点「开始对局」会先拉一次最新的，拉不到就先不开。"
+msgstr "The room state isn't synced yet: Start match fetches the latest first, and won't start if that fails."
+
 #: src/studio/game/ui/Lobby.tsx
 #: src/studio/game/ui/RoomScreen.tsx
 msgid "房间码"
@@ -21123,6 +21136,10 @@ msgstr "Merging the video…"
 msgid "正在合成挂卡的点名句，等它跑完再退出登录。"
 msgstr "Writing the casting lines for the attached cards. Wait for it to finish before logging out."
 
+#: src/studio/game/lobbyReasons.ts
+msgid "正在同步房间状态…"
+msgstr "Syncing room state…"
+
 #: src/ai/minimaxVideo.ts
 msgid "正在向上游核对这一发的状态…（查询不花钱）"
 msgstr "Checking this run's status with upstream… (checking is free)"
@@ -22338,6 +22355,10 @@ msgstr "Which clip? Select one first, or name it by number, like “clip 2”"
 #: src/pages/CustomCardPage.tsx
 msgid "没读出识别结果。{moneyLine}可以自己填，或者再识别一次"
 msgstr "The recognition result couldn't be read. {moneyLine} Fill it in yourself, or recognize again"
+
+#: src/studio/game/lobbyReasons.ts
+msgid "没读到最新的房间状态：先别开，等连上再试"
+msgstr "Couldn't read the latest room state — don't start yet; try again once connected"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "没跑完，先继续"
@@ -32995,6 +33016,10 @@ msgstr "Log out?"
 #: src/components/flow/FlowCanvas.tsx
 msgid "退出编辑"
 msgstr "Exit editing"
+
+#: src/studio/game/ui/Lobby.tsx
+msgid "退出那间房"
+msgstr "Leave that room"
 
 #: src/studio/studioStore.ts
 msgid "退出铸段窗"

@@ -97,7 +97,7 @@ export interface ServerCaps {
    * 工坊对局的 **SSE 推送**（2026-11-24；服务端 server#159）：有 `GET /api/game/rooms/:code/stream`，
    * 建连即一帧 `snapshot`，之后 `update` / `ping` / `error` / `end`。
    * ★ 读不到这一位 = 老服务端 / 离线包：**一条流都不开**，对局完全走改版前那套 2 秒轮询
-   *   （判据只在 `api/game/roomStream.roomStreamAvailable`，`ui/useOnlineRounds` 不自己读能力位）。
+   *   （判据只在 `api/game/roomStream.roomStreamCapability`，`ui/useOnlineRounds` 不自己读能力位）。
    * ★ 与 gameRooms / gameEvents 同一条纪律：不按 404 猜（真机上不存在的路径回 200 + index.html），只认这一位。
    * ★ 这一位为真、流中途坏了（网络 / 5xx / 服务端 30 分钟寿命到）时**轮询兜底必须还在**：
    *   服务端的推送是**单实例**的（pm2 cluster 下另一个实例的写推不过来），所以那 2 秒一拍永远不拆，
@@ -333,11 +333,14 @@ export function serverGameEvents(): boolean | null {
 
 /**
  * 这台服务端有没有**对局推送那条长连接**（`GET /api/game/rooms/:code/stream`）。
- * ★ 唯一读法是 `api/game/roomStream.roomStreamAvailable()`（`ui/useOnlineRounds` 据此决定开不开流）。
+ * ★ 唯一读法是 `api/game/roomStream.roomStreamCapability()`（`ui/useOnlineRounds` 据此决定开不开流）。
  * ★ 与 serverGameRooms / serverGameEvents 同一份理由单开一个读法（force 探测：dev + 本地服务端要能问到这一位）。
- * ★ 读不到（null）当「没有」：老服务端上真发出去的那条 GET 会吃 SPA 的 200 + HTML，客户端会一直挂在
- *   一条永远不来的流上；而对局本来就有 2 秒轮询兜底，少开一条流没有任何损失。
- *   与 minimaxV2 / gameTickets 同一种口径：这一位没有「不知道就放行」的余地。
+ * ★ 读不到（null）的用法**不是**一律当「没有」（2026-11-24 改口）：老服务端上真发出去的那条 GET
+ *   会吃 SPA 的 200 + HTML，所以"确实没有"时一条流都不开；但"这一刻还没问到"要过几秒再问一次 ——
+ *   冷启动那一发健康探测撞上网络抖动时，整局就没了推送（`ui/useOnlineRounds` 里那条 5 秒重问）。
+ * ★★ "不知道"也不能当成"有"：不追问的调用方（大厅房间屏）仍把 null 与 false 一样按"这条流不开"处理，
+ *   靠 2 秒轮询兜着 —— 大厅那边不是"实时"承诺的所在。与 minimaxV2 / gameTickets 同一种口径：
+ *   这一位没有「不知道就放行」的余地。
  */
 export function serverGameRoomStream(): boolean | null {
   if (!API_ON) return ALL.gameRoomStream;

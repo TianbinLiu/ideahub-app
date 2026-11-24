@@ -15,9 +15,19 @@
 // ★ 横屏 800×363 的视口里这一屏要塞下：房间码一行 + 最多 8 个座位 + 人数增减 + 两颗键。
 //   座位用小方块（`clamp(4.6rem,11vw,6.5rem)`、两行 4 个也能折行），不写 `vw` 的宽度给整块
 //   —— 真机上整块按视口算会伸到舞台外面（docs/g3-round-loop.md 那条坑：面板一律 w-full max-w-[…]）。
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Trans, useLingui } from "@lingui/react/macro";
-import { ROOM_MAX_SIZE, ROOM_MIN_SIZE, isHostOf, roomStartPlan, LOCAL_SEAT_ID, type LobbyRoom, type LobbySeat } from "../lobby";
+import {
+  hostStartDataFresh,
+  hostStartLabelOf,
+  ROOM_MAX_SIZE,
+  ROOM_MIN_SIZE,
+  isHostOf,
+  roomStartPlan,
+  LOCAL_SEAT_ID,
+  type LobbyRoom,
+  type LobbySeat,
+} from "../lobby";
 import { useLobby } from "../lobbyStore";
 import { playerName } from "../labels";
 import type { RemoteRoom } from "../../../api/game/rooms";
@@ -27,30 +37,49 @@ export default function RoomScreen({
   room,
   remote,
   onStart,
-  onStartWithAi,
 }: {
   room: LobbyRoom;
   /** 联机房间的服务端快照；null = 本机房间 */
   remote: RemoteRoom | null;
+  /**
+   * 房主那颗键（本机房间 = 直接建局；联机房间 = lobbyStore.prepareStart：
+   * 先强制拉最新快照，再按服务端事实决定走服务端开局还是 AI 补位）。
+   */
   onStart: () => void;
-  /** 联机房间真人不够（服务端至少 2 个）时，用 AI 补位开一局的那条路 */
-  onStartWithAi: () => void;
 }) {
   const { t } = useLingui();
   const inviteOpen = useLobby((s) => s.inviteOpen);
+  const roomSyncedAt = useLobby((s) => s.roomSyncedAt);
   const [copied, setCopied] = useState<"idle" | "ok" | "manual">("idle");
+  /**
+   * 「这份房间数据还新不新鲜」要在**时间走过**之后自己重算一次（判据 hostStartDataFresh）。
+   * ★ 这里不轮询网络（那在 useLobbyOnline，一处定时器）：只是让 label / 提示在"数据变旧"那一刻
+   *   跟着变 —— 否则轮询失败之后界面会一直停在最后一次的"1/4 + 用 AI 补位"，那正是事故的形状。
+   */
+  const [now, setNow] = useState(() => Date.now());
+  const online = remote !== null;
+  useEffect(() => {
+    if (!online) return;
+    const timer = setInterval(() => setNow(Date.now()), 1_000);
+    return () => clearInterval(timer);
+  }, [online]);
   // ★ 两个"我"是同一个值（lobby.LOCAL_SEAT_ID）：房主身份只认它，不认"第 0 个座位"
   const host = isHostOf(room, LOCAL_SEAT_ID);
   const plan = roomStartPlan(room);
-  const online = remote !== null;
   const canShrink = room.size > ROOM_MIN_SIZE;
   const canGrow = room.size < ROOM_MAX_SIZE;
   const mySeat = room.seats.find((seat) => seat.playerId === LOCAL_SEAT_ID) ?? null;
-  // 联机房：服务端说开局要几个真人（custom = 2，不看选了几座）。真人不够时房主可以先按 AI 补位开。
-  const shortOfHumans = online && remote.memberCount < remote.requiredPlayers;
-  // 服务端说"看的人能不能点"（只有房主 + 人数够 + 全员 ready）；本机房间没有这一位
-  const canStartOnline = !online || (remote?.canStart ?? false);
-  const startBlocked = online && !shortOfHumans && remote?.startBlockedBy === "not-all-ready";
+  /**
+   * ★★ 联机房间：开局键的语义只认 `hostStartLabelOf` 一处（构建里 check-game-lobby 跑正反例）——
+   *   真人够（≥ requiredPlayers）→「开始对局」；真人不够但数据新鲜 →「用 AI 补位开局」；
+   *   **数据陈旧（没在同步 / 从没读到）时一律「开始对局」**，点了先强制刷新（见 prepareStart）。
+   *   不能拿陈旧数据说"还是我一个人，AI 补位吧"——那会把已经坐上来的真人关在门外。
+   */
+  const fresh = !online || hostStartDataFresh(roomSyncedAt, now);
+  const label = online && remote ? hostStartLabelOf({ memberCount: remote.memberCount, requiredPlayers: remote.requiredPlayers, syncedAt: roomSyncedAt, now }) : "ai";
+  // 只有"人够了、但有人没准备"这一种才灰键；陈旧时**不灰**（点下去先刷新，别让按钮点了没反应）
+  const startDisabled = online && !!remote && fresh && remote.memberCount >= remote.requiredPlayers && remote.startBlockedBy === "not-all-ready";
+  const shortOfHumans = online && label === "ai";
 
   /** 复制房间码：老 WebView 上 navigator.clipboard 可能整个 undefined（同 ShareSheet 的退路），
    *  拿不到就把码摆在那里让人长按选中 —— 不假装"已复制"。 */
@@ -126,19 +155,13 @@ export default function RoomScreen({
       )}
 
       {/* ── 开始 / 准备 / 离开 ──
-          房主：开始对局（联机走服务端；人不够时按 AI 补位开）+ 离开房间
+          房主：开始对局（联机走服务端；真人不够时按 AI 补位开）+ 离开房间
           非房主：只有准备 / 离开（§3「非房主只能准备/离开」） */}
       <div className="flex items-center justify-center gap-2">
         {host ? (
-          shortOfHumans ? (
-            <GameBtn tone="primary" className="px-4 py-1.5 text-[12px]" onClick={onStartWithAi}>
-              <Trans>用 AI 补位开局</Trans>
-            </GameBtn>
-          ) : (
-            <GameBtn tone="primary" className="px-4 py-1.5 text-[12px]" onClick={onStart} disabled={online && !canStartOnline}>
-              <Trans>开始对局</Trans>
-            </GameBtn>
-          )
+          <GameBtn tone="primary" className="px-4 py-1.5 text-[12px]" onClick={onStart} disabled={startDisabled}>
+            {label === "ai" ? <Trans>用 AI 补位开局</Trans> : <Trans>开始对局</Trans>}
+          </GameBtn>
         ) : (
           <GameBtn tone="primary" className="px-4 py-1.5 text-[12px]" onClick={() => useLobby.getState().toggleReady()}>
             {mySeat?.ready ? <Trans>取消准备</Trans> : <Trans>准备</Trans>}
@@ -149,12 +172,15 @@ export default function RoomScreen({
         </GameBtn>
       </div>
 
-      {/* ── 状态那一句：人不够 / 有人没准备 / AI 补几个 / 等房主 ── */}
+      {/* ── 状态那一句：人不够 / 有人没准备 / 数据还没同步上 / AI 补几个 / 等房主 ── */}
       <p className="text-center text-[10px] text-slate-400">
         {shortOfHumans ? (
           <Trans>服务端要至少 {remote?.requiredPlayers ?? 2} 个真人才开局；现在只有你，点一下先用 AI 补位开一局。</Trans>
-        ) : host && startBlocked ? (
+        ) : host && startDisabled ? (
           <Trans>还有队友没点准备——全员准备好之后房主才能开局。</Trans>
+        ) : host && online && !fresh ? (
+          // ★ 数据陈旧：不拿它决定 AI 补位。点上面那颗键会先强制刷新，刷新失败就"先别开"。
+          <Trans>房间状态还没同步上：点「开始对局」会先拉一次最新的，拉不到就先不开。</Trans>
         ) : host ? (
           online ? (
             <Trans>这一局按 {remote?.memberCount ?? 0} 个真人开：服务端的回合只算真人，空位不参加。</Trans>

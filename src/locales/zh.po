@@ -7957,6 +7957,15 @@ msgstr "你被房主移出房间了，先用 AI 开局"
 msgid "你被淘汰了——AI 会把剩下的回合跑完，然后给你最终胜者。"
 msgstr "你被淘汰了——AI 会把剩下的回合跑完，然后给你最终胜者。"
 
+#: src/studio/game/lobbyReasons.ts
+msgid "你还在别的房间里，退出后重试"
+msgstr "你还在别的房间里，退出后重试"
+
+#. placeholder {0}: note.code
+#: src/studio/game/lobbyReasons.ts
+msgid "你还在房间 {0}，退出后重试"
+msgstr "你还在房间 {0}，退出后重试"
+
 #: src/hooks/useFlowActions.ts
 msgid "你还有一条剪到一半的成片（那几段都是花过 token 出的）。先去「我的」把它剪完发出去，或在那条横幅上丢掉它，再来组这一条 —— 直接组会把它顶掉。"
 msgstr "你还有一条剪到一半的成片（那几段都是花过 token 出的）。先去「我的」把它剪完发出去，或在那条横幅上丢掉它，再来组这一条 —— 直接组会把它顶掉。"
@@ -16398,6 +16407,10 @@ msgstr "房主开局"
 msgid "房间服务回了没见过的错误：{code}"
 msgstr "房间服务回了没见过的错误：{code}"
 
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "房间状态还没同步上：点「开始对局」会先拉一次最新的，拉不到就先不开。"
+msgstr "房间状态还没同步上：点「开始对局」会先拉一次最新的，拉不到就先不开。"
+
 #: src/studio/game/ui/Lobby.tsx
 #: src/studio/game/ui/RoomScreen.tsx
 msgid "房间码"
@@ -21131,6 +21144,10 @@ msgstr "正在合成成片…"
 msgid "正在合成挂卡的点名句，等它跑完再退出登录。"
 msgstr "正在合成挂卡的点名句，等它跑完再退出登录。"
 
+#: src/studio/game/lobbyReasons.ts
+msgid "正在同步房间状态…"
+msgstr "正在同步房间状态…"
+
 #: src/ai/minimaxVideo.ts
 msgid "正在向上游核对这一发的状态…（查询不花钱）"
 msgstr "正在向上游核对这一发的状态…（查询不花钱）"
@@ -22346,6 +22363,10 @@ msgstr "没说是哪个片段：先点选一个片段，或者说「片段 2」�
 #: src/pages/CustomCardPage.tsx
 msgid "没读出识别结果。{moneyLine}可以自己填，或者再识别一次"
 msgstr "没读出识别结果。{moneyLine}可以自己填，或者再识别一次"
+
+#: src/studio/game/lobbyReasons.ts
+msgid "没读到最新的房间状态：先别开，等连上再试"
+msgstr "没读到最新的房间状态：先别开，等连上再试"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "没跑完，先继续"
@@ -33003,6 +33024,10 @@ msgstr "退出登录？"
 #: src/components/flow/FlowCanvas.tsx
 msgid "退出编辑"
 msgstr "退出编辑"
+
+#: src/studio/game/ui/Lobby.tsx
+msgid "退出那间房"
+msgstr "退出那间房"
 
 #: src/studio/studioStore.ts
 msgid "退出铸段窗"

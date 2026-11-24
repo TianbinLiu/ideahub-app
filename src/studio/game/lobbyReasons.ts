@@ -81,6 +81,9 @@ export function roomCodeText(code: string): string {
  * 底栏那一句：退回本机的原因 / 服务端的码。
  * ★ "没连上房间服务，先用 AI 开局"是任务点名的那一句：它只在**真的没连上**时说，
  *   服务端明确拒了（房间满 / 已开局）就照服务端的原因说 —— 两件事不能混成一句。
+ * ★ `in-room`（ALREADY_IN_ROOM）单独两句话：**服务端说我还在某间房里**不是"没连上"，
+ *   界面还要在旁边摆一颗「退出那间房」的键（判据在 ui/Lobby 的底栏）。房号不知道时
+ *   说"别的房间"——别把一句编出来的房号印在屏上。
  */
 export function lobbyNoteText(note: LobbyNote): string {
   switch (note.kind) {
@@ -101,6 +104,13 @@ export function lobbyNoteText(note: LobbyNote): string {
       return t`这一局的房间已经结束`;
     case "resume-offline":
       return t`没连上回合服务，暂时回不到那一局（下次打开再试）`;
+    case "in-room":
+      return note.code ? t`你还在房间 ${note.code}，退出后重试` : t`你还在别的房间里，退出后重试`;
+    case "syncing":
+      return t`正在同步房间状态…`;
+    case "sync-failed":
+      // 房主开局前强制刷新失败、最近一次数据也不够：宁可不开，也不拿旧数据开成一局 AI 单机
+      return t`没读到最新的房间状态：先别开，等连上再试`;
     case "code":
       return roomCodeText(note.code);
   }

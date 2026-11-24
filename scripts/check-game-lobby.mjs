@@ -12,6 +12,7 @@
 // ★ 反例都写了"错的时候会怎样"：见每个待拒用例上面的注释。
 //
 // 用法：node scripts/check-game-lobby.mjs
+import fs from "node:fs";
 import path from "node:path";
 import url from "node:url";
 
@@ -226,6 +227,74 @@ const room = (size = 4) => must(`开一间 ${size} 人房`, L.createRoom({ code:
   eq("认房主只认 id 不认第 0 格", L.isHostOf(room(4), ME), true);
   eq("别人不是房主", L.isHostOf(room(4), "ai-1"), false);
   eq("没房间时谁都不是房主", L.isHostOf(null, ME), false);
+}
+
+// ────────────────── 8. 房主开局：哪份数据决定开局模式（2026-11-24 真机事故） ──────────────────
+//
+// ★★ 事故形状：第二间房已经有 2 个真人，但大厅那份快照停在 1/4（轮询慢 / 断过），房主键写着
+//    「用 AI 补位开局」——一点就开了一局本机 AI 单机。开局模式**绝不能拿陈旧数据决定**。
+//    判据是 lobby.hostStartPlanOf / hostStartLabelOf（线上那一份，不在这里重写）。
+
+{
+  const T = 1_000_000; // 一个虚拟的"现在"
+  const base = { memberCount: 2, requiredPlayers: 2, syncedAt: T, refreshed: true, now: T };
+
+  // ① 刚读到、真人够 → 走服务端开局
+  eq("成员数 ≥2（刚读到）→ 服务端开局", L.hostStartPlanOf(base), { kind: "server", reason: "fresh-enough" });
+  eq("成员数 3/2 也是服务端开局", L.hostStartPlanOf({ ...base, memberCount: 3 }).kind, "server");
+  // ② 刚读到、真人不够 → AI 补位（服务端要至少 2 个真人，只有自己时这条路是对的）
+  eq("成员数 1（刚读到）→ AI 补位", L.hostStartPlanOf({ ...base, memberCount: 1 }), { kind: "ai", reason: "fresh-short" });
+  // ③ 没读到最新 + 最近一次说够 → 用最近一次走服务端（真正的裁决在服务端那一发）
+  eq("刷新失败、最近一次 ≥2 → 服务端开局", L.hostStartPlanOf({ ...base, refreshed: false }), { kind: "server", reason: "last-known-enough" });
+  // ④ 没读到最新 + 最近一次说不够、但刚同步过 → AI 补位（数据还可信）
+  eq("刷新失败、最近一次 1 且刚同步 → AI 补位", L.hostStartPlanOf({ ...base, memberCount: 1, refreshed: false }), { kind: "ai", reason: "fresh-short-unread" });
+  // ⑤ 没读到最新 + 最近一次说不够、而且已经陈旧 → **不开**（事故形状：旧数据不能当成"还是我一个人"）
+  eq(
+    "刷新失败、最近一次 1 且已陈旧 → 先别开（blocked）",
+    L.hostStartPlanOf({ ...base, memberCount: 1, refreshed: false, syncedAt: T - L.HOST_START_STALE_MS - 1 }),
+    { kind: "blocked", reason: "stale-short" },
+  );
+  // ⑥ 这一屏从没读到过快照（syncedAt = 0）→ 也是先别开
+  eq("从没读到过房间快照 → 先别开", L.hostStartPlanOf({ ...base, memberCount: 1, refreshed: false, syncedAt: 0 }), {
+    kind: "blocked",
+    reason: "stale-short",
+  });
+  // ⑦ 边界：正好卡在陈旧窗口上还算新鲜
+  eq("正好 5 秒（边界）算新鲜", L.hostStartDataFresh(T - L.HOST_START_STALE_MS, T), true);
+  eq("5 秒零 1 毫秒算陈旧", L.hostStartDataFresh(T - L.HOST_START_STALE_MS - 1, T), false);
+  eq("syncedAt = 0（从没读到）永远不新鲜", L.hostStartDataFresh(0, T), false);
+
+  // ★ 开局键的语义（任务点名：成员数 ≥2 时必须显示「开始对局」，不能是「AI 补位」）
+  eq("成员数 2 → 键上写「开始对局」", L.hostStartLabelOf({ memberCount: 2, requiredPlayers: 2, syncedAt: T, now: T }), "server");
+  eq("成员数 1（刚同步）→ 键上写「用 AI 补位开局」", L.hostStartLabelOf({ memberCount: 1, requiredPlayers: 2, syncedAt: T, now: T }), "ai");
+  eq(
+    "成员数 1 且数据陈旧 → 键上**也**写「开始对局」（点下去先强制刷新，不拿旧数据开 AI 局）",
+    L.hostStartLabelOf({ memberCount: 1, requiredPlayers: 2, syncedAt: T - L.HOST_START_STALE_MS - 1, now: T }),
+    "server",
+  );
+  eq("从没读到过快照 → 键上写「开始对局」（同上）", L.hostStartLabelOf({ memberCount: 1, requiredPlayers: 2, syncedAt: 0, now: T }), "server");
+
+  // ── 源码断言：这几条"接得上"的缝（纯函数对了，界面不接也是白搭） ──
+  const read = (rel) => fs.readFileSync(path.join(root, rel), "utf8");
+  const store = read("src/studio/game/lobbyStore.ts");
+  ok("开局前**强制刷新**一次房间快照（prepareStart → refreshRoomNow）", /prepareStart[\s\S]*?refreshRoomNow\(\)/.test(store));
+  ok("按 hostStartPlanOf 决定开局模式（不拿界面上的旧人数直接开）", store.includes("hostStartPlanOf({"));
+  ok("刷新失败且数据陈旧时不开（blocked → sync-failed）", store.includes('kind: "sync-failed"'));
+  ok("ALREADY_IN_ROOM 用服务端给的 roomCode（不是只念一句）", store.includes("res.roomCode ?? null"));
+  ok("有「退出那间房」的动作（leaveStuckRoom → leaveRemoteRoom）", /leaveStuckRoom[\s\S]*?leaveRemoteRoom\(code\)/.test(store));
+  ok("建房超时会再核对一次（timeout → 重发一次 createRemoteRoom）", /res\.timeout[\s\S]{0,400}createRemoteRoom\(/.test(store));
+  ok("进房超时会再核对一次（timeout → 重发一次 joinRoom）", /res\.timeout[\s\S]{0,400}joinRoom\(normalized\)/.test(store));
+  ok("轮询失败一两拍不退回本机（ROOM_FAIL_TOLERANCE）", store.includes("ROOM_FAIL_TOLERANCE"));
+  const roomsApi = read("src/api/game/rooms.ts");
+  ok("RoomsFailure 带 roomCode / room（ALREADY_IN_ROOM 的结构化字段）", roomsApi.includes("roomCode?: string") && roomsApi.includes("room?: RemoteRoom"));
+  ok("失败回包从 ApiError.payload 顶层读 roomCode", roomsApi.includes('strOf(payload?.roomCode)'));
+  const lobbyUi = read("src/studio/game/ui/Lobby.tsx");
+  ok("底栏给 in-room 摆一颗「退出那间房」的键", lobbyUi.includes("leaveStuckRoom()") && lobbyUi.includes("退出那间房"));
+  ok("开局走 prepareStart（联机房间那一下不再直接 beginStart）", lobbyUi.includes("prepareStart()"));
+  const roomUi = read("src/studio/game/ui/RoomScreen.tsx");
+  ok("房间屏的开局键语义读 hostStartLabelOf（唯一判据）", roomUi.includes("hostStartLabelOf("));
+  const onlineUi = read("src/studio/game/ui/useLobbyOnline.ts");
+  ok("大厅房间屏接上 SSE 推送（不是只有 2 秒轮询）", onlineUi.includes("subscribeRoomStream(") && onlineUi.includes("applyPushedRoom("));
 }
 
 // ────────────────────────────── 收尾 ──────────────────────────────
