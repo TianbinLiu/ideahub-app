@@ -114,6 +114,13 @@ export default function GameLayer() {
   // 还没选风格：整屏都是风格卡（选完 beginRound 才开第一回合商店）
   if (state.phase === "style") return <StylePick view={view} />;
 
+  /**
+   * 底栏那一行推送状态小字（`null` = 不摆）。
+   * ★ 判据与话都在 `roundsReasons.roundStreamText` 那一处；这里只决定"联机局才摆"。
+   * ★ `off`（单机 / 老服务端 / 对局已结束）返回 null —— 没有推送这件事不该占底栏一行字。
+   */
+  const streamLine = online ? roundStreamText(roundStream) : null;
+
   const inShop = state.phase === "shop";
   /**
    * 事件屏（G4 施工单 §5）：这一屏是一次决策，不是"桌上再加一块面板"。
@@ -271,25 +278,18 @@ export default function GameLayer() {
               没有推送这件事不该占一行字。话只有 `roundsReasons.roundStreamText` 一处说。
             ★ 用 `role="status"` 而不是 alert：它不是失败提示（轮询兜着，对局照常能打完），
               别去抢上面那条失败提示的注意力。 */}
-        {online &&
-          (() => {
-            const text = roundStreamText(roundStream);
-            if (!text) return null;
-            return (
-              <div
-                role="status"
-                className="pointer-events-none flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-[9px] leading-none text-slate-300"
-              >
-                <span
-                  aria-hidden
-                  className={`inline-block h-1.5 w-1.5 rounded-full ${
-                    roundStream === "live" ? "bg-ok-400" : "bg-warn-400"
-                  }`}
-                />
-                <span>{text}</span>
-              </div>
-            );
-          })()}
+        {streamLine && (
+          <div
+            role="status"
+            className="pointer-events-none flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-[9px] leading-none text-slate-300"
+          >
+            <span
+              aria-hidden
+              className={`inline-block h-1.5 w-1.5 rounded-full ${roundStream === "live" ? "bg-ok-400" : "bg-warn-400"}`}
+            />
+            <span>{streamLine}</span>
+          </div>
+        )}
 
         <PhaseBar view={view} />
       </div>
