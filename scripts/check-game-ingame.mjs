@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // 构建门禁：对局内 P0 的三条（2026-11-24，docs/game-lobby-ui-benchmark.md §2.2 的 #2 / #10 / #6 前半）
-// + 局内举报那两颗键（同日服务端 `feat/game-ugc-reports` 上线之后接的，判据在 `studio/game/reports.ts`）。
+// + 局内举报那两颗键（同日服务端 `feat/game-ugc-reports` 上线之后接的，判据在 `studio/game/reports.ts`）
+// + 局内贴纸（2026-11-24，P1「贴卡 / 表情」：节流 / 5 条上限 / 4 秒淡出 / AI 每回合 1~2 条 / 800×363 的落点）。
 //
 // ★★ 为什么要单独一道：这几条里**有三件的错都长在眼睛看不见的地方**——
 //   · 玩家名单的派生字段（谁交片 / 谁点过赞 / 谁房主 / 谁淘汰）在联机与单机两种来源上口径不同：
@@ -11,8 +12,10 @@
 //   · 本地计时（阶段切换清零 / 负数 / 跨分）是一个纯算术，但错了只表现为"秒数怪怪的"。
 //   · 举报键的判据（能力位 / entryId / 是不是自己的）摆错了不是难看，是**用户认真提交的投诉被 400/404 丢掉**；
 //     而"老房间存量投稿没有 entryId"这一支只有真去翻老房间才会遇到 —— 只能靠这里钉。
+//   · 贴纸的四条全是"看起来没坏"的错法：多发一条、少消失一条、AI 在 8 人局里刷屏、
+//     气泡往上一挪就压在背包条 / 阶段条上（800×363 上那三块的坐标是量出来的，写错零报错）。
 //
-// ★ 本文件**不重写一条规则**：import 的就是线上那四份纯模块（roster / connection / phaseClock / reports），
+// ★ 本文件**不重写一条规则**：import 的就是线上那五份纯模块（roster / connection / phaseClock / reports / stickers），
 //   界面接线用源码断言钉住（第 5 节）—— 那几处要 React，Node 跑不起来。
 //
 // 用法：node scripts/check-game-ingame.mjs
@@ -26,6 +29,7 @@ const R = await load("src/studio/game/roster.ts");
 const C = await load("src/studio/game/connection.ts");
 const K = await load("src/studio/game/phaseClock.ts");
 const P = await load("src/studio/game/reports.ts");
+const S = await load("src/studio/game/stickers.ts");
 
 const problems = [];
 let positive = 0;
@@ -300,6 +304,42 @@ console.log("5) 源码断言（接线）");
   const reduceBlock = css.slice(css.lastIndexOf("@media (prefers-reduced-motion: reduce)"));
   ok("横幅 / 面板的入场与转圈都登记进 reduced-motion 段", /\.ingame-rise,\s*\.ingame-spin \{ animation: none !important; \}/.test(reduceBlock));
   ok("对局内动效只有这一对类名（别偷偷再起一条循环动画）", (css.match(/animation:[^;]*ingame/g) ?? []).length === 2);
+
+  // ── 局内贴纸（2026-11-24，P1「贴卡 / 表情」）──
+  ok("对局层挂贴纸键（面板）", layer.includes("<StickerPanel"));
+  ok("对局层挂贴纸气泡", layer.includes("<StickerBubbles"));
+  // ★ 贴纸键不进流：进流会把整条底部栏推左 ~25px，左下角的气泡栈就压在背包条上了（800×363 实测）
+  ok("贴纸键挂在背包条右侧但**不进流**（absolute left-full）", /absolute bottom-0 left-full ml-1\.5/.test(layer));
+
+  const stickerPanel = read("src/studio/game/ui/StickerPanel.tsx");
+  ok("面板的节流倒计时读的是纯模块判据（不自己算 2000）", stickerPanel.includes("stickerWaitMs("));
+  ok("表情目录从 stickers.ts 来（不在这里抄第二份）", stickerPanel.includes("STICKER_FACES"));
+  ok("贴卡复用卡面素材 gameCardArt（别新画一套）", stickerPanel.includes("gameCardArt("));
+  ok("贴卡的名字与商店 / 背包同一个函数", stickerPanel.includes("gameCardName("));
+  ok("联机缺口那句话在面板上（任务点名）", stickerPanel.includes("stickerSyncNote("));
+  ok("发出去走 store 的那两个口（不是自己 set 状态）", stickerPanel.includes("sendFace(") && stickerPanel.includes("sendCard("));
+
+  const stickerBubbles = read("src/studio/game/ui/StickerBubbles.tsx");
+  ok("气泡按「这一刻该画哪几条」筛（4 秒的生命期在纯模块里）", stickerBubbles.includes("liveStickersAt("));
+  ok("淡出读的是同一个判据", stickerBubbles.includes("stickerFadingAt("));
+  ok("气泡**不接点击**（不挡桌面卡位上的拖拽）", stickerBubbles.includes("pointer-events-none"));
+  ok("AI 贴纸只在本机局播（联机局不替真人编贴纸）", stickerBubbles.includes("if (!state || online) return;"));
+  ok("换局清空（不把上一局的气泡带进来）", stickerBubbles.includes("reset()"));
+  ok("气泡的落点读的是 stickers.ts 的三个常量", ["STICKER_STACK_BOTTOM", "STICKER_STACK_WIDTH", "STICKER_STACK_MAX_HEIGHT"].every((key) => stickerBubbles.includes(key)));
+
+  const stickerStoreSource = read("src/studio/game/stickerStore.ts");
+  ok("节流那道闸在 store 的 deliver 一处（面板只是灰键）", stickerStoreSource.includes("stickerWaitMs("));
+  ok("store 的定时器一个都没有（时钟只在 ui/StickerBubbles）", !stickerStoreSource.includes("setInterval"));
+
+  const labelsSource = read("src/studio/game/labels.ts");
+  ok("贴纸名字按 id 在 labels 里翻（零依赖模块里不许有中文）", labelsSource.includes("export function stickerFaceName("));
+  ok("联机缺口那句话也在 labels（一处实现）", labelsSource.includes("export function stickerSyncNote("));
+
+  // ★ 淡出时长两处必须相等：CSS 里那条 transition 的 320ms 与 stickers.STICKER_FADE_MS
+  const fadeCss = /\.sticker-bubble \{\s*transition:\s*opacity\s+(\d+)ms/.exec(css);
+  ok("CSS 里找得到气泡的淡出过渡", fadeCss !== null);
+  eq("淡出时长与 stickers.STICKER_FADE_MS 同一个数", Number(fadeCss?.[1]), S.STICKER_FADE_MS);
+  ok("减少动态效果时气泡的过渡被关掉（照样 4 秒后消失）", /\.sticker-bubble \{ transition: none !important; \}/.test(reduceBlock));
 }
 
 // ── 6. 局内举报键的判据（reports.ts）──────────────────────────────────────────
@@ -387,6 +427,122 @@ console.log("6) 局内举报键（playerReportTargetOf / entryReportTargetOf）"
     P.playerReportTargetOf({ cap: true, userId: uid, mine: false }).targetType,
     P.entryReportTargetOf({ cap: true, entryId: eid, mine: false }).targetType,
   ], ["user", "game-entry"]);
+}
+
+// ── 7. 局内贴纸（stickers.ts）：目录 / 条数 / 节流 / 淡出 / AI / 800×363 的落点 ──
+// 任务（P1「贴卡 / 表情」）点名的五条断言在这里：
+//   ① 面板条数上限 ② 节流 ③ 气泡自动消失 ④ AI 每回合最多 2 条 ⑤ 800×363 不遮挡关键元素。
+console.log("7) 局内贴纸（stickers.ts）");
+{
+  // ── ① 面板：12~16 个常用表情，id 不重，两种画法都在 ──
+  ok(
+    "表情目录 12~16 个（任务原话是「先做 12~16 个常用」）",
+    S.STICKER_FACES.length >= 12 && S.STICKER_FACES.length <= 16,
+  );
+  eq(
+    "目录 id 不重复",
+    new Set(S.STICKER_FACES.map((face) => face.id)).size,
+    S.STICKER_FACES.length,
+  );
+  ok(
+    "看板娘头像全部来自 public/avatars（仓库现有素材，不新画一套）",
+    S.STICKER_FACES.filter((face) => face.kind === "mascot").every((face) => face.glyph.startsWith("/avatars/")),
+  );
+  ok(
+    "emoji 那几个是单字字形（不是图片路径）",
+    S.STICKER_FACES.filter((face) => face.kind === "emoji").every((face) => !face.glyph.includes("/") && face.glyph.length <= 4),
+  );
+  eq(
+    "认得出目录里的 id、认不出回 null（不造空贴纸）",
+    [S.stickerFaceOf("smile")?.id, S.stickerFaceOf("nope")],
+    ["smile", null],
+  );
+
+  // ── ① 气泡列表：同时最多 5 条，第 6 条进来把最老的挤出去 ──
+  const bubbleAt = (id, at) => ({ id, senderId: "me", senderName: null, face: S.stickerFaceOf("smile"), card: null, at });
+  let list = [];
+  for (let i = 0; i < 8; i += 1) list = S.pushStickerBubbles(list, [bubbleAt(`b${i}`, i)]);
+  eq("同时最多 5 条（最近 5 条）", list.length, S.STICKER_MAX);
+  eq("挤掉的是最老的三条", list.map((bubble) => bubble.id), ["b3", "b4", "b5", "b6", "b7"]);
+  eq("一条都不多留", S.STICKER_MAX, 5);
+
+  // ── ③ 4 秒淡出：在场 / 淡出 / 彻底消失三拍 ──
+  const one = bubbleAt("x", 1_000);
+  eq("还没到上屏时刻（AI 延迟的那一条）不画", S.stickerVisibleAt(one, 900), false);
+  eq("刚上屏就画", S.stickerVisibleAt(one, 1_050), true);
+  eq("3.9 秒还在", [S.stickerVisibleAt(one, 1_000 + S.STICKER_TTL_MS - 100), S.stickerFadingAt(one, 1_000 + S.STICKER_TTL_MS - 100)], [true, false]);
+  eq(
+    "第 4 秒起挂淡出类（还在画，只是淡）",
+    [S.stickerVisibleAt(one, 1_000 + S.STICKER_TTL_MS), S.stickerFadingAt(one, 1_000 + S.STICKER_TTL_MS)],
+    [true, true],
+  );
+  eq("4 秒 + 淡出之后彻底不画", S.stickerVisibleAt(one, 1_000 + S.STICKER_TTL_MS + S.STICKER_FADE_MS), false);
+  eq("过期的那条被 prune 清掉、没过期的留着", S.pruneStickers([bubbleAt("old", 0), bubbleAt("new", 10_000)], 5_000).map((bubble) => bubble.id), ["new"]);
+  // ★ 这一条钉的是"AI 第 2 条（at 在未来）不许被 prune 当过期清掉"：判据是"已经过了 TTL"，
+  //   不是"看不看得见" —— 拿后者当判据，AI 就永远只贴得出一条（零报错）。
+  eq(
+    "还没上屏的那条（AI 延迟 1.4 秒）不会被当成过期清掉",
+    S.pruneStickers([bubbleAt("pending", 2_000)], 1_000).map((bubble) => bubble.id),
+    ["pending"],
+  );
+  ok("一条都没过期时 prune 原样返回同一个数组（每 200ms 一拍不白重渲）", (() => {
+    const same = [bubbleAt("a", 0)];
+    return S.pruneStickers(same, 1_000) === same;
+  })());
+
+  // ── ② 节流：同一人 2 秒内最多 1 条 ──
+  eq("刚贴完还差 1500ms", S.stickerWaitMs(500, 0), 1_500);
+  eq("满 2 秒放行", S.stickerWaitMs(2_000, 0), 0);
+  eq("超时很久也是 0（不出现负数）", S.stickerWaitMs(9_000, 0), 0);
+  eq("从没贴过 → 立刻可贴", S.stickerWaitMs(123, null), 0);
+  eq("坏值（NaN / undefined）按没贴过算", [S.stickerWaitMs(123, Number.NaN), S.stickerWaitMs(123, undefined)], [0, 0]);
+  ok("时钟往回跳最多只等回 2 秒（不会锁几分钟）", S.stickerWaitMs(-1e9, 1e9) <= S.STICKER_GAP_MS);
+  eq("canStickerAt 与 waitMs 是同一个判据", [S.canStickerAt(500, 0), S.canStickerAt(2_500, 0)], [false, true]);
+
+  // ── ④ AI：每回合 1~2 条，同一个 seed 出同一手，两条不撞人、不撞脸 ──
+  const aiSeats = ["ai-1", "ai-2", "ai-3", "ai-4", "ai-5", "ai-6", "ai-7"];
+  const plan = S.aiStickerPlanOf({ round: 3, seed: 20261124, seats: aiSeats });
+  ok("每回合 1~2 条", plan.length >= 1 && plan.length <= S.AI_STICKER_MAX_PER_ROUND);
+  eq("同一回合同一个 seed：跑两遍完全一样（可复盘）", S.aiStickerPlanOf({ round: 3, seed: 20261124, seats: aiSeats }), plan);
+  ok("两条不会撞人（同一人 2 秒一条是全局规则）", new Set(plan.map((pick) => pick.seatId)).size === plan.length);
+  ok("两条不会撞脸", new Set(plan.map((pick) => pick.faceId)).size === plan.length);
+  ok("第 1 条立刻、第 2 条错开 1.4 秒", plan[0].delayMs === 0 && (plan.length < 2 || plan[1].delayMs === S.AI_STICKER_STAGGER_MS));
+  ok("错开的时长 < 4 秒的存活期（不然第 2 条出来时第 1 条已经没了）", S.AI_STICKER_STAGGER_MS < S.STICKER_TTL_MS);
+  eq("只剩一个可贴的人 → 只贴 1 条（宁少不多，不自己违反节流）", S.aiStickerPlanOf({ round: 1, seed: 7, seats: ["ai-1"] }).length, 1);
+  eq("没人可贴（只剩我自己 / 都出局了）→ 一条都不贴", S.aiStickerPlanOf({ round: 1, seed: 7, seats: [] }).length, 0);
+  eq("每一条都贴的是目录里的表情", plan.every((pick) => S.stickerFaceOf(pick.faceId) !== null), true);
+  // 扫 200 个回合：既验证上限，也验证它真的在 1 / 2 之间摇（不是永远一条，也不是永远两条）
+  const sizes = new Set();
+  let worst = 0;
+  for (let round = 1; round <= 200; round += 1) {
+    const each = S.aiStickerPlanOf({ round, seed: 20261124, seats: aiSeats }).length;
+    worst = Math.max(worst, each);
+    sizes.add(each);
+  }
+  ok("扫 200 个回合：没有一回合超过 2 条", worst <= S.AI_STICKER_MAX_PER_ROUND);
+  ok("扫 200 个回合：1 条与 2 条都出现过（不是节拍器）", sizes.has(1) && sizes.has(2));
+
+  // ── ⑤ 800×363 不遮挡关键元素（坐标全部是 dev 实测，见 docs/game-lobby.md §7.15）──
+  // 量的是**舞台里一层**（StudioPage 的 p-1.5 让 GameLayer 从 (6, 6) 起、高 351，所以它的底边是 y 357）：
+  //   阶段条 y 321.3~351.1；背包条盒 x 148.5 起；HUD 底 y 96；创作面板 y 135.8~242.1；
+  //   3D 桌面场景位 x 189 起、角色排 x 263~537。
+  const LAYER_LEFT = 6;
+  const LAYER_BOTTOM = 357;
+  const PHASE_BAR_TOP = 321.3;
+  const BAG_LEFT = 148.5;
+  const HUD_BOTTOM = 96;
+  const TABLE_SCENE_LEFT = 189;
+  // 5 条单行气泡：头像 15 + 上下各 1px 内边距 = 17px，间距 2px（ui/StickerBubbles 的类名）
+  const FIVE_BUBBLES = 5 * 17 + 4 * 2;
+  ok("气泡栈的底在阶段条上沿之上（315.4 < 321.3）", LAYER_BOTTOM - S.STICKER_STACK_BOTTOM_PX < PHASE_BAR_TOP);
+  ok("底边的 CSS 与那个像素数是同一个数（2.6rem = 41.6px）", S.STICKER_STACK_BOTTOM.includes("2.6rem"));
+  eq("2.6rem 就是 41.6px（16px 根字号）", S.STICKER_STACK_BOTTOM_PX, 41.6);
+  ok("右沿不压背包条（6 + 140 = 146 < 148.5）", LAYER_LEFT + S.STICKER_STACK_WIDTH_PX < BAG_LEFT);
+  ok("宽度 CSS 与像素数一致（17.5vw @ 800 = 140px）", S.STICKER_STACK_WIDTH.includes("17.5vw"));
+  ok("右沿更不碰桌面卡位（146 < 189）", LAYER_LEFT + S.STICKER_STACK_WIDTH_PX < TABLE_SCENE_LEFT);
+  ok("5 条单行气泡装得进最高（93 ≤ 101.6，28vh @ 363）", FIVE_BUBBLES <= 101.6);
+  ok("栈顶不会顶到 HUD（315.4 - 101.6 = 213.8 > 96）", LAYER_BOTTOM - S.STICKER_STACK_BOTTOM_PX - 101.6 > HUD_BOTTOM);
+  ok("最高的 CSS 是 28vh", S.STICKER_STACK_MAX_HEIGHT.includes("28vh"));
 }
 
 // ── 结论 ─────────────────────────────────────────────────────────────────────

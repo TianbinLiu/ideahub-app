@@ -412,6 +412,72 @@ export function eventOptionGlyph(option: Pick<GameEventOption, "id">): string {
   }
 }
 
+// ────────────────────────────── 局内贴纸（P1「贴卡 / 表情」） ──────────────────────────────
+
+/**
+ * 一张贴纸的名字（`studio/game/stickers.ts` 的 `STICKER_FACES` 里那些 id）。
+ * ★ 为什么名字不写在贴纸目录里：那份目录是零依赖模块（Node 直接 import 跑门禁），
+ *   一个中文字面量进去就会撞上 `check-i18n` 的棘轮 —— 名字按 id 在这一层翻。
+ * ★ 认不出的 id 原样回（目录新增了一条、界面还没跟上时，至少 aria 里还有个 id，
+ *   不会读成空字符串）。
+ */
+export function stickerFaceName(faceId: string): string {
+  switch (faceId) {
+    // 看板娘 Q 版头像（public/avatars）
+    case "smile":
+      return t`微笑`;
+    case "hi":
+      return t`打招呼`;
+    case "laugh":
+      return t`大笑`;
+    case "cheer":
+      return t`欢呼`;
+    case "joy":
+      return t`庆祝`;
+    case "wonder":
+      return t`好奇`;
+    case "focus":
+      return t`认真`;
+    case "nap":
+      return t`打盹`;
+    // 内置 emoji
+    case "like":
+      return t`点赞`;
+    case "heart":
+      return t`比心`;
+    case "lol":
+      return t`笑死`;
+    case "wow":
+      return t`惊了`;
+    case "cry":
+      return t`哭了`;
+    case "party":
+      return t`撒花`;
+    case "fish":
+      return t`摸鱼`;
+    case "eyes":
+      return t`围观`;
+    default:
+      return faceId;
+  }
+}
+
+/**
+ * 贴纸面板底部那一句"这东西能传多远"（任务点名：联机贴纸要服务端支持后会同步）。
+ *
+ * ★★ 为什么这句必须写在界面上：服务端本轮没有聊天 / 自定义事件端点
+ *   （`api/game/rooms.ts` / `api/game/rounds.ts` 一个都没有），所以贴纸**只在本机播** ——
+ *   联机局里同桌的人根本收不到。不写这一句，玩家贴完看到自己屏幕上冒出来，就会以为对方也看见了
+ *   （铁律八：别让"看起来做完了"冒充"做完了"）。接上服务端之后把 `online` 这一支删掉即可。
+ *
+ * ★ 本机局单独一句：本机局的"对面"是 AI，AI 的贴纸是脚本给的 —— 说清楚，别让人以为 AI 真的在看。
+ */
+export function stickerSyncNote(online: boolean): string {
+  return online
+    ? t`联机贴纸：要服务端支持后才会同步给同桌（现在只有你自己看得到）`
+    : t`本机局：贴纸只在这一台设备上播（对面是 AI，它也会自己贴）`;
+}
+
 // ────────────────────────────── AI 陪玩的提示词（§2.4） ──────────────────────────────
 
 /**

@@ -12784,6 +12784,15 @@ msgstr "About {0} tokens in total"
 msgid "同一个人出现了两次"
 msgstr "the same person appears twice"
 
+#: src/studio/game/ui/StickerPanel.tsx
+msgid "同一人 2 秒最多 1 条"
+msgstr "One sticker per person every 2 seconds"
+
+#. placeholder {0}: (waitMs / 1000).toFixed(1)
+#: src/studio/game/ui/StickerPanel.tsx
+msgid "同一人 2 秒最多 1 条 · 还差 {0} 秒"
+msgstr "One per person every 2s · {0}s to go"
+
 #: src/components/guide/tours.tsx
 msgid "同一条片的另一面"
 msgstr "The other side of the video"
@@ -12942,6 +12951,10 @@ msgstr "What's wrong?"
 
 #: src/pages/SupportModelNewPage.tsx
 msgid "哭"
+msgstr "Crying"
+
+#: src/studio/game/labels.ts
+msgid "哭了"
 msgstr "Crying"
 
 #: src/components/flow/FlowCanvas.tsx
@@ -13203,6 +13216,10 @@ msgstr "Back to home"
 #: src/pages/ProfilePage.tsx
 msgid "因一笔退款，已收回相应 token，尚欠 {0}。下次充值会自动抵扣，抵完即可继续生成；在那之前生成功能暂时不可用。"
 msgstr "A refund clawed back the matching tokens; {0} is still outstanding. Your next top-up pays it off automatically, and generation resumes as soon as it clears. Until then generation is paused."
+
+#: src/studio/game/labels.ts
+msgid "围观"
+msgstr "Watching"
 
 #: src/components/flow/CameraChips.tsx
 msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜头运动"
@@ -13640,6 +13657,7 @@ msgid "大小未知，没法校验这一份是不是完整的。"
 msgstr "Size unknown, so there's no way to check this file is complete."
 
 #: src/pages/SupportModelNewPage.tsx
+#: src/studio/game/labels.ts
 msgid "大笑"
 msgstr "Laughing"
 
@@ -13840,6 +13858,10 @@ msgstr "OK"
 #: src/components/flow/FlowCanvas.tsx
 msgid "好了（选中 {0} 张）"
 msgstr "Done ({0} selected)"
+
+#: src/studio/game/labels.ts
+msgid "好奇"
+msgstr "Curious"
 
 #: src/pages/FeedPage.tsx
 msgid "好的，这条不再出现"
@@ -14503,6 +14525,10 @@ msgstr "The last frame has been redrawn as you asked."
 #: src/studio/ui/FrameCard.tsx
 msgid "尾帧由所选方案决定；视频从开头帧往下拍"
 msgstr "The last frame comes from the chosen plan; the video starts from the opening frame"
+
+#: src/studio/game/ui/StickerBubbles.tsx
+msgid "局内贴纸"
+msgstr "In-game stickers"
 
 #: src/types.ts
 msgid "局部材质与陈设特征"
@@ -15655,6 +15681,10 @@ msgstr "Calm"
 msgid "广场上还没有人发布技能——发布你的第一条？"
 msgstr "No one has published a skill yet. Publish the first one?"
 
+#: src/studio/game/labels.ts
+msgid "庆祝"
+msgstr "Celebrate"
+
 #: src/components/guide/tours.tsx
 msgid "底下那条细线"
 msgstr "The thin line at the bottom"
@@ -16211,6 +16241,10 @@ msgstr "WeChat sign-in only works in the app (a browser has no WeChat client to 
 msgid "微信里拒绝了这次授权。想用微信登录的话再点一次，在微信里选「同意」。"
 msgstr "The request was declined in WeChat. To sign in with WeChat, tap again and choose Agree in WeChat."
 
+#: src/studio/game/labels.ts
+msgid "微笑"
+msgstr "Smile"
+
 #: src/studio/personaWizardStore.ts
 msgid "微调"
 msgstr "Fine-tune"
@@ -16315,6 +16349,10 @@ msgstr "Emotional"
 #: src/components/flow/SongWizard.tsx
 msgid "情绪"
 msgstr "Mood"
+
+#: src/studio/game/labels.ts
+msgid "惊了"
+msgstr "Shocked"
 
 #: src/pages/SimpleModePage.tsx
 msgid "想怎么开始？"
@@ -16727,6 +16765,10 @@ msgstr "In decks"
 msgid "手上没有角色 / 场景卡了——去商店买一张"
 msgstr "No character / scene cards left — buy one in the shop"
 
+#: src/studio/game/ui/StickerPanel.tsx
+msgid "手上还没有卡——先去商店买一张"
+msgstr "No cards yet — buy one in the shop first"
+
 #: src/components/VolcCompatToggle.tsx
 msgid "手工填入"
 msgstr "Entered manually"
@@ -16831,6 +16873,14 @@ msgstr "Open this entry’s video ↗"
 #: src/components/DraftSheet.tsx
 msgid "打开这条草稿（丢弃上面那条流水线）"
 msgstr "Open this draft (discard the pipeline above)"
+
+#: src/studio/game/labels.ts
+msgid "打招呼"
+msgstr "Wave"
+
+#: src/studio/game/labels.ts
+msgid "打盹"
+msgstr "Napping"
 
 #. placeholder {0}: fmtTokens(n.refund.tokens)
 #: src/pages/NotificationsPage.tsx
@@ -18470,9 +18520,17 @@ msgstr "Touch “{areaName}” → {target}"
 msgid "摸这里没有反应"
 msgstr "touching here does nothing"
 
+#: src/studio/game/labels.ts
+msgid "摸鱼"
+msgstr "Slacking"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "撒娇"
 msgstr "Affectionate"
+
+#: src/studio/game/labels.ts
+msgid "撒花"
+msgstr "Confetti"
 
 #. placeholder {0}: c.name
 #: src/studio/ui/projection.tsx
@@ -18695,6 +18753,10 @@ msgstr "Hide description"
 #: src/pages/FlowPage.tsx
 msgid "收起补充要求"
 msgstr "Hide extra request"
+
+#: src/studio/game/ui/StickerPanel.tsx
+msgid "收起贴纸面板"
+msgstr "Close the sticker panel"
 
 #: src/pages/SettingsPage.tsx
 msgid "收集什么、怎么用、找谁行使权利"
@@ -20352,6 +20414,10 @@ msgstr "Local match"
 #~ msgid "本机局：其余座位由 AI 补位，不能拉黑或举报"
 #~ msgstr "Local game: the other seats are filled by AI and can't be blocked or reported"
 
+#: src/studio/game/labels.ts
+msgid "本机局：贴纸只在这一台设备上播（对面是 AI，它也会自己贴）"
+msgstr "Local game: stickers stay on this device (the rivals are AI — they post their own)"
+
 #: src/utils/nativeCamera.ts
 msgid "本机没有系统相机（Android 11 起只认预装相机）——改用「上传本地图片」"
 msgstr "No system camera on this device (Android 11+ only allows the preinstalled camera). Use “Upload from device” instead."
@@ -21265,6 +21331,10 @@ msgstr "orange"
 msgid "欠额 {owed}，已冻结"
 msgstr "{owed} owed — frozen"
 
+#: src/studio/game/labels.ts
+msgid "欢呼"
+msgstr "Cheer"
+
 #: src/components/flow/SongWizard.tsx
 msgid "欢快"
 msgstr "Joyful"
@@ -22075,6 +22145,10 @@ msgstr "e.g. “a listening ear”, “practice partner”, “writing buddy”"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "比如「认识很久的朋友」"
 msgstr "e.g. “a friend of many years”"
+
+#: src/studio/game/labels.ts
+msgid "比心"
+msgstr "Heart"
 
 #: src/studio/game/labels.ts
 msgid "水彩晕染的柔和边缘、暖黄与苔绿，雨丝里飘着萤火般的光点。"
@@ -23512,6 +23586,7 @@ msgstr "Tap the <0>create-template card</0> at the top of the shelf: upload a vi
 #: src/components/CommentSheet.tsx
 #: src/components/support/VoiceMarket.tsx
 #: src/pages/FeedPage.tsx
+#: src/studio/game/labels.ts
 msgid "点赞"
 msgstr "Like"
 
@@ -26132,6 +26207,10 @@ msgstr "Center stage at a concert, dancing to the beat"
 msgid "童话森林"
 msgstr "Fairytale forest"
 
+#: src/studio/game/labels.ts
+msgid "笑死"
+msgstr "LOL"
+
 #. placeholder {0}: index + 1
 #. placeholder {1}: entries.length
 #. placeholder {1}: playlist.length
@@ -27959,6 +28038,10 @@ msgstr "You can't change the table size in an online room yet"
 msgid "联机版不能给自己的片子点赞"
 msgstr "You cannot like your own entry in online games"
 
+#: src/studio/game/labels.ts
+msgid "联机贴纸：要服务端支持后才会同步给同桌（现在只有你自己看得到）"
+msgstr "Online stickers: they will reach the table once the server supports it (for now only you can see them)"
+
 #: src/studio/game/ui/Lobby.tsx
 #~ msgid "联机还没接通：现在开局一律由 AI 陪玩补位，真人匹配要等服务端房间。"
 #~ msgstr "Online play is not wired up yet: every match is filled by AI players for now, and real matchmaking waits on the server rooms"
@@ -28439,6 +28522,7 @@ msgid "补齐剩下的图位约 {aiPriceText} token，余额 {balance} 不够—
 msgstr "Filling in the remaining slot images costs about {aiPriceText} tokens, and your balance of {balance} isn't enough — top up on the “Me” page, or choose “Upload my own images” instead (free)"
 
 #: src/pages/SupportModelNewPage.tsx
+#: src/studio/game/ui/StickerBubbles.tsx
 msgid "表情"
 msgstr "Expressions"
 
@@ -28733,6 +28817,10 @@ msgstr "Found a {0}-beat timeline running to {1}s. Only Cinema follows timelines
 #: src/components/blockout/DetectRolesEntry.tsx
 msgid "认好了 ✓"
 msgstr "Detected ✓"
+
+#: src/studio/game/labels.ts
+msgid "认真"
+msgstr "Focused"
 
 #: src/studio/game/ui/GameSettings.tsx
 msgid "认输并退出"
@@ -29468,6 +29556,11 @@ msgstr "Your account is frozen over an outstanding balance, so the model can't b
 msgid "质感特写"
 msgstr "Texture close-up"
 
+#. placeholder {0}: gameCardName(card)
+#: src/studio/game/ui/StickerPanel.tsx
+msgid "贴「{0}」"
+msgstr "Post {0}"
+
 #: src/studio/structuredSkills.ts
 msgid "贴剧本"
 msgstr "Paste script"
@@ -29488,6 +29581,18 @@ msgstr "Texture {name} is {width}×{height}, with a side over {MAX_TEXTURE_SIDE}
 #: src/live2d/bundlePreview.ts
 msgid "贴图有 {count} 张，超过 {MAX_TEXTURE_COUNT} 张的上限。请在 Cubism 里把纹理图集合并一下再导出。"
 msgstr "There are {count} textures, over the limit of {MAX_TEXTURE_COUNT}. Merge the texture atlases in Cubism and export again."
+
+#: src/studio/game/ui/StickerPanel.tsx
+msgid "贴我的卡"
+msgstr "Stick one of my cards"
+
+#: src/studio/game/ui/StickerPanel.tsx
+msgid "贴纸"
+msgstr "Stickers"
+
+#: src/studio/game/ui/StickerPanel.tsx
+msgid "贴纸：贴一个表情或者贴一张我的卡"
+msgstr "Stickers: send a reaction or one of my cards"
 
 #: src/api/support.ts
 msgid "费用与退款"
