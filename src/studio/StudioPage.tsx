@@ -36,6 +36,9 @@ import { useHistory } from "./game/historyStore";
 import { quitGameToLobby } from "./game/ui/quitGame";
 import { useLobby } from "./game/lobbyStore";
 import { useGame } from "./game/store";
+// 对局那份「跟着做一局」的重看入口（2026-11-24）：顶栏那颗 `?`。
+// ★ 不放在 GameLayer 里：那一层在选风格那一屏是早退的，而 `?` 该在整局里都在。
+import HelpButton from "../components/guide/HelpButton";
 import { cancelPendingStop, stopSpeakingSoon } from "./speech";
 import { useCastReturn } from "../hooks/useCastReturn";
 import { useFlowActions } from "../hooks/useFlowActions";
@@ -456,6 +459,11 @@ export default function StudioPage() {
               {inGame ? <Trans>✕ 结束对局</Trans> : <Trans>▶ 开局</Trans>}
             </button>
           )}
+          {/* 「? 玩法说明」（2026-11-24）：把对局面板那一份引导再放一遍（tours.tsx 的 ingame 六步）。
+              ★ 只在开局时摆（`isLand && inGame`）：那一份讲的全是局内的面板，没开局时点开是一片
+                "这些面板长什么样"的空话；大厅自己那颗 ? 在大厅顶栏上（ui/Lobby）。
+              ★ 摆在 ⚙ 旁边（都是"这一局"的键）；大厅盖着时这一层本来就被盖住，不会与大厅那颗同时出现。 */}
+          {isLand && inGame && <HelpButton tour="ingame" />}
           {/* ⚙ 设置（2026-11-24）：**只在开着一局时**摆 —— 音量 / 退出游戏这些字段都是对局里的东西，
               没开局时它只会是一颗空页入口（画质与语言在「我的 → 设置」里也有，但那是另一套页面）。
               位置紧跟「✕ 结束对局」：两颗都是"这一局"的键，放一起才不会被当成工坊的设置。 */}

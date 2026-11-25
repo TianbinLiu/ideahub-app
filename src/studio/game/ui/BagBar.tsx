@@ -66,6 +66,9 @@ export default function BagBar({ view }: { view: GameView }) {
       <div
         // data 属性给拖拽层认"这是背包条"（拖回背包那一路要看落在不在这一块上）
         data-game-bag="1"
+        // ★ data-guide="game-bag"：新手引导「把卡摆上桌」那一步的高亮目标（按"从哪儿拿出去"指，
+        //   **不指 3D 桌面**：卡位在画布上，没有可挂 DOM 锚点的元素）
+        data-guide="game-bag"
         className="w-fit rounded-xl bg-panel/90 px-2 py-1 ring-1 ring-white/10 backdrop-blur"
       >
         <div className="mb-0.5 flex items-center gap-2 text-[10px]">

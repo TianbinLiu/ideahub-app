@@ -45,6 +45,8 @@ import GameBtn from "./GameBtn";
 import RoomScreen from "./RoomScreen";
 import { startFromLobby } from "./startFromLobby";
 import { useLobbyOnline } from "./useLobbyOnline";
+import HelpButton from "../../../components/guide/HelpButton";
+import { useAutoGuide } from "../../../components/guide/useAutoGuide";
 
 /** 首屏选中的那一种开局方式（点卡片只改它，点主键才真的开始）。 */
 type LobbyPick = "match4" | "match8" | "room";
@@ -72,6 +74,16 @@ export default function Lobby() {
   const [startFailed, setStartFailed] = useState(false);
   // 联机轮询（等匹配 / 房间快照 / 服务端开局 → 本机建局）
   const onlineRun = useLobbyOnline();
+
+  /**
+   * 新手引导（2026-11-24，docs/game-lobby-ui-benchmark.md §2.1 #19）：**第一次进大厅的首屏**自动弹一次
+   * （tours.tsx 的 `lobby`：选模式 → 主键 → 凭码加入），看过之后只剩右上角那颗 `?`。
+   * ★ 只挂在首屏（`screen === "home"`）：等匹配 / 房间那两屏的锚点不在这张图上
+   *   （`lobby-modes` / `lobby-start` 都不渲染），弹出来只会是一张没有圈的居中卡片。
+   * ★ 与 `if (!open || inGame) return null` 那条早退的关系：hook 排在它前面（check-hook-order），
+   *   关着大厅时靠 enabled 为假兜住。
+   */
+  useAutoGuide("lobby", open && !inGame && screen === "home");
 
   /**
    * 首屏选中的模式（默认 4 人）。
@@ -235,6 +247,9 @@ export default function Lobby() {
               <span aria-hidden>📼</span> <Trans>最近一局回放</Trans>
             </button>
           )}
+          {/* ? 玩法说明（2026-11-24）：把这一屏的引导再放一遍。★ 与局内那份 `ingame` 各一颗 ——
+              大厅与对局是两个挂载点，一颗键指不到两个屏。 */}
+          <HelpButton tour="lobby" className="flex-none" circleClassName="border-white/25" />
           <button
             type="button"
             onClick={() => useLobby.getState().closeLobby()}
@@ -253,8 +268,10 @@ export default function Lobby() {
           //   上主键会飘在屏幕中间，而"底部一颗实心主键"是这一批的验收形状。
           <div className="flex w-full flex-col items-center self-stretch">
             <div className="flex min-h-0 w-full flex-1 flex-col items-center justify-center gap-2">
-              {/* 三张模式卡：点一下只选中 */}
-              <div className="flex w-full flex-wrap items-stretch justify-center gap-2.5">
+              {/* 三张模式卡：点一下只选中
+                  ★ data-guide="lobby-modes"：新手引导「选模式」那一步的高亮目标（components/guide/tours.tsx 的 lobby）。
+                    挂在这一行而不是某一张卡上 —— 三张都是同一件事（选一种），挂到第一张上等于教人点 4 人局。 */}
+              <div data-guide="lobby-modes" className="flex w-full flex-wrap items-stretch justify-center gap-2.5">
                 <ModeCard
                   glyph="4"
                   title={t`4 人匹配`}
@@ -284,6 +301,7 @@ export default function Lobby() {
                   ★ 联机没接通时也摆着：点了会在底栏说"没连上房间服务"，比藏起来更诚实
                     （藏起来的话，拿到码的人会以为 App 没有这个功能）。 */}
               <form
+                data-guide="lobby-join"
                 className="flex w-full items-center justify-center gap-1.5"
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -307,10 +325,12 @@ export default function Lobby() {
                 </GameBtn>
               </form>
             </div>
-            {/* 底部主键：唯一能真的进队 / 建房的那一下 */}
+            {/* 底部主键：唯一能真的进队 / 建房的那一下
+                ★ data-guide="lobby-start"：新手引导「匹配 / 建房」那一步的高亮目标 */}
             <div className="flex w-full flex-none flex-col items-center gap-1 pb-1">
               <button
                 type="button"
+                data-guide="lobby-start"
                 onClick={startPicked}
                 disabled={busy}
                 aria-keyshortcuts="Enter"

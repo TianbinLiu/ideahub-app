@@ -6,6 +6,10 @@
 //   只摆一个榜玩家会以为投票没用。
 // ★ 对局结束（over）那一支不读 report：真人被淘汰后剩下的回合是后台跑完的，
 //   那一期没有逐回合摘要给这一屏用，胜者与血量问 state / winnersOf 就够。
+// ★★ `data-guide="game-result"`（新手引导「看结算」那一步的高亮目标）：这一屏有**四个**
+//   正式分支（联机结算 / 联机结束 / 本机结算 / 本机结束，另有一个"正在读取结算"的过场），
+//   每个分支的根都挂同一个锚点名 —— 少挂一个的症状是"那一支的引导圈凭空没了"（零报错）。
+//   锚点挂在**根**而不是里面某一行：四个分支的首行不是同一块（"本局结束"vs"第 N 回合结算"）。
 import { Trans } from "@lingui/react/macro";
 import { playerName } from "../labels";
 import { useGame, winnersOfState } from "../store";
@@ -35,7 +39,7 @@ export default function RoundResultPanel() {
         hp: rows.find((row) => row.userId === winner.userId)?.hp ?? null,
       }));
       return (
-        <div className="pointer-events-auto w-full max-w-[44rem] rounded-xl bg-panel/95 p-2 ring-1 ring-gold/40 backdrop-blur">
+        <div data-guide="game-result" className="pointer-events-auto w-full max-w-[44rem] rounded-xl bg-panel/95 p-2 ring-1 ring-gold/40 backdrop-blur">
           <div className="flex items-baseline gap-2">
             <span className="text-[13px] font-semibold text-gold-200">
               <Trans>🏁 本局结束</Trans>
@@ -97,7 +101,7 @@ export default function RoundResultPanel() {
     const mineIndex = rows.findIndex((row) => row.userId === (session?.myUserId ?? online.myUserId));
     const mine = mineIndex >= 0 ? rows[mineIndex] : null;
     return (
-      <div className="pointer-events-auto w-full max-w-[48rem] rounded-xl bg-panel/90 p-1.5 ring-1 ring-white/10 backdrop-blur">
+      <div data-guide="game-result" className="pointer-events-auto w-full max-w-[48rem] rounded-xl bg-panel/90 p-1.5 ring-1 ring-white/10 backdrop-blur">
         <div className="flex items-baseline gap-2 text-[10px]">
           <span className="text-[12px] font-semibold text-slate-100">
             <Trans>📊 第 {state.round} 回合结算（联机）</Trans>
@@ -157,7 +161,7 @@ export default function RoundResultPanel() {
     const winners = winnersOfState(state);
     const me = state.players.find((player) => player.id === meId);
     return (
-      <div className="pointer-events-auto w-full max-w-[44rem] rounded-xl bg-panel/95 p-2 ring-1 ring-gold/40 backdrop-blur">
+      <div data-guide="game-result" className="pointer-events-auto w-full max-w-[44rem] rounded-xl bg-panel/95 p-2 ring-1 ring-gold/40 backdrop-blur">
         <div className="flex items-baseline gap-2">
           <span className="text-[13px] font-semibold text-gold-200">
             <Trans>🏁 本局结束</Trans>
@@ -217,7 +221,7 @@ export default function RoundResultPanel() {
   const mine = damages.find((damage) => damage.playerId === meId);
 
   return (
-    <div className="pointer-events-auto w-full max-w-[48rem] rounded-xl bg-panel/90 p-1.5 ring-1 ring-white/10 backdrop-blur">
+    <div data-guide="game-result" className="pointer-events-auto w-full max-w-[48rem] rounded-xl bg-panel/90 p-1.5 ring-1 ring-white/10 backdrop-blur">
       <div className="flex items-baseline gap-2 text-[10px]">
         <span className="text-[12px] font-semibold text-slate-100">
           <Trans>📊 第 {report.summary.round} 回合结算</Trans>

@@ -25,6 +25,8 @@ import url from "node:url";
 
 const root = path.resolve(path.dirname(url.fileURLToPath(import.meta.url)), "..");
 const load = (rel) => import(url.pathToFileURL(path.join(root, rel)).href);
+// ★ 放在顶层而不是各段里：第 5 段（接线）与第 8 段（引导）都要读源码，两处各写一份迟早漂
+const read = (rel) => fs.readFileSync(path.join(root, rel), "utf8");
 const R = await load("src/studio/game/roster.ts");
 const C = await load("src/studio/game/connection.ts");
 const K = await load("src/studio/game/phaseClock.ts");
@@ -242,8 +244,6 @@ console.log("4) 本地计时（clockKeyOf / elapsedMsOf / formatElapsed）");
 // ── 5. 源码断言：接线（这几处要 React，Node 跑不起来）──────────────────────────
 console.log("5) 源码断言（接线）");
 {
-  const read = (rel) => fs.readFileSync(path.join(root, rel), "utf8");
-
   const store = read("src/studio/game/roundsStore.ts");
   ok(
     "退回单机时把服务端的业务码带上（被踢与断网要分得开）",
@@ -548,6 +548,265 @@ console.log("7) 局内贴纸（stickers.ts）");
   ok("5 条单行气泡装得进最高（93 ≤ 101.6，28vh @ 363）", FIVE_BUBBLES <= 101.6);
   ok("栈顶不会顶到 HUD（315.4 - 101.6 = 213.8 > 96）", LAYER_BOTTOM - S.STICKER_STACK_BOTTOM_PX - 101.6 > HUD_BOTTOM);
   ok("最高的 CSS 是 28vh", S.STICKER_STACK_MAX_HEIGHT.includes("28vh"));
+}
+
+// ── 8. 「跟着做一局」的新手引导（2026-11-24）：两组 tour / 按阶段分窗 / 跳过 / 重看入口 ─────────
+// 任务（docs/game-lobby-ui-benchmark.md §2.1 #19 / §2.3 第 4 条）点名的六条断言在这里：
+//   ① 首次触发（进大厅 / 进对局各弹一次）② 看过不再弹 ③ 跳过与全部跳过 ④ 重看入口
+//   ⑤ 步骤数与目标锚点存在 ⑥ 800×363 上气泡不溢出、高亮框与真实控件对齐。
+//
+// ★★ 为什么值得单开一段：这一套的错**全都不报错**——
+//   · 漏了 `useGameTutorial("ingame")`：进对局一条都不弹，界面上什么异常都没有（check-guides 只证明
+//     "有个入口"，不证明"在正确的阶段弹"）；
+//   · 分窗的 `phase` 写错一个字（`shop` 写成 `shop `）：那一窗永远不弹，玩家少看两步；
+//   · 锚点挂到"某一颗随状态变化的键"上：点赞键在联机版 / 已点过时换成一句字，圈就**偶尔**没了；
+//   · 800×363 上气泡挤不进目标上下那点空隙时，GuideOverlay 会退成**居中卡片、正好盖住它要指的面板**
+//     —— 屏幕上看着"能用"，而任务点名的那条（气泡在目标旁边）当场不成立。
+//   所以这里把「阶段 → 窗口」「锚点挂在哪个文件」「那个锚点在 800×363 上的位置」逐条钉住。
+console.log("8) 新手引导：大厅（lobby）+ 对局（ingame）");
+{
+  // ── ① 两组 tour 的形状：步骤数 / 阶段 / 锚点 / 跳过开关 ──
+  const toursSrc = read("src/components/guide/tours.tsx");
+  /** 取某一份 tour 的正文片段（`id: "x"` 到它那个对象的结尾 `\n  },`） */
+  const blockOf = (id) => {
+    const at = toursSrc.indexOf(`id: "${id}"`);
+    if (at < 0) return "";
+    const rest = toursSrc.slice(at);
+    const end = rest.indexOf("\n  },");
+    return end < 0 ? rest : rest.slice(0, end);
+  };
+  const lobbyBlock = blockOf("lobby");
+  const ingameBlock = blockOf("ingame");
+  ok("tours.tsx 里有大厅那一份", lobbyBlock.length > 0);
+  ok("tours.tsx 里有对局那一份", ingameBlock.length > 0);
+
+  // ★ 步骤标题是 8 格缩进的那一层；tour 自己的屏名（GuideTour.title）是 4 格 —— 不分开数会多算一条
+  const stepCount = (block) => (block.match(/^ {8}title: msg`/gm) ?? []).length;
+  const anchorsOf = (block) => [...block.matchAll(/anchor: "([^"]+)"/g)].map((m) => m[1]);
+  const phasesOf = (block) => [...block.matchAll(/phase: "([^"]+)"/g)].map((m) => m[1]);
+
+  eq("大厅那份 3 步（选模式 → 主键 → 凭码加入）", stepCount(lobbyBlock), 3);
+  eq("对局那份 6 步（买卡 / 摆卡 / 写提示词交片 / 展映点赞 / 投票 / 看结算）", stepCount(ingameBlock), 6);
+  eq("大厅那三处锚点", anchorsOf(lobbyBlock), ["lobby-modes", "lobby-start", "lobby-join"]);
+  eq("对局那六处锚点", anchorsOf(ingameBlock), [
+    "game-shop",
+    "game-bag",
+    "game-create",
+    "game-like",
+    "game-vote",
+    "game-result",
+  ]);
+  // ★ "每一步都指到真实控件"这件事的判据：每个 step 都有 anchor（一处都不许退成居中卡片）
+  eq("大厅每一步都挂了锚点", anchorsOf(lobbyBlock).length, stepCount(lobbyBlock));
+  eq("对局每一步都挂了锚点", anchorsOf(ingameBlock).length, stepCount(ingameBlock));
+
+  // ── ② 阶段顺序与状态机对得上（写错一个阶段名 = 那一窗永远不弹）──
+  const MACHINE = ["shop", "create", "screening", "voting", "round-end"];
+  const ingamePhases = phasesOf(ingameBlock);
+  eq("对局六步的阶段（与 rules 的推进顺序一致）", ingamePhases, ["shop", "shop", "create", "screening", "voting", "round-end"]);
+  eq("大厅那份一步都不带阶段（它不按阶段分窗）", phasesOf(lobbyBlock), []);
+  const typesSrc = read("src/studio/game/types.ts");
+  const unionLine = /export type GamePhase =([^;]+);/.exec(typesSrc)?.[1] ?? "";
+  const union = [...unionLine.matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+  eq("GamePhase 的九个值没变（新增阶段要回头补这一步）", union, [
+    "style",
+    "ready",
+    "shop",
+    "create",
+    "screening",
+    "voting",
+    "event",
+    "round-end",
+    "over",
+  ]);
+  eq(
+    "写进 tours 的阶段名都是真的 GamePhase",
+    ingamePhases.filter((p) => !union.includes(p)),
+    [],
+  );
+  ok(
+    "阶段顺序与状态机同向（只按 MACHINE 的顺序出现，不回头）",
+    (() => {
+      const seenUnique = [...new Set(ingamePhases)];
+      return seenUnique.every((p, i) => MACHINE[i] === p);
+    })(),
+  );
+
+  // ── ③ 分窗判据（gameTutorial.ts）：阶段 → 那一窗；over 与 round-end 共用最后一窗 ──
+  const G = await load("src/studio/game/ui/gameTutorial.ts");
+  const steps = [
+    { phase: "shop" },
+    { phase: "shop" },
+    { phase: "create" },
+    { phase: "screening" },
+    { phase: "voting" },
+    { phase: "round-end" },
+  ];
+  const win = (phase) => G.tutorialWindowFor(steps, phase);
+  eq("商店阶段讲第 1~2 步", win("shop"), { from: 0, to: 1 });
+  eq("创作阶段讲第 3 步", win("create"), { from: 2, to: 2 });
+  eq("展映阶段讲第 4 步", win("screening"), { from: 3, to: 3 });
+  eq("投票阶段讲第 5 步", win("voting"), { from: 4, to: 4 });
+  eq("结算阶段讲第 6 步", win("round-end"), { from: 5, to: 5 });
+  eq("对局结束（over）与结算共用最后一窗", win("over"), { from: 5, to: 5 });
+  eq("选风格那一屏不讲（那一屏自己说得很清楚）", win("style"), null);
+  eq("事件阶段不讲", win("event"), null);
+  eq("阶段别名表只有 over 一条", G.PHASE_ALIAS, { over: "round-end" });
+  eq("窗口末步 = 那几步里最后一步", win("shop").to, 1);
+  eq("窗口里的步骤一条不漏（shop 两窗都讲过才算）", [G.windowPending({ from: 0, to: 1 }, []), G.windowPending({ from: 0, to: 1 }, [0]), G.windowPending({ from: 0, to: 1 }, [0, 1])], [true, true, false]);
+  eq("只讲过别的阶段不算这一窗讲过", G.windowPending({ from: 2, to: 2 }, [0, 1]), true);
+
+  // ── ④ 触发接线：大厅走 useAutoGuide、对局走 useGameTutorial，且都在早退之前 ──
+  const lobbySrc = read("src/studio/game/ui/Lobby.tsx");
+  ok("大厅首屏自动弹（useAutoGuide(\"lobby\")）", lobbySrc.includes('useAutoGuide("lobby"'));
+  ok("只在大厅首屏弹（等匹配 / 房间那两屏的锚点不在）", /useAutoGuide\("lobby",[^;]*screen === "home"/.test(lobbySrc));
+  const layerSrc = read("src/studio/game/ui/GameLayer.tsx");
+  ok("对局按阶段触发（useGameTutorial(\"ingame\", state?.phase)）", /useGameTutorial\("ingame", state\?\.phase/.test(layerSrc));
+  ok(
+    "hook 排在 `if (!state) return null` 之前（否则 hook 数会变，整棵树崩）",
+    layerSrc.indexOf('useGameTutorial("ingame"') < layerSrc.indexOf("if (!state) return null"),
+  );
+  ok("出局的人不弹（剩下的回合是 playOutAiOnly 后台跑的）", /useGameTutorial\("ingame"[\s\S]{0,300}?eliminated/.test(layerSrc));
+  const hookSrc = read("src/studio/game/ui/useGameTutorial.ts");
+  ok("整份看过就不再弹（问 guideSeen）", hookSrc.includes("guideSeen("));
+  ok("分窗那一路按步问（问 guideStepsSeen）", hookSrc.includes("guideStepsSeen("));
+  ok("弹之前等一拍（锚点要等面板挂上）", hookSrc.includes("setTimeout(") && hookSrc.includes("clearTimeout("));
+
+  // ── ⑤ 重看入口：大厅顶栏一颗、对局顶栏一颗（都走 HelpButton 那一份实现）──
+  ok("大厅的「? 玩法说明」", /HelpButton\s+tour="lobby"/.test(lobbySrc));
+  ok("对局的「? 玩法说明」（StudioPage 顶栏，只在开局时）", /isLand && inGame && <HelpButton tour="ingame"/.test(read("src/studio/StudioPage.tsx")));
+
+  // ── ⑥ 跳过与全部跳过 ──
+  ok("大厅那份可跳过", /id: "lobby"[\s\S]{0,400}?skippable: true/.test(toursSrc));
+  ok("对局那份可跳过", /id: "ingame"[\s\S]{0,600}?skippable: true/.test(toursSrc));
+  ok("对局那份还有「全部跳过」（分窗那一路只记这一窗，需要第二个出口）", /id: "ingame"[\s\S]{0,600}?skipAll: true/.test(toursSrc));
+  ok("大厅那份不摆「全部跳过」（一开就记成整份看过，两颗键干的是同一件事）", !/id: "lobby"[\s\S]{0,400}?skipAll: true/.test(toursSrc));
+  const overlay = read("src/components/guide/GuideOverlay.tsx");
+  ok("遮罩上真有「跳过」", /tour\.skippable && \([\s\S]{0,200}?<Trans>跳过<\/Trans>/.test(overlay));
+  ok("遮罩上真有「全部跳过」，且它把整份记成看过", /tour\.skipAll && \([\s\S]{0,200}?<Trans>全部跳过<\/Trans>/.test(overlay) && /markGuideSeen\(tour\.id, tour\.version\)/.test(overlay));
+
+  // ── ⑦ 存储：两把键（整份 / 分窗），复位一起清 ──
+  const guideSrc = read("src/data/guide.ts");
+  ok("整份那把键没改名（老 20 份的数据不丢）", guideSrc.includes('"ideahub-app.guide.seen.v1"'));
+  ok("分窗那把键是新的、也在同一个文件里", guideSrc.includes('"ideahub-app.guide.steps.v1"'));
+  ok("复位两把一起清（设置页「重看所有新手引导」）", /export function resetGuidesSeen\(\)[\s\S]{0,400}?seenSteps = \{\}/.test(guideSrc));
+  ok("分窗那一路**不**记整份看过（否则后面几屏再也不讲）", /export function openGuideSteps[\s\S]{0,500}?markGuideStepsSeen\(id, from, to\)/.test(guideSrc) && !/export function openGuideSteps[\s\S]{0,500}?markGuideSeen\(/.test(guideSrc));
+
+  // 真跑一遍判据：拿一份假 localStorage 把「首次 / 讲过 / 全部跳过 / 复位」走完
+  const mem = new Map();
+  globalThis.localStorage = {
+    getItem: (k) => (mem.has(k) ? mem.get(k) : null),
+    setItem: (k, v) => mem.set(k, String(v)),
+    removeItem: (k) => mem.delete(k),
+  };
+  const GD = await load("src/data/guide.ts");
+  eq("第一次进对局：整份没看过", GD.guideSeen("ingame", 1), false);
+  eq("也没讲过任何一步", GD.guideStepsSeen("ingame"), []);
+  GD.openGuideSteps("ingame", { version: 1, from: 0, to: 1 });
+  eq("开商店那一窗：卡片停在第一步", GD.activeGuide().step, 0);
+  eq("…窗口末步记在 active.to（走到那儿就收）", GD.activeGuide().to, 1);
+  eq("开的时候就把这一窗记成讲过", GD.guideStepsSeen("ingame"), [0, 1]);
+  eq("但整份**没有**被记成看过", GD.guideSeen("ingame", 1), false);
+  eq("这一窗不再弹", G.windowPending(G.tutorialWindowFor(steps, "shop"), GD.guideStepsSeen("ingame")), false);
+  eq("下一窗照弹", G.windowPending(G.tutorialWindowFor(steps, "create"), GD.guideStepsSeen("ingame")), true);
+  GD.closeGuide();
+  GD.openGuideSteps("ingame", { version: 1, from: 3, to: 3 });
+  eq("第二窗从第 4 步开、讲到第 4 步", [GD.activeGuide().step, GD.activeGuide().to], [3, 3]);
+  eq("讲过的步骤累加（0,1,3）", GD.guideStepsSeen("ingame"), [0, 1, 3]);
+  GD.closeGuide();
+  GD.markGuideSeen("ingame", 1);
+  eq("「全部跳过」之后整份算看过", GD.guideSeen("ingame", 1), true);
+  GD.resetGuidesSeen();
+  eq("复位之后两把都空（重看所有新手引导要真的回来）", [GD.guideSeen("ingame", 1), GD.guideStepsSeen("ingame")], [false, []]);
+  GD.openGuide("lobby", { auto: true, version: 1 });
+  eq("老那一路（一步讲完一屏）照旧：开就记整份看过", GD.guideSeen("lobby", 1), true);
+  eq("…而且不碰分窗那把键", GD.guideStepsSeen("lobby"), []);
+  eq("…active.to 不设（不分窗，走到整份最后一步才收）", GD.activeGuide().to, undefined);
+  GD.closeGuide();
+
+  // ── ⑧ 800×363 几何：气泡贴着目标、不溢出、不盖住圈 ──
+  // 量法：dev + 800×363 的 iframe（innerWidth / innerHeight 实测 800 / 363，env(safe-area-inset-*) 为 0），
+  // 本机模式，`getBoundingClientRect`。下面这 9 组 top/bottom 就是那九个 `data-guide` 锚点的实测值。
+  const VH = 363;
+  const HOLE_PAD = 6; // GuideOverlay 的 HOLE_PAD（圈四周留的余量）
+  const GAP = +(overlay.match(/const GAP = (\d+);/)?.[1] ?? 0);
+  const EDGE = +(overlay.match(/const EDGE = (\d+);/)?.[1] ?? 0);
+  const MIN_CARD_H = +(overlay.match(/const MIN_CARD_H = (\d+);/)?.[1] ?? 0);
+  const COMPACT_MIN_H = +(overlay.match(/const COMPACT_MIN_H = (\d+);/)?.[1] ?? 0);
+  eq("间距 / 边距就是这一轮定的那一对（10 / 10）", [GAP, EDGE], [10, 10]);
+  eq("正常卡的下限还是 190（老 20 份的外观不跟着这一改漂）", MIN_CARD_H, 190);
+  eq("紧凑卡的下限 90", COMPACT_MIN_H, 90);
+  // 紧凑卡固定那几块：内边距 16（p-2）+ 标题行 20（text-sm 行高）+ 键的上间距 8（mt-2）+ 键 28（py-1.5 + text-xs）
+  const COMPACT_CHROME = 16 + 20 + 8 + 28;
+  ok(`紧凑卡固定那几块 ${COMPACT_CHROME}px < 下限 ${COMPACT_MIN_H}（正文永远留得下一行）`, COMPACT_CHROME < COMPACT_MIN_H);
+  // 正常卡：内边距 32（p-4）+ 标题行 26 + 键 54（mt-3.5 + py-2.5 + text-sm）
+  const NORMAL_CHROME = 32 + 26 + 54;
+  ok(`正常卡固定那几块 ${NORMAL_CHROME}px < 下限 ${MIN_CARD_H}`, NORMAL_CHROME < MIN_CARD_H);
+
+  /** 800×363 实测的九个锚点（top / bottom；横向不参与摆放判据，只记宽度） */
+  const MEASURED = [
+    // 大厅（2026-11-24 实测）
+    { name: "lobby-modes", top: 91.2, bottom: 195.3 },
+    { name: "lobby-start", top: 277.8, bottom: 313.8 },
+    { name: "lobby-join", top: 203.3, bottom: 235.3 },
+    // 对局：商店 / 背包 / 创作 / 展映控制条 / 投票卡排 / 结算面板
+    { name: "game-shop", top: 14, bottom: 93.3 },
+    { name: "game-bag", top: 275.3, bottom: 315.3 },
+    { name: "game-create", top: 148.2, bottom: 242.1 },
+    { name: "game-like", top: 214.3, bottom: 236.1 },
+    { name: "game-vote", top: 140.8, bottom: 244.1 },
+    { name: "game-result", top: 160.6, bottom: 242.1 },
+  ];
+  const cardBox = (a) => {
+    const gapAbove = a.top - HOLE_PAD - GAP - EDGE;
+    const gapBelow = VH - a.bottom - HOLE_PAD - GAP - EDGE;
+    const below = gapBelow >= gapAbove;
+    const gap = Math.max(gapAbove, gapBelow);
+    const compact = gap < MIN_CARD_H;
+    const anchored = gap >= (compact ? COMPACT_MIN_H : MIN_CARD_H);
+    const chrome = compact ? COMPACT_CHROME : NORMAL_CHROME;
+    return {
+      below,
+      gap,
+      compact,
+      anchored,
+      // 有锚点时卡片的**固定那几块**会落在哪（卡片高度由内容定，≤ gap）
+      fixedTop: below ? a.bottom + HOLE_PAD + GAP : a.top - HOLE_PAD - GAP - chrome,
+      fixedBottom: below ? a.bottom + HOLE_PAD + GAP + chrome : a.top - HOLE_PAD - GAP,
+    };
+  };
+  for (const a of MEASURED) {
+    const box = cardBox(a);
+    ok(`${a.name}：气泡贴得住目标（不许退成居中卡片盖住它）`, box.anchored);
+    ok(`${a.name}：气泡的固定那几块不出屏（${box.fixedTop.toFixed(1)}~${box.fixedBottom.toFixed(1)}）`, box.fixedTop >= 0 && box.fixedBottom <= VH);
+    ok(`${a.name}：与高亮圈留出 ${GAP}px / 端头 ${EDGE}px，不压住圈`, box.below ? box.fixedTop - (a.bottom + HOLE_PAD) >= GAP : a.top - HOLE_PAD - box.fixedBottom >= GAP);
+  }
+
+  // ── ⑨ 锚点挂在**当阶段一定在**的容器上（别挂某一张卡 / 某一颗随状态换字的键）──
+  // ★ 先把注释剥掉再数：这几个文件里我自己就在注释里引了锚点名（"data-guide=…"），不剥会把注释一起数进去
+  const stripComments = (s) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  const anchorIn = (file, name) => {
+    const hits = stripComments(read(file)).match(new RegExp(`data-guide="${name}"`, "g")) ?? [];
+    return hits.length;
+  };
+  eq("商店栏（顶部那一条）", anchorIn("src/studio/game/ui/ShopPanel.tsx", "game-shop"), 1);
+  eq("背包条（拖出卡的那一半；3D 卡位没有 DOM 锚点）", anchorIn("src/studio/game/ui/BagBar.tsx", "game-bag"), 1);
+  eq("创作面板（本地 / 联机同一个组件）", anchorIn("src/studio/game/ui/CreatePanel.tsx", "game-create"), 1);
+  eq("展映控制条（本地那一屏）", anchorIn("src/studio/game/ui/ScreeningPanel.tsx", "game-like"), 1);
+  eq("展映控制条（联机那一屏，同一个锚点名）", anchorIn("src/studio/game/ui/OnlineScreeningPanel.tsx", "game-like"), 1);
+  eq("投票卡排（本地那一屏）", anchorIn("src/studio/game/ui/VotingPanel.tsx", "game-vote"), 1);
+  eq("投票卡排（联机那一屏，同一个锚点名）", anchorIn("src/studio/game/ui/OnlineVotingPanel.tsx", "game-vote"), 1);
+  // 结算屏有四个正式分支（联机结算 / 联机结束 / 本机结算 / 本机结束），每个根都挂：少挂一个那一支的圈就没了
+  eq("结算屏的**四个**分支根都挂了锚点", anchorIn("src/studio/game/ui/RoundResultPanel.tsx", "game-result"), 4);
+  eq("大厅三处都在 Lobby.tsx", [anchorIn("src/studio/game/ui/Lobby.tsx", "lobby-modes"), anchorIn("src/studio/game/ui/Lobby.tsx", "lobby-start"), anchorIn("src/studio/game/ui/Lobby.tsx", "lobby-join")], [1, 1, 1]);
+
+  // ── ⑩ 不写死坐标：锚点一律从 DOM 量（任务点名"用 ref / data-tour 锚点"）──
+  ok("高亮圈的位置来自 getBoundingClientRect", overlay.includes("getBoundingClientRect("));
+  ok("锚点按 data-guide 查（不是按 id / 坐标）", overlay.includes('document.querySelector(`[data-guide='));
+  ok(
+    "两份 tour 里没有一个写死的像素坐标",
+    !/\b(top|left|width|height): \d/.test(lobbyBlock) && !/\b(top|left|width|height): \d/.test(ingameBlock),
+  );
 }
 
 // ── 结论 ─────────────────────────────────────────────────────────────────────

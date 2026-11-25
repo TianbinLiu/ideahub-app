@@ -46,6 +46,7 @@ import StickerBubbles from "./StickerBubbles";
 import StickerPanel from "./StickerPanel";
 import StylePick from "./StylePick";
 import { useOnlineRounds } from "./useOnlineRounds";
+import { useGameTutorial } from "./useGameTutorial";
 import VotingPanel from "./VotingPanel";
 
 export default function GameLayer() {
@@ -61,6 +62,17 @@ export default function GameLayer() {
   const { t } = useLingui();
   // 联机回合的轮询与对账（**唯一一处**定时器；单机局里这个 hook 什么都不做）
   useOnlineRounds();
+
+  /**
+   * 「跟着做一局」（2026-11-24，docs/game-lobby-ui-benchmark.md §2.1 #19）：进到哪个阶段，
+   * 讲那个阶段的那几步（买卡 / 摆卡 → 写提示词交片 → 展映点赞 → 投票 → 看结算）。
+   * ★ 为什么按阶段、不一次弹完整份：阶段面板挂在 `state.phase === …` 后面，一次弹完的话
+   *   后四步的高亮圈没有目标（见 ui/gameTutorial 的文件头）。
+   * ★ 传的是"我还没被淘汰"而不是恒 true：出局之后剩下的回合是 rules.playOutAiOnly 后台跑完的，
+   *   给一个只能看的人弹"把卡摆上桌"是教一件他做不了的事。
+   * ★ 排在早退之前：`state` 这一拍可能还是 null（hook 不许写在早退后面，check-hook-order）。
+   */
+  useGameTutorial("ingame", state?.phase ?? null, !(state?.players.find((player) => player.id === meId)?.eliminated ?? false));
 
   /**
    * 「👥 玩家」面板开着没有（2026-11-24 对局内 P0-1）。

@@ -15,14 +15,18 @@
 //   人想出去的结果一样（引导没了），只是不该连页面一起丢掉。不改成「上一步」：返回键在全 app 的意思都是「关上面那层」。
 //   这与下面「没有跳过」不矛盾：自动弹的那一路开的时候就记成看过了（data/guide.openGuide），关掉不会再拦第二次。
 //
-// ── 为什么没有「跳过」───────────────────────────────────────────────
+// ── 为什么(几乎)没有「跳过」──────────────────────────────────────────
 // 产品要求就是**强制走完**（"用户这时只能点下一步直到步骤走完"）。代价是：一旦用户
 // 在没看懂时连点几下过去，那一屏就再也不会自动弹了 —— 所以设置页给了一颗
 // 「重看所有新手引导」（data/guide.resetGuidesSeen），每一页角落也常驻那颗 `?`。
+// ★★ 2026-11-24 起**两份有例外**：工坊的大厅与对局（`GuideTour.skippable` / `skipAll`）。
+//   那两份是「跟着做一局」——一局 10 分钟、横屏 363px 高，拦着人走完六步比读不完更糟；
+//   更要紧的是对局那份**按阶段分窗**（`data/guide.openGuideSteps`），"跳过这一窗"和
+//   "以后几屏都别拦我"是两件事，必须都给出口。其余 20 份仍然强制走完、不受影响。
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { activeGuide, closeGuide, stepGuide } from "../../data/guide";
+import { activeGuide, closeGuide, markGuideSeen, stepGuide } from "../../data/guide";
 import { useBackLayer } from "../../hooks/useBackLayer";
 import { useGuide } from "../../hooks/useGuide";
 import { tourById } from "./tours";
@@ -175,7 +179,17 @@ export default function GuideOverlay() {
   //   用上面 useLingui 给的 t 在渲染时翻。这两行只是取值、不是 hook，放在早退之后没事（check-hook-order）。
   const tourName = t(tour.title);
   const stepTitle = t(step.title);
-  const last = act.step >= tour.steps.length - 1;
+  /**
+   * 这一窗的最后一步（下标）。
+   * ★ 不分窗的引导（20 份）`act.to` 是 undefined ⇒ 整份最后一步，与改之前逐字节一致。
+   * ★ 分窗的那一份走到窗口末步就该收（见 data/guide 的 openGuideSteps）：`stepGuide` 再往前走
+   *   会跨到**别的阶段**的那一步 —— 那一步的锚点这时还没挂上，用户会被一张居中的卡片教一件
+   *   眼下做不了的事，而他手里的「开始创作」正被这层遮罩压着。
+   * ★ 角标的"共几步"也跟着窗口走：显示整份的 6 而按钮在第 2 步就写「知道了」，读起来像坏了。
+   */
+  const winTo = act.to ?? tour.steps.length - 1;
+  const total = winTo + 1;
+  const last = act.step >= winTo;
   const stop = (e: { stopPropagation: () => void }) => e.stopPropagation();
 
   /**
@@ -189,11 +203,20 @@ export default function GuideOverlay() {
    *   那条空隙 —— 卡片再长也只会**在自己内部滚**，永远不会跑出视口。
    * ★ 两边都塞不下（圈太大，比如整条侧栏）时**退回居中**并允许盖住圈：一张读不了的
    *   窄条比"圈被盖住一部分"糟得多，而圈的描边仍然露在外面。
+   * ★★ 2026-11-24 起多一档**紧凑卡**（`compact`，`MIN_CARD_H` 的下限换成 `COMPACT_MIN_H`）：
+   *   横屏手机只有 363px 高（800×363 的工坊对局就是那一档），而阶段面板正好压在屏幕中间
+   *   —— 上沿 135、下沿 242，两边各只剩 ~100 / ~90px。按原来 190 的门槛，那几屏**每一步**
+   *   都退成居中卡片、正好盖住它要指的那个面板（"气泡出现在目标旁边而不是正中"当场不成立）。
+   *   紧凑卡把固定那几块收小（p-2 / mt-2 / py-1.5），实测 72px 就放得下标题 + 按钮，
+   *   省下的全给正文（正文本来就只两句）。判据两边都验过：卡片仍在空隙里（不溢出）、
+   *   圈仍完整露在卡片外（不盖目标）。
    */
-  const GAP = 12;
-  const EDGE = 16;
-  /** 上下空隙小于这个数就别硬塞了（一张卡至少要能显示标题 + 两行正文 + 按钮） */
+  const GAP = 10;
+  const EDGE = 10;
+  /** 正常那张卡的最小空隙（标题 + 两行正文 + 按钮都摆得下、正文还留得住滚动） */
   const MIN_CARD_H = 190;
+  /** 紧凑卡的最小空隙：固定那几块（内边距 16 + 标题行 20 + 按钮 36）= 72，再留一行正文 */
+  const COMPACT_MIN_H = 90;
   const vh = window.innerHeight;
   // ★ 空隙按**视口内**那一截算：`rect.top` 可能是负的（锚点被滚到上面去了一半），
   //   直接拿它算会得到一个"上面还有很多地方"的假结论，而那块地方在屏幕外。
@@ -204,7 +227,9 @@ export default function GuideOverlay() {
   const gapBelow = rect ? vh - vBot - HOLE_PAD - GAP - EDGE - insets.bottom : 0;
   const below = gapBelow >= gapAbove;
   const gap = Math.max(gapAbove, gapBelow);
-  const anchored = !!rect && gap >= MIN_CARD_H;
+  /** 空隙放不下正常那张卡：换紧凑版（见上面 ★★）。不够紧凑版的门槛才真的退成居中 */
+  const compact = gap < MIN_CARD_H;
+  const anchored = !!rect && gap >= (compact ? COMPACT_MIN_H : MIN_CARD_H);
   // ★★ 第二道（上面 rectOf 那道是第一道）：空隙**先钳进视口**再判。
   //   锚点只露出一半时 `rect.top` 可能是负的、`rect.top + rect.height` 可能超过 vh，
   //   不钳的话算出来的空隙比屏幕还大，maxHeight 就拦不住卡片、位置也会偏出去。
@@ -222,6 +247,15 @@ export default function GuideOverlay() {
       ? { top: botIn + HOLE_PAD + GAP, maxHeight: gap }
       : { bottom: vh - topIn + HOLE_PAD + GAP, maxHeight: gap }
     : { top: "50%", transform: "translateY(-50%)", maxHeight: centeredMax };
+  // 紧凑那一档的间距（正常那一档原样不动 —— 20 份引导的外观不该跟着这一改漂）
+  const pad = anchored && compact ? "p-2" : "p-4";
+  const headGap = anchored && compact ? "mb-1" : "mb-1.5";
+  const skipClass = "flex-none rounded px-1 text-[10px] font-semibold text-slate-400 active:text-slate-200";
+  /** 「全部跳过」：整份记成看过 —— 分窗那一份的"以后几屏也别再拦我"（见 data/guide 的 SEEN_STEPS_KEY） */
+  const skipAll = () => {
+    markGuideSeen(tour.id, tour.version);
+    closeGuide();
+  };
 
   return createPortal(
     <div
@@ -253,12 +287,27 @@ export default function GuideOverlay() {
       )}
 
       {/* 说明卡。★ 用 absolute 定位而不是 flex 居中：有锚点时要贴着圈放 */}
-      <div className="absolute inset-x-4 flex flex-col rounded-2xl bg-raised p-4 shadow-2xl ring-1 ring-white/10" style={cardStyle}>
-        <div className="mb-1.5 flex flex-none items-center gap-2">
+      <div className={`absolute inset-x-4 flex flex-col rounded-2xl bg-raised shadow-2xl ring-1 ring-white/10 ${pad}`} style={cardStyle}>
+        <div className={`flex flex-none items-center gap-2 ${headGap}`}>
           <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] font-semibold tabular-nums text-slate-400">
-            {act.step + 1}/{tour.steps.length}
+            {act.step + 1}/{total}
           </span>
           <h2 className="min-w-0 flex-1 truncate text-sm font-bold text-slate-100">{stepTitle}</h2>
+          {/* ── 跳过（只有 `skippable` 的那两份摆，见 GuideTour.skippable 的 ★★）──
+              ★ 摆在标题行右侧而不是底部那排：底部那排只有一颗主键时它是"唯一的出口"，
+                多塞一颗键就得在 363px 高的屏上再吃一行；标题行本来就有富余。
+              ★ 两颗键的语义不同（只有按阶段分窗的那一份两颗都有）：
+                「跳过」= 这一窗不看了（后面几屏照讲）；「全部跳过」= 整份别再拦我。 */}
+          {tour.skippable && (
+            <button type="button" onClick={closeGuide} className={skipClass}>
+              <Trans>跳过</Trans>
+            </button>
+          )}
+          {tour.skipAll && (
+            <button type="button" onClick={skipAll} className={skipClass}>
+              <Trans>全部跳过</Trans>
+            </button>
+          )}
         </div>
         {/* 只有这一段会滚（min-h-0 让它在 flex 列里缩得下去）；标题与按钮各自 flex-none，永远在卡里看得见。
             key：换步时回到顶上，别停在上一步滚到的位置 */}
@@ -267,7 +316,9 @@ export default function GuideOverlay() {
         </div>
         <button
           onClick={() => (last ? closeGuide() : stepGuide())}
-          className="mt-3.5 w-full flex-none rounded-xl bg-brand py-2.5 text-sm font-bold text-ink"
+          className={`w-full flex-none rounded-xl bg-brand font-bold text-ink ${
+            anchored && compact ? "mt-2 py-1.5 text-xs" : "mt-3.5 py-2.5 text-sm"
+          }`}
         >
           {last ? <Trans>知道了</Trans> : <Trans>下一步</Trans>}
         </button>

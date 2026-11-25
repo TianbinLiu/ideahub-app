@@ -110,7 +110,9 @@ export default function OnlineVotingPanel() {
           </span>
         )}
       </div>
-      <div className="flex items-stretch gap-1.5 overflow-x-auto">
+      {/* ★ data-guide="game-vote"：新手引导「一人一票」那一步的高亮目标，与本地局那一屏同一个锚点名
+          （卡片那一排、「投这一条」在每张卡里；卡片张数按服务端投稿数来，不圈某一张） */}
+      <div data-guide="game-vote" className="flex items-stretch gap-1.5 overflow-x-auto">
         {votable.map((entry) => (
           <VoteCard
             key={entry.userId}
