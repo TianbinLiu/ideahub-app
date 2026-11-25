@@ -14,6 +14,9 @@
  *   到点**只提示**一句话（`roundsStore.note` 的 `waiting-long`），**仍然不降级** ——
  *   房间还在、回合随时可能出现；降级会把一桌人拆成几局单机，而且没有回头路（会话收掉就不再轮询）。
  *   上限那一句由 roundsReasons 说，与网络降级那一句**分开**（前者是"再等等"，后者是"这一局没了"）。
+ * ★ 2026-11-24 晚补：这段等待**有出口**了（房间屏「不等了，退出房间」）。摆不摆 / 3 分钟后要不要
+ *   多说一句由本文件的 `roomWaitExitOf` 判（同一屏原来那颗「离开房间」换一句话，离房逻辑不新写）；
+ *   3 分钟这个门槛与上面同一个常量 —— 大厅与对局内不许出现两个"算等多久"的表。
  */
 
 // ★ 带 .ts：构建门禁用 Node 直接 import 本文件（同 connection.ts 的写法；type import 会被擦掉）。
@@ -53,4 +56,31 @@ export function roundWaitOf(failure: RoundsFailure, waitedMs: number): RoundWait
     return waitedMs >= ROUND_WAIT_MAX_MS ? "waiting-long" : "waiting";
   }
   return "fallback";
+}
+
+/**
+ * 房间屏（`ui/RoomScreen`，**大厅这一屏**）那颗「不等了，退出房间」的三种状态（**唯一判据**）。
+ *
+ * ★★ 为什么单开这一条：对局内的等待由 `roundsStore` 的 note（waiting / waiting-long）+ 底栏说，
+ *   而这一段等待发生在**对局还没建起来的时候**（房间 `playing`、回合还没建，大厅还没收掉）——
+ *   那一份 note 在这时候根本轮不到（对局 store 的会话是"开始轮到之后"才有的）。
+ *   于是同一件事在两层各有一个观察者，摆不摆 / 要不要多说一句必须只判一处，
+ *   否则大厅说"还能继续等"、对局底栏说"已经 3 分钟了"这种两头不一致会重新长出来。
+ *
+ *   `off`     = 不在等待态（房间没开局 / 本机房间），或我是房主：**不摆这颗键**；
+ *   `waiting` = 客人在等房主开第 1 回合：摆一颗次级键（房间屏原来那颗「离开房间」换一句话）；
+ *   `long`    = 已经等过 `ROUND_WAIT_MAX_MS`（3 分钟，与对局内那个上限同一个常量）：
+ *               同一颗键 + 一句提示（不另造一颗键）。
+ *
+ * ★ 为什么房主不摆：房主手上是「开始对局」那颗主键（`useLobbyOnline` 每 2 秒自动补 `rounds/start`），
+ *   他面对的失败是"服务端没开起来"，不是"等别人"；而「不等了」这句话只对**等的人**成立。
+ *   房主那边的出路是同一屏原来那颗「离开房间」（一直都在）。
+ * ★ 本函数**只判"摆不摆、要不要提示"**：点了之后做什么是房间屏既有那一颗键的事
+ *   （`lobbyStore.leaveCurrentRoom`，退房请求 / 回大厅那一套一行都不新写）。
+ */
+export type RoomWaitExit = "off" | "waiting" | "long";
+
+export function roomWaitExitOf(input: { online: boolean; started: boolean; isHost: boolean; waitedMs: number }): RoomWaitExit {
+  if (!input.online || !input.started || input.isHost) return "off";
+  return input.waitedMs >= ROUND_WAIT_MAX_MS ? "long" : "waiting";
 }

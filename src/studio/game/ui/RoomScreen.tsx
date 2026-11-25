@@ -40,6 +40,7 @@ import { playerName } from "../labels";
 import type { RemoteRoom } from "../../../api/game/rooms";
 import QrCode from "../../../components/QrCode";
 import { copyText, TextShareSheet } from "../../../components/ShareSheet";
+import { roomWaitExitOf } from "../roundWait";
 import GameBtn from "./GameBtn";
 
 export default function RoomScreen({
@@ -85,6 +86,29 @@ export default function RoomScreen({
   }, [online]);
   // ★ 两个"我"是同一个值（lobby.LOCAL_SEAT_ID）：房主身份只认它，不认"第 0 个座位"
   const host = isHostOf(room, LOCAL_SEAT_ID);
+  /**
+   * ★★ 「房主还没开始这一回合」这段等待是从什么时候开始的（毫秒；null = 没在等）。
+   * ★ 为什么在这一屏自己记：`roundsStore` 那份等待（note 的 waiting / waiting-long）是**对局内**的，
+   *   而这一段等待发生在对局还没建起来的时候（大厅这一屏接管），那份 note 到不了这一屏
+   *   （见 roundWait.ts 的 ★★）。房间快照里没有 `startedAt`，所以按"本机第一次看到 playing"算 ——
+   *   正常路（在房里等房主点开局）就是开局那一拍，差几秒不影响 3 分钟这个提示门槛。
+   * ★ 不另开定时器：上面那台 1 秒的 `now`（本来就在跑）负责让它自己重算。
+   */
+  const waitingForHostStart = online && remote?.started === true && !host;
+  const [waitSince, setWaitSince] = useState<number | null>(null);
+  useEffect(() => {
+    setWaitSince((prev) => (waitingForHostStart ? (prev ?? Date.now()) : null));
+  }, [waitingForHostStart]);
+  /**
+   * 出口那颗键摆不摆 / 3 分钟后要不要多说一句：判据只在 roundWait.roomWaitExitOf 一处
+   * （零依赖，scripts/check-game-online.mjs 跑正反例）。
+   */
+  const waitExit = roomWaitExitOf({
+    online,
+    started: remote?.started === true,
+    isHost: host,
+    waitedMs: waitSince === null ? 0 : Math.max(0, now - waitSince),
+  });
   const plan = roomStartPlan(room);
   const canShrink = room.size > ROOM_MIN_SIZE;
   const canGrow = room.size < ROOM_MAX_SIZE;
@@ -220,8 +244,19 @@ export default function RoomScreen({
             {mySeat?.ready ? <Trans>取消准备</Trans> : <Trans>准备</Trans>}
           </GameBtn>
         )}
-        <GameBtn onClick={() => useLobby.getState().leaveCurrentRoom()}>
-          <Trans>离开房间</Trans>
+        {/* ★★ 2026-11-24：「房主永远不开这一回合」时客人只能干等（docs/game-lobby.md §14.1 留下的风险）。
+            等待态把这一颗键换成一句明确的出口 —— **还是同一颗键、还是同一个 leaveCurrentRoom**，
+            不另写一套退房；次级样式（不写 tone），主键仍然是上面那颗「准备 / 开始」。
+            waiting-long（3 分钟）只在下面补一句提示，**不另造第二颗键**（判据在 roundWait.roomWaitExitOf）。 */}
+        <GameBtn
+          onClick={() => useLobby.getState().leaveCurrentRoom()}
+          title={
+            waitExit === "off"
+              ? undefined
+              : t`离开这间房回大厅：这一局还没开始，不扣游戏券、也没有券要退；服务端会把你移出成员表（最后一个人离开时房间会关闭）。`
+          }
+        >
+          {waitExit === "off" ? <Trans>离开房间</Trans> : <Trans>不等了，退出房间</Trans>}
         </GameBtn>
       </div>
 
@@ -255,6 +290,25 @@ export default function RoomScreen({
           <Trans>等房主开一局：非房主只能准备或离开</Trans>
         )}
       </p>
+
+      {/* ── 等待态那两句说明（只在「房间已 playing、回合还没建」的客人端出现）──
+          ★ 后果照实说：**游戏券只在出片那一发扣**（出片 = 对局里交片那一发，见 data/gameTickets /
+            ui/GenSheet），开局 / 进房一张都不扣 —— 所以这一段离开时没有已扣的券要退。
+            别照搬对局内「认输并退出」那句（那句是"已经花掉的券不退"，这一局根本还没开始）。
+          ★ 3 分钟之后多一句 = waiting-long 的提示（同一颗键，不另造一颗）；门槛与对局内同一个常量。
+          ★ 不写进 roundsReasons：那一份是"对局内底栏"的话，这一屏自己那一句在那条路上说不到。 */}
+      {waitExit !== "off" && (
+        <div className="flex flex-col items-center gap-0.5">
+          {waitExit === "long" && (
+            <p className="text-center text-[10px] leading-snug text-gold-200">
+              <Trans>已经等了 3 分钟，房主还没开始这一回合——不想等就点上面那颗「不等了，退出房间」回大厅。</Trans>
+            </p>
+          )}
+          <p className="text-center text-[10px] leading-snug text-slate-400">
+            <Trans>这一局还没开始：现在离开不扣游戏券、也没有券要退。</Trans>
+          </p>
+        </div>
+      )}
 
       {/* ── 邀请卡：联机接通之后这个码真的能进房；没接通时只能给可复制的码 ──
           ★ 2026-11-24 加了二维码（复用 components/QrCode）与「分享邀请」：

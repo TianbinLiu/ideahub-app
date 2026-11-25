@@ -24,6 +24,10 @@ const R = await load("src/studio/game/rules.ts");
 const P = await load("src/studio/game/phases.ts");
 const L = await load("src/studio/game/lobby.ts");
 const H = await load("src/studio/game/onlineHost.ts");
+const W = await load("src/studio/game/roundWait.ts");
+const fs = await import("node:fs");
+/** 读一份源码：接线（谁调谁 / 界面挂在哪）没法在 node 里渲染 React，只能对着源码钉住 */
+const readSrc = (rel) => fs.readFileSync(path.join(root, rel), "utf8");
 
 const problems = [];
 let positive = 0;
@@ -434,9 +438,6 @@ function toVoting(state, rng) {
 //      对手变成本机 AI，而服务端那间房还在（两人都在房里、回合随后就建出来）。
 //    ★ 判据只在 roundWait.roundWaitOf 一处；这里跑正反例，再钉住"两句话不共用"。
 {
-  const W = await load("src/studio/game/roundWait.ts");
-  const fs = await import("node:fs");
-  const readSrc = (rel) => fs.readFileSync(path.join(root, rel), "utf8");
   const pending = (code) => ({ ok: false, reason: "code", code });
   const net = { ok: false, reason: "unavailable" };
 
@@ -485,6 +486,54 @@ function toVoting(state, rng) {
   ok("大厅里真错误要连 3 拍才降级", lobbyOnlineSrc.includes("ROOM_START_FAIL_TOLERANCE"));
   const roomSrc = readSrc("src/studio/game/ui/RoomScreen.tsx");
   ok("房间屏摆出「房主还没开始这一回合」的等待态", roomSrc.includes("房主还没开始这一回合"));
+}
+
+// ── 13. 房间屏那颗出口：「不等了，退出房间」（2026-11-24 晚）──
+//    ★ 现场（§14.1 留下的风险）：客人进了房、房主 `POST /rooms/start`（房间 playing）之后**永远不**
+//      `POST rounds/start`，客人就一直停在房间屏那行「房主还没开始这一回合，正在等…」，没有出口。
+//    ★ 这颗键**不是**新的一套退房：还是房间屏原来那颗「离开房间」那个元素、同一个 lobbyStore.leaveCurrentRoom，
+//      等待态只换一句话；等满 3 分钟只多一句提示（同一颗键，不另造第二颗）。
+//    ★ 后果照实说：**游戏券只在出片那一发扣**（开局 / 进房一张都不扣），所以这一段离开时没有已扣的券要退 ——
+//      不能照搬对局内「认输并退出」那句「已经花掉的券不退」（这一局还没开始）。
+{
+  const room = (over = {}) => ({ online: true, started: true, isHost: false, waitedMs: 0, ...over });
+  eq("客人 + 房间已 playing：摆那颗出口", W.roomWaitExitOf(room()), "waiting");
+  eq("等满 3 分钟：同一颗键 + 一句提示（long）", W.roomWaitExitOf(room({ waitedMs: W.ROUND_WAIT_MAX_MS })), "long");
+  eq("差 1 毫秒没到 3 分钟：还没有那句提示", W.roomWaitExitOf(room({ waitedMs: W.ROUND_WAIT_MAX_MS - 1 })), "waiting");
+  eq("房间还没开局（还在等准备）：不摆（这时那颗「离开房间」本来就够了）", W.roomWaitExitOf(room({ started: false })), "off");
+  eq("本机房间：不摆", W.roomWaitExitOf(room({ online: false })), "off");
+  eq("房主：不摆（房主手上是开局的键，不是在等别人）", W.roomWaitExitOf(room({ isHost: true })), "off");
+
+  const roomSrc = readSrc("src/studio/game/ui/RoomScreen.tsx");
+  ok("房间屏的摆不摆 / 要不要提示只问 roomWaitExitOf 一处", /roomWaitExitOf\(/.test(roomSrc));
+  ok("等待态那颗键写着「不等了，退出房间」", roomSrc.includes("不等了，退出房间"));
+  ok("非等待态仍然是原来那句「离开房间」（这颗键原来就在）", roomSrc.includes("<Trans>离开房间</Trans>"));
+  ok(
+    "同一颗键：off 时回落成「离开房间」，等待态换成「不等了，退出房间」",
+    /waitExit === "off"[\s\S]{0,80}<Trans>离开房间<\/Trans>[\s\S]{0,80}<Trans>不等了，退出房间<\/Trans>/.test(roomSrc),
+  );
+  eq(
+    "房间屏只有一处离房调用（换的是同一颗键的字，没有第二颗同义键）",
+    (roomSrc.match(/getState\(\)\.leaveCurrentRoom\(\)/g) ?? []).length,
+    1,
+  );
+  const labelAt = roomSrc.indexOf("不等了，退出房间");
+  const around = labelAt < 0 ? "" : roomSrc.slice(Math.max(0, labelAt - 900), labelAt + 900);
+  ok("这颗键绑的是既有离房动作 leaveCurrentRoom（不新写一套退房）", around.includes("leaveCurrentRoom()"));
+  eq("房间屏不直接发退房请求（没有另造一套）", /leaveRemoteRoom\s*\(/.test(roomSrc), false);
+  ok("3 分钟那句提示只在 long 那一支下面", /waitExit === "long"[\s\S]{0,400}已经等了 3 分钟/.test(roomSrc));
+  ok(
+    "后果那两句只挂在等待态里（waitExit 不是 off 才画）",
+    /waitExit !== "off"[\s\S]{0,700}不扣游戏券/.test(roomSrc),
+  );
+  ok("后果照实说：这一局还没开始，不扣游戏券、也没有券要退", roomSrc.includes("这一局还没开始：现在离开不扣游戏券、也没有券要退。"));
+  eq(
+    "别把对局内「认输并退出」那句「已经花掉的券不退」照搬过来（这一局还没开始，一张券都没扣）",
+    roomSrc.includes("已经花掉的游戏券"),
+    false,
+  );
+  ok("等待时长在这一屏自己记（服务端房间快照没有 startedAt）", /waitingForHostStart[\s\S]{0,200}setWaitSince/.test(roomSrc));
+  ok("按钮 title 里也写了退房的真实后果（服务端会把你移出成员表）", roomSrc.includes("服务端会把你移出成员表"));
 }
 
 if (problems.length) {

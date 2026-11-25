@@ -6782,6 +6782,10 @@ msgstr "不知道这是谁（链接里没有用户 id）"
 msgid "不确定"
 msgstr "不确定"
 
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "不等了，退出房间"
+msgstr "不等了，退出房间"
+
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "不筛，全都要"
 msgstr "不筛，全都要"
@@ -15624,6 +15628,10 @@ msgstr "已经画好的 {count} 张已计费，失败的那张可能也扣了"
 #: src/pages/CustomCardPage.tsx
 msgid "已经离开真人素材这条路：真人照片和火山引擎认证都撤掉了。"
 msgstr "已经离开真人素材这条路：真人照片和火山引擎认证都撤掉了。"
+
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "已经等了 3 分钟，房主还没开始这一回合——不想等就点上面那颗「不等了，退出房间」回大厅。"
+msgstr "已经等了 3 分钟，房主还没开始这一回合——不想等就点上面那颗「不等了，退出房间」回大厅。"
 
 #: src/studio/game/roundsReasons.ts
 msgid "已经等了 3 分钟，房主还没开始这一回合（可以继续等，也可以结束这一局回大厅）"
@@ -26296,6 +26304,10 @@ msgstr "离开房间"
 msgid "离开标记帧了，这里的落点会不准（画面上的人已经走动过）—— 回到第 {0} 秒再拖。"
 msgstr "离开标记帧了，这里的落点会不准（画面上的人已经走动过）—— 回到第 {0} 秒再拖。"
 
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "离开这间房回大厅：这一局还没开始，不扣游戏券、也没有券要退；服务端会把你移出成员表（最后一个人离开时房间会关闭）。"
+msgstr "离开这间房回大厅：这一局还没开始，不扣游戏券、也没有券要退；服务端会把你移出成员表（最后一个人离开时房间会关闭）。"
+
 #: src/api/client.ts
 #~ msgid "离线模式：未配置 VITE_API_BASE"
 #~ msgstr "离线模式：未配置 VITE_API_BASE"
@@ -31317,6 +31329,10 @@ msgstr "这一局的房间已经过期，回放也一起没了"
 #: src/studio/game/ui/ConnectionBanner.tsx
 msgid "这一局的联机房间已经结束"
 msgstr "这一局的联机房间已经结束"
+
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "这一局还没开始：现在离开不扣游戏券、也没有券要退。"
+msgstr "这一局还没开始：现在离开不扣游戏券、也没有券要退。"
 
 #: src/studio/game/ui/GenPreview.tsx
 msgid "这一局还没有出过片——摆好卡，点「🎬 视频生成」先画首帧，再出片。"
