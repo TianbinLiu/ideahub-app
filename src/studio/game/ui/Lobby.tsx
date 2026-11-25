@@ -40,6 +40,7 @@ import { UPGRADE_HREF } from "../../../components/UpgradeLink";
 import { lastHistoryRoomFor, readLastHistoryRoom } from "../historyLastRoom";
 import { readLatestLocalGame } from "../localHistory";
 import { localGameOwner } from "../localHistoryOwner";
+import { subscribeHistoryCache } from "../historyCache";
 import { useHistory } from "../historyStore";
 import GameBtn from "./GameBtn";
 import RoomScreen from "./RoomScreen";
@@ -106,6 +107,15 @@ export default function Lobby() {
     if (!open) setPick("match4");
   }, [open]);
 
+  /**
+   * 「最近一局回放」入口的数据是 **localStorage**（历史那一份不是 store）：
+   * 离开对局前留的那一份回来得比大厅晚（发出一发 history 请求，回来时人已经在看大厅）。
+   * 这里订阅 historyCache 的「刚存了一份」通知，重渲一次让入口立刻出现 / 消失
+   * （2026-11-24 Bug B 的现场：退出后回大厅，按钮要等下一次重渲才出来）。
+   */
+  const [, setHistoryTick] = useState(0);
+  useEffect(() => subscribeHistoryCache(() => setHistoryTick((n) => n + 1)), []);
+
   /** 顶栏货币条：券（能力位 + 余额都到位才摆）与 token 余额（钱包快照有才摆）。 */
   const ticket = useGameTickets();
   useAccountVersion(); // 钱包镜像变化时重渲（钱包不是 zustand，靠账号版本号订阅）
@@ -139,8 +149,14 @@ export default function Lobby() {
   const localRead = localAt ? readLatestLocalGame(localAt) : ({ kind: "none" } as const);
   const localReplay = localRead.kind === "ok" ? localRead.record : null;
   const localBroken = localRead.kind === "broken";
+  /**
+   * 本机那份也可能是**联机局的缓存**（2026-11-24 Bug B：退出房间前留的那一份，房号非空）。
+   * 入口的 title 要写对房号 —— 写成「本机对局」会让人以为回放的是单机那一局。
+   */
+  const localRoomCode = localReplay && localReplay.history.room.code.trim() ? localReplay.history.room.code.trim() : null;
   const preferLocal = localReplay !== null && (!lastRoomCode || localReplay.savedAt >= lastRoomAt);
   const replayCode = preferLocal ? null : lastRoomCode;
+  const replayTitleCode = replayCode ?? localRoomCode;
   const showReplay =
     screen === "home" &&
     (localReplay !== null || localBroken || (lastRoomCode !== null && serverGameHistory() !== false));
@@ -264,8 +280,8 @@ export default function Lobby() {
           {showReplay && (
             <button
               type="button"
-              onClick={() => useHistory.getState().openFor({ code: replayCode, myUserId: accountId })}
-              title={replayCode ? t`最近一局：${replayCode}` : t`最近一局：本机对局`}
+              onClick={() => useHistory.getState().openFor({ code: replayCode, myUserId: accountId, latest: replayCode === null })}
+              title={replayTitleCode ? t`最近一局：${replayTitleCode}` : t`最近一局：本机对局`}
               className="h-8 flex-none rounded-full bg-white/[0.06] px-2.5 text-[11px] font-semibold text-slate-200 ring-1 ring-white/10 active:bg-white/[0.12]"
             >
               <span aria-hidden>📼</span> <Trans>最近一局回放</Trans>

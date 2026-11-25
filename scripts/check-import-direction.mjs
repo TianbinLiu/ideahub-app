@@ -66,6 +66,9 @@ const ZERO_DEP = [
   // 本机对局的战绩 / 回放落盘（2026-11-24 晚）：形状映射 + localStorage 读写 + 读侧校验，
   // scripts/check-game-history.mjs 直接 import 它跑正反例（展示名 / 卡名由调用方递进来，这里不认识界面语言）。
   "src/studio/game/localHistory.ts",
+  // 「房间已开局、房主还没开这一回合」的判据（2026-11-24 Bug A）：scripts/check-game-online.mjs
+  // 直接 import 跑正反例；只 import type（api/game/rounds 的失败形状），运行时零依赖。
+  "src/studio/game/roundWait.ts",
   // 公开房 / 观战的失败映射（2026-11-24）：scripts/check-game-spectate.mjs 直接 import 跑正反例；
   // 只 import type（api/game/rooms 的失败形状、lobbyStore 的 LobbyNote），运行时零依赖。
   "src/studio/game/spectate.ts",

@@ -17,6 +17,13 @@
  *   展示名与卡名是界面语言的事（labels 里那两份），由调用方以 `nameOf` / `cardNameOf` 递进来。
  * ★ 按**账号**分开存（键是 `deviceOwner()` 那个"现在给谁看"，没登录的人用 "guest"）：
  *   同一台设备上换一个人，看不到别人的对局 —— 与 data/searchHistory、data/deviceOwner 同一条规矩。
+ * ★★ 2026-11-24 Bug B：**联机局也往这里落**。服务端的 `rounds/history` 要房间成员身份，退出房间
+ *   （或打完直接回大厅）之后就是 403 `NOT_IN_ROOM` —— 大厅的「最近一局回放」会只剩一句
+ *   "你不在这一局里了"。所以凡是**还能读到**的那一刻（战绩屏读到 / 对局打完 / 离开房间前）就把
+ *   同一份 `RemoteGameHistory` 存进这个桶（形状、校验、5 局上限全部复用这一份，别另开一套存储）：
+ *   · 同一间房**只留一条**（`saveLocalGame` 按 `history.room.code` 覆盖旧的）；
+ *   · 联机那一局可能还没结束就退了（`room.state = "playing"`）—— 读侧因此认三态，不再只认 "over"；
+ *   · 读回来时"哪一行是我"问 `meId`（联机局 = 服务端账号 id），界面据它高亮。
  * ★ 保留最近 **5** 局：回放条带的是片子地址（几十字节一条）与每回合一句提示词，5 局 ≈ 几十 KB，
  *   localStorage 放得下；再早的丢掉（`LOCAL_HISTORY_MAX`，唯一的截断点）。
  * ★ 读写一律 try：隐私模式 / 配额满 / 存储被清 —— 写完读不出就是"这一局的回放没存下来"，
@@ -48,9 +55,16 @@ export interface LocalGameRecord {
   v: 1;
   /** 这份记录是谁的（账号 id / "guest"） */
   owner: string;
-  /** 对局结束的那一刻（毫秒）：大厅「最近一局」拿它和联机那间房的记录比谁更新 */
+  /**
+   * 写下的那一刻（毫秒）：大厅「最近一局」拿它和联机那间房的记录比谁更新。
+   * ★ 联机局**每存一次就刷新**（同一间房只留一条，见 saveLocalGame 的 ★）：打到一半退出的
+   *   那一份也是"更近的一局"，大厅该拿它。
+   */
   savedAt: number;
-  /** 本机「我」的座位 id */
+  /**
+   * 「我」的 id：本机局是座位 id（`me` / `ai-1`…），联机局是服务端账号 id。
+   * 读回来时"哪一行是我"必须问这份记录，而不是问当前登录的账号。
+   */
   meId: string;
   history: RemoteGameHistory;
 }
@@ -312,7 +326,11 @@ function historyOk(raw: unknown): boolean {
   if (!isRecord(raw)) return false;
   const room = raw.room;
   if (!isRecord(room)) return false;
-  if (typeof room.code !== "string" || room.state !== "over" || !isOptionalString(room.finishedAt)) return false;
+  // ★ 三态都认（2026-11-24 Bug B）：联机局可能**打着打着就退出**（认输 / 回大厅），
+  //   那一份 history 的 `room.state` 还是 `playing`；只认 "over" 会把它判成坏数据、
+  //   界面说"这一局的回放没存下来"—— 而它明明存下来了（这正是要修的那个症状）。
+  const stateOk = room.state === "waiting" || room.state === "playing" || room.state === "over";
+  if (typeof room.code !== "string" || !stateOk || !isOptionalString(room.finishedAt)) return false;
   if (room.winners !== null && !(Array.isArray(room.winners) && room.winners.every((one) => typeof one === "string"))) return false;
   if (!Array.isArray(raw.rounds) || raw.rounds.length === 0 || !raw.rounds.every(roundOk)) return false;
   const summary = raw.summary;
@@ -369,11 +387,32 @@ export function readLocalGames(owner: string): LocalGameRecord[] {
 }
 
 /**
- * 落一局（对局结束那一刻调一次）。
- * 返回写进去的那一条；**null = 没存下来**（配额满 / 隐私模式 / 存储坏了）—— 调用方据此留一句
+ * 本机存录里**同一间房**的那一份（联机局的缓存；2026-11-24 Bug B）。
+ *
+ * ★★ 为什么按房号找、而不是"最近一局"：战绩屏收到 403 `NOT_IN_ROOM` 是因为**我已经不在房里**，
+ *   不是这局不存在。这时摆在屏幕上的必须是**这一局**（玩家点的是那间房的回放）；
+ *   拿最近一局顶替的话，屏幕上会是一局看起来正常、其实完全无关的战绩（零报错，见 localPickOf 的 ★）。
+ * ★ 找不到 = null（调用方照实说"你不在这一局里了，看不到它的回放"）；**绝不**退而拿别的局。
+ * ★ 只认形状好的条目（坏数据等于没存过）；房号两端空白剥掉再比。
+ */
+export function readLocalGameOfRoom(owner: string, roomCode: string | null | undefined): LocalGameRecord | null {
+  const code = typeof roomCode === "string" ? roomCode.trim() : "";
+  if (!owner || !code) return null;
+  for (const record of readLocalGames(owner)) {
+    if (record.history.room.code.trim() === code) return record;
+  }
+  return null;
+}
+
+/**
+ * 落一局（本机局在对局结束那一刻调一次；联机局在"还能读到历史"的每一拍调，见文件头 ★★）。
+ * 返回写进去的那一条；**null = 没存下来**（配额满 / 隐私模式 / 存储坏了 / meId 为空）—— 调用方据此留一句
  * "这一局的回放没存下来"，而不是什么都不说。
  * ★ 读侧坏掉的旧条目在这里被顺手剔掉：写的是"这个人最近 5 局"，留一条坏的天天判 broken 没有意义。
  * ★ 读整桶失败时只写自己这一桶 —— 别人那份本来就已读不出来，这一次不替他们恢复（也恢复不了）。
+ * ★★ **联机局按房号覆盖**（2026-11-24 Bug B）：同一间房会在"打到一半 / 结算 / 打完 / 离开前"各存一次，
+ *   每存一次就 prepend 一条的话，一局就把 5 局的名额吃光（玩家真的打了 5 局，回放里只剩最后一局的几个快照），
+ *   而且大厅「最近一局」会读到同一局的旧快照。判据只在 `history.room.code` 非空（本机单机局没有房号，照旧累加）。
  */
 export function saveLocalGame(input: {
   owner: string;
@@ -394,7 +433,10 @@ export function saveLocalGame(input: {
   const bucket = loadBucket() ?? {};
   const previous = Array.isArray(bucket[owner]) ? bucket[owner] : [];
   const kept = previous.filter((one): one is LocalGameRecord => recordOk(one, owner));
-  const next = [record, ...kept].slice(0, LOCAL_HISTORY_MAX);
+  // 联机局：同一间房只留最新那一份（旧的那条被这一次替换掉）
+  const roomCode = record.history.room.code.trim();
+  const sameRoom = (one: LocalGameRecord) => roomCode !== "" && one.history.room.code.trim() === roomCode;
+  const next = [record, ...kept.filter((one) => !sameRoom(one))].slice(0, LOCAL_HISTORY_MAX);
   try {
     localStorage.setItem(KEY, JSON.stringify({ ...bucket, [owner]: next }));
   } catch (err) {

@@ -9558,8 +9558,12 @@ msgstr "最火作品"
 #~ msgstr "最近一局：{lastRoomCode}"
 
 #: src/studio/game/ui/Lobby.tsx
-msgid "最近一局：{replayCode}"
-msgstr "最近一局：{replayCode}"
+#~ msgid "最近一局：{replayCode}"
+#~ msgstr "最近一局：{replayCode}"
+
+#: src/studio/game/ui/Lobby.tsx
+msgid "最近一局：{replayTitleCode}"
+msgstr "最近一局：{replayTitleCode}"
 
 #: src/studio/game/ui/Lobby.tsx
 msgid "最近一局：本机对局"
@@ -13284,8 +13288,8 @@ msgid "回合服务回了没见过的错误：{code}"
 msgstr "回合服务回了没见过的错误：{code}"
 
 #: src/studio/game/roundsReasons.ts
-msgid "回合服务没响应，这一局改成单机继续"
-msgstr "回合服务没响应，这一局改成单机继续"
+#~ msgid "回合服务没响应，这一局改成单机继续"
+#~ msgstr "回合服务没响应，这一局改成单机继续"
 
 #: src/studio/game/labels.ts
 msgid "回合结算"
@@ -15621,6 +15625,10 @@ msgstr "已经画好的 {count} 张已计费，失败的那张可能也扣了"
 msgid "已经离开真人素材这条路：真人照片和火山引擎认证都撤掉了。"
 msgstr "已经离开真人素材这条路：真人照片和火山引擎认证都撤掉了。"
 
+#: src/studio/game/roundsReasons.ts
+msgid "已经等了 3 分钟，房主还没开始这一回合（可以继续等，也可以结束这一局回大厅）"
+msgstr "已经等了 3 分钟，房主还没开始这一回合（可以继续等，也可以结束这一局回大厅）"
+
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "已经聊满 {PREVIEW_ROUNDS_MAX} 轮了"
 msgstr "已经聊满 {PREVIEW_ROUNDS_MAX} 轮了"
@@ -16937,6 +16945,11 @@ msgstr "房主开局"
 #: src/studio/game/ui/SpectateScreen.tsx
 msgid "房主点开始之后，这里会跟着服务端一回合一一回合地走；展映 / 投票 / 结算都能看。"
 msgstr "房主点开始之后，这里会跟着服务端一回合一一回合地走；展映 / 投票 / 结算都能看。"
+
+#: src/studio/game/roundsReasons.ts
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "房主还没开始这一回合，正在等…"
+msgstr "房主还没开始这一回合，正在等…"
 
 #: src/studio/game/ui/RoomScreen.tsx
 msgid "房间二维码"
@@ -20390,6 +20403,10 @@ msgstr "服务端对这一类只受理、不处置：封人走「用户」，这
 msgid "服务端对这一类只受理、不处置：投稿跟着对局房间走（房间过期就整份没了），收尾只能用「驳回」。"
 msgstr "服务端对这一类只受理、不处置：投稿跟着对局房间走（房间过期就整份没了），收尾只能用「驳回」。"
 
+#: src/studio/game/historyReasons.ts
+msgid "服务端已经读不到这一局了（你不在房里），下面是本机留的那一份回放"
+msgstr "服务端已经读不到这一局了（你不在房里），下面是本机留的那一份回放"
+
 #: src/api/auth.ts
 msgid "服务端未返回 token/user"
 msgstr "服务端未返回 token/user"
@@ -21911,6 +21928,10 @@ msgstr "正在存进本机卡片库…"
 #: src/pages/OauthCallbackPage.tsx
 msgid "正在完成登录…"
 msgstr "正在完成登录…"
+
+#: src/studio/game/ui/RoomScreen.tsx
+msgid "正在开这一回合…"
+msgstr "正在开这一回合…"
 
 #: src/studio/flowStore.ts
 msgid "正在忙别的，等这一步完了再取"
@@ -34167,6 +34188,10 @@ msgstr "违法违规"
 #: src/data/appUpdate.ts
 msgid "连不上下载服务器，看看网络通不通。{keep}"
 msgstr "连不上下载服务器，看看网络通不通。{keep}"
+
+#: src/studio/game/roundsReasons.ts
+msgid "连不上回合服务（网络/服务异常），这一局改成单机继续"
+msgstr "连不上回合服务（网络/服务异常），这一局改成单机继续"
 
 #: src/pages/CustomCardPage.tsx
 msgid "连不上服务器，现在做出来的卡会丢（见上）"
