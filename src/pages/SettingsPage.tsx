@@ -22,6 +22,12 @@ import { resetGuidesSeen } from "../data/guide";
 import { childSafetyUrl } from "../utils/shareLink";
 import { openExternal } from "../utils/openExternal";
 import { getQuality, qualityLabel } from "../studio/quality";
+import {
+  gsExperimentOn,
+  gsMaxSplatsSetting,
+  setGsExperiment,
+  setGsMaxSplats,
+} from "../studio/scene/gsStep0";
 import { currentVoice } from "../studio/voices";
 import {
   checkUpdate,
@@ -89,6 +95,7 @@ export default function SettingsPage() {
         <GuideRow />
         <VersionRow />
         <ReleaseHistoryRow />
+        <GsExperimentRow />
       </Group>
 
       {/* ── 帮助 ─────────────────────────────────────────────── */}
@@ -276,6 +283,72 @@ function LangRow() {
         </Sheet>
       )}
     </>
+  );
+}
+
+/**
+ * 高斯泼溅第 0 步实验档的本机开关（2026-11-25 真机验收用）。
+ *
+ * ★ 为什么要有它：release 包里的 `import.meta.env.DEV` 恒假，dev 的 `?gs=1` 在手机上打不开；
+ *   而这一档又不能默认开（普通用户不该看见没验收完的房间）。所以给它一行**默认关**的开关，
+ *   值只存本机（localStorage），打开后与 `?gs=1` 走同一条路径（见 studio/scene/gsStep0）。
+ * ★ 下面那两颗芯片是同一件事的第二档：真机上量「全部 / 80 万高斯」的帧率差，
+ *   不用为了第二档再出一个 APK（读数记在 docs/gs-step0-splat-log.md）。
+ * ★ 文案照设置页其余行：图标一列 + 标题/副标题，右边是开关本身（不再给箭头 —— 这一行不跳页）。
+ */
+function GsExperimentRow() {
+  const { t } = useLingui();
+  const [on, setOn] = useState(() => gsExperimentOn());
+  const [cap, setCap] = useState(() => gsMaxSplatsSetting());
+  /** 「全部」= 不截断（默认）；0.8M = 真机 A/B 的成本对照档（会截掉房间一块，见 GsStep0Room 的 ★） */
+  const CAPS: ReadonlyArray<{ n: number; label: string }> = [
+    { n: 0, label: t`全部` },
+    { n: 800_000, label: "0.8M" },
+  ];
+  return (
+    <div>
+      <button
+        onClick={() => {
+          const next = !on;
+          setGsExperiment(next);
+          setOn(next);
+        }}
+        aria-pressed={on}
+        className="flex w-full items-center gap-3 px-4 py-3.5 text-left active:bg-slate-800/40"
+      >
+        <Icon name="sparkle" size={20} className="flex-none text-slate-400" />
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm text-slate-100">{t`高斯场景（实验）`}</span>
+          <span className="block truncate text-[11px] text-slate-500">{t`用实景重建的房间替代 3D 工坊；默认关`}</span>
+        </span>
+        <span className={`relative h-6 w-11 flex-none rounded-full transition ${on ? "bg-brand" : "bg-slate-700"}`}>
+          <span
+            className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
+              on ? "left-[22px]" : "left-0.5"
+            }`}
+          />
+        </span>
+      </button>
+      {on && (
+        <div className="flex items-center gap-2 px-4 pb-3">
+          <span className="text-[11px] text-slate-500">{t`高斯数量`}</span>
+          {CAPS.map(({ n, label }) => (
+            <button
+              key={n}
+              onClick={() => {
+                setGsMaxSplats(n);
+                setCap(n);
+              }}
+              className={`rounded-lg px-2.5 py-1 text-[11px] ${
+                cap === n ? "bg-brand/15 text-brand ring-1 ring-brand/60" : "bg-ink text-slate-400 ring-1 ring-slate-700"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

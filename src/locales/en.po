@@ -9107,6 +9107,7 @@ msgstr "Select all"
 #: src/components/TemplateShelf.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/DiscoverPage.tsx
+#: src/pages/SettingsPage.tsx
 #: src/pages/SupportPersonasPage.tsx
 #: src/pages/WorkshopPage.tsx
 msgid "全部"
@@ -24829,6 +24830,10 @@ msgstr "Add voiceover right after applying ({voiceName}, free for now · {voiceF
 msgid "用完就配音（{voiceName}）"
 msgstr "Add voiceover right after applying ({voiceName})"
 
+#: src/pages/SettingsPage.tsx
+msgid "用实景重建的房间替代 3D 工坊；默认关"
+msgstr "Replaces the 3D workshop room with a real-scanned room; off by default"
+
 #: src/components/CardModelFit.tsx
 msgid "用得上"
 msgstr "Works"
@@ -35901,6 +35906,14 @@ msgstr "Verify and sign up"
 #: src/pages/LoginPage.tsx
 msgid "验证码已发出，10 分钟内有效"
 msgstr "Code sent — it's valid for 10 minutes"
+
+#: src/pages/SettingsPage.tsx
+msgid "高斯场景（实验）"
+msgstr "Gaussian scene (experimental)"
+
+#: src/pages/SettingsPage.tsx
+msgid "高斯数量"
+msgstr "Gaussian count"
 
 #: src/data/economy.ts
 #: src/studio/game/labels.ts

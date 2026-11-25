@@ -11,7 +11,7 @@ import * as THREE from "three";
 import { sceneLayout } from "./layout";
 import { useIsLandscape } from "../../hooks/useIsLandscape";
 import MagicStudy from "./MagicStudy";
-import { GS_DAY, gsStep0On, setGsPhase, useGsPhase } from "./gsStep0";
+import { GS_DAY, gsFillOn, gsMarkEntered, gsStep0On, setGsPhase, useGsPhase } from "./gsStep0";
 
 const GsStep0Room = lazy(() => import("./GsStep0Room"));
 
@@ -68,6 +68,12 @@ function DayLights() {
         intensity={GS_DAY.window.intensity}
         color="#eaf2ff"
       />
+      {/* ★ NPC 补光：从相机这一侧（+z）略高处往桌子对面打，参数与依据见 gsStep0.GS_DAY.fill。
+          无阴影（不写 castShadow）= 不会多出一条影子；强度 0.9 明显低于主光 2.4，
+          窗光仍然是唯一"有方向"的主光。dev 的 ?gs=1&nofill=1 不挂它（A/B 对照）。 */}
+      {gsFillOn() && (
+        <directionalLight position={GS_DAY.fill.position} intensity={GS_DAY.fill.intensity} color={GS_DAY.fill.color} />
+      )}
     </>
   );
 }
@@ -216,6 +222,11 @@ class GsBoundary extends Component<{ children: ReactNode }, { failed: boolean }>
 /** 房间/灯/桌面这一块的三态入口（TableScene 只写这一行） */
 export function GsStep0Environment() {
   const phase = useGsPhase();
+  // 真机验收要的"从进入工坊到 splat 出现"：这一组件随 TableScene 挂载，从这里开始计时
+  //（懒加载的 spark chunk、29.8 MiB 的 spz 下载都算在里面）。只在这一档开着时打。
+  useLayoutEffect(() => {
+    if (gsStep0On()) gsMarkEntered();
+  }, []);
   if (!gsStep0On() || phase === "off" || phase === "failed") return <LegacyRoom />;
   return (
     <>

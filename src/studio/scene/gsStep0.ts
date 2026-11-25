@@ -24,8 +24,110 @@ const devOn = (): boolean => {
   return new URLSearchParams(location.search).get("gs") === "1";
 };
 
-/** 这一档此刻到底开没开（`GS_STEP0` 常量或 dev 的 ?gs=1；生产构建里 dev 那一条永远为假） */
-export const gsStep0On = (): boolean => GS_STEP0 || devOn();
+// ── 实验入口：真机（release 包）怎么打开这一档 ────────────────────────────────
+// ★★ 为什么不能只靠 ?gs=1（2026-11-25 真机验收）：devOn() 读的是 `import.meta.env.DEV`，
+//    release 包里那一位恒假 —— 手机上无论地址写什么都不可能打开这一档。
+//    但这一档也**不能默认开**（普通用户不该看见实验画面）。所以多一个**默认关**的本机开关：
+//    设置 → 这台设备 → 高斯场景（实验），值存 localStorage。它不是产品功能，
+//    只是把 `gsStep0On()` 的第三个条件打开；打开后走的就是同一条 splat 路径。
+const EXP_KEY = "gsStep0Experiment";
+/** 高斯数量上限（同一行里 `全部` / 80 万两档：真机 A/B 帧率用；缺省 0 = 全画不截断） */
+const MAX_KEY = "gsStep0MaxSplats";
+const MIN_CAP = 10_000;
+
+function lsRead(key: string): string {
+  try {
+    return localStorage.getItem(key) ?? "";
+  } catch {
+    return ""; // 隐私模式 / 存储被禁：当作没开（回退今天的房间，别崩）
+  }
+}
+function lsWrite(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* 存不下就只在这一次会话里生效（下面两个模块级变量已经写了） */
+  }
+}
+
+/** 设置里那一行开关的状态（默认关；读一次冷启动值） */
+let expOn = lsRead(EXP_KEY) === "1";
+/** 设置里选的高斯上限；0 = 全部（不截断） */
+let expMax = Number(lsRead(MAX_KEY)) || 0;
+
+/** 这一档此刻到底开没开（`GS_STEP0` 常量 / dev 的 ?gs=1 / 设置里的本机开关；三者任一） */
+export const gsStep0On = (): boolean => GS_STEP0 || devOn() || expOn;
+
+/** 设置页那一行读它 */
+export function gsExperimentOn(): boolean {
+  return expOn;
+}
+
+/**
+ * 设置页那一行写它（真机验收用）。不刷新页面也能生效：
+ * 阶段是模块级单例 —— 打开时从 off 回到 loading（TableScene 会挂上 splat 子树），关掉时置 off。
+ * ★ dev 的 ?gs=1 是另一路开关：开着它时这一行不把正在看的场景摘掉（只影响下次冷启动）。
+ */
+export function setGsExperiment(on: boolean): void {
+  if (on === expOn) return;
+  expOn = on;
+  lsWrite(EXP_KEY, on ? "1" : "0");
+  if (!devOn()) setGsPhase(on ? "loading" : "off");
+}
+
+/** 这一档实际用几个高斯：dev 的 ?max= 覆盖 > 设置里选的档 > 0（= 全画，不截断）
+ *  ★ 0 不是"用 0 个"，是"不截断"：Spark 的 maxSplats 选项实测不截断（见 GS_STEP0_BUDGET）。 */
+export function gsMaxSplats(): number {
+  if (import.meta.env.DEV && typeof location !== "undefined") {
+    const raw = Number(new URLSearchParams(location.search).get("max"));
+    if (Number.isFinite(raw) && raw >= MIN_CAP) return Math.round(raw);
+  }
+  return expMax >= MIN_CAP ? Math.round(expMax) : 0;
+}
+
+/** 设置页那一行显示的当前档（0 = 全部） */
+export function gsMaxSplatsSetting(): number {
+  return expMax >= MIN_CAP ? Math.round(expMax) : 0;
+}
+
+/** 设置页那一行写它（0 = 全部不截断） */
+export function setGsMaxSplats(n: number): void {
+  if (!Number.isFinite(n) || n < 0) return;
+  if (n > 0 && n < MIN_CAP) return;
+  expMax = Math.round(n);
+  lsWrite(MAX_KEY, String(expMax));
+}
+
+/**
+ * NPC 补光开不开（见 GsStep0Environment.DayLights 的 fill）。
+ * 对照档只在 dev 认：`?gs=1&nofill=1` 时不挂那盏灯，同机位截两张做 A/B。
+ * 正式包（release）里这一位恒为 true —— 主人真机上看到的就是带补光的那一版。
+ */
+export function gsFillOn(): boolean {
+  if (!import.meta.env.DEV || typeof location === "undefined") return true;
+  return new URLSearchParams(location.search).get("nofill") !== "1";
+}
+
+// ── 加载耗时（真机验收：从进入工坊到 splat 出现）────────────────────────────
+// ★ 每次进工坊重新计时（离开再回来 spz 已在 HTTP 缓存里，读数会明显变快）；
+//   真机报告里取**冷启动第一次**那个数，别拿二次进工坊的数当验收读数。
+const GS_LOAD = { entered: 0, ready: 0 };
+
+/** 进入工坊（TableScene 挂载、且这一档开着）时调 */
+export function gsMarkEntered(): void {
+  GS_LOAD.entered = performance.now();
+  GS_LOAD.ready = 0;
+}
+
+/** splat 初始化完成（第一次真正能看见它）时调 */
+export function gsMarkReady(): void {
+  if (!GS_LOAD.ready) GS_LOAD.ready = performance.now();
+}
+
+/** 首进加载耗时（毫秒；没量到 = 0） */
+export function gsLoadMs(): number {
+  return GS_LOAD.ready > 0 && GS_LOAD.entered > 0 ? Math.round(GS_LOAD.ready - GS_LOAD.entered) : 0;
+}
 
 /** splat 资产：**不进仓库**（见 .gitignore 的 `public/models/study/gs/`）。开启前把导出的 spz 放到这里。 */
 export const GS_STEP0_ASSET = "/models/study/gs/workshop-step0.spz";
@@ -90,14 +192,45 @@ export const GS_DAY = {
   sun: { position: [-3, 8, -12] as [number, number, number], intensity: 2.4, color: "#fff2df" },
   /** 窗面泛光：不支持阴影 / 只支持 PBR 材质 / 必须先 RectAreaLightUniformsLib.init() */
   window: { position: [-2, 3.2, -7.8] as [number, number, number], width: 6, height: 3, intensity: 4 },
+  /**
+   * ★ NPC 补光（2026-11-25）。为什么需要：这一档的窗墙在 -z（正前方、窗光漂亮），
+   * 而 NPC 站在桌子对面、**面朝 +z**（玩家）—— 窗光从她背后打进来，她的脸与躯干正面
+   * 只剩环境光，在手机屏上就是一块剪影（见 docs/gs-step0-splat-log.md §5 已知风险 1）。
+   *
+   * 为什么是"相机这一侧（+z）、略高于桌面"的方向光：
+   *  · 相机在 +z（layout.LAND_CAM pos z=7.4，俯角 30°），NPC 面朝 +z ⇒ 从 +z 打过来正好
+   *    照亮她的脸与躯干正面，而不动窗光在她身后/侧面的塑形；
+   *  · 仰角 atan(2.6 / 7.6) ≈ 18.9°，比相机俯角低 11°：差着这点角度，脸上才有从上到下的
+   *    过渡；完全同角会拍成一张平脸（影棚里的"机位灯"就是这么丢立体感的）；
+   *  · x 偏 +0.8（相机右侧）是给鼻梁/脸颊留一点侧向明暗，同时不抢窗光"从 -z 来"的方向感；
+   *  · 用**方向光**而不是点光/聚光：补光要均匀兜住整张脸 + 上身，点光离得近会在脸上留一块
+   *    过曝圆斑与一条桌面上的假高光；方向光没有距离衰减，且默认不投影 ⇒ 不会多出第二条影子。
+   *  · 颜色比窗光（#fff2df）冷一点：补光在摄影里本来就更接近冷色环境光，也不把她的皮肤
+   *    和暖色窗光染成同一条色带。
+   *
+   * ★ 强度为什么是 0.9（2026-11-25 量的，不是拍的）：主光 sun = 2.4 ⇒ 补光 ≈ 主光的 1/2.7。
+   *   在浏览器同机位截 A/B 两张，量 NPC 那一块的平均亮度：补光 0.75 时脸 +22%、0.9 时 +27%
+   *   （不补光时她的躯干正面只剩环境光，整块接近剪影）；桌面只被提亮 +4% / +5%。
+   *   再往上（≥1.0）桌板朝向相机那一侧会开始比 splat 里的桌面更亮 —— splat 不响应灯光（本文件头 ②），
+   *   **网格与 splat 的接缝**就是从那里开始显形的，所以取 0.9 不再往上。
+   * ★ 对照档：dev 的 `?gs=1&nofill=1` 不挂这盏灯（gsFillOn()），同机位 A/B。
+   */
+  fill: { position: [0.8, 2.6, 7.6] as [number, number, number], intensity: 0.9, color: "#eef2f7" },
   /** 环境：程序化的"白天窗光"等距柱状图 → PMREM（真 HDR 以后换，见 GsStep0Room 的注释） */
   envIntensity: 0.45,
 };
 
-/** 加载预算：8 秒没就绪就当失败（手机上几十 MB 的 splat 也够）；高斯数先限住，手机显存见 plan §6 风险 2 */
+/** 加载预算：8 秒没就绪就当失败（手机上几十 MB 的 splat 也够）；高斯数默认不截断，见下。 */
 export const GS_STEP0_BUDGET = {
   timeoutMs: 8000,
-  maxSplats: 1_200_000,
+  /**
+   * ★ 0 = 不截断（2,000,000 个全画）。这个数原来写的是 1_200_000，但 2026-11-25 实测：
+   *   Spark 的 `maxSplats` 选项只是**生成器分配容量**，不是渲染上限 —— 传 120 万照样画
+   *   200 万（HUD 与 tris 都对得上）。真正的截断是渲染期改 `splat.splats.numSplats`
+   *   （见 GsStep0Room）；它保留打包数组的**前半段**，房间会缺一块 —— 只配当
+   *   "成本对照档"（真机 A/B 帧率），不能当画质档，所以默认 0。
+   */
+  maxSplats: 0,
 };
 
 // ── 加载阶段（一个模块级的极小 store，TableScene 与两处环境切换都读它）──
