@@ -1,3 +1,12 @@
+启梦 2.83
+
+· 修：房主慢一步开回合时，客人不会再被拆成单机——现在会显示「房主还没开始这一回合，正在等…」，等到了自动继续；只有真连不上才会转单机，并且会说明原因。
+· 修：对局结束后回到大厅，「最近一局回放」现在能直接打开刚打完的那一局（本机会留一份），不再提示「你不在这一局里了」。
+
+QiMeng 2.83
+
+· Fixed: when the host starts the round a moment late, guests are no longer dropped into a solo game — the room shows “waiting for the host to start this round…” and continues automatically; the solo fallback only happens on a real connection failure, with a clear reason.
+· Fixed: after a match, “last match replay” in the lobby now opens the match you just played (a local copy is kept) instead of saying you are no longer in that room.
 启梦 2.82
 
 · 创意工坊多了一个新玩法：把 3D 铸卡桌面改成一局能打完的多人对局——横屏桌面、桌上 4 个角色位加 1 个场景位，从背包拖卡上去，写一句话就能出片。
