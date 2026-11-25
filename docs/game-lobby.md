@@ -1195,7 +1195,7 @@ SSE（§7.10）只推 `{room, round}` 两帧，塞不了自定义事件；也没
 
 #### 五、怎么验的（2026-11-24，dev 本机模式 + 800×363 的 iframe）
 
-1. `npm run build` 绿；`node scripts/check-game-ingame.mjs` 289 条（第 8 段 57 条是这一批：
+1. `npm run build` 绿；`node scripts/check-game-ingame.mjs` 289 条（第 8 段 104 条是这一批：
    两组 tour 的步骤数 / 阶段顺序与 `GamePhase` 对账 / 分窗判据 / 接线 / 跳过 / 存储真跑一遍 /
    九个锚点在 800×363 上的几何）。**造过两次真违规确认它会红**：把 `phase: "screening"` 改成
    `screeningX` → 红 3 条；把联机展映那条控制条上的锚点删掉 → 红 1 条。
