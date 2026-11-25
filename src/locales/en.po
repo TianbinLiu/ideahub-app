@@ -11445,6 +11445,10 @@ msgid "历史回放"
 msgstr "Match replay"
 
 #: src/studio/game/ui/SpectateScreen.tsx
+msgid "历史回放正在读取；底栏「📼 历史回放」里能看每回合的片子与结算。"
+msgstr "Loading the replay; 📼 Match replay in the footer shows each round's clips and results."
+
+#: src/studio/game/ui/SpectateScreen.tsx
 msgid "历史回放正在读取…"
 msgstr "Loading the match replay…"
 

@@ -270,7 +270,7 @@ function SeatTable({ room, round, history }: { room: RemoteRoom; round: RemoteRo
           </div>
         );
       })}
-      <p className="mt-auto flex-none text-[9px] leading-snug text-slate-500">
+      <p className="mt-auto flex-none pb-0.5 text-[9px] leading-snug text-slate-500">
         <Trans>观战看不到牌面：服务端只给每人的片子和血量。</Trans>
       </p>
     </aside>
@@ -528,7 +528,11 @@ function NoRoundView({ room, history }: { room: RemoteRoom; history: RemoteGameH
       </p>
       <p className="max-w-[28rem] text-[10px] leading-snug text-slate-400">
         {finished ? (
-          <Trans>历史回放里有 {rounds} 个回合的片子与结算（底栏「📼 历史回放」）。</Trans>
+          history ? (
+            <Trans>历史回放里有 {rounds} 个回合的片子与结算（底栏「📼 历史回放」）。</Trans>
+          ) : (
+            <Trans>历史回放正在读取；底栏「📼 历史回放」里能看每回合的片子与结算。</Trans>
+          )
         ) : (
           <Trans>房主点开始之后，这里会跟着服务端一回合一一回合地走；展映 / 投票 / 结算都能看。</Trans>
         )}
