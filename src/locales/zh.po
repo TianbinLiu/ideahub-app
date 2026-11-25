@@ -93,6 +93,7 @@ msgid " · 改自 @{0}"
 msgstr " · 改自 @{0}"
 
 #: src/components/DownloadSheet.tsx
+#: src/studio/game/ui/WrapupSheet.tsx
 msgid " · 正在停止（当前这一段会跑完）"
 msgstr " · 正在停止（当前这一段会跑完）"
 
@@ -112,6 +113,11 @@ msgstr " · 生成中…"
 #: src/components/CoverPicker.tsx
 msgid " · 真实影像"
 msgstr " · 真实影像"
+
+#. placeholder {0}: bestClip.rank
+#: src/studio/game/ui/WrapupSheet.tsx
+msgid " · 第 {0} 名"
+msgstr " · 第 {0} 名"
 
 #. placeholder {0}: fmtTokens(schemeCost(sc.slots))
 #: src/components/VideoCardAnnotator.tsx
@@ -692,6 +698,7 @@ msgstr "（管理员没有填写原因）"
 
 #. placeholder {0}: mb(sizes.total)
 #: src/components/DownloadSheet.tsx
+#: src/studio/game/ui/WrapupSheet.tsx
 msgid "（约 {0}）"
 msgstr "（约 {0}）"
 
@@ -1017,6 +1024,17 @@ msgstr "{0} 段 · 已出片 {1}"
 #: src/pages/DraftsPage.tsx
 msgid "{0} 段 · 已出片 {1} · {2}改过"
 msgstr "{0} 段 · 已出片 {1} · {2}改过"
+
+#. placeholder {0}: view.wrapup.clips.length
+#. placeholder {1}: view.wrapup.placeholderRounds.length
+#: src/studio/game/ui/WrapupPanel.tsx
+msgid "{0} 段成片能带走；{1} 段是占位片"
+msgstr "{0} 段成片能带走；{1} 段是占位片"
+
+#. placeholder {0}: view.wrapup.clips.length
+#: src/studio/game/ui/WrapupPanel.tsx
+msgid "{0} 段成片都能带走"
+msgstr "{0} 段成片都能带走"
 
 #. placeholder {0}: it.summary.templated
 #. placeholder {0}: s.templated
@@ -3874,11 +3892,11 @@ msgstr "✓ 已加为中间帧"
 msgid "✓ 已在我的卡组"
 msgstr "✓ 已在我的卡组"
 
-#: src/components/DownloadSheet.tsx
+#: src/data/videoDownload.ts
 msgid "✓ 已存"
 msgstr "✓ 已存"
 
-#: src/components/DownloadSheet.tsx
+#: src/data/videoDownload.ts
 msgid "✓ 已存（之前存过）"
 msgstr "✓ 已存（之前存过）"
 
@@ -4135,6 +4153,14 @@ msgstr "⤢ 铺满整幅"
 #: src/components/flow/DraftModeBox.tsx
 msgid "⬆ 定稿成 1080p（{price}）"
 msgstr "⬆ 定稿成 1080p（{price}）"
+
+#: src/studio/game/ui/WrapupPanel.tsx
+msgid "⬇️ 保存到本地"
+msgstr "⬇️ 保存到本地"
+
+#: src/studio/game/ui/WrapupSheet.tsx
+msgid "⬇️ 先保存到本地"
+msgstr "⬇️ 先保存到本地"
 
 #: src/pages/TemplateDetailPage.tsx
 msgid "⬜ 白模模板 · 参考视频 {billSec}s"
@@ -4872,6 +4898,11 @@ msgstr "🧬 融首帧"
 #~ msgid "🪪 这张真人卡还<0>没接上已授权的肖像素材</0>——「高清」「电影级」档不收直接上传的真人照片，接上之前用它出片会被拒。"
 #~ msgstr "🪪 这张真人卡还<0>没接上已授权的肖像素材</0>——「高清」「电影级」档不收直接上传的真人照片，接上之前用它出片会被拒。"
 
+#: src/studio/game/ui/WrapupPanel.tsx
+#: src/studio/game/ui/WrapupSheet.tsx
+msgid "🚀 发布"
+msgstr "🚀 发布"
+
 #: src/studio/ui/MarketSearch.tsx
 msgid "🛒 市场"
 msgstr "🛒 市场"
@@ -5297,6 +5328,14 @@ msgstr "AI 逐段生成的短片 · 来自启梦"
 #: src/mock/frames.ts
 msgid "AI 预览帧"
 msgstr "AI 预览帧"
+
+#: src/studio/game/ui/WrapupSheet.tsx
+msgid "App 现在没有直连平台的发布能力（没有平台授权，也没有上传接口），所以这一格不摆一颗发不出去的键。 先把成片保存到本地，再去平台 App 或浏览器里上传。"
+msgstr "App 现在没有直连平台的发布能力（没有平台授权，也没有上传接口），所以这一格不摆一颗发不出去的键。 先把成片保存到本地，再去平台 App 或浏览器里上传。"
+
+#: src/studio/game/ui/WrapupSheet.tsx
+msgid "App 现在还不能直连平台发布（没有平台授权，也没有上传接口）。这里的片子存好之后，去对应的平台 App 或浏览器里上传就行。"
+msgstr "App 现在还不能直连平台发布（没有平台授权，也没有上传接口）。这里的片子存好之后，去对应的平台 App 或浏览器里上传就行。"
 
 #: src/pages/tutor/TutorNewPage.tsx
 msgid "App 里先收 .md / .txt（讲义、笔记、课件导出的文字）。PDF / PPTX / DOCX 请去网页端传：那边在浏览器里抽文字，手机上跑不动那几个解析器。"
@@ -8411,6 +8450,10 @@ msgstr "保存视频"
 msgid "保存资料"
 msgstr "保存资料"
 
+#: src/studio/game/ui/WrapupSheet.tsx
+msgid "保存这一局的片子"
+msgstr "保存这一局的片子"
+
 #: src/pages/VideoPage.tsx
 #~ msgid "保存这一集到本地"
 #~ msgstr "保存这一集到本地"
@@ -8545,6 +8588,7 @@ msgstr "停下"
 
 #: src/components/DownloadSheet.tsx
 #: src/pages/SupportPage.tsx
+#: src/studio/game/ui/WrapupSheet.tsx
 msgid "停止"
 msgstr "停止"
 
@@ -8592,6 +8636,10 @@ msgstr "先不公开"
 #: src/components/DeleteConfirmShell.tsx
 msgid "先不删"
 msgstr "先不删"
+
+#: src/studio/game/ui/WrapupPanel.tsx
+msgid "先不存"
+msgstr "先不存"
 
 #: src/components/flow/TierRow.tsx
 msgid "先不换"
@@ -8725,6 +8773,7 @@ msgid "先存起来，圈完所有要改的地方再一次性重新生成"
 msgstr "先存起来，圈完所有要改的地方再一次性重新生成"
 
 #: src/components/DownloadSheet.tsx
+#: src/studio/game/ui/WrapupSheet.tsx
 msgid "先存进 App，再选去处。"
 msgstr "先存进 App，再选去处。"
 
@@ -9185,10 +9234,12 @@ msgid "共 {count} 段 · 点开选一段"
 msgstr "共 {count} 段 · 点开选一段"
 
 #: src/components/DeleteConfirmShell.tsx
+#: src/studio/game/ui/WrapupSheet.tsx
 msgid "关掉"
 msgstr "关掉"
 
 #: src/components/DownloadSheet.tsx
+#: src/studio/game/ui/WrapupSheet.tsx
 msgid "关掉（保存继续跑）"
 msgstr "关掉（保存继续跑）"
 
@@ -9451,6 +9502,7 @@ msgstr "再裁掉台标与水印"
 #: src/pages/EditPage.tsx
 #: src/pages/PublishPage.tsx
 #: src/pages/tutor/TutorNewPage.tsx
+#: src/studio/game/ui/WrapupPanel.tsx
 msgid "再试一次"
 msgstr "再试一次"
 
@@ -10196,6 +10248,7 @@ msgid "分享"
 msgstr "分享"
 
 #: src/components/DownloadSheet.tsx
+#: src/studio/game/ui/WrapupSheet.tsx
 msgid "分享 / 另存为"
 msgstr "分享 / 另存为"
 
@@ -11934,6 +11987,10 @@ msgstr "发"
 msgid "发一句试试，比如「你好呀」。"
 msgstr "发一句试试，比如「你好呀」。"
 
+#: src/studio/game/ui/WrapupSheet.tsx
+msgid "发到 B 站、抖音这些平台"
+msgstr "发到 B 站、抖音这些平台"
+
 #: src/components/flow/SkillPanel.tsx
 #: src/pages/PublishPage.tsx
 #: src/pages/SupportModelNewPage.tsx
@@ -12004,6 +12061,10 @@ msgstr "发布到声音市场"
 msgid "发布到市场"
 msgstr "发布到市场"
 
+#: src/studio/game/ui/WrapupSheet.tsx
+msgid "发布到本站（IdeaHub）"
+msgstr "发布到本站（IdeaHub）"
+
 #: src/pages/TemplateDetailPage.tsx
 msgid "发布到模板市场"
 msgstr "发布到模板市场"
@@ -12060,6 +12121,10 @@ msgstr "发布没成：{why}"
 #: src/pages/PublishPage.tsx
 msgid "发布视频"
 msgstr "发布视频"
+
+#: src/studio/game/ui/WrapupSheet.tsx
+msgid "发布这一局的片子"
+msgstr "发布这一局的片子"
 
 #: src/pages/FeedPage.tsx
 msgid "发弹幕"
@@ -13840,10 +13905,12 @@ msgid "大块黑白对比、湿地面反光，红是画面里唯一的亮色。"
 msgstr "大块黑白对比、湿地面反光，红是画面里唯一的亮色。"
 
 #: src/components/DownloadSheet.tsx
+#: src/data/videoDownload.ts
 msgid "大小未知"
 msgstr "大小未知"
 
 #: src/components/DownloadSheet.tsx
+#: src/studio/game/ui/WrapupSheet.tsx
 msgid "大小未知，没法校验这一份是不是完整的。"
 msgstr "大小未知，没法校验这一份是不是完整的。"
 
@@ -14858,6 +14925,15 @@ msgstr "工坊"
 msgid "工坊对局"
 msgstr "工坊对局"
 
+#. placeholder {0}: clip.round
+#: src/studio/game/ui/WrapupPanel.tsx
+msgid "工坊对局 · 第 {0} 回合"
+msgstr "工坊对局 · 第 {0} 回合"
+
+#: src/studio/game/ui/WrapupPanel.tsx
+msgid "工坊对局 · 这一局的片子"
+msgstr "工坊对局 · 这一局的片子"
+
 #: src/data/projects.ts
 msgid "工坊工程没能留在这台设备上（存储空间不足或浏览器隐私模式）——这条片发出去之后不能回炉"
 msgstr "工坊工程没能留在这台设备上（存储空间不足或浏览器隐私模式）——这条片发出去之后不能回炉"
@@ -14979,7 +15055,6 @@ msgstr "已上架到模板市场的「工作流」货架"
 
 #. placeholder {0}: mb(p.bytes)
 #. placeholder {0}: mb(row.bytes)
-#: src/components/DownloadSheet.tsx
 #: src/data/videoDownload.ts
 msgid "已下 {0}"
 msgstr "已下 {0}"
@@ -15053,7 +15128,7 @@ msgstr "已保存的视频 {0} · {files} 个文件"
 msgid "已做好"
 msgstr "已做好"
 
-#: src/components/DownloadSheet.tsx
+#: src/data/videoDownload.ts
 msgid "已停止"
 msgstr "已停止"
 
@@ -16034,6 +16109,7 @@ msgid "开始上课"
 msgstr "开始上课"
 
 #: src/components/DownloadSheet.tsx
+#: src/studio/game/ui/WrapupSheet.tsx
 msgid "开始保存{totalLabel}"
 msgstr "开始保存{totalLabel}"
 
@@ -16583,6 +16659,10 @@ msgstr "情绪"
 #: src/studio/game/labels.ts
 msgid "惊了"
 msgstr "惊了"
+
+#: src/studio/game/ui/WrapupSheet.tsx
+msgid "想发到 B 站、抖音这些平台？"
+msgstr "想发到 B 站、抖音这些平台？"
 
 #: src/pages/SimpleModePage.tsx
 msgid "想怎么开始？"
@@ -17372,6 +17452,14 @@ msgstr "把自己的课件交给 AI，做一位按你的材料讲课的老师，
 #: src/studio/flowStore.ts
 msgid "把角色放进白模画面…"
 msgstr "把角色放进白模画面…"
+
+#: src/studio/game/ui/WrapupSheet.tsx
+msgid "把这一局最好的那一段发出去"
+msgstr "把这一局最好的那一段发出去"
+
+#: src/studio/game/ui/WrapupSheet.tsx
+msgid "把这一局的片子存到本地"
+msgstr "把这一局的片子存到本地"
 
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "把这个角色位改成{s}"
@@ -18928,6 +19016,10 @@ msgstr "收取中…"
 msgid "收回背包了"
 msgstr "收回背包了"
 
+#: src/studio/game/ui/WrapupPanel.tsx
+msgid "收尾：这一局的片子"
+msgstr "收尾：这一局的片子"
+
 #: src/pages/FeedPage.tsx
 #: src/pages/VideoPage.tsx
 msgid "收藏"
@@ -19377,9 +19469,16 @@ msgid "文件地址不对，这一份没能交出去。"
 msgstr "文件地址不对，这一份没能交出去。"
 
 #. placeholder {0}: plan.formats.map((f) => f.toUpperCase()).join(" / ")
+#. placeholder {0}: plan.plan.formats.map((f) => f.toUpperCase()).join(" / ")
 #: src/components/DownloadSheet.tsx
+#: src/studio/game/ui/WrapupSheet.tsx
 msgid "文件格式：{0}"
 msgstr "文件格式：{0}"
+
+#. placeholder {0}: downloadsPathOf(clipId)
+#: src/studio/game/ui/WrapupSheet.tsx
+msgid "文件落在 App 缓存目录 {0} 下。"
+msgstr "文件落在 App 缓存目录 {0} 下。"
 
 #: src/components/TemplateShelf.tsx
 msgid "文字"
@@ -21063,6 +21162,10 @@ msgstr "标识、素材授权与违规处理"
 msgid "标题 *"
 msgstr "标题 *"
 
+#: src/studio/game/ui/WrapupSheet.tsx
+msgid "标题、封面、简介会先按这一段填好，发布页上还能改。"
+msgstr "标题、封面、简介会先按这一段填好，发布页上还能改。"
+
 #: src/pages/TemplateDetailPage.tsx
 msgid "标题/简介的修改只改本机显示；市场里展示的是登记那一刻的版本。"
 msgstr "标题/简介的修改只改本机显示；市场里展示的是登记那一刻的版本。"
@@ -21188,7 +21291,7 @@ msgstr "桌面图标上的名字跟随手机系统语言，这里切换不会改
 #~ msgid "桌面还空着，没什么可存"
 #~ msgstr "桌面还空着，没什么可存"
 
-#: src/components/DownloadSheet.tsx
+#: src/data/videoDownload.ts
 msgid "检查中"
 msgstr "检查中"
 
@@ -21707,11 +21810,17 @@ msgstr "正在从创意工坊取这张卡…"
 msgid "正在从服务器取这个模板…"
 msgstr "正在从服务器取这个模板…"
 
+#. placeholder {0}: doneRows.length
 #. placeholder {0}: rows.filter((r) => r.status === "done" || r.status === "exists").length
 #. placeholder {1}: rows.length
 #: src/components/DownloadSheet.tsx
+#: src/studio/game/ui/WrapupSheet.tsx
 msgid "正在保存 {0}/{1} 段"
 msgstr "正在保存 {0}/{1} 段"
+
+#: src/studio/game/ui/WrapupSheet.tsx
+msgid "正在保存另一批片子，等它完成或点停止再来。"
+msgstr "正在保存另一批片子，等它完成或点停止再来。"
 
 #: src/components/DownloadSheet.tsx
 msgid "正在保存另一条作品，等它完成或点停止再来。"
@@ -21748,6 +21857,11 @@ msgstr "正在写歌词，十几秒（可以先离开，写好的会留在这里
 #: src/studio/personaWizardStore.ts
 msgid "正在写说话风格…"
 msgstr "正在写说话风格…"
+
+#: src/studio/game/ui/WrapupPanel.tsx
+#: src/studio/game/ui/WrapupSheet.tsx
+msgid "正在准备发布页…"
+msgstr "正在准备发布页…"
 
 #: src/studio/live2dUploadStore.ts
 msgid "正在准备预览…"
@@ -22569,7 +22683,7 @@ msgstr "没在句子里点名时，系统只会说它是一张补充参考——
 msgid "没在句子里点名时，系统按这个用途替它说一句。"
 msgstr "没在句子里点名时，系统按这个用途替它说一句。"
 
-#: src/components/DownloadSheet.tsx
+#: src/data/videoDownload.ts
 msgid "没存下"
 msgstr "没存下"
 
@@ -26023,6 +26137,7 @@ msgstr "知性女声"
 #: src/pages/EditPage.tsx
 #: src/pages/PublishPage.tsx
 #: src/pages/VideoPage.tsx
+#: src/studio/game/ui/WrapupPanel.tsx
 msgid "知道了"
 msgstr "知道了"
 
@@ -26605,12 +26720,13 @@ msgid "第 {0} 味音色"
 msgstr "第 {0} 味音色"
 
 #. placeholder {0}: bar.round
+#. placeholder {0}: clip.round
 #. placeholder {0}: event.round
-#. placeholder {0}: one.round
 #: src/studio/game/ui/EventPanel.tsx
 #: src/studio/game/ui/MatchHistory.tsx
 #: src/studio/game/ui/OnlineEventPanel.tsx
 #: src/studio/game/ui/SpectateScreen.tsx
+#: src/studio/game/ui/WrapupSheet.tsx
 msgid "第 {0} 回合"
 msgstr "第 {0} 回合"
 
@@ -26619,6 +26735,13 @@ msgstr "第 {0} 回合"
 #: src/studio/game/ui/SpectateScreen.tsx
 msgid "第 {0} 回合 · {1}"
 msgstr "第 {0} 回合 · {1}"
+
+#. placeholder {0}: bestClip.round
+#. placeholder {1}: bestClip.likes
+#. placeholder {2}: bestClip.votes
+#: src/studio/game/ui/WrapupSheet.tsx
+msgid "第 {0} 回合 · ❤ {1} · 🗳 {2}"
+msgstr "第 {0} 回合 · ❤ {1} · 🗳 {2}"
 
 #. placeholder {0}: round.round
 #: src/studio/game/ui/SpectateScreen.tsx
@@ -27594,7 +27717,7 @@ msgstr "等太久没等到服务器回话。这一发可能已经建好了 —�
 msgid "等她画出来才能继续。"
 msgstr "等她画出来才能继续。"
 
-#: src/components/DownloadSheet.tsx
+#: src/data/videoDownload.ts
 msgid "等待中"
 msgstr "等待中"
 
@@ -27798,7 +27921,7 @@ msgid "红"
 msgstr "红"
 
 #. placeholder {0}: mb(known)
-#: src/components/DownloadSheet.tsx
+#: src/data/videoDownload.ts
 msgid "约 {0}"
 msgstr "约 {0}"
 
@@ -30569,6 +30692,10 @@ msgstr "还没同步到服务端（{issue}）——换台设备暂时看不到�
 msgid "还没开始第一回合"
 msgstr "还没开始第一回合"
 
+#: src/studio/game/ui/WrapupPanel.tsx
+msgid "还没拿到这一局的片子（服务端的战绩没读到）"
+msgstr "还没拿到这一局的片子（服务端的战绩没读到）"
+
 #: src/components/flow/GridShotsWizard.tsx
 msgid "还没挑"
 msgstr "还没挑"
@@ -31277,6 +31404,14 @@ msgstr "这一小段传了 {hardMin} 分钟还没完成——网络太慢，换�
 msgid "这一小段有 {stallSec} 秒没传出去一个字节——网络断了或太不稳，换个网络再试"
 msgstr "这一小段有 {stallSec} 秒没传出去一个字节——网络断了或太不稳，换个网络再试"
 
+#: src/studio/game/ui/WrapupPanel.tsx
+msgid "这一局你没交过片"
+msgstr "这一局你没交过片"
+
+#: src/data/videoDownload.ts
+msgid "这一局只有占位片，没有可保存的成片。"
+msgstr "这一局只有占位片，没有可保存的成片。"
+
 #: src/studio/game/ui/SpectateScreen.tsx
 msgid "这一局已经打完了"
 msgstr "这一局已经打完了"
@@ -31306,6 +31441,12 @@ msgstr "这一局打完了（平局）"
 msgid "这一局按 {0} 个真人开：服务端的回合只算真人，空位不参加。"
 msgstr "这一局按 {0} 个真人开：服务端的回合只算真人，空位不参加。"
 
+#. placeholder {0}: targets.length
+#. placeholder {1}: targets.length
+#: src/studio/game/ui/WrapupSheet.tsx
+msgid "这一局有 {0} 段成片，会存成 {1} 个文件（每回合一个）。"
+msgstr "这一局有 {0} 段成片，会存成 {1} 个文件（每回合一个）。"
+
 #: src/studio/game/historyReasons.ts
 msgid "这一局没有回放（房间已结束或本机对局）"
 msgstr "这一局没有回放（房间已结束或本机对局）"
@@ -31314,9 +31455,17 @@ msgstr "这一局没有回放（房间已结束或本机对局）"
 msgid "这一局没有抽到风格卡（数据不对）——去右栏结束对局再开一局。"
 msgstr "这一局没有抽到风格卡（数据不对）——去右栏结束对局再开一局。"
 
+#: src/studio/game/ui/WrapupSheet.tsx
+msgid "这一局没有能发出去的成片。"
+msgstr "这一局没有能发出去的成片。"
+
 #: src/studio/game/historyReasons.ts
 msgid "这一局的回放没存下来"
 msgstr "这一局的回放没存下来"
+
+#: src/studio/game/ui/WrapupPanel.tsx
+msgid "这一局的战绩没存下来，片子也找不回来了"
+msgstr "这一局的战绩没存下来，片子也找不回来了"
 
 #: src/studio/game/lobbyReasons.ts
 msgid "这一局的房间已经结束"
@@ -31325,6 +31474,10 @@ msgstr "这一局的房间已经结束"
 #: src/studio/game/historyReasons.ts
 msgid "这一局的房间已经过期，回放也一起没了"
 msgstr "这一局的房间已经过期，回放也一起没了"
+
+#: src/data/videoDownload.ts
+msgid "这一局的画面里没有「AI 生成」角标，按合规要求暂时不能导出成文件。"
+msgstr "这一局的画面里没有「AI 生成」角标，按合规要求暂时不能导出成文件。"
 
 #: src/studio/game/ui/ConnectionBanner.tsx
 msgid "这一局的联机房间已经结束"
@@ -32029,6 +32182,10 @@ msgstr "这一段改动写不回去了——它挂着的那个节点已经不在
 #: src/studio/studioStore.ts
 msgid "这一段是从工作流里单独打开的，改动还只在内存里——回工作流把它保存进草稿，再切后台。"
 msgstr "这一段是从工作流里单独打开的，改动还只在内存里——回工作流把它保存进草稿，再切后台。"
+
+#: src/studio/game/ui/WrapupPanel.tsx
+msgid "这一段是占位片，没有成片"
+msgstr "这一段是占位片，没有成片"
 
 #: src/pages/CutPage.tsx
 msgid "这一段是接着上一段拍的（同一个镜头在延续）——在这儿加转场会把接缝撕开。想要换场的感觉，加在别的接缝上更合适。"

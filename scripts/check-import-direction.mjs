@@ -66,6 +66,11 @@ const ZERO_DEP = [
   // 本机对局的战绩 / 回放落盘（2026-11-24 晚）：形状映射 + localStorage 读写 + 读侧校验，
   // scripts/check-game-history.mjs 直接 import 它跑正反例（展示名 / 卡名由调用方递进来，这里不认识界面语言）。
   "src/studio/game/localHistory.ts",
+  // 「打完一局，这一局的片子怎么带走」的判据（2026-11-24 晚）：scripts/check-game-wrapup.mjs
+  // 直接 import 跑正反例。值 import 只来自表里另外两个零依赖模块
+  // （history.ts 读我这一期的名次/点赞/票、localHistory.ts 判"这一份是不是这一局"）——
+  // 这正是 ③ 允许的那一种，也是"同一件事不许有两份实现"在这条链上的落地。
+  "src/studio/game/wrapup.ts",
   // 「房间已开局、房主还没开这一回合」的判据（2026-11-24 Bug A）：scripts/check-game-online.mjs
   // 直接 import 跑正反例；只 import type（api/game/rounds 的失败形状），运行时零依赖。
   "src/studio/game/roundWait.ts",

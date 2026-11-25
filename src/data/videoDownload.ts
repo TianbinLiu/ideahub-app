@@ -45,7 +45,8 @@ import { Share } from "@capacitor/share";
 import { getVideo, isMyVideo, isShareable, partsOf } from "./videos";
 import { startJob } from "./jobs";
 import { isNative } from "../utils/oauth";
-import { t } from "@lingui/core/macro";
+import { i18n } from "@lingui/core";
+import { msg, t } from "@lingui/core/macro";
 import type { VideoItem, VideoSegment } from "../types";
 
 /** 落点：`<Directory.Cache>/ideahub-downloads/<videoId>/<纯 ASCII 文件名>` */
@@ -277,6 +278,95 @@ export function planDownload(
   };
 }
 
+/** 对局收尾要存的一段片子（一回合一条；`label` 是界面上那一行「第 3 回合」）。 */
+export interface ClipDownloadClip {
+  round: number;
+  url: string;
+  label: string;
+}
+
+export interface ClipDownloadInput {
+  /** 落盘目录 key（纯 ASCII；`studio/game/wrapup.clipIdOf` 给的 `game-<房号>` / `game-local-<时刻>`） */
+  clipId: string;
+  /** 分享面板的标题（只进 `Share.share({title})`，不进文件名） */
+  title: string;
+  /** 文件名里的日期那一格（这一局结束的时刻） */
+  createdAt: number | string;
+  /** 这一局**能存的那几段**（占位片由调用方挡掉 —— 它没有地址可下） */
+  clips: readonly ClipDownloadClip[];
+}
+
+/**
+ * 对局收尾的「保存到本地」计划（2026-11-24 晚）。
+ *
+ * ★★ 为什么不复用 `planDownload`：那一条的入口是**已发布作品**（`VideoItem`，还要过
+ *   `isMyVideo` / `takedown` / `isShareable` 三道闸 —— 对局里的片子根本不是作品，硬套只会
+ *   一路拒成"只能保存自己发布的作品"）。这里另开一条**窄**的入口，但"能不能存"这个总闸
+ *   （`downloadSupport`）、AIGC 标识闸、"只认 http(s) 原地址"、"文件名叫什么"四件事
+ *   仍然全部回到本模块的同一批实现上 —— 判据一处都没有第二份。
+ * ★ 多段 = **逐段存**：对局里每回合是一条独立的短片（不是一条长片的分段），合成一条要
+ *   走剪辑页的原生合成器（`VideoMergePlugin`，只在真机上跑），而这里要的是"把已经有的
+ *   几段原样拿走"。下到同一个目录、串行、可断点续存（队列本来就支持多目标），
+ *   与已发布作品的多段作品走的是同一段主循环。
+ * ★ 占位片不进来（调用方只递真片）：真递进来也只有一条"这一局没有可保存的成片"的整句拒。
+ */
+export function planClipDownload(input: ClipDownloadInput): PlanResult {
+  const sup = downloadSupport();
+  if (!sup.ok) return { ok: false, blocked: sup.reason! };
+
+  const clips = input.clips.filter((clip) => /^https?:\/\//i.test(clip.url));
+  if (clips.length === 0) return { ok: false, blocked: t`这一局只有占位片，没有可保存的成片。` };
+
+  const urls = clips.map((clip) => clip.url);
+  // AIGC 显式标识闸：与已发布作品同一处常量、同一档口径（见 AIGC_MARK_POLICY）
+  if (AIGC_MARK_POLICY === "burned-only" && !allBurned(urls)) {
+    return {
+      ok: false,
+      blocked: t`这一局的画面里没有「AI 生成」角标，按合规要求暂时不能导出成文件。`,
+    };
+  }
+
+  const ymd = ymdOf(input.createdAt);
+  const id6 = ascii(input.clipId).slice(-6) || "unknown";
+  const targets: DownloadTarget[] = clips.map((clip) => {
+    const ext = extOf(clip.url);
+    const key = `r${clip.round}`;
+    return {
+      brand: "download-target",
+      videoId: input.clipId,
+      // 一局就是一个"作品"，不分 P（partIndex 只进文件名，这里恒 0）
+      partIndex: 0,
+      key,
+      // ⛔ 原地址，一个派生字符串都不生成（见 DownloadTarget.url 的 ⛔⛔）
+      url: clip.url,
+      fileName: composeFileName({ ymd, id6, partSuffix: "", seq: seqOfRound(clip.round), url: clip.url, ext }),
+      label: clip.label,
+      ext,
+    };
+  });
+
+  return {
+    ok: true,
+    plan: {
+      kind: targets.length <= 1 ? "single" : "linear",
+      targets,
+      formats: [...new Set(targets.map((t) => t.ext))],
+      hasWebm: targets.some((t) => t.ext === "webm"),
+    },
+  };
+}
+
+/**
+ * 对局收尾文件名里的序号那一格：`r03` = 第 3 回合。
+ * ★ 为什么加 `r` 前缀而不直接写 `03`：线性作品的 `01..NN` 是"第几段"，这里是"第几回合"，
+ *   两个数是两件事（起手回合与第一段不是同一个东西）；不加前缀的话同一目录里
+ *   `…-03-…` 会被当成"第 3 段"。
+ */
+function seqOfRound(round: number): string {
+  const n = Number.isFinite(round) ? Math.max(0, Math.floor(round)) : 0;
+  return `r${String(n).padStart(2, "0")}`;
+}
+
 /** 地址末段的扩展名（小写、不带点），取不到默认 mp4 */
 function extOf(url: string): string {
   const last = url.split("?")[0].split("/").pop() ?? "";
@@ -291,6 +381,7 @@ const ascii = (s: string): string => s.replace(/[^A-Za-z0-9_-]/g, "");
  *   `AIGC-qimeng-<yyyymmdd>-<vid6>[-P<n>]-<seq>-<url8>.<ext>`
  *   例 `AIGC-qimeng-20260830-a91c3f-P2-03-3f8d2e1f.mp4`
  *      `AIGC-qimeng-20260830-a91c3f-n7b2c-8d2e1f04.mp4`（分支树按节点短码）
+ *      `AIGC-qimeng-20261124-3e91ff-r03-8d2e1f04.mp4`（对局收尾：按回合）
  *
  * ★★ 为什么全 ASCII：SharePlugin.getMimeType() 走 `MimeTypeMap.getFileExtensionFromUrl(url)`，
  *   AOSP 那个函数对文件名有硬正则 `[a-zA-Z_0-9.\-()%]+`，不匹配就返回空扩展名 →
@@ -302,9 +393,15 @@ const ascii = (s: string): string => s.replace(/[^A-Za-z0-9_-]/g, "");
  *   分不出哪个是哪个，而"用户能不能找到这个文件"正是我们放弃 MediaStore 之后唯一的补偿。
  * ★ `<url8>` 是与「回炉重做」那条特性的**唯一**耦合点：回炉换段必然产生新的 Cloudinary
  *   public_id（服务端每次造新 key），文件名因此自动变，旧文件不会被新版本悄悄覆盖。
+ *
+ * ★★ 参数从 `VideoItem` 收成五格（2026-11-24 对局收尾）：对局里的片子**不在作品库里**
+ *   （它只活在战绩记录里，没有 VideoItem），但文件名的规矩必须一模一样 —— 两份拼法一分叉，
+ *   `AIGC-` 前缀 / 纯 ASCII / `<url8>` 这三条里总会丢一条，而丢掉的那一条在真机上的症状是
+ *   "相册不在分享面板里"。所以收窄成 `{id, createdAt}`（VideoItem 本来就满足它），
+ *   只留 `composeFileName` 一处拼法。
  */
 export function fileNameOf(
-  video: VideoItem,
+  video: Pick<VideoItem, "id" | "createdAt">,
   partIndex: number,
   partCount: number,
   key: string,
@@ -312,22 +409,37 @@ export function fileNameOf(
   url: string,
   ext: string,
 ): string {
-  const d = new Date(video.createdAt);
-  const ymd = Number.isNaN(d.getTime())
-    ? "00000000"
-    : `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
-  const vid6 = ascii(video.id).slice(-6) || "unknown";
   const p = partCount > 1 ? `-P${partIndex + 1}` : "";
   // 线性 01..NN；分支树 `n<nodeId 后 4 位>` —— 保证同一节点在「刚看的走向」与
   // 「存全部分支」两档下拿到同一个文件名，不会存两遍
   const seq = seqNo === null ? `n${ascii(key).slice(-4) || "0000"}` : String(seqNo).padStart(2, "0");
+  return composeFileName({
+    ymd: ymdOf(video.createdAt),
+    id6: ascii(video.id).slice(-6) || "unknown",
+    partSuffix: p,
+    seq,
+    url,
+    ext,
+  });
+}
+
+/** 文件名里的日期那一格（`yyyymmdd`；时间戳读不出来时是 `00000000`） */
+function ymdOf(createdAt: number | string): string {
+  const d = new Date(createdAt);
+  return Number.isNaN(d.getTime())
+    ? "00000000"
+    : `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** `fileNameOf` 与 `planClipDownload` 共用的拼法（两处调用，规则只有这一份；注释见 fileNameOf）。 */
+function composeFileName(p: { ymd: string; id6: string; partSuffix: string; seq: string; url: string; ext: string }): string {
   // ★★ 先把扩展名摘掉再截后 8 位。ascii() 会把 `.` 一起过滤掉，直接截会把容器名卷进来：
   //   真机实测（2026-09-07）`…-1788665109067.webm` → 去点后 `…1788665109067webm` → 后 8 位 `4172webm`
   //   ⇒ 落盘文件名成了 `AIGC-qimeng-20260906-3e91ff-01-4172webm.webm`，多出来那截 `webm` 是噪声，
   //   而这一格本来是"同一段换了成片就换名字"的唯一判据（见上面 <url8> 那条 ★）。
-  const urlBase = (url.split("?")[0].split("/").pop() ?? "").replace(/\.[A-Za-z0-9]+$/, "");
+  const urlBase = (p.url.split("?")[0].split("/").pop() ?? "").replace(/\.[A-Za-z0-9]+$/, "");
   const url8 = ascii(urlBase).slice(-8) || "00000000";
-  return `AIGC-qimeng-${ymd}-${vid6}${p}-${seq}-${url8}.${ascii(ext) || "mp4"}`;
+  return `AIGC-qimeng-${p.ymd}-${p.id6}${p.partSuffix}-${p.seq}-${url8}.${ascii(p.ext) || "mp4"}`;
 }
 
 // ── 队列（模块级单例，活过组件卸载）──────────────────────────
@@ -470,6 +582,16 @@ function pathKeyOf(t: DownloadTarget): string {
 
 function dirOf(videoId: string): string {
   return `${DOWNLOAD_DIR}/${videoId}`;
+}
+
+/**
+ * 这批文件落在缓存目录的哪一格（`<Cache>/ideahub-downloads/<videoId>`）。
+ * ★ 界面要能说出「存到哪了」（对局收尾那张保存面板就这么写）：说得出口的用户才会去找，
+ *   而"我们的文件不进相册、只落在 App 缓存里"正是这一整个模块的取舍（见文件头）。
+ * ★ 路径的唯一来源在这里：`dirOf` 之外的任何地方拼一遍，改目录时就会有一处对不上。
+ */
+export function downloadsPathOf(videoId: string): string {
+  return dirOf(videoId);
 }
 
 // ── 进度监听（**在本模块注册一次**，队列空了就拆）─────────────
@@ -826,6 +948,33 @@ export function mb(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1048576) return `${(bytes / 1024).toFixed(0)} KB`;
   return `${(bytes / 1048576).toFixed(1)} MB`;
+}
+
+/**
+ * 一行右侧那一格的四态文字（**唯一实现**：作品详情页那张保存面板与对局收尾那张共用）。
+ * ★ 放在这里而不是各面板里：这六句话读的全是本模块的状态机（status / total / bytes），
+ *   两个面板各写一遍，改一个状态名就有一处会印出旧说法。
+ * ★ `total` 为 null 时写「已下 4.1 MB」而不是一条恒 0% 的进度条（源头没给长度，见 attachProgress 的 ★）。
+ * ★ 用 `i18n._` 不用 `t` 宏：这是普通函数，调用发生在渲染那一刻（宏在这里会被打成常量）。
+ */
+export function rowStatusText(row: DownloadRow | null, known: number | null): string {
+  if (!row) return known === null ? i18n._(msg`大小未知`) : i18n._(msg`约 ${mb(known)}`);
+  switch (row.status) {
+    case "queued":
+      return i18n._(msg`等待中`);
+    case "checking":
+      return i18n._(msg`检查中`);
+    case "downloading":
+      return row.total ? `${Math.floor((row.bytes / row.total) * 100)}%` : i18n._(msg`已下 ${mb(row.bytes)}`);
+    case "done":
+      return i18n._(msg`✓ 已存`);
+    case "exists":
+      return i18n._(msg`✓ 已存（之前存过）`);
+    case "stopped":
+      return i18n._(msg`已停止`);
+    case "failed":
+      return i18n._(msg`没存下`);
+  }
 }
 
 // ── 交给系统 ────────────────────────────────────────────────

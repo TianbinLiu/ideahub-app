@@ -16,6 +16,7 @@ import { useGame, winnersOfState } from "../store";
 import { useRounds } from "../roundsStore";
 import { boardsOf, damagesViewOf, entryViewById } from "../view";
 import { HistoryReplayButton } from "./MatchHistory";
+import WrapupPanel from "./WrapupPanel";
 
 export default function RoundResultPanel() {
   const state = useGame((s) => s.state);
@@ -85,6 +86,9 @@ export default function RoundResultPanel() {
               ))}
             </div>
           )}
+          {/* 收尾（2026-11-24 晚）：这一局的片子要不要存 / 发 —— 只在**对局真的结束**这一屏摆。
+              结算屏那一支（round-end）不摆：这一局还要继续打，现在问"要不要留下"是问错了时机。 */}
+          <WrapupPanel />
         </div>
       );
     }
@@ -203,6 +207,9 @@ export default function RoundResultPanel() {
             <HistoryReplayButton code={null} myUserId={meId} />
           </span>
         </div>
+        {/* 收尾（2026-11-24 晚）：本机局打到 over（有人赢 / 同归于尽 / 打满 8 回合）才出现。
+            片子来自本机战绩（localHistory），占位片不提供保存 —— 判据全在 ui/WrapupPanel。 */}
+        <WrapupPanel />
       </div>
     );
   }
