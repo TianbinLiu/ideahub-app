@@ -43,8 +43,10 @@ import { localGameOwner } from "../localHistoryOwner";
 import { useHistory } from "../historyStore";
 import GameBtn from "./GameBtn";
 import RoomScreen from "./RoomScreen";
+import PublicRooms from "./PublicRooms";
 import { startFromLobby } from "./startFromLobby";
 import { useLobbyOnline } from "./useLobbyOnline";
+import { usePublicRoomsCap } from "./useSpectateCaps";
 import HelpButton from "../../../components/guide/HelpButton";
 import { useAutoGuide } from "../../../components/guide/useAutoGuide";
 
@@ -67,6 +69,15 @@ export default function Lobby() {
   const busy = useLobby((s) => s.busy);
   const serverOnline = useLobby((s) => s.serverOnline);
   const joinCode = useLobby((s) => s.joinCode);
+  /** 「公开这间房（别人能搜到）」开关（建房时用；缺省关。服务端建房参数 `visibility`） */
+  const publicRoomOn = useLobby((s) => s.publicRoomOn);
+  /** 公开房列表那一屏的原因（与底栏共用一句人话；列表自己的错误也走这里） */
+  const publicNote = useLobby((s) => s.publicNote);
+  /**
+   * 这台服务端有没有公开房列表（能力位 `gamePublicRooms`）。
+   * ★ 读不到 / 为假 = 老服务端 = **第四张卡与「公开这间房」开关都不摆**（点了只有 404）。
+   */
+  const publicRoomsCap = usePublicRoomsCap();
   // 对局开着的时候大厅不出现（结束对局那一下会重新开它，见 StudioPage 的顶栏）
   const inGame = useGame((s) => s.state !== null);
   // 开局失败时的原因由对局 store 记着（rules 的失败原因，说人话在 reasons 一处）
@@ -163,6 +174,19 @@ export default function Lobby() {
   /** 主键的文案跟着选中卡变（两种匹配共用"匹配 N 人局"这一句，句尾不带标点）。 */
   const primaryLabel =
     pick === "room" ? t`创建房间` : pick === "match8" ? t`匹配 8 人局` : t`匹配 4 人局`;
+
+  /**
+   * 底栏那颗「直接进房」：观战撞上 409（已经是这间房的玩家）时才给。
+   * ★ 房号拿不到时**不给**（别递一个空码去撞 BAD_CODE）：那一支只说一句「直接进房」——
+   *   玩家自己知道是哪间（他刚从那一行点的）。
+   */
+  const alreadyCode = publicNote?.kind === "already-player" ? publicNote.code : null;
+
+  /** 公开房列表的空态「去建房」：回大厅首屏并选中「自定义房间」（不是直接建房：还要让人勾公开 / 选人数）。 */
+  const createFromPublic = () => {
+    useLobby.getState().backHome();
+    setPick("room");
+  };
 
   /** 主键那一下：把"选中"变成"走"（点卡片不会走到这里）。 */
   const startPicked = () => {
@@ -296,7 +320,27 @@ export default function Lobby() {
                   selected={pick === "room"}
                   onSelect={() => setPick("room")}
                 />
+                {/* 第四张卡「🏠 公开房」（2026-11-24）：它不是"选中"、是**直接开一屏**（列表在下一屏）。
+                    ★ 能力位为假 / 读不到（老服务端）时一格都不摆：点了只有 404。
+                    ★ 比三张模式卡窄一档：4 张按原宽在 800×363 上会折行、把主键挤出屏幕；
+                      这张卡只有"进列表"一件事，不需要三行说明。 */}
+                {publicRoomsCap && <OpenRoomsCard onClick={() => useLobby.getState().openPublicRooms()} />}
               </div>
+
+              {/* 「公开这间房」开关（建房时用，缺省关）：只在选中「自定义房间」且服务端有公开房列表时摆。
+                  ★ 它不是房间上的一格状态（建完不能改，服务端没有这个端点），是"下一个动作"的一个选项，
+                    所以放在这张卡与主键之间、不放进 lobbyStore 的房间对象里。 */}
+              {pick === "room" && publicRoomsCap && (
+                <label className="flex items-center gap-1.5 text-[10px] leading-snug text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={publicRoomOn}
+                    onChange={() => useLobby.getState().togglePublicRoom()}
+                    className="h-3 w-3 accent-brand"
+                  />
+                  <Trans>公开这间房（别人能搜到）</Trans>
+                </label>
+              )}
               {/* ── 凭房间码加入（联机接通之后才有意义：本机房间的码只在本机） ──
                   ★ 联机没接通时也摆着：点了会在底栏说"没连上房间服务"，比藏起来更诚实
                     （藏起来的话，拿到码的人会以为 App 没有这个功能）。 */}
@@ -360,6 +404,8 @@ export default function Lobby() {
         {screen === "room" && room && (
           <RoomScreen room={room} remote={online ? remoteRoom : null} onStart={() => startMatch(room.size)} />
         )}
+
+        {screen === "public" && <PublicRooms onCreate={createFromPublic} />}
       </div>
 
       {/* ── 底栏：一次只显示一件事（开局失败 > 退回本机/服务端原因 > 本机规矩 > 联机现状 > 正在连） ── */}
@@ -385,6 +431,23 @@ export default function Lobby() {
               </GameBtn>
             )}
           </>
+        ) : publicNote ? (
+          <>
+            {/* 公开房列表 / 观战被拒的那一句（403 / 429 / 409 各有各的话，见 spectate.spectateNoteOf） */}
+            <p className="text-center text-[10px] leading-snug text-slate-300">{lobbyNoteText(publicNote)}</p>
+            {/* ★ 409「你已经是这间房的玩家」不是死路：给一颗「直接进房」——按那句里的房号走普通进房
+                （服务端对同一间房回 ALREADY_IN_ROOM + 整份快照，lobbyStore.joinByCode 会把那一支当成功）。 */}
+            {alreadyCode && (
+              <GameBtn
+                tone="primary"
+                className="flex-none px-2 py-0.5 text-[10px]"
+                onClick={() => useLobby.getState().joinPublicRoom(alreadyCode)}
+                disabled={busy}
+              >
+                <Trans>直接进房</Trans>
+              </GameBtn>
+            )}
+          </>
         ) : busy ? (
           <p className="text-center text-[10px] leading-snug text-slate-300">
             <Trans>正在连接房间服务…</Trans>
@@ -404,6 +467,34 @@ export default function Lobby() {
         )}
       </footer>
     </div>
+  );
+}
+
+/**
+ * 第四张卡「🏠 公开房」（2026-11-24）：与模式卡同一套长相，但它是**入口**不是"选中"——
+ * 点一下直接开列表那一屏（`aria-pressed` 在这里没有意义，所以不写）。
+ * ★ 比模式卡窄一档（`6rem~9rem`）：4 张按原宽在 800×363 上会折行，把底栏主键挤出屏幕。
+ */
+function OpenRoomsCard({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="lobby-mode-card relative flex w-[clamp(6rem,15vw,9rem)] flex-col items-start gap-1 rounded-xl bg-panel/80 px-2.5 py-2 text-left ring-1 ring-white/10 active:bg-raised"
+    >
+      <span aria-hidden className="flex h-8 w-8 items-center justify-center rounded-full bg-brand/20 text-[15px] font-black text-brand-200">
+        🏠
+      </span>
+      <span className="text-[12px] font-bold leading-tight text-slate-100">
+        <Trans>公开房</Trans>
+      </span>
+      <span className="text-[10px] leading-snug text-slate-400">
+        <Trans>看别人开的房，加入或观战</Trans>
+      </span>
+      <span className="mt-auto rounded-full bg-white/10 px-1.5 text-[9px] leading-[1.7] text-slate-300">
+        <Trans>看列表 ›</Trans>
+      </span>
+    </button>
   );
 }
 

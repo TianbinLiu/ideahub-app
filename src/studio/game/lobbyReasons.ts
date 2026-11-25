@@ -11,6 +11,35 @@
 import { t } from "@lingui/core/macro";
 import { ROOM_MAX_SIZE, ROOM_MIN_SIZE, type LobbyFailure } from "./lobby";
 import type { LobbyNote } from "./lobbyStore";
+import type { RemoteRoomMode, RemoteRoomState } from "../../api/game/rooms";
+
+/**
+ * 房间模式的三个名字（公开房列表 / 观战屏顶栏共用）。
+ * ★ 放这里而不是 labels.ts：mode 是**联机房间**的概念（labels 那一份认的是本机玩家 / 卡名），
+ *   而这三句只在「公开房」这条路上出现一次。
+ */
+export function roomModeText(mode: RemoteRoomMode): string {
+  switch (mode) {
+    case "match4":
+      return t`4 人匹配`;
+    case "match8":
+      return t`8 人匹配`;
+    case "custom":
+      return t`自定义房间`;
+  }
+}
+
+/** 房间状态的三个名字（公开房列表那一列「状态」）。 */
+export function roomStateText(state: RemoteRoomState): string {
+  switch (state) {
+    case "waiting":
+      return t`等真人`;
+    case "playing":
+      return t`进行中`;
+    case "over":
+      return t`已结束`;
+  }
+}
 
 export function lobbyFailureText(failure: LobbyFailure): string {
   switch (failure.reason) {
@@ -62,6 +91,14 @@ export function roomCodeText(code: string): string {
       return t`你已经在另一个匹配池里：先取消再换人数`;
     case "GAME_ROOMS_OFF":
       return t`这台服务器把房间服务关掉了`;
+    case "GAME_PUBLIC_ROOMS_OFF":
+      return t`这台服务器把公开房列表关掉了`;
+    case "GAME_SPECTATORS_OFF":
+      return t`这台服务器把观战关掉了`;
+    case "SPECTATOR_NOT_ALLOWED":
+      return t`观战不能操作这个`;
+    case "TOO_MANY_SPECTATORS":
+      return t`观战席位满了`;
     case "NO_CHANGE_SIZE_ENDPOINT":
       // 服务端暂时没有改人数端点；正常路径下这颗键在联机房间里根本不摆，这里是防线
       return t`联机房间暂时不能改人数`;
@@ -70,6 +107,10 @@ export function roomCodeText(code: string): string {
     case "SEATS_LOCKED":
     case "BAD_READY":
     case "BAD_USER":
+    case "BAD_VISIBILITY":
+    case "BAD_STATE":
+    case "BAD_PAGE":
+    case "BAD_LIMIT":
       // 这几条是"客户端把参数发错了"，玩家做不了什么 —— 照实说一句，别装作是房间的问题
       return t`房间请求的参数不对，退回大厅再试一次`;
     default:
@@ -113,5 +154,19 @@ export function lobbyNoteText(note: LobbyNote): string {
       return t`没读到最新的房间状态：先别开，等连上再试`;
     case "code":
       return roomCodeText(note.code);
+    // ── 公开房 / 观战（2026-11-24）：三条拒绝各有各的话，别压成"没连上" ──
+    case "spectator-not-allowed":
+      return t`观战不能操作这个`;
+    case "spectators-full":
+      return t`观战席位满了`;
+    case "already-player":
+      // 409：两张名单互斥 —— 该做的是直接进房看自己那一局，不是再点一次观战
+      return t`你已经是这间房的玩家，直接进房`;
+    case "gone":
+      return t`这间房已经不在了（可能刚解散或过期）`;
+    case "spectate-off":
+      return t`这台服务器把观战关掉了`;
+    case "public-rooms-off":
+      return t`这台服务器把公开房列表关掉了`;
   }
 }
