@@ -32,6 +32,9 @@ export default function ShopPanel({ view }: { view: GameView }) {
 
   return (
     <div
+      // ★ data-guide="game-shop"：新手引导「先买卡」那一步的高亮目标（components/guide/tours.tsx 的 ingame）。
+      //   挂在面板上而不是某一格卡上：卡每刷新一次就换一批，挂到"第 1 张"上一刷新就指到别的卡去了。
+      data-guide="game-shop"
       className={`pointer-events-auto w-fit max-w-full rounded-xl bg-panel/95 p-1 ring-1 backdrop-blur ${
         locked ? "ring-gold/50" : "ring-white/10"
       }`}

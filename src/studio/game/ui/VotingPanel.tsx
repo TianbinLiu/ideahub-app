@@ -75,7 +75,9 @@ export default function VotingPanel() {
           </span>
         )}
       </div>
-      <div className="flex items-stretch gap-1.5 overflow-x-auto">
+      {/* ★ data-guide="game-vote"：新手引导「一人一票」那一步的高亮目标，与联机那一屏同一个锚点名。
+          圈的是卡片那一排（「投这一条」就在每张卡里），不是某一张卡 —— 卡片按对手数量生成，张数每局不同 */}
+      <div data-guide="game-vote" className="flex items-stretch gap-1.5 overflow-x-auto">
         {roundView.votable.map((entry) => (
           <VoteCard key={entry.entry.id} entry={entry} />
         ))}

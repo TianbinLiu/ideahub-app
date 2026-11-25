@@ -32,6 +32,16 @@
 //   用户明确要的是"弹过一次不再自动弹"，所以版本号只在**有意**要重弹时才动。
 
 const SEEN_KEY = "ideahub-app.guide.seen.v1";
+/**
+ * 「引导 id → 已经讲过哪几步（下标）」。
+ * ★★ 为什么还需要第二把键（2026-11-24，工坊对局的引导）：那一份引导**不是一个屏**讲完的 ——
+ *   买卡 / 摆卡在商店阶段、写提示词在创作阶段、点赞在展映、投票在投票、结算在结算屏。
+ *   整份一次弹出来的话，后三步的锚点那时根本还没挂上（面板按阶段渲染），讲的就是"一个不存在的东西"；
+ *   而 SEEN_KEY 那把是**整份**的「看过」，一弹就把整份记成看过了、后面几屏再也不会讲。
+ *   ⇒ 按阶段分窗打开、按步记"讲过"，两把键都在这一个文件里（复用同一套 localStorage + 同一份 reset）。
+ * ★ 只有 `openGuideSteps` 会写它；`openGuide`（一步讲完一屏的那 20 份）一个字都不碰。
+ */
+const SEEN_STEPS_KEY = "ideahub-app.guide.steps.v1";
 
 /** 「引导 id → 已看过的版本号」。读不出来一律当空表（宁可多弹一次，也不要漏弹） */
 function readSeen(): Record<string, number> {
@@ -59,8 +69,36 @@ function writeSeen(next: Record<string, number>): void {
   }
 }
 
+/** 「引导 id → 讲过的步骤下标」。形状校验与 readSeen 同一个口径：读不懂就当没讲过 */
+function readSeenSteps(): Record<string, number[]> {
+  try {
+    const raw = localStorage.getItem(SEEN_STEPS_KEY);
+    if (!raw) return {};
+    const obj: unknown = JSON.parse(raw);
+    if (!obj || typeof obj !== "object" || Array.isArray(obj)) return {};
+    const out: Record<string, number[]> = {};
+    for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+      if (!Array.isArray(v)) continue;
+      const steps = v.filter((n): n is number => typeof n === "number" && Number.isInteger(n) && n >= 0);
+      if (steps.length) out[k] = [...new Set(steps)].sort((a, b) => a - b);
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+function writeSeenSteps(next: Record<string, number[]>): void {
+  try {
+    localStorage.setItem(SEEN_STEPS_KEY, JSON.stringify(next));
+  } catch {
+    /* 同 writeSeen：存不下就这一次会话内不再弹，下次启动重来一遍 */
+  }
+}
+
 /** 内存里那份（首帧就读一次，之后以它为准；写盘只是把它同步出去） */
 let seen: Record<string, number> = readSeen();
+let seenSteps: Record<string, number[]> = readSeenSteps();
 
 // ── 订阅（与 data/account、data/drafts 同一套：模块级单例 + 单调版本号）──────
 const listeners = new Set<() => void>();
@@ -81,10 +119,12 @@ export function guideVersion(): number {
 /**
  * 当前打开的引导。null = 没开（界面正常可点）。
  * ★ 全 app 同时只可能有一份：它是**锁住整屏**的东西，两份叠起来意味着有一份关不掉。
+ * ★ `to` = 这一窗的**最后一步**（下标，含）。只有「按阶段分窗」的引导（`openGuideSteps`）会带它：
+ *   走到这一拍就当走完、按钮变成「知道了」。不分窗的那一份没有这个格（= 整份的最后一步）。
  */
-let active: { id: string; step: number; path: string } | null = null;
+let active: { id: string; step: number; path: string; to?: number } | null = null;
 
-export function activeGuide(): { id: string; step: number; path: string } | null {
+export function activeGuide(): { id: string; step: number; path: string; to?: number } | null {
   return active;
 }
 
@@ -105,6 +145,26 @@ export function openGuide(id: string, opts?: { auto?: boolean; version?: number 
   //     HashRouter 下两者说的是同一件事。
   active = { id, step: 0, path: currentPath() };
   if (opts?.auto) markGuideSeen(id, opts.version ?? 1);
+  emit();
+}
+
+/**
+ * 打开**按阶段分窗**的一份引导里的某一窗：只放 `from`~`to` 这几步，并把这一窗记成讲过。
+ *
+ * ★★ 为什么要分窗（2026-11-24，工坊对局的「跟着做一局」）：那一份引导的六步散在五个阶段
+ *   （商店 / 创作 / 展映 / 投票 / 结算），而阶段面板是**按阶段挂载**的 —— 整份一次性弹出来，
+ *   后面几步的锚点那一刻压根不在 DOM 里，只会退成居中卡片（引导指着一个不存在的东西）。
+ * ★★ 为什么这一窗走 `auto` 却又**不**记「整份看过」：`openGuide` 的 auto 那一路会把 id 记成
+ *   整份看过（然后后面四屏再也不会讲）。分窗这一路只把**这一窗的几步**记进 SEEN_STEPS_KEY，
+ *   整份的「不再自动弹」留给「全部跳过」或所有窗都讲过。
+ * ★ 与 `openGuide` 的 auto 同一条纪律：**开的时候就记**，不等走完（用户可能半路被电话打断）。
+ *   代价是跳过这一窗也算讲过 —— 那正是"跳过"该有的意思。
+ */
+export function openGuideSteps(id: string, opts: { version: number; from: number; to: number }): void {
+  const from = Math.max(0, opts.from);
+  const to = Math.max(from, opts.to);
+  active = { id, step: from, path: currentPath(), to };
+  markGuideStepsSeen(id, from, to);
   emit();
 }
 
@@ -150,12 +210,36 @@ export function markGuideSeen(id: string, ver = 1): void {
 }
 
 /**
+ * 这一份引导里**已经讲过哪几步**（下标，升序）。
+ * ★ 只有按阶段分窗的那一份会用到它；不分窗的那一份一条都不会有（判据是 `guideSeen` 那把键）。
+ * ★ 返回的是拷贝：调用方拿去算"这一窗里还剩哪几步没讲"，不该拿到内部数组。
+ */
+export function guideStepsSeen(id: string): number[] {
+  return [...(seenSteps[id] ?? [])];
+}
+
+/** 把 `from`~`to` 这几步记成讲过（`openGuideSteps` 在开窗那一刻调；外面不该单独调） */
+export function markGuideStepsSeen(id: string, from: number, to: number): void {
+  const had = seenSteps[id] ?? [];
+  const next = new Set(had);
+  for (let i = Math.max(0, from); i <= to; i += 1) next.add(i);
+  if (next.size === had.length) return;
+  seenSteps = { ...seenSteps, [id]: [...next].sort((a, b) => a - b) };
+  writeSeenSteps(seenSteps);
+  emit();
+}
+
+/**
  * 把「看过」的记录全清掉 —— 设置页那颗「重看所有新手引导」用。
  * ★ 有这颗按钮的理由：引导是**强制**弹的，一旦用户在没看懂的时候连点几下过去，
  *   那几屏就再也不会自动出现了。没有复位入口的话，他只能一页一页去找那颗 `?`。
+ * ★ 两把键一起清（2026-11-24 分窗那把）：只清整份那把的话，按阶段分窗讲过的几步
+ *   仍然算讲过 —— 用户点了"重看所有新手引导"，对局那几屏却一条都不回来（零报错）。
  */
 export function resetGuidesSeen(): void {
   seen = {};
+  seenSteps = {};
   writeSeen(seen);
+  writeSeenSteps(seenSteps);
   emit();
 }

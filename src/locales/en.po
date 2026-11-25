@@ -3270,6 +3270,10 @@ msgid "<0>标在场景切换、人数变化的那一帧</0>：每段是独立模
 msgstr "<0>Mark the frame where the scene or the number of people changes</0>: each segment is its own template and detects people on its own, so cutting on shot boundaries makes every segment more accurate. <1>Marking is optional</1> — it halves automatically until every segment is ≤30s, and any segment still over 30s after your cuts gets extra cuts automatically. A cut that would leave less than 4s can't be placed, and you'll be told why."
 
 #: src/components/guide/tours.tsx
+msgid "<0>榜、扣的血与名次</0>都在这块：名次是点赞榜加投票榜。房主点「➡ 下一回合」继续；打满回合或只剩一个人，这一局就结束了。"
+msgstr "<0>Rankings, damage taken and placement</0> all live here: placement adds up the likes board and the votes board. The host taps 「➡ Next round」 to continue; the match ends after the last round, or when only one player is left."
+
+#: src/components/guide/tours.tsx
 msgid "<0>点标题进详情页</0>——本片卡组、多 P 选集、完整简介、「互动 · 你来选」的分支，都<1>只在那儿</1>。点作者名或头像，去的是他的主页。"
 msgstr "<0>Tap the title to open the details page</0> — the cards from this video, multi-part episodes, the full description and the “Interactive · you choose” branches are <1>only there</1>. Tapping the author's name or avatar takes you to their profile."
 
@@ -5510,6 +5514,10 @@ msgstr "One node, one short video"
 msgid "一个角色位都没挂卡：白模出片全靠卡上的形象图说明「换成谁」，一张都不挂的话出不了片——回去至少挂一张"
 msgstr "No role slot has a card: blockout generation relies entirely on the cards' look images to know who to swap in, so it can't run without any — go back and place at least one"
 
+#: src/components/guide/tours.tsx
+msgid "一人一票"
+msgstr "One vote each"
+
 #: src/components/flow/EffectWizard.tsx
 msgid "一件产品"
 msgstr "One product"
@@ -5565,6 +5573,10 @@ msgstr "One sentence ({THEME_MIN}–{THEME_MAX} chars): who, what, and the tone.
 #: src/components/support/VoiceMixer.tsx
 msgid "一句话介绍（选填）"
 msgstr "One-line intro (optional)"
+
+#: src/components/guide/tours.tsx
+msgid "一句话写清这一段拍什么，点<0>「🎬 视频生成」</0>真出片（花 token / 券）；不想花就<1>「用占位片交片」</1>。交完点「▶ 开始展映」。"
+msgstr "Write one line about what this round shows, then tap <0>「🎬 Generate video」</0> for a real clip (spends tokens or a ticket); if you would rather not spend, <1>「Submit placeholder clip」</1>. When you are done, tap 「▶ Start screening」."
 
 #: src/components/guide/tours.tsx
 msgid "一句话就能改流水线：套模板、挂卡、改剧情、加一段。<0>它不替你按</0>推演、出片（真花钱）和挂卡合成，只摆确认卡、你点了才跑；<1>说的每句话本身也按对话计一次费</1>。"
@@ -5642,6 +5654,10 @@ msgstr "A card can store at most {MAX_CARD_VIEWS} reference images (the server e
 #: src/studio/structuredSkills.ts
 msgid "一整篇（{SCRIPT_MIN}~{SCRIPT_MAX} 字），故事梗概或分场脚本都行"
 msgstr "A whole script ({SCRIPT_MIN}–{SCRIPT_MAX} characters); a synopsis or a scene-by-scene script both work"
+
+#: src/components/guide/tours.tsx
+msgid "一条一条播。右边那颗<0>👍 点赞这一条</0>给别人的片子点赞（同一条只能点一次）。看完点「🗳 去投票」。"
+msgstr "Clips play one by one. The <0>👍 Like this one</0> button on the right likes someone else's clip (once per clip). When it is over, tap 「🗳 Go vote」."
 
 #: src/pages/AdminPage.tsx
 msgid "一条作品都没有"
@@ -5812,6 +5828,10 @@ msgstr "The three angles take turns, one line per segment, spoken in each card�
 #: src/components/guide/tours.tsx
 #~ msgid "三个页签各管一摊"
 #~ msgstr "Three tabs, three jobs"
+
+#: src/components/guide/tours.tsx
+msgid "三张卡：<0>4 人 / 8 人 / 自定义房间</0>。点一下只是<1>选中</1>（右上角亮起 ✓），不会当场开局。"
+msgstr "Three cards: <0>4-player / 8-player / custom room</0>. Tapping one only <1>selects</1> it (a ✓ lights up in the corner); it does not start a match."
 
 #: src/types.ts
 msgid "三视图/规格稿/细节特写这类：预算还有余时才轮到它"
@@ -7076,6 +7096,10 @@ msgstr "Buy cards, drag them onto the table slots, drag items from the right rai
 #: src/studio/game/ui/GameLayer.tsx
 msgid "买好了"
 msgstr "Bought"
+
+#: src/components/guide/tours.tsx
+msgid "买来的卡在<0>背包条</0>里：按住卡<1>拖到桌面空位</1>，右侧栏的道具拖到角色身上。摆好点「🎬 开始创作」。"
+msgstr "Bought cards land in the <0>bag bar</0>: press a card and <1>drag it onto an empty table slot</1>, and drag items from the right rail onto a character. When set, tap 「🎬 Start shooting」."
 
 #: src/studio/game/labels.ts
 msgid "事件"
@@ -8514,6 +8538,10 @@ msgstr "Not now"
 msgid "先为当前段挑定一套方案"
 msgstr "Pick a plan for this segment first"
 
+#: src/components/guide/tours.tsx
+msgid "先买卡"
+msgstr "Buy cards first"
+
 #: src/studio/flowStore.ts
 msgid "先从三套方案里挑一套（点方案卡），再生成本段"
 msgstr "Pick one of the three plans (tap a plan card) before generating this segment"
@@ -8821,6 +8849,10 @@ msgstr "Pick a reason first"
 msgid "先选一张封面"
 msgstr "Pick a cover first"
 
+#: src/components/guide/tours.tsx
+msgid "先选一种开局方式"
+msgstr "Pick a way to start"
+
 #: src/studio/game/ui/Lobby.tsx
 msgid "先选一种开局方式，再点下面那颗键开始；点卡片只选中，不会直接开局。"
 msgstr "Pick a way to start, then tap the button below. Tapping a card only selects it — it won't start a match."
@@ -8987,6 +9019,10 @@ msgstr "Mark all read"
 #: src/components/TemplateShelf.tsx
 msgid "全部模型"
 msgstr "All models"
+
+#: src/components/guide/GuideOverlay.tsx
+msgid "全部跳过"
+msgstr "Skip all"
 
 #: src/components/VisibilityPicker.tsx
 msgid "公开"
@@ -9500,6 +9536,10 @@ msgstr "Write what happens next (e.g. she turns toward the door as the rain gets
 msgid "写一句提示词再拍——这一期拍什么就靠这句话"
 msgstr "Write one line before you shoot — that line is what this round is about"
 
+#: src/components/guide/tours.tsx
+msgid "写一句话交片"
+msgstr "Write a line, submit"
+
 #: src/pages/CreatePage.tsx
 #: src/pages/SimpleModePage.tsx
 msgid "写一句话出片"
@@ -9716,6 +9756,10 @@ msgstr "Rin is so cool"
 #: src/pages/CreatePage.tsx
 msgid "几秒出片"
 msgstr "Videos in seconds"
+
+#: src/components/guide/tours.tsx
+msgid "凭房间码进去"
+msgstr "Join with a room code"
 
 #: src/pages/AdminPage.tsx
 #: src/pages/ProfilePage.tsx
@@ -13007,6 +13051,14 @@ msgstr "Shop refreshed"
 msgid "商店已锁定：下一回合不会自动刷新（手动刷新照样可以）"
 msgstr "Shop locked: no auto-refresh next round (manual refresh still works)"
 
+#: src/components/guide/tours.tsx
+#~ msgid "商店栏顶上那排：<0>点一张就买下</0>，价印在卡下面。钱不够会在底部说原因（键不灰着不动），利息看右边那颗 🛒。"
+#~ msgstr "The row at the top of the shop: <0>tap a card to buy it</0>, the price is printed under it. If you cannot afford it, the bottom bar says why (the button never just sits greyed out); interest is on the 🛒 at the right."
+
+#: src/components/guide/tours.tsx
+msgid "商店栏顶上那排：<0>点一张就买下</0>，价印在卡下面。钱不够时底部会直接说原因（键不会灰掉不说话），利息看右边那颗 🛒。"
+msgstr "The row at the top of the shop: <0>tap a card to buy it</0>, the price is printed under it. If you cannot afford it, the bottom bar says why right away (the button never just sits greyed out); interest is on the 🛒 at the right."
+
 #: src/studio/game/reasons.ts
 msgid "商店没有这一格"
 msgstr "The shop has no such slot"
@@ -14242,6 +14294,7 @@ msgstr "Fix mismatches in place: edit the mark, “Delete” extra slots, or <0>
 #~ msgid "对局"
 #~ msgstr "Match"
 
+#: src/components/guide/tours.tsx
 #: src/studio/game/ui/Lobby.tsx
 msgid "对局大厅"
 msgstr "Match lobby"
@@ -14249,6 +14302,10 @@ msgstr "Match lobby"
 #: src/studio/StudioPage.tsx
 msgid "对局大厅是横屏的：把手机横过来就能开局。"
 msgstr "The match lobby is landscape-only: turn your phone sideways to start a match."
+
+#: src/components/guide/tours.tsx
+msgid "对局怎么玩"
+msgstr "How a match plays"
 
 #. placeholder {0}: roomCode || "—"
 #. placeholder {1}: round ?? "—"
@@ -14576,6 +14633,10 @@ msgstr "Screening"
 #: src/studio/game/ui/PhaseBar.tsx
 msgid "展映中：给别人的片子点赞（联机版不能给自己点赞）"
 msgstr "Screening: like other players' entries (you cannot like your own in online games)"
+
+#: src/components/guide/tours.tsx
+msgid "展映时点赞"
+msgstr "Like clips in screening"
 
 #: src/pages/CreatePage.tsx
 msgid "展映看全员的片，点赞榜 + 投票榜"
@@ -17033,6 +17094,10 @@ msgstr "Upgrade the {0} checked segment(s) to {finLabel}"
 #: src/pages/SupportModelNewPage.tsx
 msgid "把包交给服务器看一眼"
 msgstr "Let the server take a look"
+
+#: src/components/guide/tours.tsx
+msgid "把卡摆上桌"
+msgstr "Put cards on the table"
 
 #: src/studio/game/ui/PhaseBar.tsx
 #~ msgid "把卡放进三个虚框、写一句提示词，再点「拍好了」"
@@ -19892,6 +19957,14 @@ msgstr "Someone made a video with your template “{0}”"
 #: src/pages/NotificationsPage.tsx
 msgid "有人套用了你的模板出片"
 msgstr "Someone made a video with your template"
+
+#: src/components/guide/tours.tsx
+msgid "有人建了房：把这 <0>6 位房间码</0>输进这一格，点「加入房间」就进他那间。房间里由房主按开局那颗键。"
+msgstr "If someone made a room: type the <0>6-character room code</0> into this field and tap 「Join room」 to get in. Inside, the host presses the button that starts the match."
+
+#: src/components/guide/tours.tsx
+#~ msgid "有人建了房：把这 <0>6 位房间码</0>输进这一格，点「加入房间」就进他那间。房间里的「开始」由房主按。"
+#~ msgstr "If someone made a room: type the <0>6-character room code</0> into this field and tap 「Join room」 to get in. Inside, the host presses start."
 
 #: src/components/flow/GridShotsWizard.tsx
 msgid "有几格的画面写到了「{names}」，已把他们算进那几格画面里的人（不想让他们入镜，就改掉画面里的名字）"
@@ -25448,6 +25521,10 @@ msgstr "If you like it, finalize: this same draft is upgraded to a 1080p video (
 msgid "看第 {0} 条"
 msgstr "Show film {0}"
 
+#: src/components/guide/tours.tsx
+msgid "看结算"
+msgstr "Read the results"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "看这一段成片"
 msgstr "Watch this segment"
@@ -27685,6 +27762,10 @@ msgstr "Attach your character cards to {roleCount, plural, one {the white manneq
 msgid "给 {roleCount} 个编号的人偶挂上你的角色卡"
 msgstr "Attach your character cards to {roleCount, plural, one {the numbered mannequin} other {the # numbered mannequins}}"
 
+#: src/components/guide/tours.tsx
+msgid "给<0>除自己外</0>的一条片子投票（一人一票，也能弃权）。投完点「📊 结算」——AI 的票它自己会投。"
+msgstr "Vote for one clip <0>other than your own</0> (one vote each, abstaining is fine). Then tap 「📊 Settle」 — the AI players cast their own votes."
+
 #: src/pages/FlowPage.tsx
 msgid "给了自己的帧就走首尾帧模式（与「直接用卡片形象出片」互斥）——清掉两帧才会回到那条路。"
 msgstr "Providing your own frames switches to first/last-frame mode (which can't be combined with rendering straight from card images) — clear both frames to go back."
@@ -29709,6 +29790,7 @@ msgstr "Couldn’t skip: {0}"
 msgid "跳到第 {at} 秒"
 msgstr "Jump to {at}s"
 
+#: src/components/guide/GuideOverlay.tsx
 #: src/pages/tutor/TutorRunPage.tsx
 #: src/studio/game/ui/EventPanel.tsx
 #: src/studio/game/ui/OnlineEventPanel.tsx
@@ -33634,6 +33716,10 @@ msgstr "This room has already started"
 msgid "这颗键印着价钱"
 msgstr "The price is on this button"
 
+#: src/components/guide/tours.tsx
+msgid "这颗键才真的开局"
+msgstr "This button starts it"
+
 #: src/components/PhotoSubjectPicker.tsx
 msgid "进卡的那一张"
 msgstr "Image for the card"
@@ -33840,6 +33926,10 @@ msgstr "Select a clip to also change its speed and sound volume, or make it fade
 #: src/components/guide/tours.tsx
 msgid "选中一个片段就能<0>✂️ 分割</0>、<1>🗑 删除</1>、<2>换序</2>，调速度、原声音量或从黑里淡入——<3>一个 token 都不花</3>。 每一步都能<4>↶ 撤销</4>，离开再回来也都还在。"
 msgstr "Select a clip to <0>✂️ split</0>, <1>🗑 delete</1>, <2>reorder</2>, change speed or volume, or fade in from black — <3>none of it costs a token</3>. Every step can be <4>↶ undone</4>, and it all survives leaving the page."
+
+#: src/components/guide/tours.tsx
+msgid "选中之后点<0>底部这颗实心键</0>：匹配 N 人局（人不够由 AI 补位）或创建房间。键盘上按 Enter 也是它。"
+msgstr "Once one is selected, tap <0>the solid button at the bottom</0>: match an N-player game (AI fills empty seats) or create a room. Enter on a keyboard does the same."
 
 #: src/components/blockout/arkVideoRules.ts
 msgid "选中的这一段只有 {durSec} 秒，至少要 {inMin} 秒。AI 把人换成白模时会把成片截短零点几秒（{durSec} 秒进去只剩约 {shrunk} 秒），而模板本身短于 {outMin} 秒就没人套用得了——把右边的把手往右拖，选够 {inMin} 秒。"

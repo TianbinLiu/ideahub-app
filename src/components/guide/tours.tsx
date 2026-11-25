@@ -35,6 +35,15 @@
 // 把发弹幕键说成"下面有计数"（它有意显示的是字不是数）、工坊那份漏了一种卡且改了卡种名。
 // ⇒ 改这里的任何一句之前，先去对应组件里对一遍实现。这些话是**会被用户当真**的。
 // ★ 2026-10-30 压缩：每步正文压到两句以内、≤60 字（硬上限 80；依据 HIG「brief」/ NN/g「提示框很快被关掉、不会细读」）—— 只删不加，一个新事实都没进来；各步注释里提到的个别句子可能已被压掉，注释照旧记着当时为什么那么写。
+//
+// ── 工坊对局那两份（2026-11-24）─────────────────────────────────────
+// `lobby`（大厅：选模式 → 匹配 / 建房）与 `ingame`（局内六步：买卡 → 摆卡 → 写提示词交片 →
+// 展映点赞 → 投票 → 看结算），来自 docs/game-lobby-ui-benchmark.md §2.1 #19 / §2.3 第 4 条。
+// ★★ 与其余各屏**结构上不同的一点**：`ingame` 是**按阶段分窗**的（每步带 `phase`，由
+//   `studio/game/ui/useGameTutorial` 在进到那个阶段时只开属于它的几步），理由是那一局的阶段面板
+//   按阶段挂载 —— 一次弹完整份，后四步的高亮圈没有目标。★ 其余 20 份一步讲完一屏、一个 `phase` 都不写。
+// ★★ 这两份也是全仓唯一允许「跳过 / 全部跳过」的（GuideTour.skippable / skipAll）：一局十分钟、
+//   横屏 363px 高，拦着人走完再动手比读不完更糟。理由写在 GuideOverlay 的文件头。
 import type { ReactNode } from "react";
 import type { MessageDescriptor } from "@lingui/core";
 import { msg } from "@lingui/core/macro";
@@ -62,6 +71,19 @@ export interface GuideStep {
   body: ReactNode;
   /** 要高亮的元素上 `data-guide` 的值。不给 = 这一步只讲话，卡片居中 */
   anchor?: string;
+  /**
+   * ★★ 只给「按阶段分窗」的那一份用（工坊对局 `ingame`）：这一步属于对局的哪个阶段。
+   *
+   * 为什么必须有它：那一份引导的六步散在五个阶段里（商店 / 创作 / 展映 / 投票 / 结算），而
+   * 阶段面板是**按阶段挂载**的 —— 整份一次性弹出来，后面几步的高亮圈那一刻压根没有目标。
+   * 所以那一份由 `studio/game/ui/useGameTutorial` 在**进到某个阶段时**只开属于它的那几步
+   * （`data/guide.openGuideSteps` 的窗口）。写的是 `GamePhase` 的字面量（types.ts 里那个联合
+   * 类型），但这里刻意**不 import 那个类型**：tours.tsx 是全仓引导的内容表，不该认识对局状态机；
+   * 合法值由构建门禁 `scripts/check-game-ingame.mjs` 对着 `GamePhase` 逐条核。
+   *
+   * ★ 其余 20 份引导**一个都不写这一格**（一步讲完一屏，没有"阶段"这回事）。
+   */
+  phase?: string;
 }
 
 export interface GuideTour {
@@ -74,6 +96,20 @@ export interface GuideTour {
    */
   version: number;
   steps: GuideStep[];
+  /**
+   * ★★ 允许中途「跳过」（遮罩标题行右侧摆一颗小字键）。**默认不许** —— 全仓的规矩是强制走完
+   *   （理由见 GuideOverlay 文件头「为什么(几乎)没有跳过」）。
+   *   开它的只有两份：「跟着做一局」那两屏（大厅 / 对局）。理由是一局十分钟、横屏 363px 高，
+   *   拦着人走完再动手比读不完更糟；而且那两份最长的也就六步，跳过的代价可控。
+   */
+  skippable?: boolean;
+  /**
+   * 「全部跳过」：把整份记成看过、以后**一屏都不再自动弹**。
+   * ★ 只在**按阶段分窗**的那一份上摆（`openGuideSteps` 只记"这一窗讲过"，所以这里需要
+   *   第二个出口才停得下来）。不分窗的那份一开就已经被 `openGuide` 的 auto 记成整份看过了，
+   *   再摆一颗「全部跳过」等于两颗键干同一件事 —— 那种"看着能点、点了没区别"的键不摆。
+   */
+  skipAll?: boolean;
 }
 
 /**
@@ -1363,6 +1399,137 @@ export const TOURS: GuideTour[] = [
         body: (
           <Trans>
             上面是这台设备已占用的空间。「清理缓存」<b className="font-bold text-slate-100">只删生成过程中留下、已经没人引用的中间文件</b>——未发布的草稿和还没传上去的作品一个不动。
+          </Trans>
+        ),
+      },
+    ],
+  },
+  {
+    // 工坊对局的第一屏（2026-11-24，docs/game-lobby-ui-benchmark.md §2.1 #19 / §2.3 第 4 条「跟着做一局」）。
+    // ★ 入口与"看过没有"全走老那套：`ui/Lobby.tsx` 的 useAutoGuide + 头部的 HelpButton（屏名「对局大厅」）。
+    // ★ 只讲**这一屏**怎么开一局（选模式 → 主键 → 凭码加入）。局内那六步是下一份（ingame），
+    //   两份分开的理由：大厅与对局是两个挂载点（`Lobby` 在"还没有 state"那一拍，`GameLayer` 之后），
+    //   一份串到底的话，跨过开局那一刻"下一步"就指着一个已经卸载的面板说话了。
+    id: "lobby",
+    title: msg`对局大厅`,
+    version: 1,
+    skippable: true,
+    steps: [
+      {
+        // ★ 锚点挂在那**一排**三张卡上（Lobby 的 lobby-modes），不挂 4 人那张：三张都是"选一种开局方式"，
+        //   挂某一张 = 教人点它。卡上那颗 ✓ 就是"选中"的回执（aria-pressed 同步）。
+        title: msg`先选一种开局方式`,
+        anchor: "lobby-modes",
+        body: (
+          <Trans>
+            三张卡：<b className="font-bold text-slate-100">4 人 / 8 人 / 自定义房间</b>。点一下只是<b className="font-bold text-slate-100">选中</b>（右上角亮起 ✓），不会当场开局。
+          </Trans>
+        ),
+      },
+      {
+        // 正文里的键名是那颗主键**随选中卡变的那一句话**（Lobby 的 primaryLabel：匹配 4 人局 / 匹配 8 人局 / 创建房间），
+        // 所以这里写成"匹配 N 人局"，不写死一个数（文件头 ★★：数字一律插值，这里干脆不给数）。
+        title: msg`这颗键才真的开局`,
+        anchor: "lobby-start",
+        body: (
+          <Trans>
+            选中之后点<b className="font-bold text-slate-100">底部这颗实心键</b>：匹配 N 人局（人不够由 AI 补位）或创建房间。键盘上按 Enter 也是它。
+          </Trans>
+        ),
+      },
+      {
+        // ★ 不承诺"没连上房间服务会怎样"（那是**条件触发的故障解释**，文件头 ❌ 那一类）：
+        //   底栏那句当下自己会说。这里只讲"有房号怎么进来"这一条常驻用法。
+        // ★ 也**不引号引那颗开局键**：房主那颗键在两处叫「开始对局」/「用 AI 补位开局」（lobby.hostStartLabelOf），
+        //   引「开始」就是在引一句屏幕上没有的字样（本仓栽过这种错）。改成指路。
+        title: msg`凭房间码进去`,
+        anchor: "lobby-join",
+        body: (
+          <Trans>
+            有人建了房：把这 <b className="font-bold text-slate-100">6 位房间码</b>输进这一格，点「加入房间」就进他那间。房间里由房主按开局那颗键。
+          </Trans>
+        ),
+      },
+    ],
+  },
+  {
+    // 「跟着做一局」的局内那一半（2026-11-24，同一份调研的 §2.1 #19）：买卡 → 摆卡 → 写提示词交片 →
+    // 展映点赞 → 投票 → 看结算，一步指一个**真实控件**。
+    //
+    // ★★ 这一份是**按阶段分窗**的（GuideStep.phase + data/guide.openGuideSteps）：
+    //   六步散在五个阶段里，而阶段面板按阶段挂载 —— 一次弹完整份，后四步那时没有目标可圈。
+    //   所以 `ui/useGameTutorial` 在进到某个阶段时只开属于它的那几步，`?` 才是整份重看。
+    // ★★ 锚点全部挂在**当阶段一定在**的容器上（面板 / 控制条 / 背包条），不挂某一张卡、某一颗键：
+    //   那些会随刷新 / 已点赞 / 已投票变成另一句字，锚点时有时无 = 那一步的圈偶尔凭空消失（零报错）。
+    // ★ 客户端只讲"这一局怎么玩"，**不承诺名次与券**：发放要走服务端懒发（调研 §2.3 那条），
+    //   界面上一个字都不许先许诺。
+    id: "ingame",
+    title: msg`对局怎么玩`,
+    version: 1,
+    skippable: true,
+    skipAll: true,
+    steps: [
+      {
+        // 商店阶段的第 1 步。锚点 = 商店面板根（顶部那一条，五种卡 + 刷新/锁定）
+        title: msg`先买卡`,
+        anchor: "game-shop",
+        phase: "shop",
+        body: (
+          <Trans>
+            商店栏顶上那排：<b className="font-bold text-slate-100">点一张就买下</b>，价印在卡下面。钱不够时底部会直接说原因（键不会灰掉不说话），利息看右边那颗 🛒。
+          </Trans>
+        ),
+      },
+      {
+        // 商店阶段的第 2 步。锚点 = 背包条（卡从这儿拖出去）。
+        // ★ 3D 桌面卡位没有 DOM 元素可以挂锚点（它在 canvas 里），所以指"从哪儿拿出去"这一半
+        title: msg`把卡摆上桌`,
+        anchor: "game-bag",
+        phase: "shop",
+        body: (
+          <Trans>
+            买来的卡在<b className="font-bold text-slate-100">背包条</b>里：按住卡<b className="font-bold text-slate-100">拖到桌面空位</b>，右侧栏的道具拖到角色身上。摆好点「🎬 开始创作」。
+          </Trans>
+        ),
+      },
+      {
+        title: msg`写一句话交片`,
+        anchor: "game-create",
+        phase: "create",
+        body: (
+          <Trans>
+            一句话写清这一段拍什么，点<b className="font-bold text-slate-100">「🎬 视频生成」</b>真出片（花 token / 券）；不想花就<b className="font-bold text-slate-100">「用占位片交片」</b>。交完点「▶ 开始展映」。
+          </Trans>
+        ),
+      },
+      {
+        title: msg`展映时点赞`,
+        anchor: "game-like",
+        phase: "screening",
+        body: (
+          <Trans>
+            一条一条播。右边那颗<b className="font-bold text-slate-100">👍 点赞这一条</b>给别人的片子点赞（同一条只能点一次）。看完点「🗳 去投票」。
+          </Trans>
+        ),
+      },
+      {
+        title: msg`一人一票`,
+        anchor: "game-vote",
+        phase: "voting",
+        body: (
+          <Trans>
+            给<b className="font-bold text-slate-100">除自己外</b>的一条片子投票（一人一票，也能弃权）。投完点「📊 结算」——AI 的票它自己会投。
+          </Trans>
+        ),
+      },
+      {
+        // 结算阶段（round-end / over 两支共用这一窗，见 gameTutorial.PHASE_ALIAS）
+        title: msg`看结算`,
+        anchor: "game-result",
+        phase: "round-end",
+        body: (
+          <Trans>
+            <b className="font-bold text-slate-100">榜、扣的血与名次</b>都在这块：名次是点赞榜加投票榜。房主点「➡ 下一回合」继续；打满回合或只剩一个人，这一局就结束了。
           </Trans>
         ),
       },

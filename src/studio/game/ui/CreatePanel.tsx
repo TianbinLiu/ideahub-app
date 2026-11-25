@@ -60,7 +60,12 @@ export default function CreatePanel({ view }: { view: GameView }) {
   };
 
   return (
-    <div className="pointer-events-auto w-full max-w-[46rem] rounded-xl bg-panel/90 p-1.5 ring-1 ring-white/10 backdrop-blur">
+    <div
+      // ★ data-guide="game-create"：新手引导「写一句话交片」那一步的高亮目标（components/guide/tours.tsx 的 ingame）。
+      //   本地局与联机局挂的是同一个组件（只有里面那几行不同），所以这一个锚点两条路都成立。
+      data-guide="game-create"
+      className="pointer-events-auto w-full max-w-[46rem] rounded-xl bg-panel/90 p-1.5 ring-1 ring-white/10 backdrop-blur"
+    >
       {genOpen && <GenSheet view={view} onClose={() => setGenOpen(false)} />}
 
       {!genOpen && (

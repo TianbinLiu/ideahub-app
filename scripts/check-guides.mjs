@@ -6,6 +6,12 @@
 //   · 锚点拼错 / 元素被删 → 那一步默默退成居中卡片，圈没了也没人发现。
 //   全是"看起来一切正常"的那种坏，肉眼复查复查不出来。
 //
+// ★ 自动弹的入口有**两个** hook（2026-11-24）：
+//   ① `useAutoGuide(id)` —— 一步讲完一屏的那 20 份（"第一次进这一屏"）；
+//   ② `useGameTutorial(id, phase)` —— 按阶段分窗的工坊对局那份（"第一次进这个阶段"，理由见
+//      `src/studio/game/ui/gameTutorial.ts` 的文件头）。两者问的是同一份「看过没有」（data/guide），
+//      只是"什么时候弹"不同 —— 所以这里对它们一视同仁，两个都不认的话那一份会被误报成"没有入口"。
+//
 // ⚠ 锚点在代码里有**四种**写法，检测必须四种都认（2026-08-18 第一版只认第一种，
 //   当场报了 9 条假警报 —— 而假警报比没有检查更坏：下次谁都不会再看它）：
 //   ① data-guide="x"                              字面属性
@@ -29,7 +35,13 @@ const tours = byFile.get(join("src", "components", "guide", "tours.tsx")) ?? "";
 const ids = [...tours.matchAll(/^ {4}id: "([^"]+)"/gm)].map((m) => m[1]);
 const anchors = [...new Set([...tours.matchAll(/anchor: "([^"]+)"/g)].map((m) => m[1]))];
 const help = new Set([...all.matchAll(/HelpButton\s+tour="([^"]+)"/g)].map((m) => m[1]));
-const auto = new Set([...all.matchAll(/useAutoGuide\("([^"]+)"/g)].map((m) => m[1]));
+/** 两个自动弹入口都认（见文件头 ★）：按阶段分窗的那份只走 useGameTutorial */
+const auto = new Set(
+  [
+    ...all.matchAll(/useAutoGuide\("([^"]+)"/g),
+    ...all.matchAll(/useGameTutorial\("([^"]+)"/g),
+  ].map((m) => m[1]),
+);
 
 const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 

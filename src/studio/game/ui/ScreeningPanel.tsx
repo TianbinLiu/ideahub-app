@@ -131,8 +131,11 @@ export default function ScreeningPanel() {
         </div>
       </div>
 
-      {/* 控制条：上一条 / 播放暂停 / 下一条 / 点赞 */}
-      <div className="mt-1 flex items-center gap-1.5">
+      {/* 控制条：上一条 / 播放暂停 / 下一条 / 点赞
+          ★ data-guide="game-like"：新手引导「展映时点赞」那一步的高亮目标（components/guide/tours.tsx 的 ingame）。
+            挂在这一条而不是点赞键本身：联机版自己那条 / 已点过时点赞键会换成一句字（ui/OnlineScreeningPanel），
+            而这一条永远在 —— 锚点是"按阶段分窗"那套的命门，宁可圈大一点也不能时有时无。 */}
+      <div data-guide="game-like" className="mt-1 flex items-center gap-1.5">
         <GameBtn onClick={() => goTo(index - 1)} disabled={index === 0}>
           <Trans>◀ 上一条</Trans>
         </GameBtn>

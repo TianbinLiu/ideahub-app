@@ -157,8 +157,10 @@ export default function OnlineScreeningPanel() {
         </div>
       </div>
 
-      {/* 控制条：上一条 / 播放暂停 / 下一条 / 点赞（自己那条不摆点赞键） */}
-      <div className="mt-1 flex items-center gap-1.5">
+      {/* 控制条：上一条 / 播放暂停 / 下一条 / 点赞（自己那条不摆点赞键）
+          ★ data-guide="game-like"：新手引导「展映时点赞」那一步的高亮目标，与本地局那一屏同一个锚点名
+            （这条控制条两边都有；点赞键在联机版会退成一句字，圈它就会时有时无）*/}
+      <div data-guide="game-like" className="mt-1 flex items-center gap-1.5">
         <GameBtn onClick={() => goTo(index - 1)} disabled={index === 0}>
           <Trans>◀ 上一条</Trans>
         </GameBtn>

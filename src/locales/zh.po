@@ -3270,6 +3270,10 @@ msgid "<0>标在场景切换、人数变化的那一帧</0>：每段是独立模
 msgstr "<0>标在场景切换、人数变化的那一帧</0>：每段是独立模板、各认一次人， 切在镜头边界上每段都认得更准。<1>不标也行</1>——会自动对半切到每段 ≤30 秒；标了之后还超 30 秒的段也会自动补刀。切出来不足 4 秒的刀落不下去，会整句告诉你。"
 
 #: src/components/guide/tours.tsx
+msgid "<0>榜、扣的血与名次</0>都在这块：名次是点赞榜加投票榜。房主点「➡ 下一回合」继续；打满回合或只剩一个人，这一局就结束了。"
+msgstr "<0>榜、扣的血与名次</0>都在这块：名次是点赞榜加投票榜。房主点「➡ 下一回合」继续；打满回合或只剩一个人，这一局就结束了。"
+
+#: src/components/guide/tours.tsx
 msgid "<0>点标题进详情页</0>——本片卡组、多 P 选集、完整简介、「互动 · 你来选」的分支，都<1>只在那儿</1>。点作者名或头像，去的是他的主页。"
 msgstr "<0>点标题进详情页</0>——本片卡组、多 P 选集、完整简介、「互动 · 你来选」的分支，都<1>只在那儿</1>。点作者名或头像，去的是他的主页。"
 
@@ -5514,6 +5518,10 @@ msgstr "一个节点，一条短片"
 msgid "一个角色位都没挂卡：白模出片全靠卡上的形象图说明「换成谁」，一张都不挂的话出不了片——回去至少挂一张"
 msgstr "一个角色位都没挂卡：白模出片全靠卡上的形象图说明「换成谁」，一张都不挂的话出不了片——回去至少挂一张"
 
+#: src/components/guide/tours.tsx
+msgid "一人一票"
+msgstr "一人一票"
+
 #: src/components/flow/EffectWizard.tsx
 msgid "一件产品"
 msgstr "一件产品"
@@ -5569,6 +5577,10 @@ msgstr "一句话（{THEME_MIN}~{THEME_MAX} 字）：讲谁、讲什么、什么
 #: src/components/support/VoiceMixer.tsx
 msgid "一句话介绍（选填）"
 msgstr "一句话介绍（选填）"
+
+#: src/components/guide/tours.tsx
+msgid "一句话写清这一段拍什么，点<0>「🎬 视频生成」</0>真出片（花 token / 券）；不想花就<1>「用占位片交片」</1>。交完点「▶ 开始展映」。"
+msgstr "一句话写清这一段拍什么，点<0>「🎬 视频生成」</0>真出片（花 token / 券）；不想花就<1>「用占位片交片」</1>。交完点「▶ 开始展映」。"
 
 #: src/components/guide/tours.tsx
 msgid "一句话就能改流水线：套模板、挂卡、改剧情、加一段。<0>它不替你按</0>推演、出片（真花钱）和挂卡合成，只摆确认卡、你点了才跑；<1>说的每句话本身也按对话计一次费</1>。"
@@ -5646,6 +5658,10 @@ msgstr "一张卡最多存 {MAX_CARD_VIEWS} 张形象图（服务端也钉着这
 #: src/studio/structuredSkills.ts
 msgid "一整篇（{SCRIPT_MIN}~{SCRIPT_MAX} 字），故事梗概或分场脚本都行"
 msgstr "一整篇（{SCRIPT_MIN}~{SCRIPT_MAX} 字），故事梗概或分场脚本都行"
+
+#: src/components/guide/tours.tsx
+msgid "一条一条播。右边那颗<0>👍 点赞这一条</0>给别人的片子点赞（同一条只能点一次）。看完点「🗳 去投票」。"
+msgstr "一条一条播。右边那颗<0>👍 点赞这一条</0>给别人的片子点赞（同一条只能点一次）。看完点「🗳 去投票」。"
 
 #: src/pages/AdminPage.tsx
 msgid "一条作品都没有"
@@ -5816,6 +5832,10 @@ msgstr "三个机位轮着用，一句一段，按卡上的声音说出来"
 #: src/components/guide/tours.tsx
 #~ msgid "三个页签各管一摊"
 #~ msgstr "三个页签各管一摊"
+
+#: src/components/guide/tours.tsx
+msgid "三张卡：<0>4 人 / 8 人 / 自定义房间</0>。点一下只是<1>选中</1>（右上角亮起 ✓），不会当场开局。"
+msgstr "三张卡：<0>4 人 / 8 人 / 自定义房间</0>。点一下只是<1>选中</1>（右上角亮起 ✓），不会当场开局。"
 
 #: src/types.ts
 msgid "三视图/规格稿/细节特写这类：预算还有余时才轮到它"
@@ -7080,6 +7100,10 @@ msgstr "买卡、换卡、把卡拖到桌面卡位、把道具从右侧栏拖到
 #: src/studio/game/ui/GameLayer.tsx
 msgid "买好了"
 msgstr "买好了"
+
+#: src/components/guide/tours.tsx
+msgid "买来的卡在<0>背包条</0>里：按住卡<1>拖到桌面空位</1>，右侧栏的道具拖到角色身上。摆好点「🎬 开始创作」。"
+msgstr "买来的卡在<0>背包条</0>里：按住卡<1>拖到桌面空位</1>，右侧栏的道具拖到角色身上。摆好点「🎬 开始创作」。"
 
 #: src/studio/game/labels.ts
 msgid "事件"
@@ -8518,6 +8542,10 @@ msgstr "先不用"
 msgid "先为当前段挑定一套方案"
 msgstr "先为当前段挑定一套方案"
 
+#: src/components/guide/tours.tsx
+msgid "先买卡"
+msgstr "先买卡"
+
 #: src/studio/flowStore.ts
 msgid "先从三套方案里挑一套（点方案卡），再生成本段"
 msgstr "先从三套方案里挑一套（点方案卡），再生成本段"
@@ -8825,6 +8853,10 @@ msgstr "先选一个理由"
 msgid "先选一张封面"
 msgstr "先选一张封面"
 
+#: src/components/guide/tours.tsx
+msgid "先选一种开局方式"
+msgstr "先选一种开局方式"
+
 #: src/studio/game/ui/Lobby.tsx
 msgid "先选一种开局方式，再点下面那颗键开始；点卡片只选中，不会直接开局。"
 msgstr "先选一种开局方式，再点下面那颗键开始；点卡片只选中，不会直接开局。"
@@ -8991,6 +9023,10 @@ msgstr "全部已读"
 #: src/components/TemplateShelf.tsx
 msgid "全部模型"
 msgstr "全部模型"
+
+#: src/components/guide/GuideOverlay.tsx
+msgid "全部跳过"
+msgstr "全部跳过"
 
 #: src/components/VisibilityPicker.tsx
 msgid "公开"
@@ -9504,6 +9540,10 @@ msgstr "写一句接下来发生什么（例：她转身走向门口，雨越下
 msgid "写一句提示词再拍——这一期拍什么就靠这句话"
 msgstr "写一句提示词再拍——这一期拍什么就靠这句话"
 
+#: src/components/guide/tours.tsx
+msgid "写一句话交片"
+msgstr "写一句话交片"
+
 #: src/pages/CreatePage.tsx
 #: src/pages/SimpleModePage.tsx
 msgid "写一句话出片"
@@ -9720,6 +9760,10 @@ msgstr "凛姐姐好帅"
 #: src/pages/CreatePage.tsx
 msgid "几秒出片"
 msgstr "几秒出片"
+
+#: src/components/guide/tours.tsx
+msgid "凭房间码进去"
+msgstr "凭房间码进去"
 
 #: src/pages/AdminPage.tsx
 #: src/pages/ProfilePage.tsx
@@ -13015,6 +13059,14 @@ msgstr "商店刷新了"
 msgid "商店已锁定：下一回合不会自动刷新（手动刷新照样可以）"
 msgstr "商店已锁定：下一回合不会自动刷新（手动刷新照样可以）"
 
+#: src/components/guide/tours.tsx
+#~ msgid "商店栏顶上那排：<0>点一张就买下</0>，价印在卡下面。钱不够会在底部说原因（键不灰着不动），利息看右边那颗 🛒。"
+#~ msgstr "商店栏顶上那排：<0>点一张就买下</0>，价印在卡下面。钱不够会在底部说原因（键不灰着不动），利息看右边那颗 🛒。"
+
+#: src/components/guide/tours.tsx
+msgid "商店栏顶上那排：<0>点一张就买下</0>，价印在卡下面。钱不够时底部会直接说原因（键不会灰掉不说话），利息看右边那颗 🛒。"
+msgstr "商店栏顶上那排：<0>点一张就买下</0>，价印在卡下面。钱不够时底部会直接说原因（键不会灰掉不说话），利息看右边那颗 🛒。"
+
 #: src/studio/game/reasons.ts
 msgid "商店没有这一格"
 msgstr "商店没有这一格"
@@ -14250,6 +14302,7 @@ msgstr "对不上就地改：改标记、「删掉」多出的位子、用清单
 #~ msgid "对局"
 #~ msgstr "对局"
 
+#: src/components/guide/tours.tsx
 #: src/studio/game/ui/Lobby.tsx
 msgid "对局大厅"
 msgstr "对局大厅"
@@ -14257,6 +14310,10 @@ msgstr "对局大厅"
 #: src/studio/StudioPage.tsx
 msgid "对局大厅是横屏的：把手机横过来就能开局。"
 msgstr "对局大厅是横屏的：把手机横过来就能开局。"
+
+#: src/components/guide/tours.tsx
+msgid "对局怎么玩"
+msgstr "对局怎么玩"
 
 #. placeholder {0}: roomCode || "—"
 #. placeholder {1}: round ?? "—"
@@ -14584,6 +14641,10 @@ msgstr "展映"
 #: src/studio/game/ui/PhaseBar.tsx
 msgid "展映中：给别人的片子点赞（联机版不能给自己点赞）"
 msgstr "展映中：给别人的片子点赞（联机版不能给自己点赞）"
+
+#: src/components/guide/tours.tsx
+msgid "展映时点赞"
+msgstr "展映时点赞"
 
 #: src/pages/CreatePage.tsx
 msgid "展映看全员的片，点赞榜 + 投票榜"
@@ -17041,6 +17102,10 @@ msgstr "把勾中的 {0} 段升到 {finLabel}"
 #: src/pages/SupportModelNewPage.tsx
 msgid "把包交给服务器看一眼"
 msgstr "把包交给服务器看一眼"
+
+#: src/components/guide/tours.tsx
+msgid "把卡摆上桌"
+msgstr "把卡摆上桌"
 
 #: src/studio/game/ui/PhaseBar.tsx
 #~ msgid "把卡放进三个虚框、写一句提示词，再点「拍好了」"
@@ -19900,6 +19965,14 @@ msgstr "有人套用了你的模板《{0}》出片"
 #: src/pages/NotificationsPage.tsx
 msgid "有人套用了你的模板出片"
 msgstr "有人套用了你的模板出片"
+
+#: src/components/guide/tours.tsx
+msgid "有人建了房：把这 <0>6 位房间码</0>输进这一格，点「加入房间」就进他那间。房间里由房主按开局那颗键。"
+msgstr "有人建了房：把这 <0>6 位房间码</0>输进这一格，点「加入房间」就进他那间。房间里由房主按开局那颗键。"
+
+#: src/components/guide/tours.tsx
+#~ msgid "有人建了房：把这 <0>6 位房间码</0>输进这一格，点「加入房间」就进他那间。房间里的「开始」由房主按。"
+#~ msgstr "有人建了房：把这 <0>6 位房间码</0>输进这一格，点「加入房间」就进他那间。房间里的「开始」由房主按。"
 
 #: src/components/flow/GridShotsWizard.tsx
 msgid "有几格的画面写到了「{names}」，已把他们算进那几格画面里的人（不想让他们入镜，就改掉画面里的名字）"
@@ -25456,6 +25529,10 @@ msgstr "看着满意就定稿：把这同一份样片升成 1080p 成片（画�
 msgid "看第 {0} 条"
 msgstr "看第 {0} 条"
 
+#: src/components/guide/tours.tsx
+msgid "看结算"
+msgstr "看结算"
+
 #: src/components/flow/FlowCanvas.tsx
 msgid "看这一段成片"
 msgstr "看这一段成片"
@@ -27693,6 +27770,10 @@ msgstr "给 {roleCount} 个白色人偶挂上你的角色卡"
 msgid "给 {roleCount} 个编号的人偶挂上你的角色卡"
 msgstr "给 {roleCount} 个编号的人偶挂上你的角色卡"
 
+#: src/components/guide/tours.tsx
+msgid "给<0>除自己外</0>的一条片子投票（一人一票，也能弃权）。投完点「📊 结算」——AI 的票它自己会投。"
+msgstr "给<0>除自己外</0>的一条片子投票（一人一票，也能弃权）。投完点「📊 结算」——AI 的票它自己会投。"
+
 #: src/pages/FlowPage.tsx
 msgid "给了自己的帧就走首尾帧模式（与「直接用卡片形象出片」互斥）——清掉两帧才会回到那条路。"
 msgstr "给了自己的帧就走首尾帧模式（与「直接用卡片形象出片」互斥）——清掉两帧才会回到那条路。"
@@ -29717,6 +29798,7 @@ msgstr "跳不过去：{0}"
 msgid "跳到第 {at} 秒"
 msgstr "跳到第 {at} 秒"
 
+#: src/components/guide/GuideOverlay.tsx
 #: src/pages/tutor/TutorRunPage.tsx
 #: src/studio/game/ui/EventPanel.tsx
 #: src/studio/game/ui/OnlineEventPanel.tsx
@@ -33642,6 +33724,10 @@ msgstr "这间房已经开局了"
 msgid "这颗键印着价钱"
 msgstr "这颗键印着价钱"
 
+#: src/components/guide/tours.tsx
+msgid "这颗键才真的开局"
+msgstr "这颗键才真的开局"
+
 #: src/components/PhotoSubjectPicker.tsx
 msgid "进卡的那一张"
 msgstr "进卡的那一张"
@@ -33848,6 +33934,10 @@ msgstr "选中一个片段，还能调它的速度、原声音量，或者让它
 #: src/components/guide/tours.tsx
 msgid "选中一个片段就能<0>✂️ 分割</0>、<1>🗑 删除</1>、<2>换序</2>，调速度、原声音量或从黑里淡入——<3>一个 token 都不花</3>。 每一步都能<4>↶ 撤销</4>，离开再回来也都还在。"
 msgstr "选中一个片段就能<0>✂️ 分割</0>、<1>🗑 删除</1>、<2>换序</2>，调速度、原声音量或从黑里淡入——<3>一个 token 都不花</3>。 每一步都能<4>↶ 撤销</4>，离开再回来也都还在。"
+
+#: src/components/guide/tours.tsx
+msgid "选中之后点<0>底部这颗实心键</0>：匹配 N 人局（人不够由 AI 补位）或创建房间。键盘上按 Enter 也是它。"
+msgstr "选中之后点<0>底部这颗实心键</0>：匹配 N 人局（人不够由 AI 补位）或创建房间。键盘上按 Enter 也是它。"
 
 #: src/components/blockout/arkVideoRules.ts
 msgid "选中的这一段只有 {durSec} 秒，至少要 {inMin} 秒。AI 把人换成白模时会把成片截短零点几秒（{durSec} 秒进去只剩约 {shrunk} 秒），而模板本身短于 {outMin} 秒就没人套用得了——把右边的把手往右拖，选够 {inMin} 秒。"
