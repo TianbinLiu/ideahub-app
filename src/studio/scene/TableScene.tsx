@@ -177,7 +177,9 @@ import {
   tickCardFades,
 } from "./cardTexture";
 import CardMesh from "./CardMesh";
-import MagicStudy from "./MagicStudy";
+// ★ GS 第 0 步实验档（2026-11-25）：房间/灯组与桌面盖板都在这两个模块里，开关见 ./gsStep0（默认关）
+import { GsStep0Environment, GsTableCover } from "./GsStep0Environment";
+import { useGsPhase } from "./gsStep0";
 import VrmNpc from "./VrmNpc";
 import TripoNpc from "./TripoNpc";
 import { MILLTINA_FACE } from "./faceExpr";
@@ -1784,19 +1786,18 @@ function NpcScreenAnchor() {
 }
 
 export default function TableScene() {
+  // ★ GS 第 0 步实验档（2026-11-25）：`gsPhase` 在开关关着时恒为 "off"，下面那棵树与今天逐字节相同。
+  //   开着且没失败时，桌面换成方案 A 的 PBR 盖板（splat 里烘死的桌面/卡/杯就压在它下面），房间与灯组
+  //   整块交给 GsStep0Environment（splat 房间 + 白天一档）。失败/超时它会自己翻回 "failed" ⇒ 今天那套。
+  //   开关与落位参数在 ./gsStep0，施工单 docs/gs-step0-plan.md，台账 docs/gs-step0-splat-log.md。
+  const gsPhase = useGsPhase();
+  const gsOn = gsPhase === "loading" || gsPhase === "ready";
   return (
     <>
-      <color attach="background" args={["#05070f"]} />
-      <fog attach="fog" args={["#05070f", 16, 40]} />
-      {/* 昏暗神秘基调：冷环境光 + 微弱月光，暖烛光/火把在 MagicStudy 内 */}
-      <ambientLight intensity={0.2} color="#aab6ff" />
-      <directionalLight position={[3, 9, -6]} intensity={0.32} color="#7f9dff" />
-      {/* 桌面阅读补光（偏暖微光，保证卡面与 NPC 可读） */}
-      <pointLight position={[0, 4.6, 0.6]} intensity={13} color="#ffd9a8" decay={1.9} />
-      <pointLight position={[0, 2.4, -1.8]} intensity={11} color="#8fb8ff" decay={1.9} />
-      <MagicStudy />
+      {/* 房间 + 灯组：默认走今天的书房；GS 实验档开着时换成 splat 房间（见 GsStep0Environment） */}
+      <GsStep0Environment />
       <CameraRig />
-      <Table />
+      {gsOn ? <GsTableCover /> : <Table />}
       <TableCatcher />
       <ComposePad />
       <Suspense fallback={<Npc />}>
