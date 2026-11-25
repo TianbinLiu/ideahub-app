@@ -439,6 +439,11 @@ console.log("7) 局内贴纸（stickers.ts）");
     "表情目录 12~16 个（任务原话是「先做 12~16 个常用」）",
     S.STICKER_FACES.length >= 12 && S.STICKER_FACES.length <= 16,
   );
+  // ★ 目录（零依赖，不许有中文）与名字表（labels，按 id 翻）是两份 —— 少写一条时界面上
+  //   不会变成空白，而是把 id 原样印出来（`smile`），读屏读的也是它：这才是这一条要钉的错法。
+  const labelsForFaces = fs.readFileSync(path.join(root, "src/studio/game/labels.ts"), "utf8");
+  const unnamed = S.STICKER_FACES.filter((face) => !labelsForFaces.includes(`case "${face.id}":`));
+  eq("每一张贴纸在 labels.stickerFaceName 里都有名字", unnamed.map((face) => face.id), []);
   eq(
     "目录 id 不重复",
     new Set(S.STICKER_FACES.map((face) => face.id)).size,
