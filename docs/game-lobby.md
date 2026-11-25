@@ -1364,3 +1364,26 @@ SSE（§7.10）只推 `{room, round}` 两帧，塞不了自定义事件；也没
 - **剩的风险**：`leaveNow` 里"先发历史、再退房"是同一时刻的两个请求；极端顺序下（退房先到）
   这一份可能没留下 —— 前面"打完 / 读战绩屏"那两个点仍会留下，最坏只是一局中局退出的最新快照缺一版。
 
+## 十五、收尾：对局打完，这一局的片子怎么带走（2026-11-24 晚）
+
+规则正本、平台发布的缺口与逐条断言在 `docs/workshop-game-design.md` §七，这里只记接线。
+
+- **挂在结束屏上**（`ui/RoundResultPanel` 的两个 `over` 分支各挂一块 `ui/WrapupPanel`；结算屏那一支不挂）：
+  「⬇️ 保存到本地」「🚀 发布」「先不存」三颗键。`先不存` 记的是**这一局的 seed**（模块级，见
+  `WrapupPanel` 文件头：新的一局 seed 变了自然重新问；发布走一趟 `/publish` 回来也不会再问 ——
+  写进 store 的话 `startGame` / `endGame` / 重连三条路都得记得归位，漏一条就是"下一局不问"）。
+  `over` 的判据沿用现有那一条（有 winners / 平局 / 本机打满 `rules.MAX_ROUNDS`），这一块不另判"打完了没有"。
+- **片子来源**：判据全在 `studio/game/wrapup.ts`（零依赖，`check-game-wrapup.mjs` 跑正反例）——
+  联机局读本机**打完那一拍**留下的那份战绩（`historyCache.captureOnlineHistory` 存好会广播，面板跟着重读，
+  还没读到时给「再试一次」）；本机局读本机战绩（`localHistory`，写失败 / 读到坏数据 / `savedAt` 对不上
+  一律说"没存下来"，**绝不拿上一局顶替**）。占位片不进 `clips` → 那三颗键不出，只说
+  「这一段是占位片，没有成片」。
+- **保存**：`data/videoDownload.planClipDownload`（保存到本地那唯一一份实现里的窄入口），多段 = 逐段存
+  （每回合一条独立短片，不合并；合并要原生 `VideoMergePlugin`，只在真机上跑）。整批结局 + 每行原因 +
+  落点目录（`downloadsPathOf`）都摆在面板上。
+- **发布**：把这一局最好的那一段（名次 → 热度 → 更早的回合）翻成一份合成稿塞进 `studioStore.draft`
+  （`wrapup.wrapupDraftOf`：一段、封面/标题/正文预填、不写 `videoTier`）→ 跳现有 `/publish`。
+  **发布到 B 站等平台：App 没有这个能力**，那一格只有说明与「先保存到本地」，没有假键。
+
+
+

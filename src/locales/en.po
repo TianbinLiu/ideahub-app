@@ -93,6 +93,7 @@ msgid " · 改自 @{0}"
 msgstr " · remixed from @{0}"
 
 #: src/components/DownloadSheet.tsx
+#: src/studio/game/ui/WrapupSheet.tsx
 msgid " · 正在停止（当前这一段会跑完）"
 msgstr " · Stopping (the current segment will finish)"
 
@@ -112,6 +113,11 @@ msgstr " · Generating…"
 #: src/components/CoverPicker.tsx
 msgid " · 真实影像"
 msgstr " · real footage"
+
+#. placeholder {0}: bestClip.rank
+#: src/studio/game/ui/WrapupSheet.tsx
+msgid " · 第 {0} 名"
+msgstr " · rank {0}"
 
 #. placeholder {0}: fmtTokens(schemeCost(sc.slots))
 #: src/components/VideoCardAnnotator.tsx
@@ -692,6 +698,7 @@ msgstr "(The admin didn't give a reason)"
 
 #. placeholder {0}: mb(sizes.total)
 #: src/components/DownloadSheet.tsx
+#: src/studio/game/ui/WrapupSheet.tsx
 msgid "（约 {0}）"
 msgstr " (about {0})"
 
@@ -1017,6 +1024,17 @@ msgstr "{0, plural, one {# segment} other {# segments}} · {1} rendered"
 #: src/pages/DraftsPage.tsx
 msgid "{0} 段 · 已出片 {1} · {2}改过"
 msgstr "{0} segments · {1} rendered · edited {2}"
+
+#. placeholder {0}: view.wrapup.clips.length
+#. placeholder {1}: view.wrapup.placeholderRounds.length
+#: src/studio/game/ui/WrapupPanel.tsx
+msgid "{0} 段成片能带走；{1} 段是占位片"
+msgstr "{0} finished clips can come with you; {1} are placeholders"
+
+#. placeholder {0}: view.wrapup.clips.length
+#: src/studio/game/ui/WrapupPanel.tsx
+msgid "{0} 段成片都能带走"
+msgstr "All {0} finished clips can come with you"
 
 #. placeholder {0}: it.summary.templated
 #. placeholder {0}: s.templated
@@ -3874,11 +3892,11 @@ msgstr "✓ Added as a middle frame"
 msgid "✓ 已在我的卡组"
 msgstr "✓ In my cards"
 
-#: src/components/DownloadSheet.tsx
+#: src/data/videoDownload.ts
 msgid "✓ 已存"
 msgstr "✓ Saved"
 
-#: src/components/DownloadSheet.tsx
+#: src/data/videoDownload.ts
 msgid "✓ 已存（之前存过）"
 msgstr "✓ Saved (already saved before)"
 
@@ -4135,6 +4153,14 @@ msgstr "⤢ Fill the frame"
 #: src/components/flow/DraftModeBox.tsx
 msgid "⬆ 定稿成 1080p（{price}）"
 msgstr "⬆ Finalize at 1080p ({price})"
+
+#: src/studio/game/ui/WrapupPanel.tsx
+msgid "⬇️ 保存到本地"
+msgstr "⬇️ Save to device"
+
+#: src/studio/game/ui/WrapupSheet.tsx
+msgid "⬇️ 先保存到本地"
+msgstr "⬇️ Save to device first"
 
 #: src/pages/TemplateDetailPage.tsx
 msgid "⬜ 白模模板 · 参考视频 {billSec}s"
@@ -4872,6 +4898,11 @@ msgstr "🧬 Fuse first frame"
 #~ msgid "🪪 这张真人卡还<0>没接上已授权的肖像素材</0>——「高清」「电影级」档不收直接上传的真人照片，接上之前用它出片会被拒。"
 #~ msgstr "🪪 This real-person card <0>isn't connected to an authorized portrait asset yet</0> — the HD and Cinematic tiers don't accept directly uploaded photos of real people, so videos using it will be rejected until it's connected."
 
+#: src/studio/game/ui/WrapupPanel.tsx
+#: src/studio/game/ui/WrapupSheet.tsx
+msgid "🚀 发布"
+msgstr "🚀 Publish"
+
 #: src/studio/ui/MarketSearch.tsx
 msgid "🛒 市场"
 msgstr "🛒 Market"
@@ -5293,6 +5324,14 @@ msgstr "An AI short made segment by segment · from QiMeng"
 #: src/mock/frames.ts
 msgid "AI 预览帧"
 msgstr "AI preview frame"
+
+#: src/studio/game/ui/WrapupSheet.tsx
+msgid "App 现在没有直连平台的发布能力（没有平台授权，也没有上传接口），所以这一格不摆一颗发不出去的键。 先把成片保存到本地，再去平台 App 或浏览器里上传。"
+msgstr "The app can't publish straight to platforms yet (no platform authorization, no upload endpoint) — so there's no dead button here. Save the finished clip to your device first, then upload it in the platform's app or a browser."
+
+#: src/studio/game/ui/WrapupSheet.tsx
+msgid "App 现在还不能直连平台发布（没有平台授权，也没有上传接口）。这里的片子存好之后，去对应的平台 App 或浏览器里上传就行。"
+msgstr "The app can't publish straight to platforms yet (no platform authorization, no upload endpoint). Once the clips here are saved, upload them in the platform's app or a browser."
 
 #: src/pages/tutor/TutorNewPage.tsx
 msgid "App 里先收 .md / .txt（讲义、笔记、课件导出的文字）。PDF / PPTX / DOCX 请去网页端传：那边在浏览器里抽文字，手机上跑不动那几个解析器。"
@@ -8407,6 +8446,10 @@ msgstr "Save video"
 msgid "保存资料"
 msgstr "Save profile"
 
+#: src/studio/game/ui/WrapupSheet.tsx
+msgid "保存这一局的片子"
+msgstr "Save this match's clips"
+
 #: src/pages/VideoPage.tsx
 #~ msgid "保存这一集到本地"
 #~ msgstr "Save this episode to device"
@@ -8541,6 +8584,7 @@ msgstr "Stop"
 
 #: src/components/DownloadSheet.tsx
 #: src/pages/SupportPage.tsx
+#: src/studio/game/ui/WrapupSheet.tsx
 msgid "停止"
 msgstr "Stop"
 
@@ -8588,6 +8632,10 @@ msgstr "Not now"
 #: src/components/DeleteConfirmShell.tsx
 msgid "先不删"
 msgstr "Keep it"
+
+#: src/studio/game/ui/WrapupPanel.tsx
+msgid "先不存"
+msgstr "Not now"
 
 #: src/components/flow/TierRow.tsx
 msgid "先不换"
@@ -8721,6 +8769,7 @@ msgid "先存起来，圈完所有要改的地方再一次性重新生成"
 msgstr "Save it for now, circle everything you want to change, then regenerate all at once"
 
 #: src/components/DownloadSheet.tsx
+#: src/studio/game/ui/WrapupSheet.tsx
 msgid "先存进 App，再选去处。"
 msgstr "Files go into the app first, then you pick where they go."
 
@@ -9181,10 +9230,12 @@ msgid "共 {count} 段 · 点开选一段"
 msgstr "{count, plural, one {# segment} other {# segments}} · tap to pick one"
 
 #: src/components/DeleteConfirmShell.tsx
+#: src/studio/game/ui/WrapupSheet.tsx
 msgid "关掉"
 msgstr "Close"
 
 #: src/components/DownloadSheet.tsx
+#: src/studio/game/ui/WrapupSheet.tsx
 msgid "关掉（保存继续跑）"
 msgstr "Close (saving continues)"
 
@@ -9447,6 +9498,7 @@ msgstr "Crop out logos and watermarks"
 #: src/pages/EditPage.tsx
 #: src/pages/PublishPage.tsx
 #: src/pages/tutor/TutorNewPage.tsx
+#: src/studio/game/ui/WrapupPanel.tsx
 msgid "再试一次"
 msgstr "Try again"
 
@@ -10188,6 +10240,7 @@ msgid "分享"
 msgstr "Share"
 
 #: src/components/DownloadSheet.tsx
+#: src/studio/game/ui/WrapupSheet.tsx
 msgid "分享 / 另存为"
 msgstr "Share / Save as"
 
@@ -11926,6 +11979,10 @@ msgstr "Send"
 msgid "发一句试试，比如「你好呀」。"
 msgstr "Send something to try it, like “hi there”."
 
+#: src/studio/game/ui/WrapupSheet.tsx
+msgid "发到 B 站、抖音这些平台"
+msgstr "Posting to Bilibili, Douyin and other platforms"
+
 #: src/components/flow/SkillPanel.tsx
 #: src/pages/PublishPage.tsx
 #: src/pages/SupportModelNewPage.tsx
@@ -11996,6 +12053,10 @@ msgstr "Publish to voice market"
 msgid "发布到市场"
 msgstr "Publish to market"
 
+#: src/studio/game/ui/WrapupSheet.tsx
+msgid "发布到本站（IdeaHub）"
+msgstr "Publish to this site (IdeaHub)"
+
 #: src/pages/TemplateDetailPage.tsx
 msgid "发布到模板市场"
 msgstr "Publish to the template market"
@@ -12052,6 +12113,10 @@ msgstr "Publishing failed: {why}"
 #: src/pages/PublishPage.tsx
 msgid "发布视频"
 msgstr "Publish video"
+
+#: src/studio/game/ui/WrapupSheet.tsx
+msgid "发布这一局的片子"
+msgstr "Publish this match's clips"
 
 #: src/pages/FeedPage.tsx
 msgid "发弹幕"
@@ -13832,10 +13897,12 @@ msgid "大块黑白对比、湿地面反光，红是画面里唯一的亮色。"
 msgstr "Hard black-and-white contrast, wet-street reflections, one slash of red."
 
 #: src/components/DownloadSheet.tsx
+#: src/data/videoDownload.ts
 msgid "大小未知"
 msgstr "Size unknown"
 
 #: src/components/DownloadSheet.tsx
+#: src/studio/game/ui/WrapupSheet.tsx
 msgid "大小未知，没法校验这一份是不是完整的。"
 msgstr "Size unknown, so there's no way to check this file is complete."
 
@@ -14850,6 +14917,15 @@ msgstr "Workshop"
 msgid "工坊对局"
 msgstr "Studio match"
 
+#. placeholder {0}: clip.round
+#: src/studio/game/ui/WrapupPanel.tsx
+msgid "工坊对局 · 第 {0} 回合"
+msgstr "Workshop match · round {0}"
+
+#: src/studio/game/ui/WrapupPanel.tsx
+msgid "工坊对局 · 这一局的片子"
+msgstr "Workshop match · this match's clips"
+
 #: src/data/projects.ts
 msgid "工坊工程没能留在这台设备上（存储空间不足或浏览器隐私模式）——这条片发出去之后不能回炉"
 msgstr "The Studio project couldn't be kept on this device (not enough storage, or the browser is in private mode) — this video can't be remade after publishing"
@@ -14971,7 +15047,6 @@ msgstr "Listed on the Template market's \"Workflows\" shelf"
 
 #. placeholder {0}: mb(p.bytes)
 #. placeholder {0}: mb(row.bytes)
-#: src/components/DownloadSheet.tsx
 #: src/data/videoDownload.ts
 msgid "已下 {0}"
 msgstr "{0} downloaded"
@@ -15045,7 +15120,7 @@ msgstr "Saved videos {0} · {files, plural, one {# file} other {# files}}"
 msgid "已做好"
 msgstr "Done"
 
-#: src/components/DownloadSheet.tsx
+#: src/data/videoDownload.ts
 msgid "已停止"
 msgstr "Stopped"
 
@@ -16026,6 +16101,7 @@ msgid "开始上课"
 msgstr "Start class"
 
 #: src/components/DownloadSheet.tsx
+#: src/studio/game/ui/WrapupSheet.tsx
 msgid "开始保存{totalLabel}"
 msgstr "Start saving{totalLabel}"
 
@@ -16575,6 +16651,10 @@ msgstr "Mood"
 #: src/studio/game/labels.ts
 msgid "惊了"
 msgstr "Shocked"
+
+#: src/studio/game/ui/WrapupSheet.tsx
+msgid "想发到 B 站、抖音这些平台？"
+msgstr "Want to post it to Bilibili, Douyin or another platform?"
 
 #: src/pages/SimpleModePage.tsx
 msgid "想怎么开始？"
@@ -17364,6 +17444,14 @@ msgstr "Hand your course material to the AI to make a teacher who teaches from i
 #: src/studio/flowStore.ts
 msgid "把角色放进白模画面…"
 msgstr "Placing characters into the blockout frame…"
+
+#: src/studio/game/ui/WrapupSheet.tsx
+msgid "把这一局最好的那一段发出去"
+msgstr "Publish the best clip of this match"
+
+#: src/studio/game/ui/WrapupSheet.tsx
+msgid "把这一局的片子存到本地"
+msgstr "Save this match's clips to your device"
 
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "把这个角色位改成{s}"
@@ -18920,6 +19008,10 @@ msgstr "Adding…"
 msgid "收回背包了"
 msgstr "Returned to the bag"
 
+#: src/studio/game/ui/WrapupPanel.tsx
+msgid "收尾：这一局的片子"
+msgstr "Wrap-up: this match's clips"
+
 #: src/pages/FeedPage.tsx
 #: src/pages/VideoPage.tsx
 msgid "收藏"
@@ -19369,9 +19461,16 @@ msgid "文件地址不对，这一份没能交出去。"
 msgstr "The file address is wrong, so this copy couldn't be handed off."
 
 #. placeholder {0}: plan.formats.map((f) => f.toUpperCase()).join(" / ")
+#. placeholder {0}: plan.plan.formats.map((f) => f.toUpperCase()).join(" / ")
 #: src/components/DownloadSheet.tsx
+#: src/studio/game/ui/WrapupSheet.tsx
 msgid "文件格式：{0}"
 msgstr "File format: {0}"
+
+#. placeholder {0}: downloadsPathOf(clipId)
+#: src/studio/game/ui/WrapupSheet.tsx
+msgid "文件落在 App 缓存目录 {0} 下。"
+msgstr "The files land in the app cache folder {0}."
 
 #: src/components/TemplateShelf.tsx
 msgid "文字"
@@ -21055,6 +21154,10 @@ msgstr "Labeling, asset licensing and violation handling"
 msgid "标题 *"
 msgstr "Title *"
 
+#: src/studio/game/ui/WrapupSheet.tsx
+msgid "标题、封面、简介会先按这一段填好，发布页上还能改。"
+msgstr "The title, cover and description are prefilled from this clip; you can still change them on the publish page."
+
 #: src/pages/TemplateDetailPage.tsx
 msgid "标题/简介的修改只改本机显示；市场里展示的是登记那一刻的版本。"
 msgstr "Title and description edits only change what this device shows; the market shows the version from when it was registered."
@@ -21180,7 +21283,7 @@ msgstr "The name under the home-screen icon follows your phone's system language
 #~ msgid "桌面还空着，没什么可存"
 #~ msgstr "The table is empty, so there's nothing to save"
 
-#: src/components/DownloadSheet.tsx
+#: src/data/videoDownload.ts
 msgid "检查中"
 msgstr "Checking"
 
@@ -21699,11 +21802,17 @@ msgstr "Getting this card from the Workshop…"
 msgid "正在从服务器取这个模板…"
 msgstr "Loading this template from the server…"
 
+#. placeholder {0}: doneRows.length
 #. placeholder {0}: rows.filter((r) => r.status === "done" || r.status === "exists").length
 #. placeholder {1}: rows.length
 #: src/components/DownloadSheet.tsx
+#: src/studio/game/ui/WrapupSheet.tsx
 msgid "正在保存 {0}/{1} 段"
 msgstr "Saving {0}/{1} segments"
+
+#: src/studio/game/ui/WrapupSheet.tsx
+msgid "正在保存另一批片子，等它完成或点停止再来。"
+msgstr "Another batch is saving right now — wait for it to finish (or stop it) and come back."
 
 #: src/components/DownloadSheet.tsx
 msgid "正在保存另一条作品，等它完成或点停止再来。"
@@ -21740,6 +21849,11 @@ msgstr "Writing lyrics, about ten seconds (you can leave; the result stays here)
 #: src/studio/personaWizardStore.ts
 msgid "正在写说话风格…"
 msgstr "Writing the speaking style…"
+
+#: src/studio/game/ui/WrapupPanel.tsx
+#: src/studio/game/ui/WrapupSheet.tsx
+msgid "正在准备发布页…"
+msgstr "Getting the publish page ready…"
 
 #: src/studio/live2dUploadStore.ts
 msgid "正在准备预览…"
@@ -22561,7 +22675,7 @@ msgstr "Without a mention in the prompt, the system only says it's an extra refe
 msgid "没在句子里点名时，系统按这个用途替它说一句。"
 msgstr "Without a mention in the prompt, the system describes it by this purpose."
 
-#: src/components/DownloadSheet.tsx
+#: src/data/videoDownload.ts
 msgid "没存下"
 msgstr "Not saved"
 
@@ -26015,6 +26129,7 @@ msgstr "Zhixing (female)"
 #: src/pages/EditPage.tsx
 #: src/pages/PublishPage.tsx
 #: src/pages/VideoPage.tsx
+#: src/studio/game/ui/WrapupPanel.tsx
 msgid "知道了"
 msgstr "Got it"
 
@@ -26597,12 +26712,13 @@ msgid "第 {0} 味音色"
 msgstr "Voice {0}"
 
 #. placeholder {0}: bar.round
+#. placeholder {0}: clip.round
 #. placeholder {0}: event.round
-#. placeholder {0}: one.round
 #: src/studio/game/ui/EventPanel.tsx
 #: src/studio/game/ui/MatchHistory.tsx
 #: src/studio/game/ui/OnlineEventPanel.tsx
 #: src/studio/game/ui/SpectateScreen.tsx
+#: src/studio/game/ui/WrapupSheet.tsx
 msgid "第 {0} 回合"
 msgstr "Round {0}"
 
@@ -26611,6 +26727,13 @@ msgstr "Round {0}"
 #: src/studio/game/ui/SpectateScreen.tsx
 msgid "第 {0} 回合 · {1}"
 msgstr "Round {0} · {1}"
+
+#. placeholder {0}: bestClip.round
+#. placeholder {1}: bestClip.likes
+#. placeholder {2}: bestClip.votes
+#: src/studio/game/ui/WrapupSheet.tsx
+msgid "第 {0} 回合 · ❤ {1} · 🗳 {2}"
+msgstr "Round {0} · ❤ {1} · 🗳 {2}"
 
 #. placeholder {0}: round.round
 #: src/studio/game/ui/SpectateScreen.tsx
@@ -27586,7 +27709,7 @@ msgstr "The server took too long to reply. It may have been created anyway — c
 msgid "等她画出来才能继续。"
 msgstr "Wait for her to render before continuing."
 
-#: src/components/DownloadSheet.tsx
+#: src/data/videoDownload.ts
 msgid "等待中"
 msgstr "Waiting"
 
@@ -27790,7 +27913,7 @@ msgid "红"
 msgstr "red"
 
 #. placeholder {0}: mb(known)
-#: src/components/DownloadSheet.tsx
+#: src/data/videoDownload.ts
 msgid "约 {0}"
 msgstr "About {0}"
 
@@ -30561,6 +30684,10 @@ msgstr "Not synced to the server yet ({issue}) — other devices won’t see it 
 msgid "还没开始第一回合"
 msgstr "The first round hasn't started"
 
+#: src/studio/game/ui/WrapupPanel.tsx
+msgid "还没拿到这一局的片子（服务端的战绩没读到）"
+msgstr "Haven't got this match's clips yet (couldn't read the match record from the server)"
+
 #: src/components/flow/GridShotsWizard.tsx
 msgid "还没挑"
 msgstr "None picked yet"
@@ -31269,6 +31396,14 @@ msgstr "This chunk has been uploading for {hardMin} minutes and still isn't done
 msgid "这一小段有 {stallSec} 秒没传出去一个字节——网络断了或太不稳，换个网络再试"
 msgstr "This chunk hasn't sent a single byte in {stallSec} seconds — the connection dropped or is too unstable. Switch networks and try again"
 
+#: src/studio/game/ui/WrapupPanel.tsx
+msgid "这一局你没交过片"
+msgstr "You didn't submit any clip this match"
+
+#: src/data/videoDownload.ts
+msgid "这一局只有占位片，没有可保存的成片。"
+msgstr "This match only has placeholder clips — there's no finished clip to save."
+
 #: src/studio/game/ui/SpectateScreen.tsx
 msgid "这一局已经打完了"
 msgstr "This match is over"
@@ -31298,6 +31433,12 @@ msgstr "The match is over (a draw)"
 msgid "这一局按 {0} 个真人开：服务端的回合只算真人，空位不参加。"
 msgstr "This game runs with {0} real players: the server's rounds count real players only, and empty seats do not join."
 
+#. placeholder {0}: targets.length
+#. placeholder {1}: targets.length
+#: src/studio/game/ui/WrapupSheet.tsx
+msgid "这一局有 {0} 段成片，会存成 {1} 个文件（每回合一个）。"
+msgstr "This match has {0} finished clips; they'll be saved as {1} files (one per round)."
+
 #: src/studio/game/historyReasons.ts
 msgid "这一局没有回放（房间已结束或本机对局）"
 msgstr "No replay for this match (the room has ended, or this was a local match)"
@@ -31306,9 +31447,17 @@ msgstr "No replay for this match (the room has ended, or this was a local match)
 msgid "这一局没有抽到风格卡（数据不对）——去右栏结束对局再开一局。"
 msgstr "No style cards were drawn this game (bad data) — end the game in the right rail and start again."
 
+#: src/studio/game/ui/WrapupSheet.tsx
+msgid "这一局没有能发出去的成片。"
+msgstr "This match has no finished clip to publish."
+
 #: src/studio/game/historyReasons.ts
 msgid "这一局的回放没存下来"
 msgstr "This match's replay wasn't saved"
+
+#: src/studio/game/ui/WrapupPanel.tsx
+msgid "这一局的战绩没存下来，片子也找不回来了"
+msgstr "This match's record wasn't saved, so the clips are gone too"
 
 #: src/studio/game/lobbyReasons.ts
 msgid "这一局的房间已经结束"
@@ -31317,6 +31466,10 @@ msgstr "This game’s room has ended"
 #: src/studio/game/historyReasons.ts
 msgid "这一局的房间已经过期，回放也一起没了"
 msgstr "This match's room has expired, so its replay is gone too"
+
+#: src/data/videoDownload.ts
+msgid "这一局的画面里没有「AI 生成」角标，按合规要求暂时不能导出成文件。"
+msgstr "This match's clips have no “AI generated” badge in the picture, so compliance rules don't allow exporting them as files for now."
 
 #: src/studio/game/ui/ConnectionBanner.tsx
 msgid "这一局的联机房间已经结束"
@@ -32021,6 +32174,10 @@ msgstr "This segment's changes can't be written back — the node it belongs to 
 #: src/studio/studioStore.ts
 msgid "这一段是从工作流里单独打开的，改动还只在内存里——回工作流把它保存进草稿，再切后台。"
 msgstr "it was opened on its own from the workflow, so its changes are only in memory — go back to the workflow and save it to a draft before switching away."
+
+#: src/studio/game/ui/WrapupPanel.tsx
+msgid "这一段是占位片，没有成片"
+msgstr "This round is a placeholder — there's no finished clip"
 
 #: src/pages/CutPage.tsx
 msgid "这一段是接着上一段拍的（同一个镜头在延续）——在这儿加转场会把接缝撕开。想要换场的感觉，加在别的接缝上更合适。"

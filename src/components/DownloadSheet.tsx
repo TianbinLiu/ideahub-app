@@ -9,9 +9,7 @@
 // ★ 所有 hook 排在任何早退之前（npm run build 里的 check-hook-order.mjs 会拦，而它是
 //   拿三次白屏事故换来的）。
 // ★ 自带一份 err 行（"z 层盖住谁就自带一份"）。
-import { i18n } from "@lingui/core";
 import Warn from "./Warn";
-import { msg } from "@lingui/core/macro";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Sheet from "./Sheet";
@@ -21,12 +19,12 @@ import {
   mb,
   planDownload,
   probeSizes,
+  rowStatusText,
   shareAll,
   shareOne,
   startDownload,
   stopDownload,
   sweepStaleParts,
-  type DownloadRow,
 } from "../data/videoDownload";
 import type { VideoItem } from "../types";
 
@@ -180,7 +178,7 @@ export default function DownloadSheet({
                   <div className="flex items-center gap-2">
                     <span className="min-w-0 flex-1 truncate text-xs text-slate-200">{t.label}</span>
                     <span className="flex-none text-[11px] tabular-nums text-slate-500">
-                      {rowRight(row, known ?? null)}
+                      {rowStatusText(row, known ?? null)}
                     </span>
                   </div>
                   <p className="mt-0.5 break-all text-[10px] text-slate-400">{t.fileName}</p>
@@ -286,25 +284,4 @@ export default function DownloadSheet({
       </button>
     </Sheet>
   );
-}
-
-/** 行右侧那一格的四态。★ total 为 null 时写「已下 4.1 MB」而不是一条恒 0% 的进度条 */
-function rowRight(row: DownloadRow | null, known: number | null): string {
-  if (!row) return known === null ? i18n._(msg`大小未知`) : i18n._(msg`约 ${mb(known)}`);
-  switch (row.status) {
-    case "queued":
-      return i18n._(msg`等待中`);
-    case "checking":
-      return i18n._(msg`检查中`);
-    case "downloading":
-      return row.total ? `${Math.floor((row.bytes / row.total) * 100)}%` : i18n._(msg`已下 ${mb(row.bytes)}`);
-    case "done":
-      return i18n._(msg`✓ 已存`);
-    case "exists":
-      return i18n._(msg`✓ 已存（之前存过）`);
-    case "stopped":
-      return i18n._(msg`已停止`);
-    case "failed":
-      return i18n._(msg`没存下`);
-  }
 }
