@@ -12792,6 +12792,15 @@ msgstr "合计约 {0} token"
 msgid "同一个人出现了两次"
 msgstr "同一个人出现了两次"
 
+#: src/studio/game/ui/StickerPanel.tsx
+msgid "同一人 2 秒最多 1 条"
+msgstr "同一人 2 秒最多 1 条"
+
+#. placeholder {0}: (waitMs / 1000).toFixed(1)
+#: src/studio/game/ui/StickerPanel.tsx
+msgid "同一人 2 秒最多 1 条 · 还差 {0} 秒"
+msgstr "同一人 2 秒最多 1 条 · 还差 {0} 秒"
+
 #: src/components/guide/tours.tsx
 msgid "同一条片的另一面"
 msgstr "同一条片的另一面"
@@ -12951,6 +12960,10 @@ msgstr "哪里不对？"
 #: src/pages/SupportModelNewPage.tsx
 msgid "哭"
 msgstr "哭"
+
+#: src/studio/game/labels.ts
+msgid "哭了"
+msgstr "哭了"
 
 #: src/components/flow/FlowCanvas.tsx
 msgid "唤起指令句式（也可以输入 /）"
@@ -13211,6 +13224,10 @@ msgstr "回首页"
 #: src/pages/ProfilePage.tsx
 msgid "因一笔退款，已收回相应 token，尚欠 {0}。下次充值会自动抵扣，抵完即可继续生成；在那之前生成功能暂时不可用。"
 msgstr "因一笔退款，已收回相应 token，尚欠 {0}。下次充值会自动抵扣，抵完即可继续生成；在那之前生成功能暂时不可用。"
+
+#: src/studio/game/labels.ts
+msgid "围观"
+msgstr "围观"
 
 #: src/components/flow/CameraChips.tsx
 msgctxt "运镜 chip 的短名：点一下往这一段的要求里插一句镜头运动"
@@ -13648,6 +13665,7 @@ msgid "大小未知，没法校验这一份是不是完整的。"
 msgstr "大小未知，没法校验这一份是不是完整的。"
 
 #: src/pages/SupportModelNewPage.tsx
+#: src/studio/game/labels.ts
 msgid "大笑"
 msgstr "大笑"
 
@@ -13848,6 +13866,10 @@ msgstr "好"
 #: src/components/flow/FlowCanvas.tsx
 msgid "好了（选中 {0} 张）"
 msgstr "好了（选中 {0} 张）"
+
+#: src/studio/game/labels.ts
+msgid "好奇"
+msgstr "好奇"
 
 #: src/pages/FeedPage.tsx
 msgid "好的，这条不再出现"
@@ -14511,6 +14533,10 @@ msgstr "尾帧已按你的要求重画好了。"
 #: src/studio/ui/FrameCard.tsx
 msgid "尾帧由所选方案决定；视频从开头帧往下拍"
 msgstr "尾帧由所选方案决定；视频从开头帧往下拍"
+
+#: src/studio/game/ui/StickerBubbles.tsx
+msgid "局内贴纸"
+msgstr "局内贴纸"
 
 #: src/types.ts
 msgid "局部材质与陈设特征"
@@ -15663,6 +15689,10 @@ msgstr "平静"
 msgid "广场上还没有人发布技能——发布你的第一条？"
 msgstr "广场上还没有人发布技能——发布你的第一条？"
 
+#: src/studio/game/labels.ts
+msgid "庆祝"
+msgstr "庆祝"
+
 #: src/components/guide/tours.tsx
 msgid "底下那条细线"
 msgstr "底下那条细线"
@@ -16219,6 +16249,10 @@ msgstr "微信登录要在 App 里用（浏览器中没有微信客户端可以�
 msgid "微信里拒绝了这次授权。想用微信登录的话再点一次，在微信里选「同意」。"
 msgstr "微信里拒绝了这次授权。想用微信登录的话再点一次，在微信里选「同意」。"
 
+#: src/studio/game/labels.ts
+msgid "微笑"
+msgstr "微笑"
+
 #: src/studio/personaWizardStore.ts
 msgid "微调"
 msgstr "微调"
@@ -16323,6 +16357,10 @@ msgstr "情感互动"
 #: src/components/flow/SongWizard.tsx
 msgid "情绪"
 msgstr "情绪"
+
+#: src/studio/game/labels.ts
+msgid "惊了"
+msgstr "惊了"
 
 #: src/pages/SimpleModePage.tsx
 msgid "想怎么开始？"
@@ -16735,6 +16773,10 @@ msgstr "所属卡组"
 msgid "手上没有角色 / 场景卡了——去商店买一张"
 msgstr "手上没有角色 / 场景卡了——去商店买一张"
 
+#: src/studio/game/ui/StickerPanel.tsx
+msgid "手上还没有卡——先去商店买一张"
+msgstr "手上还没有卡——先去商店买一张"
+
 #: src/components/VolcCompatToggle.tsx
 msgid "手工填入"
 msgstr "手工填入"
@@ -16839,6 +16881,14 @@ msgstr "打开这条投稿的成片 ↗"
 #: src/components/DraftSheet.tsx
 msgid "打开这条草稿（丢弃上面那条流水线）"
 msgstr "打开这条草稿（丢弃上面那条流水线）"
+
+#: src/studio/game/labels.ts
+msgid "打招呼"
+msgstr "打招呼"
+
+#: src/studio/game/labels.ts
+msgid "打盹"
+msgstr "打盹"
 
 #. placeholder {0}: fmtTokens(n.refund.tokens)
 #: src/pages/NotificationsPage.tsx
@@ -18478,9 +18528,17 @@ msgstr "摸「{areaName}」→ {target}"
 msgid "摸这里没有反应"
 msgstr "摸这里没有反应"
 
+#: src/studio/game/labels.ts
+msgid "摸鱼"
+msgstr "摸鱼"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "撒娇"
 msgstr "撒娇"
+
+#: src/studio/game/labels.ts
+msgid "撒花"
+msgstr "撒花"
 
 #. placeholder {0}: c.name
 #: src/studio/ui/projection.tsx
@@ -18703,6 +18761,10 @@ msgstr "收起简介"
 #: src/pages/FlowPage.tsx
 msgid "收起补充要求"
 msgstr "收起补充要求"
+
+#: src/studio/game/ui/StickerPanel.tsx
+msgid "收起贴纸面板"
+msgstr "收起贴纸面板"
 
 #: src/pages/SettingsPage.tsx
 msgid "收集什么、怎么用、找谁行使权利"
@@ -20360,6 +20422,10 @@ msgstr "本机对局"
 #~ msgid "本机局：其余座位由 AI 补位，不能拉黑或举报"
 #~ msgstr "本机局：其余座位由 AI 补位，不能拉黑或举报"
 
+#: src/studio/game/labels.ts
+msgid "本机局：贴纸只在这一台设备上播（对面是 AI，它也会自己贴）"
+msgstr "本机局：贴纸只在这一台设备上播（对面是 AI，它也会自己贴）"
+
 #: src/utils/nativeCamera.ts
 msgid "本机没有系统相机（Android 11 起只认预装相机）——改用「上传本地图片」"
 msgstr "本机没有系统相机（Android 11 起只认预装相机）——改用「上传本地图片」"
@@ -21273,6 +21339,10 @@ msgstr "橙"
 msgid "欠额 {owed}，已冻结"
 msgstr "欠额 {owed}，已冻结"
 
+#: src/studio/game/labels.ts
+msgid "欢呼"
+msgstr "欢呼"
+
 #: src/components/flow/SongWizard.tsx
 msgid "欢快"
 msgstr "欢快"
@@ -22083,6 +22153,10 @@ msgstr "比如「树洞」「陪练」「编剧搭子」"
 #: src/pages/SupportPersonaNewPage.tsx
 msgid "比如「认识很久的朋友」"
 msgstr "比如「认识很久的朋友」"
+
+#: src/studio/game/labels.ts
+msgid "比心"
+msgstr "比心"
 
 #: src/studio/game/labels.ts
 msgid "水彩晕染的柔和边缘、暖黄与苔绿，雨丝里飘着萤火般的光点。"
@@ -23520,6 +23594,7 @@ msgstr "点货架顶上<0>做模板的入口卡</0>：传一段视频让 AI 把�
 #: src/components/CommentSheet.tsx
 #: src/components/support/VoiceMarket.tsx
 #: src/pages/FeedPage.tsx
+#: src/studio/game/labels.ts
 msgid "点赞"
 msgstr "点赞"
 
@@ -26140,6 +26215,10 @@ msgstr "站在演唱会舞台中央，跟着节拍跳一段"
 msgid "童话森林"
 msgstr "童话森林"
 
+#: src/studio/game/labels.ts
+msgid "笑死"
+msgstr "笑死"
+
 #. placeholder {0}: index + 1
 #. placeholder {1}: entries.length
 #. placeholder {1}: playlist.length
@@ -27967,6 +28046,10 @@ msgstr "联机房间暂时不能改人数"
 msgid "联机版不能给自己的片子点赞"
 msgstr "联机版不能给自己的片子点赞"
 
+#: src/studio/game/labels.ts
+msgid "联机贴纸：要服务端支持后才会同步给同桌（现在只有你自己看得到）"
+msgstr "联机贴纸：要服务端支持后才会同步给同桌（现在只有你自己看得到）"
+
 #: src/studio/game/ui/Lobby.tsx
 #~ msgid "联机还没接通：现在开局一律由 AI 陪玩补位，真人匹配要等服务端房间。"
 #~ msgstr "联机还没接通：现在开局一律由 AI 陪玩补位，真人匹配要等服务端房间。"
@@ -28447,6 +28530,7 @@ msgid "补齐剩下的图位约 {aiPriceText} token，余额 {balance} 不够—
 msgstr "补齐剩下的图位约 {aiPriceText} token，余额 {balance} 不够——去「我的」页充值，或改选「自己上传图片」（不花钱）"
 
 #: src/pages/SupportModelNewPage.tsx
+#: src/studio/game/ui/StickerBubbles.tsx
 msgid "表情"
 msgstr "表情"
 
@@ -28741,6 +28825,10 @@ msgstr "认出 {0} 段时间轴，写到第 {1} 秒。按秒写的时间轴只�
 #: src/components/blockout/DetectRolesEntry.tsx
 msgid "认好了 ✓"
 msgstr "认好了 ✓"
+
+#: src/studio/game/labels.ts
+msgid "认真"
+msgstr "认真"
 
 #: src/studio/game/ui/GameSettings.tsx
 msgid "认输并退出"
@@ -29476,6 +29564,11 @@ msgstr "账户欠额冻结中，问不了模型（充值抵扣后恢复）。"
 msgid "质感特写"
 msgstr "质感特写"
 
+#. placeholder {0}: gameCardName(card)
+#: src/studio/game/ui/StickerPanel.tsx
+msgid "贴「{0}」"
+msgstr "贴「{0}」"
+
 #: src/studio/structuredSkills.ts
 msgid "贴剧本"
 msgstr "贴剧本"
@@ -29496,6 +29589,18 @@ msgstr "贴图 {name} 是 {width}×{height}，单边超过 {MAX_TEXTURE_SIDE}px�
 #: src/live2d/bundlePreview.ts
 msgid "贴图有 {count} 张，超过 {MAX_TEXTURE_COUNT} 张的上限。请在 Cubism 里把纹理图集合并一下再导出。"
 msgstr "贴图有 {count} 张，超过 {MAX_TEXTURE_COUNT} 张的上限。请在 Cubism 里把纹理图集合并一下再导出。"
+
+#: src/studio/game/ui/StickerPanel.tsx
+msgid "贴我的卡"
+msgstr "贴我的卡"
+
+#: src/studio/game/ui/StickerPanel.tsx
+msgid "贴纸"
+msgstr "贴纸"
+
+#: src/studio/game/ui/StickerPanel.tsx
+msgid "贴纸：贴一个表情或者贴一张我的卡"
+msgstr "贴纸：贴一个表情或者贴一张我的卡"
 
 #: src/api/support.ts
 msgid "费用与退款"

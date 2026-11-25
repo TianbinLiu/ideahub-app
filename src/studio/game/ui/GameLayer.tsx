@@ -42,6 +42,8 @@ import PlayerPanel from "./PlayerPanel";
 import RoundResultPanel from "./RoundResultPanel";
 import ScreeningPanel from "./ScreeningPanel";
 import ShopPanel from "./ShopPanel";
+import StickerBubbles from "./StickerBubbles";
+import StickerPanel from "./StickerPanel";
 import StylePick from "./StylePick";
 import { useOnlineRounds } from "./useOnlineRounds";
 import VotingPanel from "./VotingPanel";
@@ -301,11 +303,29 @@ export default function GameLayer() {
         {!inShop && (state.phase === "round-end" || state.phase === "over") && <RoundResultPanel />}
 
         {/* 背包条 + 商店键：商店阶段 = 买完就地摆；创作阶段出片前还能改摆法（见 rules.PLACE_PHASES）。
-            ★ 事件阶段让位（见 inEvent）：那一条在这一阶段没有一个能用的动作，却要占掉 67px。 */}
-        {!inEvent && <BagBar view={view} />}
+            ★ 事件阶段让位（见 inEvent）：那一条在这一阶段没有一个能用的动作，却要占掉 67px。
+            ★ 贴纸键（2026-11-24，P1「贴卡 / 表情」）挂在背包条右侧、**但绝对定位、不进流**：
+              它是底部那一排里唯一"后加"的键，一旦进流，整条（背包条 + 商店键）会被它推着往左移
+              ~25px —— 而左下角的气泡栈是按"背包条左沿 148.5"量着摆的（800×363 实测），
+              一移过去气泡就压在背包条上了。绝对定位之后：背包条一个像素都不动，
+              贴纸键落在商店键右边那 90px 空档里（真机量过：商店键右沿 651.4、道具栏下沿 y 243，
+              中间什么都没有）。 */}
+        {!inEvent && (
+          <div className="pointer-events-auto relative flex items-end gap-1.5">
+            <BagBar view={view} />
+            <div className="absolute bottom-0 left-full ml-1.5">
+              <StickerPanel view={view} />
+            </div>
+          </div>
+        )}
 
         <PhaseBar view={view} />
       </div>
+
+      {/* 贴纸气泡（左下角那一摞）：常驻读数，`pointer-events-none`，让开卡位 / 背包条 / 阶段条。
+          ★ 挂在这一层的根上而不是底部那条 flex 里：它定位在左下角，与底部那一条的流布局无关
+            （塞进去会被 `items-center` 居中，跑到屏幕中间去）。 */}
+      <StickerBubbles />
 
       {/* 拖动中的那张卡 + 落点判定（起点是背包条 / 右侧栏 / 桌面卡位，落点是 3D 卡位的屏投影）。
           常驻挂载：它自带 window 监听，只在 drag 非空时真的做事情。 */}
