@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GS 第 0 步预览 · 桌面盖板 + splat 房间</title>
+    <style>
+      html,
+      body,
+      #root {
+        height: 100%;
+        margin: 0;
+        background: #111;
+        overflow: hidden;
+      }
+      #hud {
+        position: fixed;
+        left: 8px;
+        bottom: 8px;
+        z-index: 2;
+        font: 12px/1.5 ui-monospace, monospace;
+        color: #9fe;
+        background: rgba(0, 0, 0, 0.55);
+        padding: 6px 8px;
+        border-radius: 6px;
+        pointer-events: none;
+        white-space: pre;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <div id="hud"></div>
+    <script type="module" src="./gs-preview.tsx"></script>
+  </body>
+</html>
