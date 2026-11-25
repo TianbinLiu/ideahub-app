@@ -17,8 +17,13 @@ import {
   GS_STEP0_BUDGET,
   GS_STEP0_TRANSFORM,
   gsCapability,
+  gsFillOn,
+  gsLoadMs,
+  gsMarkReady,
+  gsMaxSplats,
   setGsPhase,
 } from "./gsStep0";
+import { GS_STATS, mountGsHud, updateGsHud } from "./gsHud";
 
 /** 白天的"环境光"：真 HDR 还没进仓（plan §4.4 要的是 Poly Haven 1k CC0 ≈1 MB），
  *  先程序化画一张等距柱状图（天顶蓝 → 地平线暖白 → 地面褐 + -x 窗墙那一块高亮）再过 PMREM。
@@ -77,28 +82,41 @@ function DayEnvironment() {
   return null;
 }
 
-/** DEV：每 3 秒把 draw call / 三角面 / 纹理数 / 帧率打一行 —— 验收清单第 3 条要的就是这几个数 */
-function GsDevStats({ splat }: { splat: SplatMesh }) {
+/** 实验档的读数：每帧累加，满 1 秒结算一次 fps 写进 GS_STATS（角标 1 秒刷新，见 gsHud）。
+ *  ★ 这一段**生产构建里也要跑**（真机验收要读它），所以不再套 import.meta.env.DEV；
+ *    DEV 里额外每 3 秒打一行日志、并把 splat/gl 挂到 window 上方便事后抓。 */
+function GsStats({ splat }: { splat: SplatMesh }) {
   const gl = useThree((s) => s.gl);
   // ★ DEV 的读数口子（同 StudioPage 的 __r3fCapture 那条约定）：浏览器里量帧率/draw call 时
   //   控制台日志要"事后"才抓得到，把最近一次读数挂在 window 上更省事。生产构建里整段不存在。
   useLayoutEffect(() => {
+    if (!import.meta.env.DEV) return;
     (window as unknown as Record<string, unknown>).__gsDebug = { splat, gl };
     return () => {
       delete (window as unknown as Record<string, unknown>).__gsDebug;
     };
   }, [splat, gl]);
-  const acc = useMemo(() => ({ frames: 0, t0: performance.now(), last: "" }), []);
+  const acc = useMemo(() => ({ frames: 0, t0: performance.now(), updates: 0 }), []);
   useFrame(({ gl: r }) => {
+    // draw call / 三角面读的是"上一帧"的数（three 的 info 每次 render 自动归零）
+    GS_STATS.calls = r.info.render.calls;
+    GS_STATS.tris = r.info.render.triangles;
+    // ★ 显示"真的在画几个"：截断档改的是 splat.splats.numSplats（packedSplats 里仍是文件总数）
+    GS_STATS.splats = splat.splats?.getNumSplats?.() ?? splat.packedSplats?.numSplats ?? 0;
     acc.frames += 1;
     const now = performance.now();
-    if (now - acc.t0 < 3000) return;
-    const fps = (acc.frames * 1000) / (now - acc.t0);
-    const info = r.info;
-    acc.last = `fps≈${fps.toFixed(1)} calls=${info.render.calls} tris=${info.render.triangles} tex=${info.memory.textures} splats=${splat.packedSplats?.numSplats ?? 0}`;
-    console.log(`[gs] ${acc.last}`);
+    const dt = now - acc.t0;
+    if (dt < 1000) return;
+    GS_STATS.fps = (acc.frames * 1000) / dt;
     acc.frames = 0;
     acc.t0 = now;
+    acc.updates += 1;
+    updateGsHud();
+    if (import.meta.env.DEV && acc.updates % 3 === 0) {
+      console.log(
+        `[gs] fps≈${GS_STATS.fps.toFixed(1)} calls=${GS_STATS.calls} tris=${GS_STATS.tris} splats=${GS_STATS.splats} load=${gsLoadMs()}ms`,
+      );
+    }
   });
   return null;
 }
@@ -113,9 +131,15 @@ function SplatLayer({ gl }: { gl: THREE.WebGLRenderer }) {
     const spark = new SparkRenderer({ renderer: gl });
     const splat = new SplatMesh({
       url: GS_STEP0_ASSET,
-      maxSplats: GS_STEP0_BUDGET.maxSplats,
+      // ★ 这一档的高斯上限：设置页临时选 `全部` / 80 万（真机 A/B），dev 还能用 ?max= 覆盖。
+      //   在 effect 里现读而不是渲染期读：换档之后重新进工坊才会建新 mesh（这就是量两档的方式）。
+      maxSplats: gsMaxSplats(),
       raycastable: false, // 点选只对 mesh 开 raycaster：splat 的 depthWrite=false 不会替你挡（plan §4.5）
     });
+    // 角标读数里这两个数不随帧变：在建模这一拍定下来（省得每帧重新解析地址栏）
+    GS_STATS.cap = gsMaxSplats();
+    GS_STATS.fill = gsFillOn();
+    GS_STATS.splats = 0;
     setObjs({ spark, splat });
     return () => {
       setObjs(null);
@@ -137,6 +161,19 @@ function SplatLayer({ gl }: { gl: THREE.WebGLRenderer }) {
       .then(() => {
         if (!alive) return;
         window.clearTimeout(timer);
+        // ★ 实验档的高斯截断（2026-11-25 实测）：`SplatMesh({maxSplats})` 只是生成器分配容量，
+        //   改它不会少画一个高斯（2M 全画，HUD / tris 都对得上）。渲染数读的是
+        //   `splat.splats.numSplats` —— 改它 tris 立刻从 4.00M 掉到 1.60M（80 万档，见台账）。
+        //   代价：打包数组是空间顺序，截掉尾部 = 房间少一块（那半截的后墙/窗就没了），
+        //   所以这一档只用于量填充率（真机 A/B），默认 0 = 全画不截。
+        const cap = gsMaxSplats();
+        const loaded = splat.splats?.getNumSplats?.() ?? splat.packedSplats?.numSplats ?? 0;
+        if (cap > 0 && loaded > cap && splat.splats) {
+          // SplatSource 的类型没声明 numSplats，但运行时它就是 PackedSplats（有这一位，渲染数读它）
+          (splat.splats as unknown as { numSplats: number }).numSplats = cap;
+          console.log(`[gs] 高斯截断：${loaded} → ${cap}（成本对照档，房间会缺一块）`);
+        }
+        gsMarkReady(); // 真机验收要的"到 splat 出现"那一拍（与进入工坊的 mark 相减 = 首进耗时）
         console.log(`[gs] splat 就绪：${splat.packedSplats?.numSplats ?? 0} 个高斯`);
         if (import.meta.env.DEV) {
           // 落位对不对，先看这两个包围盒：原始那份应该在 Atlas 相机附近；过了 group 变换之后应该把桌面套进去
@@ -171,7 +208,7 @@ function SplatLayer({ gl }: { gl: THREE.WebGLRenderer }) {
       <primitive object={objs.spark} />
       {/* renderOrder 10：网格 0 / splat 10 / 玻璃与光效 20（plan §3.3-1、§4.5） */}
       <primitive object={objs.splat} position={tf.position} rotation={tf.rotation} scale={tf.scale} renderOrder={10} />
-      {import.meta.env.DEV && <GsDevStats splat={objs.splat} />}
+      <GsStats splat={objs.splat} />
     </>
   );
 }
@@ -179,6 +216,9 @@ function SplatLayer({ gl }: { gl: THREE.WebGLRenderer }) {
 export default function GsStep0Room() {
   const gl = useThree((s) => s.gl);
   const support = useMemo(() => gsCapability(gl), [gl]);
+  // ★ 小角标跟着这一档一起生灭（这一组件只在实验档且没回退时挂载）：
+  //   外面没有 DOM 宿主可以放它（整棵子树在 <Canvas> 里），所以命令式挂到 body 上。
+  useLayoutEffect(() => mountGsHud(), []);
   useLayoutEffect(() => {
     if (support.ok) return;
     console.warn(`[gs] WebGL 能力不够（缺 ${support.missing.join(" / ")}）→ 回退今天的程序化书房`);

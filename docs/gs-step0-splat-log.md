@@ -101,3 +101,47 @@ npm run dev
    这一档的 `GS_STEP0_BUDGET.maxSplats = 1_200_000` 还没在真机上验过。
 3. **桌面噪声尾巴**：`TARGET.y = −0.3` 是拿噪声尾巴让出来的；换一台机器/重出一版 splat 都要重新量一次（§3 的方法）。
 4. **设备能力**：只判了 `EXT_color_buffer_float` / `OES_texture_float_linear` 两个扩展；老机型上的 Spark 退化路径没验过。
+
+---
+
+## 6. NPC 补光 + 真机入口 + 第一阶段读数（2026-11-25 追加）
+
+> 这一节接的是上面的「已知风险 1 / 2」。代码落点：`gsStep0.ts` 的 `GS_DAY.fill` / `gsStep0On` / `gsMaxSplats`、
+> `GsStep0Environment.DayLights`、`GsStep0Room` 的截断与小角标 `gsHud.ts`、`SettingsPage` 的「高斯场景（实验）」行。
+
+### 6.1 NPC 补光（任务 A）
+
+`GS_DAY.fill = { position: [0.8, 2.6, 7.6], intensity: 0.9, color: "#eef2f7" }`，无阴影方向光（target 原点）：
+
+- **角度**：相机在 +z（`LAND_CAM` pos z=7.4，俯角 30°），NPC 面朝 +z ⇒ 从相机这一侧略高处打过去正好照她的脸/躯干正面；
+  仰角 `atan(2.6/7.6) ≈ 18.9°` 比相机低 11°（留出从上到下的过渡，不平脸），x 偏 +0.8 给鼻梁/脸颊一点侧向明暗。
+- **强度**：主光 `sun=2.4` ⇒ 补光 ≈ 1/2.7，仍是"窗光是唯一主光"的比。浏览器同机位 A/B 量的平均亮度（裁剪 NPC 那一块）：
+  - 脸：`?gs=1` 比 `?gs=1&nofill=1` **+27~30%**（147.5 vs 113.8~115.8）；不补光时躯干正面只剩环境光，整块接近剪影。
+  - 全身：+17%；桌面只被提亮 **+5%**（再往上桌板会开始比 splat 里的桌面亮 —— splat 不响应灯光，接缝就从那里显形）。
+  - 0.75 那一档也量过（脸 +22%）—— 脸仍偏暗，所以定在 0.9。
+- **A/B 开法**：dev 加 `?gs=1&nofill=1` 不挂这盏灯（`gsFillOn()`）；正式包恒为"补光开"。
+
+### 6.2 真机入口（release 包里怎么打开）
+
+- `?gs=1` 只认 `import.meta.env.DEV`，**release 包里永远打不开**。新增**默认关**的本机开关：
+  **设置 → 这台设备 → 高斯场景（实验）**（值存 localStorage `gsStep0Experiment`），打开后进 3D 工坊就是 splat 房间；
+  同一行下面可选 `全部` / `0.8M` 两档高斯上限（`gsStep0MaxSplats`），给真机 A/B 用。
+- 小角标只在实验档显示（右下角，1 秒刷新）：`fps / 填 ? 的 splat 数 / 两档上限 / draw call / tris / 首进加载耗时`。
+  读数由 `GsStep0Room` 每帧累加，`gsHud.ts` 命令式画到 body（R3F 子渲染树里放不了 DOM）。
+
+### 6.3 高斯上限：`maxSplats` 选项实测不截断（任务 B 的第一条结论）
+
+- `new SplatMesh({ maxSplats: 1_200_000 })` **不会少画一个高斯**：HUD 与 tris 都还是 2,000,000（4.00M tris）。
+  查 Spark 源码：该选项只进生成器分配容量，渲染数读的是 `splat.splats.numSplats`。
+- 真正的截断：初始化后 `splat.splats.numSplats = cap` ⇒ 80 万档 tris 从 **4.25M → 1.85M**（浏览器读数）。
+  **代价**：打包数组是空间顺序，截掉尾部 = 房间缺一块（后墙/窗那半截没了，截图在 `.tmp-gs-fill/`，不提交），
+  所以 `0.8M` 只配当**填充率成本对照档**，默认 `0` = 全画。要"少画还好看"仍得走 plan §6.3 的切份/LOD。
+
+### 6.4 浏览器基线（headless Chromium / RTX 4060 / 1280×720 / dpr 1）
+
+| 档 | fps（vsync 144 封顶） | tris | draw calls | 首进 load |
+|---|---|---|---|---|
+| 全量 2.00M | 143.9 | 4.25M | 70 | 首跑 2.9 s / 缓存后 1.4~1.7 s |
+| 截断 0.80M | 143.9 | 1.85M | 70 | 缓存后 1.3 s |
+
+Chrome 上两档都被 vsync 卡在 144，**分不出高低** —— 这一档的帧率差只能在真机上量（真机当时未接到 adb，读数待补）。
