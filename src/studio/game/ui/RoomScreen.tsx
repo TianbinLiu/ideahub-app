@@ -225,9 +225,18 @@ export default function RoomScreen({
         </GameBtn>
       </div>
 
-      {/* ── 状态那一句：人不够 / 有人没准备 / 数据还没同步上 / AI 补几个 / 等房主 ── */}
+      {/* ── 状态那一句：人不够 / 有人没准备 / 数据还没同步上 / AI 补几个 / 等房主 / **等第 1 回合** ──
+          ★★ 2026-11-24 Bug A：房间已经 playing、但回合还没建（`remote.started` 为真）时，
+             这一屏就是"房主还没开始这一回合"的等待态 —— 这一句会一直摆到 useLobbyOnline
+             读到回合、把本机带进对局为止（那之前不再有"30 秒没就绪就改成本机 AI"的降级）。 */}
       <p className="text-center text-[10px] text-slate-400">
-        {shortOfHumans ? (
+        {online && remote?.started ? (
+          host ? (
+            <Trans>正在开这一回合…</Trans>
+          ) : (
+            <Trans>房主还没开始这一回合，正在等…</Trans>
+          )
+        ) : shortOfHumans ? (
           <Trans>服务端要至少 {remote?.requiredPlayers ?? 2} 个真人才开局；现在只有你，点一下先用 AI 补位开一局。</Trans>
         ) : host && startDisabled ? (
           <Trans>还有队友没点准备——全员准备好之后房主才能开局。</Trans>

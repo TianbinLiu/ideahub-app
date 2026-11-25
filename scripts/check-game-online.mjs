@@ -428,6 +428,65 @@ function toVoting(state, rng) {
   eq("能力位为假 + 那一发也失败 → 同样是本机", H.onlineEventSourceOf(false, true), "local");
 }
 
+// ── 12. 「房主还没开始这一回合」不是错误：业务码继续等、网络错误才降级（2026-11-24 Bug A）──
+//    ★★ 现场：房主（curl）先 `POST /rooms/:code/start`（房间 playing），隔 5 秒才 `POST rounds/start`。
+//      客人在那 5 秒里读到 404 ROUND_NOT_FOUND，旧代码把它当成"回合服务没响应"→ 整局降级成单机、
+//      对手变成本机 AI，而服务端那间房还在（两人都在房里、回合随后就建出来）。
+//    ★ 判据只在 roundWait.roundWaitOf 一处；这里跑正反例，再钉住"两句话不共用"。
+{
+  const W = await load("src/studio/game/roundWait.ts");
+  const fs = await import("node:fs");
+  const readSrc = (rel) => fs.readFileSync(path.join(root, rel), "utf8");
+  const pending = (code) => ({ ok: false, reason: "code", code });
+  const net = { ok: false, reason: "unavailable" };
+
+  ok("ROUND_NOT_FOUND = 房主还没开这一回合（不是失败）", W.isRoundPendingCode("ROUND_NOT_FOUND"));
+  ok("NO_ACTIVE_ROUND 是同一个意思的老码", W.isRoundPendingCode("NO_ACTIVE_ROUND"));
+  eq("NOT_IN_ROOM 不是「还没开」", W.isRoundPendingCode("NOT_IN_ROOM"), false);
+  eq("ROOM_NOT_FOUND 不是「还没开」（那是房间没了）", W.isRoundPendingCode("ROOM_NOT_FOUND"), false);
+  eq("没有码（undefined / null / 空串）不算", [W.isRoundPendingCode(undefined), W.isRoundPendingCode(null), W.isRoundPendingCode("")], [false, false, false]);
+
+  eq("ROUND_NOT_FOUND 第一拍：继续等，不降级", W.roundWaitOf(pending("ROUND_NOT_FOUND"), 0), "waiting");
+  eq("ROUND_NOT_FOUND 5 秒（验收现场）：仍然是等", W.roundWaitOf(pending("ROUND_NOT_FOUND"), 5_000), "waiting");
+  eq("ROUND_NOT_FOUND 快到 3 分钟：还是等", W.roundWaitOf(pending("ROUND_NOT_FOUND"), W.ROUND_WAIT_MAX_MS - 1), "waiting");
+  eq(
+    "ROUND_NOT_FOUND 超过 3 分钟：给提示（waiting-long），**仍然不降级**",
+    W.roundWaitOf(pending("ROUND_NOT_FOUND"), W.ROUND_WAIT_MAX_MS),
+    "waiting-long",
+  );
+  eq("NO_ACTIVE_ROUND 同一套等待", W.roundWaitOf(pending("NO_ACTIVE_ROUND"), 1_000), "waiting");
+  eq("网络 / 超时（unavailable）：真错误 → 降级", W.roundWaitOf(net, 0), "fallback");
+  eq("网络错误就算等过 3 分钟也是降级（判据不是时间）", W.roundWaitOf(net, W.ROUND_WAIT_MAX_MS * 2), "fallback");
+  eq("被移出房间（NOT_IN_ROOM）：降级（不是「还没开」）", W.roundWaitOf(pending("NOT_IN_ROOM"), 0), "fallback");
+  eq("房间没了（ROOM_NOT_FOUND）：降级", W.roundWaitOf(pending("ROOM_NOT_FOUND"), 0), "fallback");
+  eq("认不出的业务码：降级（照原来的路走）", W.roundWaitOf(pending("WEIRD_CODE"), 0), "fallback");
+
+  // ── 文案：两种结局两句话，绝不共用（任务点名的断言）──
+  const reasonsSrc = readSrc("src/studio/game/roundsReasons.ts");
+  ok("降级那一句写明是网络/服务异常", reasonsSrc.includes("连不上回合服务（网络/服务异常），这一局改成单机继续"));
+  ok("等待那一句是「房主还没开始这一回合」", reasonsSrc.includes("房主还没开始这一回合"));
+  ok("超过上限那一句与等待那句分开（3 分钟）", reasonsSrc.includes("已经等了 3 分钟，房主还没开始这一回合"));
+  eq(
+    "旧的那句「回合服务没响应，这一局改成单机继续」不再作为界面文案（t 宏）出现",
+    /t`[^`]*回合服务没响应[^`]*`/.test(reasonsSrc),
+    false,
+  );
+  ok("waiting / waiting-long 在 roundsNoteText 里各有自己的分支", /case "waiting":[\s\S]{0,160}case "waiting-long":/.test(reasonsSrc));
+
+  // ── 接线：store 里走的是这一份判据，且不许把 waiting 当成 fallback ──
+  const roundsSrc = readSrc("src/studio/game/roundsStore.ts");
+  ok("roundsStore 用 roundWaitOf 判这一拍", roundsSrc.includes("roundWaitOf(roundRes"));
+  ok("等待分支返回 ok（轮询继续排下一拍，会话不动）", /waitOutcome !== "fallback"[\s\S]{0,1200}return "ok";/.test(roundsSrc));
+  ok("等待分支不调 abandon（不降级）", !/waitOutcome !== "fallback"[\s\S]{0,1200}abandon\(/.test(roundsSrc));
+  ok("读到回合之后 waiting 提示会被收掉", /"waiting"[\s\S]{0,200}"waiting-long"[\s\S]{0,120}round !== null/.test(roundsSrc));
+  const lobbyOnlineSrc = readSrc("src/studio/game/ui/useLobbyOnline.ts");
+  eq("大厅开局那一段不再有「30 秒没就绪就降级」的常量", /const ONLINE_START_TIMEOUT_MS/.test(lobbyOnlineSrc), false);
+  ok("大厅里业务码 waiting 一律继续等（不降级）", /outcome\.kind === "waiting"[\s\S]{0,600}setTimeout\(tick/.test(lobbyOnlineSrc));
+  ok("大厅里真错误要连 3 拍才降级", lobbyOnlineSrc.includes("ROOM_START_FAIL_TOLERANCE"));
+  const roomSrc = readSrc("src/studio/game/ui/RoomScreen.tsx");
+  ok("房间屏摆出「房主还没开始这一回合」的等待态", roomSrc.includes("房主还没开始这一回合"));
+}
+
 if (problems.length) {
   console.error(`\n❌ 联机回合编排检查没过（${problems.length} 条）：\n`);
   for (const p of problems) console.error(`   ${p}`);

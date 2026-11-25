@@ -55,7 +55,8 @@ export function roundCodeText(code: string): string {
       return t`这一局已经结束了`;
     case "TIMEOUT":
     case "NETWORK":
-      return t`回合服务没响应，这一局改成单机继续`;
+      // 真连不上（业务码不会走到这里：api/game/rounds 把传输层的 TIMEOUT / NETWORK 归成 unavailable）
+      return t`连不上回合服务（网络/服务异常），这一局改成单机继续`;
     default:
       return t`回合服务回了没见过的错误：${code}`;
   }
@@ -63,18 +64,24 @@ export function roundCodeText(code: string): string {
 
 /**
  * 底栏那一句。
- * ★ "回合服务没响应，这一局改成单机继续"是任务点名的那一句：它只在**真的退回单机**时出现
- *   （`fallback`），不是每一拍网络抖动都说 —— 抖动那一句是 `unavailable`，还能重试。
- * ★ ★ 2026-11-24（对局内 P0-2）：`fallback` 带着业务码时**说那条码**（被移出房间 / 房间没了 /
- *   回合服务被关），而不是笼统的"没响应" —— 那句话同时是顶部红条的文案，
- *   而红条要给的是「回大厅」，挂在一句"没响应"下面会让人以为再等等就好了。
+ * ★★ 2026-11-24 Bug A 之后，"回合没读到"分成**两种结局、两句话**（铁律八：别把两种结局压成一句）：
+ *   · `waiting` / `waiting-long`：房间已开局、房主还没建这一回合 —— **正常时序**，继续等；
+ *   · `fallback`：真连不上（网络 / 5xx），这一局退回单机 —— 那句里必须写明"网络/服务异常"。
+ *   原来两者共用一句「回合服务没响应，这一局改成单机继续」：房主慢 5 秒，玩家被告知这一局没了，
+ *   对手同时变成本机 AI（验收抓到的现场）。
+ * ★ `fallback` 带着业务码时说那条码（被移出房间 / 房间没了 / 回合服务被关）——
+ *   那句话同时是顶部红条的文案，而红条要给的是「回大厅」。
  */
 export function roundsNoteText(note: RoundNote): string {
   switch (note.kind) {
     case "fallback":
-      return note.code ? roundCodeText(note.code) : t`回合服务没响应，这一局改成单机继续`;
+      return note.code ? roundCodeText(note.code) : t`连不上回合服务（网络/服务异常），这一局改成单机继续`;
     case "unavailable":
       return t`这一拍没连上回合服务，正在重试`;
+    case "waiting":
+      return t`房主还没开始这一回合，正在等…`;
+    case "waiting-long":
+      return t`已经等了 3 分钟，房主还没开始这一回合（可以继续等，也可以结束这一局回大厅）`;
     case "code":
       return roundCodeText(note.code);
   }

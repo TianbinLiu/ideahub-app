@@ -46,3 +46,13 @@ export function historyFailureText(failure: HistoryFailure): string {
       return t`回放服务回了没见过的错误：${failure.code}`;
   }
 }
+
+/**
+ * 403 `NOT_IN_ROOM` 但本机**存着同一间房**的那一份时，顶部那句（2026-11-24 Bug B）。
+ * ★ 与「联机那一局的战绩没读到，这是本机最近一局回放」分开说：这里摆的就是玩家点的那一局，
+ *   只是服务端那边已经读不到了（退出房间之后读接口要成员身份）。说成"最近一局"会让人以为
+ *   看的是别的局；说成"看不到"又瞒掉了手里明明有一份。
+ */
+export function historyCachedText(): string {
+  return t`服务端已经读不到这一局了（你不在房里），下面是本机留的那一份回放`;
+}

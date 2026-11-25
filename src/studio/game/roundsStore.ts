@@ -35,8 +35,10 @@ import {
   type RoundsFailure,
 } from "../../api/game/rounds";
 import { serverGameEvents } from "../../data/serverCaps";
+import { captureOnlineHistory } from "./historyCache";
 import { hostIdOfRoom, onlineEventSourceOf, roomOverOf, withRoomHost } from "./onlineHost";
 import { clearOnlineResume } from "./onlineResume";
+import { roundWaitOf } from "./roundWait";
 
 /** 回合屏的轮询间隔（服务端契约：轮询路径按 2 秒一次算，240 次/分钟够两台设备同时开着）。 */
 export const ROUND_POLL_MS = 2_000;
@@ -83,8 +85,9 @@ export interface OnlineRoundSession {
 
 /**
  * 底栏那一句的结构化原因（文案在 roundsReasons，唯一一处）。
- *   fallback = 这一局已经退回单机（说一次「回合服务没响应，这一局改成单机继续」）
+ *   fallback = 这一局已经退回单机（真连不上时的一句「连不上回合服务（网络/服务异常），这一局改成单机继续」）
  *   unavailable = 这一拍没成功，还能重试（不切单机）
+ *   waiting / waiting-long = 房间已开局、房主还没建这一回合（**正常时序**，继续轮询，不切单机）
  *   code = 服务端明确拒了这一步（认码，不认 message）
  */
 export type RoundNote =
@@ -98,6 +101,15 @@ export type RoundNote =
    */
   | { kind: "fallback"; code?: string | null }
   | { kind: "unavailable" }
+  /**
+   * ★★ 2026-11-24 Bug A：房间 `playing`、`GET rounds/current` 回业务码 `ROUND_NOT_FOUND`
+   *   （服务端还没建回合）是**正常时序**，不是错误 —— 客人继续轮询、底栏说一句「房主还没开始这一回合」。
+   *   `waiting-long` = 已经等过 `roundWait.ROUND_WAIT_MAX_MS`（3 分钟）：仍然**不降级**，只把话说明。
+   *   ★ 这两种绝不能与 `fallback` 共用界面：原来共用一句「回合服务没响应，这一局改成单机继续」，
+   *     玩家在房主慢 5 秒时就被告知这一局没了，然后对手变成本机 AI（验收抓到的现场）。
+   */
+  | { kind: "waiting" }
+  | { kind: "waiting-long" }
   | { kind: "code"; code: string };
 
 /**
@@ -249,6 +261,34 @@ export const useRounds = create<RoundsStore>((set, get) => {
   let pushSeq = 0;
 
   /**
+   * 「房间已 playing、回合还没建」这一段是从哪一拍开始的（毫秒；null = 没在等 / 已经读到回合）。
+   * ★ 只给 `roundWait.ROUND_WAIT_MAX_MS` 那个上限用：正常开局 2~4 秒，超过 3 分钟才把话说明
+   *   （见 roundWait.ts 文件头）。**不进 state**：界面读的是 note（waiting / waiting-long），
+   *   这个时刻每 2 秒变一次，进 state 会让整棵树白重渲。
+   * ★ 重置点只有三处：读到回合（成功那拍）、开新会话（begin）、收掉会话（reset / abandon）。
+   */
+  let roundWaitSince: number | null = null;
+
+  /**
+   * 走之前**趁还是房间成员**把这一局的历史留一份到本机（2026-11-24 Bug B）。
+   * ★★ 为什么在退房这一拍做：战绩屏的 403 `NOT_IN_ROOM` 说明读接口要成员身份 ——
+   *   退出房间之后再点大厅「最近一局回放」就只剩一句"你不在这一局里了"。
+   *   开着战绩屏时读到的那一份已经由 historyStore 落盘；这里补的是"没开过战绩屏、
+   *   打完 / 认输直接从结束屏回大厅"的那条路（验收现场就是这条）。
+   * ★ 先发历史那一发、再发退房：捕获的 promise 先同步发出请求（fetch 那一刻），退房紧随其后。
+   *   即使退房先到，最坏也只是这一份没留下 —— 不挡玩家离开，也不改任何界面状态。
+   * ★ 失败不叠话（与退房失败同一条）：这一局对玩家已经结束了，控制台留一行就够。
+   */
+  const leaveAfterSnapshot = (session: OnlineRoundSession): void => {
+    void captureOnlineHistory(session.roomCode, session.myUserId).catch((err) =>
+      console.warn("[history] 离开房间前留一份历史时意外失败（不影响离开）", err),
+    );
+    void leaveRoom(session.roomCode).then((res) => {
+      if (!res.ok) console.warn("[rounds] 退出时退房失败（服务端可能还挂着，房寿命会收掉）", session.roomCode);
+    });
+  };
+
+  /**
    * 放弃这一局联机：**先把话说出来**（note 留着），再把状态收掉，最后尽力退房。
    * ★ 退房失败不再叠一句话：服务端 30 分钟房寿命 / playing 2 小时会收掉它；
    *   对玩家来说这一局已经改成单机了，再报一句退房失败只会让底栏更乱。
@@ -274,11 +314,9 @@ export const useRounds = create<RoundsStore>((set, get) => {
     });
     // 这一局已经改成单机了：下次冷启动不该再尝试恢复它（否则会把人拉回一张已经打完的联机桌）
     clearOnlineResume();
-    if (session) {
-      void leaveRoom(session.roomCode).then((res) => {
-        if (!res.ok) console.warn("[rounds] 退回单机时退房失败（服务端可能还挂着）", session.roomCode);
-      });
-    }
+    // 等待的计时器跟着会话一起清（下一个会话从 0 开始算）
+    roundWaitSince = null;
+    if (session) leaveAfterSnapshot(session);
   };
 
   /** 当前会话还在不在（await 之后必须重新问一次：可能已经退回单机 / 换了一局）。 */
@@ -394,6 +432,14 @@ export const useRounds = create<RoundsStore>((set, get) => {
     const nextSession = hostId === null ? session : withRoomHost(session, hostId);
     const roundChanged = prev?.round !== nextSnapshot?.round;
     const note = get().note;
+    // ★ 2026-11-24 Bug A：`waiting` / `waiting-long` 是「回合还没建」的临时状态 —— 回合一旦读到
+    //   （轮询成功 / 推送送来了第一个回合）就要收掉，否则"房主还没开始这一回合"会一直挂在底栏，
+    //   而玩家其实已经在打了。与 `unavailable` 同一处理：**只收临时原因**，业务拒绝照旧留着。
+    //   ★ 只有**这一拍真的拿到了回合**才收 waiting：等待期间推送帧也只带 `{room, round:null}`，
+    //     按"只要 applyRemote 就清"写会让那一句每来一帧闪一下就回来。
+    const noteIsTransient =
+      note?.kind === "unavailable" ||
+      ((note?.kind === "waiting" || note?.kind === "waiting-long") && round !== null);
     set({
       session: nextSession,
       room: nextRoom,
@@ -401,9 +447,9 @@ export const useRounds = create<RoundsStore>((set, get) => {
       // 同桌血量每拍都对一遍房间快照（`members[].hp` 是服务端的真相）：事件回血由服务端落库，
       // 本机不应用 —— 对手条 / 存活人数从这里读到它（结算那一份仍是结算时刻的同一份数）。
       memberHp: room ? { ...get().memberHp, ...hpOfRoom(room) } : get().memberHp,
-      // 只清"这一拍没连上"那种临时原因：服务端的业务拒绝（NOT_HOST / CANNOT_LIKE_SELF …）要留在屏上
-      // 让人看清，下一次动作成功 / 玩家点 ✕ 才收 —— 别让一秒一次的推送把它一闪就擦掉。
-      note: note?.kind === "unavailable" ? null : note,
+      // 只清"这一拍没连上 / 回合还没建"那种临时原因：服务端的业务拒绝（NOT_HOST / CANNOT_LIKE_SELF …）
+      // 要留在屏上让人看清，下一次动作成功 / 玩家点 ✕ 才收 —— 别让一秒一次的推送把它一闪就擦掉。
+      note: noteIsTransient ? null : note,
       // 新回合：上一回合的结算 / 弃权 / 事件全部作废（服务端每一回合都是新的一份）
       ...(roundChanged
         ? {
@@ -499,7 +545,9 @@ export const useRounds = create<RoundsStore>((set, get) => {
     abstainedRound: null,
     memberHp: {},
 
-    begin: (session, snapshot) =>
+    begin: (session, snapshot) => {
+      // 新会话：等待计时从 0 算（上一局"房主还没开"的那一段不该带进来）
+      roundWaitSince = null;
       set({
         session,
         // room 由轮询的第一拍（≤ 2 秒）从 GET /rooms/:code 灌进来；开局这一份只带座位 / 血，
@@ -518,11 +566,13 @@ export const useRounds = create<RoundsStore>((set, get) => {
         settling: false,
         autoSettleTriedRound: null,
         abstainedRound: null,
-      }),
+      });
+    },
 
     reset: () => {
       // 退出对局 = 这一局不再"可恢复"（leaveNow 走这一条；下次冷启动别把人拉回一张已经离席的牌桌）
       clearOnlineResume();
+      roundWaitSince = null;
       set({
         session: null,
         room: null,
@@ -544,12 +594,9 @@ export const useRounds = create<RoundsStore>((set, get) => {
     leaveNow: () => {
       const session = get().session;
       get().reset();
-      if (session) {
-        // 先清界面再退房：退出对局是玩家决定了的事，不该卡在"正在离开"
-        void leaveRoom(session.roomCode).then((res) => {
-          if (!res.ok) console.warn("[rounds] 退出对局时退房失败（服务端可能还挂着）", session.roomCode);
-        });
-      }
+      // 先清界面再退房：退出对局是玩家决定了的事，不该卡在"正在离开"；
+      // 退房前顺手把这一局的历史留一份（见 leaveAfterSnapshot 的 ★★）。
+      if (session) leaveAfterSnapshot(session);
     },
 
     raiseFallback: () => set({ note: { kind: "fallback" } }),
@@ -585,6 +632,33 @@ export const useRounds = create<RoundsStore>((set, get) => {
       const [roundRes, roomRes] = await Promise.all([readRound(code), readRoom(code)]);
       if (!sessionNow(code)) return "stop";
       if (!roundRes.ok) {
+        // ★★ 2026-11-24 Bug A：先把「房主还没开这一回合」这种**正常时序**从真错误里分出来。
+        //   判据只在 roundWait.roundWaitOf 一处（零依赖，check-game-online.mjs 跑正反例）：
+        //   · 业务码 ROUND_NOT_FOUND / NO_ACTIVE_ROUND → 继续等（不降级、不收会话）；
+        //   · 网络 / 5xx / 认不出的码 → 下面那套现有 fallback。
+        //   ★ 这一支原来是 `if (!roundRes.ok) → abandon(fallback)`：房主慢 5 秒，客人就把整局
+        //     降级成单机、对手变成 AI，而服务端那间房还在（验收抓到的现场）。
+        const waited = roundWaitSince === null ? 0 : Date.now() - roundWaitSince;
+        const waitOutcome = roundWaitOf(roundRes, waited);
+        if (waitOutcome !== "fallback") {
+          if (roundWaitSince === null) roundWaitSince = Date.now();
+          // 等待期间房间快照照旧应用：房主转移 / 谁还活着 / 这局结束没有，都要跟服务端对齐
+          // （回合那一格传 null = 沿用上一份，不把已有回合清掉）。
+          if (roomRes.ok) applyRemote(roomRes.value, null);
+          if (!sessionNow(code)) return "stop";
+          // 只在**变化**时写 note：这一段每 2 秒一拍，每拍 set 一次会让整棵树白重渲。
+          // ★ 也不覆盖服务端的业务拒绝（code）：那一句要留在屏上让人看清，等回合建好也不会自己回来。
+          const kind = waitOutcome === "waiting-long" ? "waiting-long" : "waiting";
+          const current = get().note;
+          const replaceable =
+            current === null ||
+            current.kind === "unavailable" ||
+            current.kind === "waiting" ||
+            current.kind === "waiting-long";
+          if (replaceable && current?.kind !== kind) set({ note: { kind } });
+          // 返回 "ok" 而不是 "fallback"：ui/useOnlineRounds 的轮询循环据此继续排下一拍。
+          return "ok";
+        }
         // ★★ 推送到位 / 正在重连时轮询只是**兜底**：弱网下这一拍超时不该把整局判死 —— 主通道还在推
         //   （`live`）或正在退避重连（`retrying`：最多 5 次、~30 秒），真断了由推送那边的看门狗认
         //   （api/game/roomStream 的 STREAM_STALL_MS）。★ 这**不会无限期拖着**：重连预算用完就变
@@ -595,6 +669,8 @@ export const useRounds = create<RoundsStore>((set, get) => {
           console.warn("[rounds] 兜底轮询这一拍没连上（推送还在 / 正在重连），下一拍再试", code);
           return "ok";
         }
+        // ★ 这一拍在飞的时候推送应用过更新的一帧 → 这一份失败可能已经过时（HTTP 响应晚到），不判死。
+        if (pushSeq !== pushSeqAtStart) return "ok";
         // ★ 轮询是这一局的"心跳"：它失败就是真的断了（一两发的业务错误不会走到这儿）。
         //   按任务要求**不静默**：留一句 fallback，界面（ui/useOnlineRounds）据此把本地 loop 接回来。
         // ★ 业务码**原样带上**（2026-11-24 对局内 P0-2）：被移出房间 / 房间过期 / 回合服务被关，
@@ -603,6 +679,8 @@ export const useRounds = create<RoundsStore>((set, get) => {
         abandon(roundRes.reason === "code" ? { kind: "fallback", code: roundRes.code } : { kind: "fallback" });
         return "fallback";
       }
+      // 回合读到了：等待计时清零（下一段"房主还没开"重新从 0 算）
+      roundWaitSince = null;
       // 房间这一发失败（超时 / 老服务端）**不切单机**：沿用上一份房主 / 血量，下一拍再问；
       // 真正的"房间没了"回合那发也会失败，走上面那条 fallback。
       // ★ 这一拍在飞的时候推送应用过更新的快照 → 这一份可能更旧（HTTP 响应晚到），整拍丢掉（见 pushSeq 的 ★★）

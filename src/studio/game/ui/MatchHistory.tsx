@@ -18,8 +18,15 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { placeholderColors, placeholderHue } from "../art";
-import { historyBarsOf, historyRowIsMine, historyRetryAllowed, historySummaryRowsOf, type HistoryBar } from "../history";
-import { historyFailureText, historyLocalMissingText, historyNoReplayText } from "../historyReasons";
+import {
+  historyBarsOf,
+  historyIsLocalGame,
+  historyRowIsMine,
+  historyRetryAllowed,
+  historySummaryRowsOf,
+  type HistoryBar,
+} from "../history";
+import { historyCachedText, historyFailureText, historyLocalMissingText, historyNoReplayText } from "../historyReasons";
 import { useHistory } from "../historyStore";
 import { useGame } from "../store";
 import { useLobby } from "../lobbyStore";
@@ -64,6 +71,8 @@ export default function MatchHistory() {
   const source = useHistory((s) => s.source);
   /** 打开时点的是联机那一局、读不到才退回本机（顶部要说明，别让人以为这就是他点的那一局） */
   const fallback = useHistory((s) => s.fallback);
+  /** 本机这份是"点的那间房的缓存"还是"本机最近一局"（Bug B：两句话不一样） */
+  const fallbackKind = useHistory((s) => s.fallbackKind);
   /** 退路是哪一种（本机局没存过 / 这一局没存下来 / 这台服务器没有回放） */
   const block = useHistory((s) => s.block);
 
@@ -102,6 +111,12 @@ export default function MatchHistory() {
 
   const bars = history ? historyBarsOf(history, myUserId) : [];
   const rows = history ? historySummaryRowsOf(history) : [];
+  /**
+   * 「这一局是本机单机局吗」只看房号（`historyIsLocalGame`，唯一判据），**不看 source**：
+   * 2026-11-24 Bug B 之后，联机那一局的历史也会从本机存储里读出来（退出房间前留的那一份），
+   * 按 source 判会把一局联机战绩标成「本机对局」、说成名次是本机算的 —— 两处都说错了。
+   */
+  const localGame = history ? historyIsLocalGame(history) : false;
   const finished = history?.room.state === "over";
   const finishedAt = history ? finishedAtText(history.room.finishedAt, i18n.locale) : null;
 
@@ -119,7 +134,7 @@ export default function MatchHistory() {
         <span className="text-[13px] font-bold tracking-wide">
           📼 <Trans>本局战绩</Trans>
         </span>
-        {source === "local" ? (
+        {localGame ? (
           // 本机局没有房号：这块标是它与联机那一局唯一的区别（同一套组件、同一个顶栏）
           <span className="rounded bg-gold/15 px-1.5 py-0.5 text-[10px] font-semibold text-gold-200 ring-1 ring-gold/40">
             <Trans>本机对局</Trans>
@@ -197,10 +212,16 @@ export default function MatchHistory() {
         />
       ) : (
         <>
-          {/* 打开的是联机那一局、读不到才退回本机：一句说明，别让人以为这就是他点的那一局 */}
+          {/* 打开的是联机那一局、读不到才退回本机：一句说明，别让人以为这就是他点的那一局。
+              ★ 两种来由分开说（Bug B）：同房号的缓存 = "就是这一局，只是本机留的"；
+                最近一局 = "没读到那一局，这是另一局"。 */}
           {source === "local" && fallback && (
             <div className="flex-none px-3 pt-1 text-[10px] leading-snug text-warn-200">
-              <Trans>联机那一局的战绩没读到，这是本机最近一局回放</Trans>
+              {fallbackKind === "cached" ? (
+                historyCachedText()
+              ) : (
+                <Trans>联机那一局的战绩没读到，这是本机最近一局回放</Trans>
+              )}
             </div>
           )}
           {/* ── 回放带：每回合一条，横向滚动 ── */}
@@ -235,7 +256,7 @@ export default function MatchHistory() {
                 <Trans>本局统计</Trans>
               </span>
               <span className="min-w-0 truncate">
-                {source === "local" ? (
+                {localGame ? (
                   // 本机局没有服务端：这张表是本机规则层算的（与联机那一份的口径逐条对齐，但不是服务端结的账）
                   <Trans>名次、夺冠与合计都是本机对局里算的</Trans>
                 ) : (

@@ -9,8 +9,10 @@
  *   · 服务端 round + 1 → 本机开下一回合（商店重开）；
  *   · 服务端 screening / voting → 本机阶段跟着走（联机的"全员"是房间成员，本机的全员闸不适用）；
  *   · 服务端结算 → 写回我的 hp / 淘汰位，并交给结算屏**原样渲染**（一个数都不重算）；
- *   · 轮询失败 → roundsStore 已把会话收掉并留了 fallback 原因，这里把本机 loop 接回来（补齐 AI 动作），
- *     玩家看到的是一句「回合服务没响应，这一局改成单机继续」。
+ *   · 轮询失败 → 分两种：**真的连不上**（网络 / 5xx）时 roundsStore 把会话收掉并留了 fallback
+ *     原因，这里把本机 loop 接回来（补齐 AI 动作），玩家看到的是一句「连不上回合服务（网络/服务异常），
+ *     这一局改成单机继续」；而**房主还没开这一回合**（404 ROUND_NOT_FOUND）是正常时序，
+ *     store 只留一句 waiting 提示、会话不动，这一层照常排下一拍（2026-11-24 Bug A）。
  * ★★ 2026-11-24 的推送（`api/game/roomStream`）：这里是**唯一**开流 / 重连 / 关流的地方。
  *   · 优先开流：收到 `snapshot` / `update` 就交给 `useRounds.applyStream`（与轮询**同一个应用函数**，
  *     不是第二套解析 / 应用）；
@@ -29,6 +31,7 @@ import {
   type RoomStreamSubscription,
 } from "../../../api/game/roomStream";
 import { subscribeServerCaps } from "../../../data/serverCaps";
+import { captureOnlineHistory } from "../historyCache";
 import { overDecidedOf } from "../onlineHost";
 import { useGame } from "../store";
 import type { OnlineEventStart } from "../store";
@@ -300,6 +303,22 @@ export function useOnlineRounds(): void {
     if (!online || !overDecidedOf(winners)) return;
     useGame.getState().markOnlineOver(winners ?? []);
   }, [online, winners]);
+
+  // ── 打完这一局：趁还是房间成员，把这一局的历史留一份到本机（2026-11-24 Bug B）──
+  // ★★ 为什么在这一拍：服务端 `rounds/history` 要成员身份（403 NOT_IN_ROOM）；打完回大厅 /
+  //   退出房间之后账号就不在房里了 —— 那时大厅「最近一局回放」只能看本机这份。
+  //   这是"还能读"的三个点里最稳的一个（对局结束、人还没走）。
+  // ★ 只打一次（按房号去重）：winners 在结束之后每拍都是同一份，重复读 = 同一份历史写 N 次。
+  //   失败不弹话（historyCache 里只留一行控制台）：战绩屏打开时仍会如实说"看不到"。
+  const capturedHistory = useRef<string | null>(null);
+  const sessionUserId = session?.myUserId ?? null;
+  useEffect(() => {
+    if (!online || !roomCode || !sessionUserId) return;
+    if (!overDecidedOf(winners)) return;
+    if (capturedHistory.current === roomCode) return;
+    capturedHistory.current = roomCode;
+    void captureOnlineHistory(roomCode, sessionUserId);
+  }, [online, roomCode, sessionUserId, winners]);
 
   // ── 退回单机：把本机 loop 接回来（AI 这一期缺的动作补齐），原因由 roundsReasons 说 ──
   useEffect(() => {

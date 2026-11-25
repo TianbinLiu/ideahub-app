@@ -26,6 +26,8 @@ const load = (rel) => import(url.pathToFileURL(path.join(root, rel)).href);
 const H = await load("src/studio/game/history.ts");
 // 本机战绩（2026-11-24 晚）：纯映射 + localStorage 读写 + 读侧校验，同一个模块 Node 直接 import
 const L = await load("src/studio/game/localHistory.ts");
+/** 界面接线断言要读源码（那几处要 React，Node 跑不起来） */
+const read = (rel) => fs.readFileSync(path.join(root, rel), "utf8");
 
 const problems = [];
 let positive = 0;
@@ -351,8 +353,45 @@ eq("读出来是坏数据 → 没存下来", L.localPickOf(null, { kind: "broken
 eq("这一场会话没打过本机局、存储里也没有 → none（大厅不摆入口）", L.localPickOf(null, { kind: "none" }), "none");
 eq("这一场会话没打过、但存储里有上一局 → 看它（大厅的最近一局）", L.localPickOf(null, okRecord(500)), "show");
 
-// ── ⑫ 界面接线（这几处要 React，Node 跑不起来；用源码断言钉住） ────────────────
-const read = (rel) => fs.readFileSync(path.join(root, rel), "utf8");
+// ── ⑫ 联机历史也落本机 + 403 时先回落本机那一份（2026-11-24 Bug B）─────────────
+// ★★ 现场：观战 / 打完 / 认输退出房间之后，点大厅「📼 最近一局回放」只显示「你不在这一局里了」。
+//   服务端 `rounds/history` 要**成员身份**（403 NOT_IN_ROOM），而那一份 history 在离开之前是读得到的。
+//   修法：能读的每一拍落一份到本机（与单机战绩同一个桶），403 时按**房号**找回来。
+//   注意上一段末尾已经把 localStorage 桶清空、写失败也复位了（下面从干净状态开始）。
+const remoteOwner = "A";
+const saveRemote = (savedAt, source = history) => L.saveLocalGame({ owner: remoteOwner, meId: "u1", history: source, savedAt });
+ok("读到联机 history 就落盘（同一个本机桶）", saveRemote(8000) !== null && L.readLatestLocalGame(remoteOwner).kind === "ok");
+eq("落下来的就是服务端那一份（房号 / 回合 / summary 都不改）", [
+  L.readLatestLocalGame(remoteOwner).record.history.room.code,
+  L.readLatestLocalGame(remoteOwner).record.history.rounds.length,
+  L.readLatestLocalGame(remoteOwner).record.history.summary.perPlayer.length,
+], ["AB3K7Q", 2, 2]);
+saveRemote(9000);
+eq("同一间房重复存 → 只留一条（不会一局就把 5 格吃光）", L.readLocalGames(remoteOwner).length, 1);
+eq("留下的是最后那一份（savedAt 跟着刷新）", L.readLatestLocalGame(remoteOwner).record.savedAt, 9000);
+ok("403 时按房号找得到**这一局**", L.readLocalGameOfRoom(remoteOwner, "AB3K7Q") !== null);
+eq("房号对不上时不许拿最近一局顶替（调用方照实说看不到）", L.readLocalGameOfRoom(remoteOwner, "ZZZZZZ"), null);
+eq("房号空 / 账号空都回 null", [L.readLocalGameOfRoom(remoteOwner, "  "), L.readLocalGameOfRoom("", "AB3K7Q")], [null, null]);
+// 打到一半退出（认输 / 回大厅）：room.state 还是 playing —— 校验必须认，否则会判成"没存下来"
+const playingHistory = { ...history, room: { ...history.room, state: "playing", winners: null, finishedAt: null } };
+ok("中局退出存下来的也认（state=playing，旧校验只认 over）", saveRemote(10000, playingHistory) !== null);
+const midRead = L.readLatestLocalGame(remoteOwner);
+eq("同一间房换成中局那一份 → 仍然只有一条", L.readLocalGames(remoteOwner).length, 1);
+eq("读回来是中局那一份（还没结束）", midRead.kind === "ok" ? midRead.record.history.room.state : midRead.kind, "playing");
+ok(
+  "中局那一份照样能摆回放条（同一套 historyBarsOf）",
+  midRead.kind === "ok" && H.historyBarsOf(midRead.record.history, "u1").length === 2,
+);
+// "是不是本机单机局"只看房号，不看数据从哪读出来（Bug B 之后联机局也会从本机读）
+eq("本机单机局（没有房号）→ historyIsLocalGame 为真", H.historyIsLocalGame(localHistory), true);
+eq("联机局缓存（有房号）→ 不能标成「本机对局」", H.historyIsLocalGame(history), false);
+// 失败分类：只有 403 先查本机缓存；网络 / 404 照旧走原来的退路
+eq("403 NOT_IN_ROOM → 先查本机同房号记录", H.historyCacheFirstOf(H.historyFailureOf(failure("code", "NOT_IN_ROOM"))), true);
+eq("网络错误 → 不查缓存（原路：重试 / 最近一局）", H.historyCacheFirstOf(H.historyFailureOf(failure("unavailable"))), false);
+eq("404 房间过期 → 不查缓存（大厅那时本来就会优先开本机那份）", H.historyCacheFirstOf(H.historyFailureOf(failure("code", "ROOM_NOT_FOUND"))), false);
+eq("503 能力位关掉 → 不查缓存", H.historyCacheFirstOf(H.historyFailureOf(failure("code", "GAME_HISTORY_OFF"))), false);
+
+// ── ⑬ 界面接线（这几处要 React，Node 跑不起来；用源码断言钉住） ────────────────
 const roundsSrc = read("src/api/game/rounds.ts");
 const capsSrc = read("src/data/serverCaps.ts");
 const storeSrc = read("src/studio/game/historyStore.ts");
@@ -366,6 +405,28 @@ const phasesSrc = read("src/studio/game/phases.ts");
 const ownerSrc = read("src/studio/game/localHistoryOwner.ts");
 const genSheetSrc = read("src/studio/game/ui/GenSheet.tsx");
 const typesSrc = read("src/studio/game/types.ts");
+
+// ── ⑬ 联机历史落盘 / 403 回落 / 文案分开（2026-11-24 Bug B 的接线） ─────────────
+const cacheSrc = read("src/studio/game/historyCache.ts");
+const roundsOnlineSrc = read("src/studio/game/roundsStore.ts");
+const useOnlineSrc = read("src/studio/game/ui/useOnlineRounds.ts");
+const spectateSrc = read("src/studio/game/spectateStore.ts");
+const reasonsSrc = read("src/studio/game/historyReasons.ts");
+const localHistoryModuleSrc = read("src/studio/game/localHistory.ts");
+ok("读到联机历史就落一份本机（historyStore.load 成功那一拍）", /cacheHistoryLocally\(res\.value, myUserId\)/.test(storeSrc));
+ok("403 时先按房号找本机那份，找不到才说看不到", storeSrc.includes("historyCacheFirstOf(failure)") && storeSrc.includes("showCached(code, failure)"));
+ok("按房号找缓存只走 localHistory.readLocalGameOfRoom", localHistoryModuleSrc.includes("export function readLocalGameOfRoom(") && storeSrc.includes("readLocalGameOfRoom(localGameOwner()"));
+ok("离开房间前留一份（roundsStore.leaveNow / abandon 都走 leaveAfterSnapshot）", /leaveNow:[\s\S]{0,400}leaveAfterSnapshot\(session\)/.test(roundsOnlineSrc) && /abandon[\s\S]{0,1400}leaveAfterSnapshot\(session\)/.test(roundsOnlineSrc));
+ok("对局打完那一拍留一份（useOnlineRounds 的 over 那个 effect）", useOnlineSrc.includes("captureOnlineHistory(roomCode, sessionUserId)"));
+ok("观战屏拉到历史也留一份", spectateSrc.includes("cacheHistoryLocally(res.value"));
+ok("两套退路文案分开：同房号缓存 / 本机最近一局", reasonsSrc.includes("historyCachedText") && reasonsSrc.includes("下面是本机留的那一份回放"));
+ok("没有记录时仍如实说「你不在这一局里了，看不到它的回放」", reasonsSrc.includes("你不在这一局里了，看不到它的回放"));
+ok("本机/联机那块标只看房号（MatchHistory 不再按 source 判）", pageSrc.includes("historyIsLocalGame(history)"));
+ok("顶部退路说明按 fallbackKind 分开（cached / latest）", pageSrc.includes('fallbackKind === "cached"') && pageSrc.includes("historyCachedText()"));
+ok("大厅入口的 title 认本机缓存里的房号（不写成「本机对局」）", lobbySrc.includes("localRoomCode") && lobbySrc.includes("replayTitleCode"));
+ok("同一间房覆盖写（不是每存一次 prepend 一条）", localHistoryModuleSrc.includes("sameRoom(one)"));
+ok("historyCache 只做「读一发 → 存一份」（不改服务端契约）", cacheSrc.includes("readHistory(code)") && cacheSrc.includes("saveLocalGame({ owner: localGameOwner()"));
+ok("存好之后通知大厅一次（入口不用等下一次重渲才出现）", cacheSrc.includes("notifyHistoryCache()") && lobbySrc.includes("subscribeHistoryCache("));
 
 ok("API 层有 readHistory（历史端点）", roundsSrc.includes("export function readHistory(") && roundsSrc.includes("/rounds/history"));
 ok("API 层复用 10 秒超时", roundsSrc.includes("ROUNDS_TIMEOUT_MS"));
@@ -409,9 +470,12 @@ ok("开新局 / 中途结束都清掉累积（不把两局的回合混在一起�
 ok("本机记录记在谁名下只有一处（localHistoryOwner）", ownerSrc.includes('deviceOwner() || "guest"') && (gameSrc.match(/localGameOwner\(\)/g) ?? []).length === 1);
 ok("交片把首帧一起记下（本机战绩的封面）", /saveEntry\(\{ videoUrl: url, posterUrl: frame \|\| undefined, seconds \}\)/.test(genSheetSrc));
 ok("投稿形状多了 posterUrl（本机战绩的封面来源）", typesSrc.includes("posterUrl?: string") && read("src/studio/game/rules.ts").includes("input.posterUrl"));
-ok("本机局不发请求、直接读本机记录", /if \(plan\.kind === "local"\) \{[\s\S]{0,320}showLocal\(\)/.test(storeSrc));
+ok("本机局不发请求、直接读本机记录", /if \(plan\.kind === "local"\) \{[\s\S]{0,420}showLocal\(\{ acceptCachedOnline: latest \}\)/.test(storeSrc));
 ok("本机取舍只问 localPickOf（写失败不许拿上一局顶替）", storeSrc.includes("localPickOf(outcome, read)"));
-ok("联机读不到时退回本机那一局（带 fallback 说明）", /if \(showLocal\(\{ failure, fallback: true \}\) === "shown"\) return;/.test(storeSrc));
+ok(
+  "联机读不到时退回本机那一局（带 fallback 说明）",
+  /if \(showLocal\(\{ failure, fallback: true, acceptCachedOnline: true \}\) === "shown"\) return;/.test(storeSrc),
+);
 ok("两种来源只多一个 source（history 是同一份类型）", storeSrc.includes('source: "local"') && storeSrc.includes('source: "remote"'));
 ok("浮层顶部标「本机对局」并标出来源", pageSrc.includes("data-history-source") && pageSrc.includes("本机对局"));
 ok("本机局的 summary 不再说「按服务端结算」", pageSrc.includes("名次、夺冠与合计都是本机对局里算的"));

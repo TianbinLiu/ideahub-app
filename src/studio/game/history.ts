@@ -80,6 +80,31 @@ export function historyRetryAllowed(attempts: number): boolean {
   return attempts < 2;
 }
 
+/**
+ * 这一份历史是不是**本机单机局**（没有房号）。
+ * ★ 2026-11-24 Bug B：本机存储里现在也会躺着一份**联机局**的 history（退出房间前缓存的那一份）。
+ *   "本机对局"那块标 / "名次是本机算的"那句话不能再按"数据从哪读的"判 —— 一律问这一位：
+ *   房号为空 = 本机单机局；有房号 = 服务端那一局（只是从本机读出来的）。
+ */
+export function historyIsLocalGame(history: RemoteGameHistory): boolean {
+  return history.room.code.trim() === "";
+}
+
+/**
+ * 这一发失败之后，要不要**先查本机同一间房的缓存**（2026-11-24 Bug B）。
+ *
+ * ★★ 403 `NOT_IN_ROOM` 不是"这局不存在"，而是"你已经不在房里了" —— 退出 / 打完回大厅之后
+ *   点「最近一局回放」，服务端必然回这一句；而离开前我们已经把历史存了一份到本机。
+ *   所以先按房号找本机那一份，找不到才如实说"你不在这一局里了"。
+ * ★ 其余失败照旧走原来的退路（本机最近一局 / 重试 / 说过期）：
+ *   404 `ROOM_NOT_FOUND` 是"这间房已经被服务端清掉了"。本机真有同一房号的缓存时，大厅那一侧
+ *   会**优先开本机那一份**（savedAt 比开局时刻新），根本走不到这一发 404；真走到了说明本机没有
+ *   这份可回落，照旧说"房间过期"才是诚实的。
+ */
+export function historyCacheFirstOf(failure: HistoryFailure): boolean {
+  return failure.kind === "not-member";
+}
+
 /** 结算榜里"我"那一行（名次 = 它在 ranking 里的位置 + 1；服务端已按 composite 排成不并列的一列）。 */
 export interface HistoryMine {
   rank: number;

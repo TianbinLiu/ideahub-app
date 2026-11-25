@@ -13,8 +13,10 @@
  *   ③ 玩家自己离开 / 关大厅 / 进房间 / 房间已开局 → 换屏，cleanup 清定时器（这是"主动停"，
  *      不需要再解释；房间屏已经换成对局了）。
  * ★ 2026-11-24 接回合引擎之后，房间轮询多了一段：服务端说 `playing` 之后**不停拍**，继续当
- *   "第 1 回合铺起来没有"的等待拍（房主 `rounds/start`、其他人 `rounds/current`）；铺好就建局、
- *   超时（30 秒）或接口不可用就**说一句**再走本机单机。理由见 ensureOnlineRound 的 ★。
+ *   "第 1 回合铺起来没有"的等待拍（房主 `rounds/start`、其他人 `rounds/current`）；铺好就建局。
+ *   ★★ Bug A 之后（同日晚）：这段等待**只有真连不上才降级** —— 业务码 `ROUND_NOT_FOUND`
+ *     只是"房主慢一步"（验收现场隔 5 秒才 rounds/start），继续等；网络 / 5xx 连 3 拍才说一句
+ *     再走本机单机（见下面 ROOM_START_FAIL_TOLERANCE）。房间屏那句等待态由 ui/RoomScreen 画。
  * ★ 用递归 setTimeout 而不是 setInterval：一拍没回来（弱网 10 秒超时）时不会叠出两三个并发请求。
  */
 import { useEffect, useState } from "react";
@@ -27,12 +29,15 @@ import { useRounds } from "../roundsStore";
 import { startFromLobby, startOnlineFromLobby } from "./startFromLobby";
 
 /**
- * 房间已经 `playing`、但回合还没铺好时，最多等多久再退回本机（毫秒）。
- * ★ 30 秒：房主点「开局」之后自己要先调 rounds/start，其他人要等自己那一拍轮询 —— 正常 2~4 秒；
- *   超过 30 秒还没见到回合，说明回合服务不可用（或房主那边卡死了）。这时按任务要求**说一句**
- *   「回合服务没响应，这一局改成单机继续」再退回本机，不能让四个人干等。
+ * 房间已经 `playing`、但回合还没铺好时，**真错误**连续几拍才退回本机（2026-11-24 Bug A 之后）。
+ * ★ 判据换了两次：
+ *   · 原来这里叫 ONLINE_START_TIMEOUT_MS（30 秒）：不管是"房主慢"还是"连不上"，到点一律降级成单机
+ *     并说「回合服务没响应」—— 验收里房主只慢了 5 秒就被判死刑（一局联机静默变单机）。
+ *   · 现在：业务码 `ROUND_NOT_FOUND` → 一直等（服务端还没建回合，房主随时会补上）；
+ *     只有**真连不上**（网络 / 5xx / 房间读不到）才计失败，连续 3 拍（≈6 秒，与房间快照的
+ *     ROOM_FAIL_TOLERANCE 同一条纪律）才说一句再走本机。
  */
-const ONLINE_START_TIMEOUT_MS = 30_000;
+const ROOM_START_FAIL_TOLERANCE = 3;
 
 type OnlineStartOutcome =
   | { kind: "ready"; round: RemoteRound }
@@ -45,8 +50,9 @@ type OnlineStartOutcome =
  *   其他人 → `GET rounds/current` 等房间出现回合。
  * ★ 房主 start 回 `ROUND_ALREADY_STARTED`（双击 / 超时其实打上了）时**改读 current**，
  *   不把"其实已经开了"当成失败（与大厅那套 ALREADY_IN_ROOM 同一形状的坑）。
- * ★ 只有 **unavailable** 才立刻判失败；业务码（ROUND_NOT_FOUND / ROUND_ALREADY_STARTED / NOT_HOST）
- *   一律先当"再等一拍"（房主转移 / 并发建回合都会这样），最多等 ONLINE_START_TIMEOUT_MS。
+ * ★ 只有 **unavailable** 才立刻判"连不上"；业务码（ROUND_NOT_FOUND / ROUND_ALREADY_STARTED / NOT_HOST）
+ *   一律先当"再等一拍"（房主还没开 / 房主转移 / 并发建回合都会这样）—— 现在**没有总上限**：
+ *   房间已 playing 时房主随时可能补上 rounds/start，把它当失败就是验收里那次静默降级。
  */
 async function ensureOnlineRound(remote: RemoteRoom): Promise<OnlineStartOutcome> {
   if (!roomsAvailable()) return { kind: "failed" };
@@ -164,8 +170,8 @@ export function useLobbyOnline(): { startFailed: boolean } {
     if (!open || screen !== "room" || !online || !roomCode) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
-    /** 第一次看到 playing 的时刻（30 秒上限按它算）；换房就重置 */
-    let playingAt: number | null = null;
+    /** 真错误（连不上 / 房间读不到）连续几拍了；业务码 waiting 不算失败，一律清零 */
+    let failStreak = 0;
     const tick = async () => {
       if (cancelled) return;
       let next: "waiting" | "playing" | "stop";
@@ -186,12 +192,11 @@ export function useLobbyOnline(): { startFailed: boolean } {
       // next === "playing"：房间已经在服务端开局了 —— 把回合铺起来（房主建 / 其他人等）
       const remote = useLobby.getState().remoteRoom;
       if (!remote) return;
-      if (playingAt === null) playingAt = Date.now();
       let outcome: OnlineStartOutcome;
       try {
         outcome = await ensureOnlineRound(remote);
       } catch (err) {
-        console.error("[lobby] 开局后铺回合意外失败，这一局改成单机继续", err);
+        console.error("[lobby] 开局后铺回合意外失败", err);
         outcome = { kind: "failed" };
       }
       if (cancelled) return;
@@ -200,12 +205,23 @@ export function useLobbyOnline(): { startFailed: boolean } {
         if (!startOnlineFromLobby(remote, outcome.round)) setStartFailed(true);
         return;
       }
-      if (outcome.kind === "waiting" && Date.now() - playingAt < ONLINE_START_TIMEOUT_MS) {
+      if (outcome.kind === "waiting") {
+        // ★★ 2026-11-24 Bug A：房间已 playing、回合还没建 = **正常时序**（房主可能正慢一步）。
+        //   继续等，**不降级** —— 房间屏那句「房主还没开始这一回合」由 ui/RoomScreen 画；
+        //   房主补上 rounds/start 之后下一拍就 ready、本机进对局。
+        failStreak = 0;
         timer = setTimeout(tick, ROOM_POLL_MS);
         return;
       }
-      // 失败 / 超时：**不静默**。先把话说出来（游戏层底栏读 roundsStore.note），再走原来的本机开局。
-      console.warn("[lobby] 回合服务没就绪，这一局改成单机继续", remote.code);
+      // 真连不上（网络 / 5xx / 房间读不到）：一次抖动不判死，连续 3 拍（≈6 秒）才降级
+      // —— 与房间快照 ROOM_FAIL_TOLERANCE 同一条纪律：弱网一下就把一桌联机换成单机是最坏的那种。
+      failStreak += 1;
+      if (failStreak < ROOM_START_FAIL_TOLERANCE) {
+        timer = setTimeout(tick, ROOM_POLL_MS);
+        return;
+      }
+      // 失败：**不静默**。先把话说出来（游戏层底栏读 roundsStore.note），再走原来的本机开局。
+      console.warn("[lobby] 连不上回合服务，这一局改成单机继续", remote.code);
       useRounds.getState().raiseFallback();
       if (!startFromLobby(remote.size)) setStartFailed(true);
     };

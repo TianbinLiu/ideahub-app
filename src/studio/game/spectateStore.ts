@@ -16,13 +16,10 @@
  *     只会把同一句错再要一遍。
  */
 import { create } from "zustand";
-import {
-  leaveSpectate,
-  readRoom,
-  type RemoteRoom,
-  type SpectateEntry,
-} from "../../api/game/rooms";
+import { leaveSpectate, readRoom, type RemoteRoom, type SpectateEntry } from "../../api/game/rooms";
 import { readHistory, readRound, type RemoteGameHistory, type RemoteRound } from "../../api/game/rounds";
+import { currentUser } from "../../data/account";
+import { cacheHistoryLocally } from "./historyCache";
 import type { LobbyNote } from "./lobbyStore";
 import { spectateNoteOf } from "./spectate";
 
@@ -174,6 +171,10 @@ export const useSpectate = create<SpectateStore>((set, get) => {
         return;
       }
       set({ history: res.value, ...(get().note?.kind === "offline" ? { note: null } : {}) });
+      // ★★ 2026-11-24 Bug B：观战屏拉到的这一份**顺手留一份到本机**。出观众席之后账号就不在
+      //   （观众席）名单里了，服务端历史读接口回 403 —— 大厅「最近一局回放」那时只能看本机这份。
+      //   `meId` = 看的人（观众不是玩家，summary 表里没有他这一行；回放条仍能列出每一回合与整榜）。
+      cacheHistoryLocally(res.value, currentUser()?.id ?? null);
     },
 
     exit: async () => {
