@@ -1,3 +1,20 @@
+启梦 2.82
+
+· 创意工坊多了一个新玩法：把 3D 铸卡桌面改成一局能打完的多人对局——横屏桌面、桌上 4 个角色位加 1 个场景位，从背包拖卡上去，写一句话就能出片。
+· 大厅先选开局方式：4 人匹配、8 人匹配，或者建一间自定义房把房号发给朋友；也能逛公开房、以观战身份进去看别人打。
+· 一局怎么打：每回合买卡、出片，然后全员一起看片、点赞、投票；点赞榜和投票榜合起来排名次，名次靠后扣血，100 血归零出局；每两个回合有一次三选一的策略事件。
+· 每月 6 张游戏券：游戏里出片扣一张券，不扣 token；画首帧仍按 token 结算。
+· 对局里能开设置（音量、画质、语言、操作提示、认输退出），打完能看战绩回放：每回合的片子都在，单机局也会存一份。
+· 局内可以贴表情、贴自己的卡；第一次进大厅和对局会有九步引导，跟着做一局就懂了。
+
+QiMeng 2.82
+
+· The Workshop now has a new mode: the 3D card table became a full multiplayer match — landscape table with four character slots and one scene slot; drag cards from the bag and write one line to make a clip.
+· The lobby offers 4-player matchmaking, 8-player matchmaking, or a custom room you can share by code; you can also browse public rooms and watch as a spectator.
+· A round goes: buy cards, make your clip, then everyone watches, likes and votes together. Like and vote ranks combine into a final standing; the bottom ranks lose HP and 0 HP knocks you out, and every two rounds there is a three-way strategy event.
+· Six game tickets a month: making a clip in-game spends one ticket instead of tokens; the first frame still bills tokens.
+· In-match settings cover volume, quality, language, control hints and conceding; after the match you can replay it — every round's clip is there, and solo games are saved too.
+· You can post stickers and your own cards in-match; a nine-step tutorial walks you through your first match.
 启梦 2.81
 
 · 新增「唱一段」：在「跟着做」里选一个人、写几句歌词（也可以让 AI 按主题写原创歌词）、挑一个曲风，AI 会把它唱出来——是唱，不是念白；每一句拖长尾音，带伴奏。
