@@ -25,6 +25,7 @@ import { useGame } from "../store";
 import { getGameAudio, setGameAudio } from "../gamePrefs";
 import GameBtn from "./GameBtn";
 import { quitGameToLobby } from "./quitGame";
+import { quitSpectateToLobby } from "./quitSpectate";
 
 /**
  * 目录可能根本没加载出来（切语言正是它失败的那一格），这句只能两种语言并排写 ——
@@ -88,7 +89,7 @@ function Slider({ label, value, onChange }: { label: string; value: number; onCh
   );
 }
 
-export default function GameSettings({ onClose }: { onClose: () => void }) {
+export default function GameSettings({ onClose, spectate = false }: { onClose: () => void; spectate?: boolean }) {
   const { t } = useLingui();
   const online = useGame((s) => s.online !== null);
   const { pref, active } = useLang();
@@ -163,7 +164,10 @@ export default function GameSettings({ onClose }: { onClose: () => void }) {
   const quit = () => {
     // 先收起这一页再退：退出之后 state 为 null，这一页的 onClose 由外面的开关一起收掉
     setConfirmQuit(false);
-    quitGameToLobby();
+    // ★ 观战这一屏没有"我这一局"：这里的退出 = 出观众席（spectateStore.exit），
+    //   不是 quitGameToLobby（那会把一局根本不存在于本机的对局"结束"掉）。
+    if (spectate) quitSpectateToLobby();
+    else quitGameToLobby();
     onClose();
   };
 
@@ -175,14 +179,18 @@ export default function GameSettings({ onClose }: { onClose: () => void }) {
           <Trans>设置</Trans>
         </span>
         <span className="min-w-0 flex-1 truncate text-[10px] text-slate-400">
-          <Trans>改完立刻生效，对局不会中断（画质下一局换模型）</Trans>
+          {spectate ? (
+            <Trans>这些设置不影响这一局（画质下次进工坊生效）</Trans>
+          ) : (
+            <Trans>改完立刻生效，对局不会中断（画质下一局换模型）</Trans>
+          )}
         </span>
         <button
           type="button"
           onClick={onClose}
           className="h-7 flex-none rounded-full bg-panel/85 px-2.5 text-[11px] font-semibold text-slate-200 active:bg-raised"
         >
-          <Trans>✕ 返回游戏</Trans>
+          {spectate ? <Trans>✕ 返回观战</Trans> : <Trans>✕ 返回游戏</Trans>}
         </button>
       </header>
 
@@ -250,19 +258,22 @@ export default function GameSettings({ onClose }: { onClose: () => void }) {
             </div>
           </Section>
 
-          {/* 操作提示：长按展开手势说明 */}
-          <Section
-            title={<Trans>操作提示</Trans>}
-            note={
-              tapHint ? (
-                <span className="text-brand-200">
-                  <Trans>按住这一行不放，看手势说明。</Trans>
-                </span>
-              ) : (
-                <Trans>长按查看手势说明。</Trans>
-              )
-            }
-          >
+          {/* 操作提示：长按展开手势说明。
+              ★ 观战这一屏不摆：这一组讲的全是"按住拖卡 / 装备 / 转视角"，观众一个都做不了 ——
+                摆出来只会让人以为能操作。 */}
+          {!spectate && (
+            <Section
+              title={<Trans>操作提示</Trans>}
+              note={
+                tapHint ? (
+                  <span className="text-brand-200">
+                    <Trans>按住这一行不放，看手势说明。</Trans>
+                  </span>
+                ) : (
+                  <Trans>长按查看手势说明。</Trans>
+                )
+              }
+            >
             <button
               type="button"
               // 长按展开：按住不放 0.45 秒。用 pointerdown/up 而不是 click —— 短按要给"再按久一点"的回应，
@@ -298,21 +309,22 @@ export default function GameSettings({ onClose }: { onClose: () => void }) {
                 </li>
               </ul>
             )}
-          </Section>
+            </Section>
+          )}
         </div>
       </div>
 
-      {/* ── 底栏：返回游戏 / 退出游戏（两颗都在，滚不滚动都看得见） ── */}
+      {/* ── 底栏：返回 / 退出（两颗都在，滚不滚动都看得见；观战这一屏叫「退出观战」） ── */}
       <footer className="flex flex-none items-center justify-center gap-2 border-t border-white/10 px-3 py-1.5">
         <GameBtn tone="primary" className="px-4 py-1.5 text-[12px]" onClick={onClose}>
-          <Trans>▶ 返回游戏</Trans>
+          {spectate ? <Trans>▶ 返回观战</Trans> : <Trans>▶ 返回游戏</Trans>}
         </GameBtn>
         <button
           type="button"
           onClick={() => setConfirmQuit(true)}
           className="rounded-lg bg-danger/15 px-3 py-1.5 text-[12px] font-semibold text-danger-100 ring-1 ring-danger/40 active:bg-danger/25"
         >
-          <Trans>退出游戏</Trans>
+          {spectate ? <Trans>退出观战</Trans> : <Trans>退出游戏</Trans>}
         </button>
       </footer>
 
@@ -321,10 +333,12 @@ export default function GameSettings({ onClose }: { onClose: () => void }) {
         <div className="absolute inset-0 z-10 flex items-center justify-center bg-ink/90 px-4">
           <div className="w-full max-w-[26rem] rounded-2xl bg-raised p-3 ring-1 ring-white/15">
             <h2 className="text-[13px] font-bold text-slate-100">
-              <Trans>认输并退出？</Trans>
+              {spectate ? <Trans>退出观战？</Trans> : <Trans>认输并退出？</Trans>}
             </h2>
             <p className="mt-1 text-[11px] leading-relaxed text-slate-300">
-              {online ? (
+              {spectate ? (
+                <Trans>退出之后这一局照常打完；随时可以在大厅的公开房里再进来观战，观战不占座、也不影响这一局。</Trans>
+              ) : online ? (
                 <Trans>会直接离开这间房，其他人照常打完；这一局的名次不算你，已经花掉的游戏券与 token 不退。</Trans>
               ) : (
                 <Trans>这一局当场结束、回到大厅；已经花掉的游戏券与 token 不退。</Trans>
@@ -332,14 +346,14 @@ export default function GameSettings({ onClose }: { onClose: () => void }) {
             </p>
             <div className="mt-2.5 flex justify-end gap-2">
               <GameBtn onClick={() => setConfirmQuit(false)}>
-                <Trans>继续玩</Trans>
+                {spectate ? <Trans>继续观战</Trans> : <Trans>继续玩</Trans>}
               </GameBtn>
               <button
                 type="button"
                 onClick={quit}
                 className="rounded-lg bg-danger px-3 py-1 text-[11px] font-bold text-white ring-1 ring-danger-300/60 active:bg-danger/80"
               >
-                <Trans>认输并退出</Trans>
+                {spectate ? <Trans>退出观战</Trans> : <Trans>认输并退出</Trans>}
               </button>
             </div>
           </div>

@@ -126,6 +126,20 @@ export interface ServerCaps {
    *   判据只在 `studio/game/history.historyPlanOf`（构建门禁直接跑正反例），界面不自己看能力位。
    */
   gameHistory: boolean;
+  /**
+   * 大厅的**公开房列表**（`GET /api/game/rooms?visibility=public…`，2026-11-24；契约见
+   * 「工坊对局：公开房列表与观战」）：有这条列表端点，建房也认参数 `visibility`。
+   * ★ 唯一读法是 `api/game/rooms.publicRoomsAvailable()`（大厅据此决定摆不摆「🏠 公开房」那第四张卡）。
+   * ★ 读不到这一位 = 老服务端：**不摆**（拿不准就藏，与 gameRooms / gameTickets 同一条口径）。
+   *   反过来的话，点开是一张必然 404 的空列表（真机上还会吃 SPA 的 200 + HTML）。
+   */
+  gamePublicRooms: boolean;
+  /**
+   * 对局的**观战**（`POST /api/game/rooms/:code/spectate[/leave]`，2026-11-24）。
+   * ★ 唯一读法是 `api/game/rooms.spectateAvailable()`（公开房列表的「观战」键据此摆不摆）。
+   * ★ 读不到这一位 = 老服务端：**不摆「观战」键**（点了会 404）。
+   */
+  gameSpectators: boolean;
 }
 
 /** 布尔的那几位（serverSupports 只答这几样） */
@@ -147,7 +161,9 @@ export type BoolCap =
   | "gameEvents"
   | "gameRoomStream"
   | "gameReports"
-  | "gameHistory";
+  | "gameHistory"
+  | "gamePublicRooms"
+  | "gameSpectators";
 
 /** 健康端点的 JSON → ServerCaps（形状不对的位一律按「没有」）。**唯一解析处** */
 function capsOf(j: Record<string, unknown>): ServerCaps {
@@ -177,6 +193,8 @@ function capsOf(j: Record<string, unknown>): ServerCaps {
     gameRoomStream: j.gameRoomStream === true,
     gameReports: j.gameReports === true,
     gameHistory: j.gameHistory === true,
+    gamePublicRooms: j.gamePublicRooms === true,
+    gameSpectators: j.gameSpectators === true,
   };
 }
 
@@ -205,6 +223,8 @@ const NONE: ServerCaps = {
   gameRoomStream: false,
   gameReports: false,
   gameHistory: false,
+  gamePublicRooms: false,
+  gameSpectators: false,
 };
 /**
  * 直连 / 离线：没有服务端那一层，能力全在；免费档清单按档位表（freeVideo null）。
@@ -239,6 +259,8 @@ const ALL: ServerCaps = {
   gameRoomStream: false,
   gameReports: false,
   gameHistory: false,
+  gamePublicRooms: false,
+  gameSpectators: false,
 };
 const listeners = new Set<() => void>();
 
@@ -410,6 +432,36 @@ export function serverGameReports(): boolean | null {
 export function serverGameHistory(): boolean | null {
   if (!API_ON) return ALL.gameHistory;
   if (caps) return caps.gameHistory;
+  if (!probe && Date.now() - failedAt >= RETRY_MS) void probeServerCaps(true);
+  return null;
+}
+
+/**
+ * 这台服务端有没有**公开房列表**（`GET /api/game/rooms`，2026-11-24）。
+ * ★ 唯一读法是 `api/game/rooms.publicRoomsAvailable()`（大厅据此决定摆不摆「🏠 公开房」那第四张卡）。
+ * ★ 与 serverGameRooms / gameHistory 同一份理由单开一个读法（force 探测：本轮验证跑在
+ *   `npm run dev` + 本地服务端上，而 noServerLayer() 在 dev 里恒真 —— 走 serverSupports 会把这一位
+ *   永远读成「没有」，大厅就永远看不到公开房）。
+ * ★ 读不到（null）当**没有**：老服务端上真发出去的那一发只会吃 SPA 的 200 + HTML（形状不认识 →
+ *   unavailable），代价是一屏"没连上"；而常驻摆一张点开必空的卡更坏。
+ */
+export function serverGamePublicRooms(): boolean | null {
+  if (!API_ON) return ALL.gamePublicRooms;
+  if (caps) return caps.gamePublicRooms;
+  if (!probe && Date.now() - failedAt >= RETRY_MS) void probeServerCaps(true);
+  return null;
+}
+
+/**
+ * 这台服务端有没有**观战**（`POST /api/game/rooms/:code/spectate[/leave]`，2026-11-24）。
+ * ★ 唯一读法是 `api/game/rooms.spectateAvailable()`（公开房列表每行的「观战」键据此摆不摆）。
+ * ★ 与 serverGamePublicRooms 同一份理由单开一个读法（force 探测：dev + 本地服务端要能问到这一位）。
+ * ★ 读不到（null）当**没有**：老服务端上点「观战」是一发 404（界面上只会得到一句"没连上"），
+ *   而摆一颗点了必然失败的键比藏起来更坏。
+ */
+export function serverGameSpectators(): boolean | null {
+  if (!API_ON) return ALL.gameSpectators;
+  if (caps) return caps.gameSpectators;
   if (!probe && Date.now() - failedAt >= RETRY_MS) void probeServerCaps(true);
   return null;
 }

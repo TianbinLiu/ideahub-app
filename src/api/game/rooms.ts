@@ -16,13 +16,20 @@
  *   会让「正在开房…」僵在那里，而且轮询拍撞上长超时会叠住下一拍。
  */
 import { ApiError, apiDelete, apiGet, apiPost } from "../client";
-import { serverGameRooms } from "../../data/serverCaps";
+import { serverGamePublicRooms, serverGameRooms, serverGameSpectators } from "../../data/serverCaps";
 
 /** 服务端的三种房间模式（`match4` / `match8` 走队列；`custom` 建房 + 房间码邀请）。 */
 export type RemoteRoomMode = "match4" | "match8" | "custom";
 
 /** 房间状态机（服务端 `GameRoom.status`）：waiting → playing → over；最后一个人离开 = 硬删。 */
 export type RemoteRoomState = "waiting" | "playing" | "over";
+
+/**
+ * 房间的可见性（服务端 `GameRoom.visibility`，2026-11-24）：`"public"` 才会出现在大厅的公开房列表里。
+ * ★ 缺省 / 老房间都是 private（服务端 `visibilityOf` 一处判）：反过来的话，每个老版本用户的自定义房
+ *   都会静默地摆到大厅上。
+ */
+export type RoomVisibility = "public" | "private";
 
 /**
  * 服务端快照里的 `status`（**老字段**：给老包用的，含历史遗留的 `closed`）。
@@ -80,6 +87,13 @@ export interface RemoteRoom {
   winners: string[] | null;
   /** 服务端给的结束时刻（`over` 时才有；今天只用来显示 / 排查） */
   finishedAt: string | null;
+  /** 看得见这一间是公开还是私人（2026-11-24；老房间没有这一格时按 private，见服务端 `visibilityOf`） */
+  visibility: RoomVisibility;
+  /**
+   * 观众人数（服务端快照的 `spectators.count`；**只给计数、不给名单**）。
+   * ★ 老服务端没有这一位 → 0（不是"不知道"：那一版根本没有观战，0 就是事实）。
+   */
+  spectatorCount: number;
   /** 服务端说至少几个**真人**才能开局（custom = 2，不看选了几座） */
   requiredPlayers: number;
   memberCount: number;
@@ -159,6 +173,17 @@ const GAME_CODES = new Set([
   "CANNOT_KICK_SELF",
   "QUEUE_MODE_CONFLICT",
   "GAME_ROOMS_OFF",
+  // ── 公开房列表 / 观战（2026-11-24）────────────────────────────────────────────
+  // ★ 这几个码要出现在 `code` 分支里（而不是含混成 unavailable）：观战的三种拒绝各自对应一句人话
+  //   （403 观战不能操作这个 / 429 观战席位满了 / 409 你已经是这间房的玩家），压成"没连上"就白说了。
+  "BAD_VISIBILITY",
+  "BAD_STATE",
+  "BAD_PAGE",
+  "BAD_LIMIT",
+  "TOO_MANY_SPECTATORS",
+  "SPECTATOR_NOT_ALLOWED",
+  "GAME_PUBLIC_ROOMS_OFF",
+  "GAME_SPECTATORS_OFF",
 ]);
 
 function asRecord(v: unknown): Record<string, unknown> | null {
@@ -265,6 +290,12 @@ function roomOf(raw: unknown): RemoteRoom | null {
         .map((one) => (typeof one === "string" ? one : strOf(asRecord(one)?.userId)))
         .filter((id): id is string => Boolean(id))
     : null;
+  // ── 公开 / 观战（2026-11-24）────────────────────────────────────────────────
+  // ★ 只认 `"public"`：别的值（老快照没有 / 服务端换了词）一律按 private —— 与建房的缺省同一口径，
+  //   把一间私人房标成公开房会让观众以为"大厅里能看到"。
+  const visibility: RoomVisibility = r.visibility === "public" ? "public" : "private";
+  // 观众只有计数（服务端不给名单）：拿不到就 0，不是"不知道"（老服务端根本没有观战）。
+  const spectatorCount = numOf(asRecord(r.spectators)?.count) ?? 0;
   return {
     code,
     roomId: strOf(r.roomId) ?? "",
@@ -274,6 +305,8 @@ function roomOf(raw: unknown): RemoteRoom | null {
     members: members.sort((a, b) => a.seat - b.seat),
     status,
     state,
+    visibility,
+    spectatorCount,
     // `started` 仍然只回答"开局了没有"（大厅等的是它）：结束后房间不能再开局，所以 over 也是 false
     started: state === "playing" || status === "playing" || r.started === true,
     over,
@@ -354,12 +387,21 @@ export function roomsAvailable(): boolean {
 }
 
 /**
- * 开一间服务端房间（房主）。`POST /api/game/rooms` body `{ mode, seats? }` → 201 `{ room }`。
+ * 开一间服务端房间（房主）。`POST /api/game/rooms` body `{ mode, seats?, visibility? }` → 201 `{ room }`。
  * ★ custom 必须给 2~8 的 `seats`；match4 / match8 的座位数由模式锁死（带了别的数服务端回
  *   `SEATS_LOCKED`，不静默忽略）。App 今天只用 custom（匹配走队列）。
+ * ★ `visibility`（2026-11-24）：**不给这一位 = private**。只有玩家真的勾了「公开这间房」才发
+ *   `"public"` —— 老服务端不认这一位，白发一个 `"private"` 只会多一次被 zod 拒掉的机会。
  */
-export async function createRoom(input: { mode: RemoteRoomMode; size?: number }): Promise<RoomsResult<RemoteRoom>> {
-  const body = input.mode === "custom" ? { mode: input.mode, seats: input.size } : { mode: input.mode };
+export async function createRoom(input: {
+  mode: RemoteRoomMode;
+  size?: number;
+  visibility?: RoomVisibility;
+}): Promise<RoomsResult<RemoteRoom>> {
+  const body =
+    input.mode === "custom"
+      ? { mode: input.mode, seats: input.size, ...(input.visibility === "public" ? { visibility: "public" as const } : {}) }
+      : { mode: input.mode };
   return call(() => apiPost<unknown>("/api/game/rooms", body, opts), roomEnvelopeOf);
 }
 
@@ -454,6 +496,178 @@ export async function cancelMatch(): Promise<RoomsResult<{ left: boolean }>> {
       return { left: r.left === true };
     },
   );
+}
+
+// ────────────────────────────── 公开房列表 + 观战（2026-11-24）──────────────────────────────
+//
+// 服务端契约（ideahub-server `docs/api-contract.md`「工坊对局：公开房列表与观战」）：
+//   GET  /api/game/rooms?visibility=public&state=waiting&mode=&page=1&limit=20 → { total, hasMore, rooms[] }
+//   POST /api/game/rooms/:code/spectate       → { spectating, already, spectators:{count}, room }
+//   POST /api/game/rooms/:code/spectate/leave → { left, spectators:{count} }
+// ★ 两个列表字段**不自己算**：`joinable` 是服务端给的（waiting 且没坐满才为真），`hasMore` 同理 ——
+//   客户端按 `members < seats` 再判一遍，等哪天服务端改了"满员也列出来"的口径就是两把尺。
+// ★ 观战**不占座**：`spectate` 只往观众席里加一行；上限 20，满了服务端回 429 `TOO_MANY_SPECTATORS`。
+
+/** 公开房列表的一行（服务端 `rooms[]`；`members` 是**人数**，不是成员数组）。 */
+export interface PublicRoomRow {
+  code: string;
+  mode: RemoteRoomMode;
+  /** 座位数（服务端字段 `seats`） */
+  seats: number;
+  /** 现在坐着几个人（数字；房主算一个） */
+  members: number;
+  /** 房主昵称；服务端查不到账号时是 null（删号 / 老数据），界面退回「房主」 */
+  hostName: string | null;
+  /** 建房时刻（ISO；只用来显示"开了多久"，不参与任何判定） */
+  createdAt: string | null;
+  state: RemoteRoomState;
+  /**
+   * 现在点「加入」能不能坐下（服务端判：`waiting` 且 `members < seats`）。
+   * ★ 字段**永远在**（服务端契约），别拿 `state` 再推一遍：`playing` / `over` 的房恒为 false，
+   *   但将来若加了别的状态，客户端这份推导就会漂。
+   */
+  joinable: boolean;
+}
+
+/** 公开房列表的一页（服务端分页回包）。 */
+export interface PublicRoomPage {
+  rooms: PublicRoomRow[];
+  /** 符合条件的**总数**（不是本页条数） */
+  total: number;
+  hasMore: boolean;
+  page: number;
+  limit: number;
+}
+
+/** 列表的查询条件（`state` 缺省由调用方显式给：大厅的三个页签就是三种 state）。 */
+export interface PublicRoomQuery {
+  state?: RemoteRoomState;
+  mode?: RemoteRoomMode;
+  page?: number;
+  limit?: number;
+}
+
+/** 观战进席的回包（服务端顺手带一份房间快照，点完就能直接画观战屏）。 */
+export interface SpectateEntry {
+  room: RemoteRoom;
+  /** 本来就在观众席上（幂等：不重复占位） */
+  already: boolean;
+  /** 现在一共几个观众 */
+  spectators: number;
+}
+
+/**
+ * 列表的一行 → `PublicRoomRow`。
+ * ★ 形状不认识就回 null（整页归 unavailable）：老服务端 / SPA 回退会把 HTML 当 JSON 读失败，
+ *   那不叫"没有公开房"——说成空列表的话，玩家会以为真的一间都没有。
+ */
+function publicRoomOf(raw: unknown): PublicRoomRow | null {
+  const r = asRecord(raw);
+  if (!r) return null;
+  const code = strOf(r.code);
+  if (!code) return null;
+  const seats = numOf(r.seats);
+  const members = numOf(r.members);
+  if (seats === null || members === null) return null;
+  const stateRaw = strOf(r.state) ?? strOf(r.status);
+  if (stateRaw !== "waiting" && stateRaw !== "playing" && stateRaw !== "over") return null;
+  return {
+    code,
+    mode: modeOf(r.mode),
+    seats,
+    members,
+    hostName: strOf(r.hostName),
+    createdAt: strOf(r.createdAt),
+    state: stateRaw,
+    joinable: r.joinable === true,
+  };
+}
+
+function publicPageOf(raw: unknown): PublicRoomPage | null {
+  const r = asRecord(raw);
+  if (!r || !Array.isArray(r.rooms)) return null;
+  const rooms: PublicRoomRow[] = [];
+  for (const one of r.rooms) {
+    const row = publicRoomOf(one);
+    if (!row) return null;
+    rooms.push(row);
+  }
+  return {
+    rooms,
+    total: numOf(r.total) ?? rooms.length,
+    hasMore: r.hasMore === true,
+    page: numOf(r.page) ?? 1,
+    limit: numOf(r.limit) ?? rooms.length,
+  };
+}
+
+/**
+ * 读一页公开房。`GET /api/game/rooms?visibility=public&…`。
+ * ★ `visibility=public` 是**写死**的：这条端点的设计就是"只列公开房"（契约：别的值 400
+ *   `BAD_VISIBILITY`，不悄悄回空列表），别把它做成一个可以传 private 的通用列表。
+ * ★ 每次现查、服务端不缓存：开关一开一关下一拍就生效（所以界面可以放心下拉刷新）。
+ */
+export async function listPublicRooms(query: PublicRoomQuery = {}): Promise<RoomsResult<PublicRoomPage>> {
+  const params = new URLSearchParams({ visibility: "public" });
+  if (query.state) params.set("state", query.state);
+  if (query.mode) params.set("mode", query.mode);
+  params.set("page", String(Math.max(1, Math.floor(query.page ?? 1))));
+  params.set("limit", String(Math.max(1, Math.floor(query.limit ?? 20))));
+  return call(() => apiGet<unknown>(`/api/game/rooms?${params.toString()}`, opts), publicPageOf);
+}
+
+/**
+ * 进观众席。`POST /api/game/rooms/:code/spectate` → `{ already, spectators:{count}, room }`。
+ * ★ 不占座、不写成员表；**任何活着的房都能观战**（waiting / playing / over）。
+ * ★ 三种拒绝各有各的人话（判据在 `studio/game/spectate.spectateNoteOf`）：
+ *   已经参战 409 `ALREADY_IN_ROOM`（这时该"直接进房"，不是观战）/ 满 20 429
+ *   `TOO_MANY_SPECTATORS` / 急停 503 `GAME_SPECTATORS_OFF`。
+ */
+export async function spectate(code: string): Promise<RoomsResult<SpectateEntry>> {
+  return call(
+    () => apiPost<unknown>(`/api/game/rooms/${encodeURIComponent(code)}/spectate`, {}, opts),
+    (raw) => {
+      const r = asRecord(raw);
+      const room = roomOf(r?.room);
+      if (!r || !room) return null;
+      return {
+        room,
+        already: r.already === true,
+        spectators: numOf(asRecord(r.spectators)?.count) ?? room.spectatorCount,
+      };
+    },
+  );
+}
+
+/** 出观众席。`POST /api/game/rooms/:code/spectate/leave` → `{ left }`（幂等：本来不在席上也 200）。 */
+export async function leaveSpectate(code: string): Promise<RoomsResult<{ left: boolean }>> {
+  return call(
+    () => apiPost<unknown>(`/api/game/rooms/${encodeURIComponent(code)}/spectate/leave`, {}, opts),
+    (raw) => {
+      const r = asRecord(raw);
+      if (!r) return null;
+      return { left: r.left === true };
+    },
+  );
+}
+
+/**
+ * 这台服务端有没有**公开房列表**（能力位 `gamePublicRooms`）。
+ * ★ 唯一判据是 `data/serverCaps.serverGamePublicRooms()`；读不到 = 老服务端 = **不摆**入口。
+ *   与 `roomsAvailable()` 分成两个读法的理由：两个开关（GAME_ROOMS / GAME_PUBLIC_ROOMS）可以
+ *   单独急停 —— 房间照开、只是大厅不列出来。
+ */
+export function publicRoomsAvailable(): boolean {
+  return serverGamePublicRooms() === true;
+}
+
+/**
+ * 这台服务端有没有**观战**（能力位 `gameSpectators`）。
+ * ★ 读不到 = 老服务端 = **不摆「观战」键**（点了会 404）。公开房列表可以摆、观战键不摆 ——
+ *   两个开关各自独立。
+ */
+export function spectateAvailable(): boolean {
+  return serverGameSpectators() === true;
 }
 
 // ────────────────────────────── 备注：没有「改人数」这一路 ──────────────────────────────

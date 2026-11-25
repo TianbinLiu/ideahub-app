@@ -43,15 +43,23 @@ import {
   joinRoom,
   kickMember,
   leaveRoom as leaveRemoteRoom,
+  listPublicRooms,
+  publicRoomsAvailable,
   readRoom,
   readQueue,
   roomsAvailable,
+  spectate as spectateRemoteRoom,
+  spectateAvailable,
   setReady as setRemoteReady,
   startRoom,
   type MatchTicket,
+  type PublicRoomRow,
   type RemoteRoom,
+  type RemoteRoomState,
   type RoomsFailure,
+  type SpectateEntry,
 } from "../../api/game/rooms";
+import { PUBLIC_ROOMS_PAGE_SIZE, spectateNoteOf } from "./spectate";
 import { currentUser } from "../../data/account";
 import { probeServerCaps } from "../../data/serverCaps";
 
@@ -104,6 +112,26 @@ export type LobbyNote =
   | { kind: "sync-failed" }
   /** 房间快照这一拍没读回来，正在重试（`pollRoom` 的临时原因，成功就收掉） */
   | { kind: "syncing" }
+  /**
+   * 观众**在写端点**上被拒（403 `SPECTATOR_NOT_ALLOWED`，2026-11-24）。
+   * ★ 观战屏一个写操作都不摆，这一条是兜底：真撞上时要说「观战不能操作这个」，
+   *   而不是让那颗按键看起来"点了没反应"。
+   */
+  | { kind: "spectator-not-allowed" }
+  /** 观众席满了（429 `TOO_MANY_SPECTATORS`，上限 20）：等有人离席再来 */
+  | { kind: "spectators-full" }
+  /**
+   * 服务端说"你已经是这间房的玩家"（409 `ALREADY_IN_ROOM`，观战那一发）。
+   * ★ 与 `in-room`（建房 / 进房 / 排队撞上）分开：这一条的动作是**直接进房**看自己那一局，
+   *   不是"退出那间房再重试"。`code` = 那间房的房号（拿不到时 null）。
+   */
+  | { kind: "already-player"; code: string | null }
+  /** 房间已经不在了（404 `ROOM_NOT_FOUND`）/ 还没有回合（404 `ROUND_NOT_FOUND`）：这间房现在没得看 */
+  | { kind: "gone" }
+  /** 这台服务器把观战关了（503 `GAME_SPECTATORS_OFF`） */
+  | { kind: "spectate-off" }
+  /** 这台服务器把公开房列表关了（503 `GAME_PUBLIC_ROOMS_OFF`） */
+  | { kind: "public-rooms-off" }
   | { kind: "code"; code: string };
 
 /** 被 ALREADY_IN_ROOM 挡住的那一下本来想干什么（退出那间房之后按原意重试一次） */
@@ -139,6 +167,27 @@ export interface LobbyStore {
   busy: boolean;
   /** 加入房间的输入框（6 位字母数字，服务端大小写不敏感） */
   joinCode: string;
+  /**
+   * 建房时勾没勾「公开这间房」（2026-11-24，缺省关）。
+   * ★ 只在**建房那一刻**有用：服务端的 `visibility` 建完不能改（没有改这个的端点），
+   *   所以它是一个开关、不是房间上的一格状态；建完房就随大厅一起清掉。
+   */
+  publicRoomOn: boolean;
+  /**
+   * 公开房列表这一屏（2026-11-24，`screen === "public"`）。
+   * ★ 数据放 store 而不是 Lobby 组件的 useState：换屏 / 下拉刷新 / 滚到底加载更多是同一个列表的
+   *   三拍，放在组件里会多出一份"离开再回来要重置"的逻辑；store 里由 `openPublicRooms` 一处清。
+   */
+  publicRooms: PublicRoomRow[];
+  publicTotal: number;
+  publicHasMore: boolean;
+  publicPage: number;
+  /** 正在看哪一种状态的房（三个页签：等真人 / 进行中 / 已结束） */
+  publicState: RemoteRoomState;
+  /** 列表正在干什么（null 那几颗键据此灰掉，别让人连点） */
+  publicLoading: "idle" | "refresh" | "more" | "spectate";
+  /** 列表自己的那句原因（与底栏共用一份 LobbyNote；成功那拍清掉） */
+  publicNote: LobbyNote | null;
   /**
    * 最近一次**成功**读到服务端房间快照的时刻（0 = 这一屏从没读到过）。
    * ★ 房主开局要用它判"这一份人数还新不新鲜"（`hostStartPlanOf`）：陈旧数据不许决定开局模式。
@@ -176,6 +225,26 @@ export interface LobbyStore {
   /** 凭房间码加入别人的房间（联机不可用 / 码不对都在底栏说一句，不离屏） */
   joinByCode: (code?: string) => void;
   setJoinCode: (code: string) => void;
+  /** 「公开这间房（别人能搜到）」开关（建房时用；缺省关） */
+  togglePublicRoom: () => void;
+  /** 打开公开房列表那一屏（清列表 → 读第一页） */
+  openPublicRooms: () => void;
+  /** 换一个状态页签（等真人 / 进行中 / 已结束）：清列表 → 读第一页 */
+  pickPublicState: (state: RemoteRoomState) => void;
+  /** 读第一页（进屏 / 下拉刷新 / 那颗「刷新」键） */
+  refreshPublicRooms: () => Promise<void>;
+  /** 滚到底加载下一页；没有更多 / 正在读 / 不在这一屏都直接回 */
+  loadMorePublicRooms: () => Promise<void>;
+  /** 列表里点「加入」：与凭码加入同一条路（服务端回包就是房间快照） */
+  joinPublicRoom: (code: string) => void;
+  /**
+   * 列表里点「观战」：`POST /rooms/:code/spectate`。
+   * ★ 失败原因写进 `publicNote`（三种拒绝各有各的话，见 spectate.spectateNoteOf）；
+   *   成功把整份回包交给调用方 —— 观战屏自己那一份状态在 studio/game/spectateStore
+   *   （不在这里：大厅 store 不该认识"观战屏开着没有"）。
+   * ★ 已经是这间房的玩家（409）额外摆一颗「直接进房」的键（判据是 note.kind）。
+   */
+  enterSpectate: (code: string) => Promise<SpectateEntry | null>;
   /** 回到大厅首屏（房间还开着的话按"离开房间"处理：房主离开 = 散房） */
   backHome: () => void;
 
@@ -317,6 +386,22 @@ function sameRoomCode(a: string | null | undefined, b: string | null | undefined
   return !!a && !!b && a.toUpperCase() === b.toUpperCase();
 }
 
+/**
+ * 离开公开房列表时把那一份状态清成的样子。
+ * ★ 定义在一处、三处 set（openLobby / closeLobby / backHome）共用：漏清一格就会
+ *   "关掉大厅再打开，列表还是上一轮那几间房 + 上一轮的错误"。
+ * ★ `publicState` 不在这里：刷新 / 加载更多要保住当前页签，换屏才归位（见 PUBLIC_STATE_RESET）。
+ */
+const PUBLIC_LIST_IDLE = {
+  publicRooms: [] as PublicRoomRow[],
+  publicTotal: 0,
+  publicHasMore: false,
+  publicPage: 1,
+  publicLoading: "idle" as const,
+  publicNote: null,
+};
+const PUBLIC_STATE_RESET = { ...PUBLIC_LIST_IDLE, publicState: "waiting" as RemoteRoomState };
+
 /** 开一间本机房间（AI 补位；联机不可用 / 中途掉线时退回它）。 */
 function localRoomOf(size: number, codeSeed = freshSeed()): LobbyRoom | null {
   const created = createRoom({ code: roomCodeOf(createRng(codeSeed)), hostId: LOCAL_SEAT_ID, size, online: false });
@@ -414,6 +499,8 @@ export const useLobby = create<LobbyStore>((set, get) => {
     note: null,
     busy: false,
     joinCode: "",
+    publicRoomOn: false,
+    ...PUBLIC_STATE_RESET,
     roomSyncedAt: 0,
     stuckRoomCode: null,
     roomFailStreak: 0,
@@ -437,6 +524,8 @@ export const useLobby = create<LobbyStore>((set, get) => {
         note: null,
         busy: false,
         joinCode: "",
+        publicRoomOn: false,
+        ...PUBLIC_STATE_RESET,
         roomSyncedAt: 0,
         roomFailStreak: 0,
       });
@@ -471,6 +560,8 @@ export const useLobby = create<LobbyStore>((set, get) => {
         note: null,
         busy: false,
         joinCode: "",
+        publicRoomOn: false,
+        ...PUBLIC_STATE_RESET,
         roomSyncedAt: 0,
         roomFailStreak: 0,
       });
@@ -564,7 +655,11 @@ export const useLobby = create<LobbyStore>((set, get) => {
           get().toLocalRoom({ kind: "offline" });
           return;
         }
-        const res = await createRemoteRoom({ mode: "custom", size: DEFAULT_ROOM_SIZE });
+        // ★ 「公开这间房」只在**能力位为真**时发出去（老服务端不认这一位）：缺省 private，
+        //   这一格为假 / 没勾都一个字段都不多带 —— 反过来的话每个老版本用户的自定义房都会
+        //   静默摆到大厅上（服务端契约「建房带 visibility」）。
+        const visibility = get().publicRoomOn && publicRoomsAvailable() ? ("public" as const) : undefined;
+        const res = await createRemoteRoom({ mode: "custom", size: DEFAULT_ROOM_SIZE, visibility });
         if (!get().open) {
           set({ busy: false });
           return;
@@ -575,7 +670,7 @@ export const useLobby = create<LobbyStore>((set, get) => {
           //   建房对同一账号是幂等的（一人只能在一间房）：重发一次，要么真建成，要么服务端
           //   回 ALREADY_IN_ROOM + 那间房的房号 —— 后者说明第一次其实成了，正好拿它当"你还在房间 X"。
           if (res.reason === "unavailable" && res.timeout) {
-            const retry = await createRemoteRoom({ mode: "custom", size: DEFAULT_ROOM_SIZE });
+            const retry = await createRemoteRoom({ mode: "custom", size: DEFAULT_ROOM_SIZE, visibility });
             if (!get().open) {
               set({ busy: false });
               return;
@@ -626,6 +721,118 @@ export const useLobby = create<LobbyStore>((set, get) => {
     },
 
     setJoinCode: (code) => set({ joinCode: code }),
+
+    togglePublicRoom: () => set((s) => ({ publicRoomOn: !s.publicRoomOn })),
+
+    openPublicRooms: () => {
+      if (!get().open) return;
+      set({
+        screen: "public",
+        mode: null,
+        matchSize: null,
+        room: null,
+        online: false,
+        remoteRoom: null,
+        queue: null,
+        matchStartedAt: 0,
+        rejection: null,
+        inviteOpen: false,
+        busy: false,
+        note: null,
+        ...PUBLIC_STATE_RESET,
+      });
+      void get().refreshPublicRooms();
+    },
+
+    pickPublicState: (state) => {
+      if (get().publicState === state) return;
+      // 换页签 = 换一份列表：旧的几百行不能留着（看着像"这一页签也有这些房"）
+      set({ publicState: state, ...PUBLIC_LIST_IDLE });
+      void get().refreshPublicRooms();
+    },
+
+    refreshPublicRooms: async () => {
+      if (!get().open || get().screen !== "public") return;
+      if (get().publicLoading !== "idle") return;
+      set({ publicLoading: "refresh" });
+      const state = get().publicState;
+      const res = await listPublicRooms({ state, page: 1, limit: PUBLIC_ROOMS_PAGE_SIZE });
+      // 拉回来时可能已经换了屏签 / 离开了这一屏：这一份作废（不把旧页签的房写进新页签）
+      if (!get().open || get().screen !== "public" || get().publicState !== state) {
+        set({ publicLoading: "idle" });
+        return;
+      }
+      if (!res.ok) {
+        // 失败时**不清**已经读出来的那几行：下拉刷新撞上一次网络抖动，把看了一半的列表清空
+        // 是最坏的一种"没连上"——留着旧行 + 一句原因，人还能照着房号去试。
+        set({ publicLoading: "idle", publicNote: spectateNoteOf(res) });
+        return;
+      }
+      set({
+        publicLoading: "idle",
+        publicRooms: res.value.rooms,
+        publicTotal: res.value.total,
+        publicHasMore: res.value.hasMore,
+        publicPage: res.value.page,
+        publicNote: null,
+      });
+    },
+
+    loadMorePublicRooms: async () => {
+      const { open, screen, publicLoading, publicHasMore } = get();
+      if (!open || screen !== "public" || publicLoading !== "idle" || !publicHasMore) return;
+      set({ publicLoading: "more" });
+      const state = get().publicState;
+      const page = get().publicPage + 1;
+      const res = await listPublicRooms({ state, page, limit: PUBLIC_ROOMS_PAGE_SIZE });
+      if (!get().open || get().screen !== "public" || get().publicState !== state) {
+        set({ publicLoading: "idle" });
+        return;
+      }
+      if (!res.ok) {
+        set({ publicLoading: "idle", publicNote: spectateNoteOf(res) });
+        return;
+      }
+      // ★ 按房号去重：列表是实时现查的，翻页期间有人新建房会把整页往后挤一格 ——
+      //   服务端保证的是"同一秒按 _id 兜底"，跨请求的位移它管不了；重复行会让同一间房出现两次。
+      const seen = new Set(get().publicRooms.map((room) => room.code));
+      const more = res.value.rooms.filter((room) => !seen.has(room.code));
+      set({
+        publicLoading: "idle",
+        publicRooms: [...get().publicRooms, ...more],
+        publicTotal: res.value.total,
+        publicHasMore: res.value.hasMore,
+        publicPage: page,
+        publicNote: null,
+      });
+    },
+
+    joinPublicRoom: (code) => get().joinByCode(code),
+
+    enterSpectate: async (code) => {
+      if (!get().open) return null;
+      // 能力位是会话级缓存、问一次就有结论；为假时**一巴掌都不发**（老服务端点下去只有 404）
+      if (!spectateAvailable()) {
+        set({ publicNote: { kind: "spectate-off" } });
+        return null;
+      }
+      if (get().publicLoading !== "idle") return null;
+      set({ publicLoading: "spectate", publicNote: null });
+      const res = await spectateRemoteRoom(code);
+      if (!get().open) {
+        set({ publicLoading: "idle" });
+        return null;
+      }
+      if (!res.ok) {
+        // 三种拒绝在这里分开：403 观战不能操作这个 / 429 观战席位满了 /
+        // 409 你已经是这间房的玩家（界面据此给「直接进房」）—— 映射表在 spectate.spectateNoteOf
+        set({ publicLoading: "idle", publicNote: spectateNoteOf(res) });
+        return null;
+      }
+      set({ publicLoading: "idle", publicNote: null });
+      // 进席的那一份快照已经够画观战屏了；观战屏自己的轮询 / 历史在 ui/SpectateScreen 那一层
+      return res.value;
+    },
 
     joinByCode: (code) => {
       if (get().busy) return;
@@ -721,6 +928,8 @@ export const useLobby = create<LobbyStore>((set, get) => {
         inviteOpen: false,
         busy: false,
         note: null,
+        publicRoomOn: false,
+        ...PUBLIC_STATE_RESET,
         roomSyncedAt: 0,
         roomFailStreak: 0,
       });

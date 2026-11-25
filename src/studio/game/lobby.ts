@@ -57,8 +57,11 @@ export function seatIdsFor(playerCount: number): string[] {
 
 /** 大厅的三条入口（也是三种开局方式）。 */
 export type LobbyMode = "match4" | "match8" | "room";
-/** 大厅现在停在那一屏：入口 / 等匹配 / 房间里。 */
-export type LobbyScreen = "home" | "matching" | "room";
+/**
+ * 大厅现在停在那一屏：入口 / 等匹配 / 房间里 / **公开房列表**（2026-11-24 的第四张卡）。
+ * ★ `"public"` 只是一个列表屏，不改变任何开局规矩（选中的房点「加入」仍然走 `joinByCode` 那一条）。
+ */
+export type LobbyScreen = "home" | "matching" | "room" | "public";
 
 /**
  * 一个座位是谁：

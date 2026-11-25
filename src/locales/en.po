@@ -531,6 +531,10 @@ msgstr "‹ Mode"
 msgid "‹ 示例视频"
 msgstr "‹ Example video"
 
+#: src/studio/game/ui/PublicRooms.tsx
+msgid "‹ 返回"
+msgstr "‹ Back"
+
 #: src/components/flow/DialogueWizard.tsx
 #: src/components/flow/EffectWizard.tsx
 #: src/components/flow/GridShotsWizard.tsx
@@ -623,6 +627,10 @@ msgstr "(untitled)"
 #: src/pages/AdminPage.tsx
 msgid "（无用户名）"
 msgstr "(no username)"
+
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "（昵称读不到）"
+msgstr "(nickname unavailable)"
 
 #: src/data/templates.ts
 msgid "（服务端实际看了 {serverFrames} 帧，与本机算的 {frames} 帧不同，以服务端为准；价钱不受影响）"
@@ -966,6 +974,11 @@ msgstr "{0} is upscaled from 720P footage — a bigger file and a longer merge, 
 msgid "{0} 条作品还没传到服务器"
 msgstr "{0, plural, one {# video hasn't reached the server yet} other {# videos haven't reached the server yet}}"
 
+#. placeholder {0}: round.entries.length
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "{0} 条展映中"
+msgstr "{0} clips screening"
+
 #. placeholder {0}: commentCountOf(video)
 #: src/components/CommentSheet.tsx
 msgid "{0} 条评论"
@@ -1107,6 +1120,12 @@ msgstr "{0}/{1} · almost there"
 #: src/pages/tutor/TutorRunPage.tsx
 msgid "{0}/{1} · 通过了"
 msgstr "{0}/{1} · passed"
+
+#. placeholder {0}: room.members.length
+#. placeholder {1}: room.size
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "{0}/{1} 人"
+msgstr "{0}/{1} players"
 
 #. placeholder {0}: script.trim().length
 #. placeholder {1}: tierOf(tierId).label
@@ -3402,6 +3421,10 @@ msgstr "▶ Listen {0}s"
 msgid "▶ 返回游戏"
 msgstr "▶ Back to game"
 
+#: src/studio/game/ui/GameSettings.tsx
+msgid "▶ 返回观战"
+msgstr "▶ Back to spectating"
+
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "▸ 对不上怎么办？<0>多数情况删掉那个位子就行，不用重做</0>"
 msgstr "▸ What if they don't match? <0>Usually just delete that slot — no redo needed</0>"
@@ -3420,6 +3443,7 @@ msgstr "▾ Hide shop"
 
 #: src/studio/game/ui/OnlineScreeningPanel.tsx
 #: src/studio/game/ui/ScreeningPanel.tsx
+#: src/studio/game/ui/SpectateScreen.tsx
 msgid "◀ 上一条"
 msgstr "◀ Previous"
 
@@ -3915,6 +3939,7 @@ msgid "✕ 关掉"
 msgstr "✕ Close"
 
 #: src/studio/game/ui/MatchHistory.tsx
+#: src/studio/game/ui/SpectateScreen.tsx
 msgid "✕ 关闭"
 msgstr "✕ Close"
 
@@ -3929,6 +3954,14 @@ msgstr "✕ Back to Studio"
 #: src/studio/game/ui/GameSettings.tsx
 msgid "✕ 返回游戏"
 msgstr "✕ Back to game"
+
+#: src/studio/game/ui/GameSettings.tsx
+msgid "✕ 返回观战"
+msgstr "✕ Back to spectating"
+
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "✕ 退出观战"
+msgstr "✕ Leave spectating"
 
 #: src/studio/ui/modals.tsx
 msgid "✦ 全息实体 3D"
@@ -4502,6 +4535,10 @@ msgstr "📸 Capture frame"
 msgid "📼 先出样片（480p 预览，满意再定稿成 1080p）"
 msgstr "📼 Preview draft first (480p preview; finalize at 1080p if you like it)"
 
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "📼 历史回放"
+msgstr "📼 Match replay"
+
 #: src/studio/game/ui/MatchHistory.tsx
 msgid "📼 查看回放"
 msgstr "📼 View replay"
@@ -5018,6 +5055,7 @@ msgstr "Lay out cards on the 3D table and explore directions"
 #~ msgid "4 人 / 8 人匹配或开一间自定义房：每回合用卡和提示词出一条片，全员展映、点赞投票，按名次扣血，100 血打到只剩一人。"
 #~ msgstr "4- or 8-player matchmaking, or a custom room: each round you make a clip from your cards and a prompt, everyone watches, likes and votes, and the bottom places lose HP — 100 HP down to the last player standing."
 
+#: src/studio/game/lobbyReasons.ts
 #: src/studio/game/ui/Lobby.tsx
 msgid "4 人匹配"
 msgstr "4-player match"
@@ -5058,6 +5096,7 @@ msgstr "768p · can render straight from the cards' reference images (up to {max
 msgid "768p · 可直接用素材卡的形象参考图出片（一段最多 {max} 张图）· 出片一定带 AI 生成的环境音，不参考卡上的声音样本；没有往后延长、样片和白模模板"
 msgstr "768p · can render straight from the cards' reference images (up to {max} images per segment) · videos always come with AI-generated ambient sound; voice samples on cards aren't used. No extending, preview drafts or blockout templates"
 
+#: src/studio/game/lobbyReasons.ts
 #: src/studio/game/ui/Lobby.tsx
 msgid "8 人匹配"
 msgstr "8-player match"
@@ -5521,6 +5560,10 @@ msgstr "One vote each"
 #: src/components/flow/EffectWizard.tsx
 msgid "一件产品"
 msgstr "One product"
+
+#: src/studio/game/ui/PublicRooms.tsx
+msgid "一共 {total} 间"
+msgstr "{total} rooms in total"
 
 #: src/components/flow/DialogueWizard.tsx
 msgid "一句一段：那一句的机位画面当开头，按卡上的声音说出来。点机位可以换（拍听的人也行：说话的人在画外说）。"
@@ -6266,6 +6309,7 @@ msgstr "Next round you can shoot {0} segments"
 
 #: src/studio/game/ui/OnlineScreeningPanel.tsx
 #: src/studio/game/ui/ScreeningPanel.tsx
+#: src/studio/game/ui/SpectateScreen.tsx
 msgid "下一条 ▶"
 msgstr "Next ▶"
 
@@ -6429,6 +6473,18 @@ msgstr "Can’t download or install it? Open the download page on our website in
 #: src/pages/ProfilePage.tsx
 msgid "下单失败"
 msgstr "Couldn't place the order"
+
+#: src/studio/game/ui/PublicRooms.tsx
+msgid "下拉刷新"
+msgstr "Pull to refresh"
+
+#: src/studio/game/ui/PublicRooms.tsx
+msgid "下拉刷新 · 滚到底加载更多"
+msgstr "Pull to refresh · scroll to load more"
+
+#: src/studio/game/ui/PublicRooms.tsx
+msgid "下拉刷新或点「刷新」再试一次。"
+msgstr "Pull down or tap Refresh to try again."
 
 #: src/components/guide/tours.tsx
 msgid "下方<0>一格就是一个角色位</0>，「人物1」只是名字、<1>不是画面里从左到右的次序</1>。<2>先点一格，再点上面那排卡</2>（或把卡往下拖到格子上）；有框的模板点中时画面上那个框会亮。"
@@ -7202,6 +7258,10 @@ msgstr "Submitted: {0} cards + one prompt ({1}s)"
 msgid "交片后其他人也能看到：全员交片之后房主才能开始展映"
 msgstr "Once submitted, your entry is visible to everyone. The host can start the screening when all entries are in."
 
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "交片的画面要等房主开始展映才公开；这一屏每 2 秒跟一拍，届时自动切过去。"
+msgstr "Submissions stay private until the host starts screening; this screen updates every 2 seconds and switches over automatically."
+
 #: src/studio/ui/NpcDialog.tsx
 msgid "交给铸卡师炼卡"
 msgstr "Have the card smith forge"
@@ -7901,6 +7961,10 @@ msgstr "You're already in another room — leave that one first"
 #: src/components/recipe/RemixRewardNote.tsx
 msgid "你已经拿到过 {count} 次，共 {earned} token。"
 msgstr "{count, plural, one {You've received it # time} other {You've received it # times}}, {earned} tokens in total."
+
+#: src/studio/game/lobbyReasons.ts
+msgid "你已经是这间房的玩家，直接进房"
+msgstr "You're already a player in this room — enter it directly"
 
 #: src/studio/game/reasons.ts
 msgid "你已经淘汰了，不能再操作"
@@ -9071,9 +9135,19 @@ msgstr "Sharing the making-of isn't available yet."
 msgid "公开制作过程需要联网；这台设备当前是离线模式。"
 msgstr "Sharing the making-of needs a connection; this device is offline right now."
 
+#: src/studio/game/ui/Lobby.tsx
+#: src/studio/game/ui/PublicRooms.tsx
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "公开房"
+msgstr "Public rooms"
+
 #: src/pages/EditPage.tsx
 msgid "公开着的还是上一版的制作过程（这一版回炉后还没更新），别人现在看不到。"
 msgstr "The shared process is still the previous version (not updated since this revision); nobody can see it right now."
+
+#: src/studio/game/ui/Lobby.tsx
+msgid "公开这间房（别人能搜到）"
+msgstr "Make this room public (others can find it)"
 
 #. placeholder {0}: bars.length
 #. placeholder {0}: state.round
@@ -9216,6 +9290,10 @@ msgstr "Close director's stage"
 #: src/components/DanmakuInput.tsx
 msgid "关闭弹幕显示"
 msgstr "Hide bullet comments"
+
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "关闭播放"
+msgstr "Close playback"
 
 #: src/components/support/SafetyCard.tsx
 msgid "关闭求助卡"
@@ -9809,6 +9887,7 @@ msgstr "Cast: {leadName} (lead), {others}"
 
 #: src/studio/game/ui/PlayerPanel.tsx
 #: src/studio/game/ui/RoundResultPanel.tsx
+#: src/studio/game/ui/SpectateScreen.tsx
 msgid "出局"
 msgstr "Out"
 
@@ -10290,8 +10369,13 @@ msgstr "Just touched: {hitText}"
 #: src/components/TabBar.tsx
 #: src/pages/SupportPage.tsx
 #: src/studio/game/labels.ts
+#: src/studio/game/ui/SpectateScreen.tsx
 msgid "创作"
 msgstr "Create"
+
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "创作中"
+msgstr "Creating"
 
 #: src/pages/SettingsPage.tsx
 #: src/pages/SupportCreatePage.tsx
@@ -10633,6 +10717,7 @@ msgstr "The making-of lives on the server and this device is offline right now; 
 
 #: src/components/support/AdminTicketsView.tsx
 #: src/pages/AdminPage.tsx
+#: src/studio/game/ui/PublicRooms.tsx
 msgid "刷新"
 msgstr "Refresh"
 
@@ -10797,6 +10882,10 @@ msgstr "The draft being edited was closed or replaced: this segment's redone vid
 msgid "剪辑稿没能存进本地库：上一条剪到一半的成片还没读出来，存下去会把它盖掉。先去「我的」点「重试」。"
 msgstr "the edit couldn't be saved on this device: your previous half-edited video hasn't loaded yet, and saving would overwrite it. Go to “Me” and tap “Retry” first."
 
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "剩余血"
+msgstr "HP left"
+
 #: src/components/cut/CutAgentSheet.tsx
 msgid "办"
 msgstr "Go"
@@ -10834,6 +10923,10 @@ msgstr "Add a topic so people can find this (press Enter between topics)"
 msgid "加了第 {0} 段"
 msgstr "Added segment {0}"
 
+#: src/studio/game/ui/PublicRooms.tsx
+msgid "加入"
+msgstr "Join"
+
 #: src/studio/ui/modals.tsx
 msgid "加入我的卡组"
 msgstr "Add to my deck"
@@ -10863,6 +10956,7 @@ msgstr "Loading…"
 #: src/components/support/VoiceMarket.tsx
 #: src/pages/SupportModelsPage.tsx
 #: src/pages/SupportPersonasPage.tsx
+#: src/studio/game/ui/PublicRooms.tsx
 msgid "加载更多"
 msgstr "Load more"
 
@@ -11047,6 +11141,7 @@ msgid "占位投稿：这一回合没交片"
 msgstr "Placeholder entry: no video was submitted this round"
 
 #: src/studio/game/ui/MatchHistory.tsx
+#: src/studio/game/ui/SpectateScreen.tsx
 msgid "占位片，没有成片"
 msgstr "Placeholder clip — no finished video"
 
@@ -11345,6 +11440,18 @@ msgstr "Remove: drag the “🧹 Remove” tool at the top of the right rail ont
 msgid "卸下了，道具回到背包"
 msgstr "Unequipped — the item is back in your bag"
 
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "历史回放"
+msgstr "Match replay"
+
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "历史回放正在读取…"
+msgstr "Loading the match replay…"
+
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "历史回放里有 {rounds} 个回合的片子与结算（底栏「📼 历史回放」）。"
+msgstr "The replay has clips and results for {rounds} rounds (📼 Match replay in the footer)."
+
 #: src/studio/structuredSkills.ts
 msgid "原 / 新逐段对照，不想改的段勾掉；点了才写回"
 msgstr "Compare old and new segment by segment, untick the ones to keep; nothing is written back until you tap"
@@ -11513,6 +11620,10 @@ msgstr "Fix"
 #: src/pages/WorkshopMinePage.tsx
 msgid "去市场看看"
 msgstr "Browse the market"
+
+#: src/studio/game/ui/PublicRooms.tsx
+msgid "去建房"
+msgstr "Create a room"
 
 #: src/components/UpdateSheet.tsx
 msgid "去开启「允许安装未知应用」"
@@ -12511,6 +12622,10 @@ msgstr "Speak only"
 msgid "只说话、不播动作"
 msgstr "speak only, no motion"
 
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "只读展映 · 排片顺序来自服务端"
+msgstr "Read-only screening · the order comes from the server"
+
 #: src/components/flow/DialogueWizard.tsx
 #: src/components/flow/GridShotsWizard.tsx
 msgid "只铺成这 {segN} 段，先不出片"
@@ -12890,6 +13005,10 @@ msgstr "Name (required, up to {NAME_MAX} characters)"
 #: src/components/flow/CastPicker.tsx
 msgid "名字（选填；台词按这个名字认说话人）"
 msgstr "Name (optional; lines are matched to speakers by this name)"
+
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "名次"
+msgstr "Rank"
 
 #: src/studio/game/ui/RoundResultPanel.tsx
 msgid "名次 = 两个榜相加（并列看投票）"
@@ -14627,6 +14746,7 @@ msgid "展开简介"
 msgstr "Show description"
 
 #: src/studio/game/labels.ts
+#: src/studio/game/ui/SpectateScreen.tsx
 msgid "展映"
 msgstr "Screening"
 
@@ -14873,6 +14993,15 @@ msgstr "Sold"
 #: src/studio/game/ui/PlayerPanel.tsx
 msgid "已交"
 msgstr "Sent"
+
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "已交片"
+msgstr "Submitted"
+
+#. placeholder {0}: round.entries.length
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "已交片 {0} 人"
+msgstr "{0} players submitted"
 
 #: src/studio/game/ui/GameLayer.tsx
 msgid "已交片，等其他人"
@@ -15354,6 +15483,11 @@ msgstr "The {size} already downloaded is kept — tap again to resume instead of
 msgid "已经下好的一小截（不到 0.1MB）留着了，再点一次会接着下，不用从头来。"
 msgstr "The small part already downloaded (under 0.1MB) is kept — tap again to resume instead of starting over."
 
+#. placeholder {0}: round.entries.length
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "已经交片 {0} / {alive} 人。"
+msgstr "{0} of {alive} players have submitted."
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "已经公开到形象市场，别人能搜到它了。"
 msgstr "It's now public in the look market, and others can find it."
@@ -15491,13 +15625,20 @@ msgstr "{LEAD_CAST_MAX} people is the limit: the official guide says more than 4
 msgid "已经选满 {max} 个人，「{name}」收进了卡片库但没选上——先取下一个再点它"
 msgstr "You’ve already picked {max} people, so “{name}” was saved to your library but not picked — remove someone first, then tap it"
 
+#: src/studio/game/lobbyReasons.ts
 #: src/studio/game/ui/MatchHistory.tsx
 msgid "已结束"
 msgstr "Finished"
 
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "已结算"
+msgstr "Settled"
+
 #. placeholder {0}: history.summary.roundsPlayed
 #. placeholder {1}: history.rounds.length
+#. placeholder {1}: rounds.length
 #: src/studio/game/ui/MatchHistory.tsx
+#: src/studio/game/ui/SpectateScreen.tsx
 msgid "已结算 {0} / {1} 回合"
 msgstr "{0} of {1} rounds settled"
 
@@ -16757,12 +16898,17 @@ msgid "截帧中…"
 msgstr "Capturing…"
 
 #: src/studio/game/ui/RoomScreen.tsx
+#: src/studio/game/ui/SpectateScreen.tsx
 msgid "房主"
 msgstr "Host"
 
 #: src/studio/game/ui/PlayerPanel.tsx
 #~ msgid "房主：这一局由他推进阶段"
 #~ msgstr "Host: advances the phases of this game"
+
+#: src/studio/game/ui/PublicRooms.tsx
+msgid "房主（昵称读不到）"
+msgstr "Host (nickname unavailable)"
 
 #: src/studio/game/lobbyReasons.ts
 msgid "房主不用准备：点「开始对局」就是表态"
@@ -16776,9 +16922,18 @@ msgstr "The host cannot kick themselves — tap Leave room instead"
 msgid "房主开局"
 msgstr "Host starts"
 
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "房主点开始之后，这里会跟着服务端一回合一一回合地走；展映 / 投票 / 结算都能看。"
+msgstr "Once the host starts, this follows the server round by round; you can watch screening, voting and results."
+
 #: src/studio/game/ui/RoomScreen.tsx
 msgid "房间二维码"
 msgstr "Room QR code"
+
+#. placeholder {0}: note.code
+#: src/studio/game/ui/PublicRooms.tsx
+msgid "房间服务回了没见过的错误：{0}"
+msgstr "The room service returned an unknown error: {0}"
 
 #: src/studio/game/lobbyReasons.ts
 msgid "房间服务回了没见过的错误：{code}"
@@ -16951,6 +17106,10 @@ msgstr "The {0} tokens charged have been refunded"
 #: src/pages/NotificationsPage.tsx
 msgid "扣的 token 已经退回"
 msgstr "The tokens charged have been refunded"
+
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "扣血"
+msgstr "Damage"
 
 #. placeholder {0}: p.costLabel
 #: src/components/flow/FlowCanvas.tsx
@@ -17201,8 +17360,17 @@ msgstr "Describe how this card looks in detail: shape, materials, colors, lighti
 msgid "抒情民谣"
 msgstr "Ballad"
 
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "投榜"
+msgstr "Vote rank"
+
 #: src/studio/game/labels.ts
+#: src/studio/game/ui/SpectateScreen.tsx
 msgid "投票"
+msgstr "Voting"
+
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "投票中"
 msgstr "Voting"
 
 #: src/api/admin.ts
@@ -20685,6 +20853,10 @@ msgstr "Fast"
 msgid "极限滑板"
 msgstr "Extreme skate"
 
+#: src/studio/game/ui/PublicRooms.tsx
+msgid "松开刷新"
+msgstr "Release to refresh"
+
 #: src/components/support/HoldToTalk.tsx
 msgid "松开发送"
 msgstr "Release to send"
@@ -20951,6 +21123,10 @@ msgstr "No segments on the table yet — tap the dashed slot to make the first o
 #~ msgid "桌上还没有段——先点虚线卡位铸第一段，或去模板市场挑一个「用它出片」。"
 #~ msgstr "There are no segments on the table yet — tap the dashed slot to forge the first one, or pick one in the Template market and tap “Use this template”."
 
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "桌面"
+msgstr "Table"
+
 #: src/studio/game/ui/PhaseBar.tsx
 msgid "桌面上摆好卡、写一句提示词，点「🎬 视频生成」真出片（或交占位片）"
 msgstr "Place your cards on the table, write a prompt, and hit 「🎬 Generate video」 for a real clip (or submit a placeholder)"
@@ -21041,6 +21217,10 @@ msgstr "brown"
 #: src/studio/game/ui/RoundResultPanel.tsx
 msgid "榜与扣血来自服务端"
 msgstr "Rankings and damage come from the server"
+
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "榜由服务端结算"
+msgstr "Rankings are settled by the server"
 
 #. placeholder {0}: tierModelLabel(tierOf(editor.videoTier))
 #: src/studio/ui/projection.tsx
@@ -21545,6 +21725,14 @@ msgstr "Generating…"
 msgid "正在删除…"
 msgstr "Deleting…"
 
+#: src/studio/game/ui/PublicRooms.tsx
+msgid "正在刷新…"
+msgstr "Refreshing…"
+
+#: src/studio/game/ui/PublicRooms.tsx
+msgid "正在加载更多…"
+msgstr "Loading more…"
+
 #: src/pages/SupportModelNewPage.tsx
 msgid "正在加载这个包…"
 msgstr "Loading this bundle…"
@@ -21956,6 +22144,10 @@ msgstr "Reading image…"
 #: src/studio/game/ui/Lobby.tsx
 msgid "正在进匹配队列…"
 msgstr "Joining the matchmaking queue…"
+
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "正在进观众席…"
+msgstr "Taking a spectator seat…"
 
 #: src/studio/game/ui/Lobby.tsx
 msgid "正在连房间服务…"
@@ -22921,6 +23113,10 @@ msgstr "Which clip? Select one first, or name it by number, like “clip 2”"
 msgid "没读出识别结果。{moneyLine}可以自己填，或者再识别一次"
 msgstr "The recognition result couldn't be read. {moneyLine} Fill it in yourself, or recognize again"
 
+#: src/studio/game/ui/PublicRooms.tsx
+msgid "没读到公开房列表"
+msgstr "Couldn't load the public room list"
+
 #: src/studio/game/lobbyReasons.ts
 msgid "没读到最新的房间状态：先别开，等连上再试"
 msgstr "Couldn't read the latest room state — don't start yet; try again once connected"
@@ -22948,6 +23144,10 @@ msgstr "Couldn't reach the replay service"
 #: src/studio/game/lobbyReasons.ts
 msgid "没连上房间服务，先用 AI 开局"
 msgstr "Couldn't reach the room service — starting with AI"
+
+#: src/studio/game/ui/PublicRooms.tsx
+msgid "没连上房间服务：可能是网络抖了一下，过一会儿再刷新。"
+msgstr "Can't reach the room service — the network may have hiccuped; refresh again in a moment."
 
 #: src/studio/game/ui/Lobby.tsx
 msgid "没连上房间服务：现在开局一律由 AI 陪玩补位。"
@@ -23484,6 +23684,10 @@ msgstr "Tap a voice to hear it"
 msgid "点一条播我这一回合交的片子"
 msgstr "Tap one to play the clip I submitted that round"
 
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "点一条看这一回合的片子"
+msgstr "Tap a clip to watch this round"
+
 #: src/studio/game/ui/GameLayer.tsx
 msgid "点了个赞"
 msgstr "Liked it"
@@ -24012,6 +24216,7 @@ msgstr "Status: {status} — tap “Recover” again in a few minutes. This run 
 
 #: src/studio/game/ui/MatchHistory.tsx
 #: src/studio/game/ui/PlayerPanel.tsx
+#: src/studio/game/ui/SpectateScreen.tsx
 msgid "玩家"
 msgstr "Players"
 
@@ -24088,6 +24293,10 @@ msgstr "This is demo mode (no model connected), so only plain commands are under
 #: src/components/cut/AutoEditSheet.tsx
 msgid "现在是演示模式（没有连上模型）：每段只取画面描述的第一句当底稿，不收 token。"
 msgstr "This is demo mode (no model connected): each clip just gets the first sentence of its description as a draft, and no tokens are charged."
+
+#: src/studio/game/ui/PublicRooms.tsx
+msgid "现在没有公开房"
+msgstr "No public rooms right now"
 
 #: src/components/CardModelFit.tsx
 #: src/pages/DeckDetailPage.tsx
@@ -25409,6 +25618,10 @@ msgstr "The cards' reference images go straight to the “{tierLabel}” tier fo
 msgid "直接用原片裁剪，不让 AI 画（这一格不花钱）"
 msgstr "Use the original crop directly instead of having the AI draw it (this slot is free)"
 
+#: src/studio/game/ui/Lobby.tsx
+msgid "直接进房"
+msgstr "Enter room"
+
 #: src/components/cut/CutAgentSheet.tsx
 msgid "直白的句式当场就办、不花钱；听不懂的才问一次模型（{price} token）。"
 msgstr "Plain commands are done on the spot for free; only what isn't understood goes to the model, once ({price} tokens)."
@@ -25462,6 +25675,14 @@ msgstr "No visible change"
 #: src/pages/WorkshopPage.tsx
 msgid "看全部"
 msgstr "Show all"
+
+#: src/studio/game/ui/Lobby.tsx
+msgid "看列表 ›"
+msgstr "View list ›"
+
+#: src/studio/game/ui/Lobby.tsx
+msgid "看别人开的房，加入或观战"
+msgstr "Browse rooms others opened — join or spectate"
 
 #: src/pages/PublishPage.tsx
 msgid "看到这条片子的人能点「查看制作过程」看每一段的剧情、档位、时长与卡组，并按这条流程做同款。你的原话、没选中的方案、圈选与导演台都不会给出去。"
@@ -25518,6 +25739,7 @@ msgstr "If you like it, finalize: this same draft is upgraded to a 1080p video (
 #. placeholder {0}: dot + 1
 #: src/studio/game/ui/OnlineScreeningPanel.tsx
 #: src/studio/game/ui/ScreeningPanel.tsx
+#: src/studio/game/ui/SpectateScreen.tsx
 msgid "看第 {0} 条"
 msgstr "Show film {0}"
 
@@ -26160,6 +26382,7 @@ msgstr "Empty = starts from the real-person card's photo"
 
 #: src/studio/game/ui/CreatePanel.tsx
 #: src/studio/game/ui/RoomScreen.tsx
+#: src/studio/game/ui/SpectateScreen.tsx
 msgid "空位"
 msgstr "Empty"
 
@@ -26209,6 +26432,7 @@ msgid "空行分段；「# 标题」会自成一块"
 msgstr "Blank lines split paragraphs; a “# heading” becomes its own block"
 
 #: src/studio/game/ui/OnlineVotingPanel.tsx
+#: src/studio/game/ui/SpectateScreen.tsx
 #: src/studio/game/ui/VotingPanel.tsx
 msgid "空镜"
 msgstr "Empty shot"
@@ -26293,6 +26517,7 @@ msgstr "LOL"
 #. placeholder {1}: playlist.length
 #: src/studio/game/ui/OnlineScreeningPanel.tsx
 #: src/studio/game/ui/ScreeningPanel.tsx
+#: src/studio/game/ui/SpectateScreen.tsx
 msgid "第 {0} / {1} 条"
 msgstr "Film {0} / {1}"
 
@@ -26336,12 +26561,24 @@ msgstr "Voice {0}"
 
 #. placeholder {0}: bar.round
 #. placeholder {0}: event.round
-#. placeholder {0}: view.hud.round
+#. placeholder {0}: one.round
 #: src/studio/game/ui/EventPanel.tsx
 #: src/studio/game/ui/MatchHistory.tsx
 #: src/studio/game/ui/OnlineEventPanel.tsx
+#: src/studio/game/ui/SpectateScreen.tsx
 msgid "第 {0} 回合"
 msgstr "Round {0}"
+
+#. placeholder {0}: selected.round
+#. placeholder {1}: entry.name ?? entry.userId
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "第 {0} 回合 · {1}"
+msgstr "Round {0} · {1}"
+
+#. placeholder {0}: round.round
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "第 {0} 回合 · 创作中"
+msgstr "Round {0} · creating"
 
 #. placeholder {0}: bar.round
 #: src/studio/game/ui/MatchHistory.tsx
@@ -26352,6 +26589,11 @@ msgstr "Round {0} replay"
 #: src/studio/game/ui/PhaseBar.tsx
 msgid "第 {0} 回合结束"
 msgstr "End of round {0}"
+
+#. placeholder {0}: round.round
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "第 {0} 回合结算"
+msgstr "Round {0} results"
 
 #. placeholder {0}: state.round
 #: src/studio/game/ui/PhaseBar.tsx
@@ -27238,6 +27480,10 @@ msgstr "Second case: <0>two adjacent rows have their positions swapped</0> (the 
 #~ msgid "第二种：<0>相邻两行的位置排反了</0>（清单说他是从左数第 2 个， 画面上他其实是第 3 个）。把这两行的位置互换过来就行，同样不用重炼。"
 #~ msgstr "The second case: <0>two neighboring rows have their positions swapped</0> (the list says someone is 2nd from the left, but in the picture they're 3rd). Just swap the positions of those two rows — again, no re-render needed."
 
+#: src/studio/game/ui/PublicRooms.tsx
+msgid "等一会儿再看看，或者自己开一间公开房让别人搜到。"
+msgstr "Check back in a moment, or open your own public room so others can find it."
+
 #: src/ai/arkClient.ts
 msgid "等了 {minutes} 分钟还没出片。这不是失败：任务还在出片服务那边跑。"
 msgstr "No video after {minutes} minutes. This isn't a failure: the task is still running at the video service."
@@ -27327,6 +27573,10 @@ msgstr "Waiting for the host to start the screening"
 msgid "等房主开始投票"
 msgstr "Waiting for the host to start the vote"
 
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "等房主开第一回合、有人交片之后，这里按回合摆出片子与结算。"
+msgstr "Once the host starts the first round and clips are submitted, each round's clips and results will show here."
+
 #: src/studio/game/ui/PhaseBar.tsx
 msgid "等房主推进（要先全员交片）"
 msgstr "Waiting for the host (everyone must submit first)"
@@ -27343,6 +27593,7 @@ msgstr "Once players submit and rounds settle, replay cards will appear here rou
 msgid "等服务器更新后再来"
 msgstr "Come back after the server is updated"
 
+#: src/studio/game/lobbyReasons.ts
 #: src/studio/game/ui/Lobby.tsx
 msgid "等真人"
 msgstr "Waiting"
@@ -27707,6 +27958,14 @@ msgstr "The result was retrieved, but the template the server returned has no re
 msgid "结果就在这块屏幕上"
 msgstr "The result shows up here"
 
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "结算"
+msgstr "Results"
+
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "结算榜正在读取…（历史回合读回来就换上）"
+msgstr "Loading the results… (they swap in once the round history arrives)"
+
 #: src/mock/ai.ts
 msgid "绘制{name}…（{n}/{total}·演示）"
 msgstr "Drawing {name}… ({n}/{total} · demo)"
@@ -27861,6 +28120,10 @@ msgstr "Continue setup"
 #: src/studio/game/ui/GameSettings.tsx
 msgid "继续玩"
 msgstr "Keep playing"
+
+#: src/studio/game/ui/GameSettings.tsx
+msgid "继续观战"
+msgstr "Keep watching"
 
 #: src/studio/game/labels.ts
 msgid "绿"
@@ -28186,6 +28449,11 @@ msgstr "Background"
 msgid "背景卡"
 msgstr "Background card"
 
+#. placeholder {0}: names.join("、")
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "胜者：{0}"
+msgstr "Winner: {0}"
+
 #: src/studio/game/ui/RoundResultPanel.tsx
 msgid "胜者由服务端判定"
 msgstr "Winners are decided by the server"
@@ -28264,6 +28532,7 @@ msgstr "Auto-detect"
 msgid "自定义"
 msgstr "Custom"
 
+#: src/studio/game/lobbyReasons.ts
 #: src/studio/game/ui/Lobby.tsx
 msgid "自定义房间"
 msgstr "Custom room"
@@ -28764,6 +29033,46 @@ msgstr "The model package to check has neither a file nor a direct-upload ID (th
 msgid "见习冒险家 · 她"
 msgstr "Apprentice adventurer · she"
 
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "观众"
+msgstr "Spectators"
+
+#: src/studio/game/ui/PublicRooms.tsx
+msgid "观战"
+msgstr "Spectate"
+
+#: src/studio/game/lobbyReasons.ts
+msgid "观战不能操作这个"
+msgstr "Spectators can't do that"
+
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "观战中"
+msgstr "Spectating"
+
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "观战中：不能投票"
+msgstr "Spectating: voting is disabled"
+
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "观战中：不能点赞，也不能推进阶段。"
+msgstr "Spectating: you can't like or advance the phase."
+
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "观战中：只能看，不能操作。每一拍都跟服务端的回合走。"
+msgstr "Spectating: watch-only. Every tick follows the server's round state."
+
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "观战中：等房主开下一回合"
+msgstr "Spectating: waiting for the host to start the next round"
+
+#: src/studio/game/lobbyReasons.ts
+msgid "观战席位满了"
+msgstr "The spectator seats are full"
+
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "观战看不到牌面：服务端只给每人的片子和血量。"
+msgstr "Spectators can't see the board: the server only shares each player's clip and HP."
+
 #: src/components/TextTemplateSheet.tsx
 #: src/studio/ui/projection.tsx
 msgid "规格"
@@ -29028,6 +29337,7 @@ msgstr "Set as cover"
 #: src/pages/ProfilePage.tsx
 #: src/pages/SettingsPage.tsx
 #: src/studio/game/ui/GameSettings.tsx
+#: src/studio/game/ui/SpectateScreen.tsx
 #: src/studio/StudioPage.tsx
 msgid "设置"
 msgstr "Settings"
@@ -29035,6 +29345,10 @@ msgstr "Settings"
 #: src/studio/StudioPage.tsx
 msgid "设置：音量 / 画质 / 语言 / 操作提示 / 退出游戏"
 msgstr "Settings: volume / quality / language / gestures / leave the game"
+
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "设置：音量 / 画质 / 语言 / 退出观战"
+msgstr "Settings: audio / graphics / language / leave spectating"
 
 #: src/components/support/VoiceMarket.tsx
 msgid "设置中…"
@@ -29699,6 +30013,10 @@ msgstr "liked your video"
 msgid "赞了你的评论"
 msgstr "liked your comment"
 
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "赞榜"
+msgstr "Like rank"
+
 #: src/components/flow/EffectWizard.tsx
 msgid "走出壁画"
 msgstr "Mural escape"
@@ -29919,6 +30237,10 @@ msgstr "Output of {outSec}s exceeds 1.5× the input video ({inSec}s): renders wi
 msgid "边界"
 msgstr "Boundaries"
 
+#: src/studio/game/ui/PublicRooms.tsx
+msgid "过一会儿再刷新一次。"
+msgstr "Refresh again in a moment."
+
 #: src/components/flow/DialogueWizard.tsx
 msgid "过期了"
 msgstr "Out of date"
@@ -30053,6 +30375,10 @@ msgstr "Restore full segment"
 msgid "还在出片中——过几分钟再点一次「取回」。这一发的钱已经花过了，取回不再花一分钱"
 msgstr "Still rendering — tap “Recover” again in a few minutes. This run has already been paid for; recovering costs nothing more"
 
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "还在打"
+msgstr "Still playing"
+
 #: src/components/flow/ScriptSkillSheet.tsx
 msgid "还在拆：收起不会丢，好了顶上会提示；从「/」面板再打开就接得回来"
 msgstr "Still splitting: closing won't lose it — a banner at the top will tell you when it's done, and reopening from the “/” panel picks it back up"
@@ -30085,6 +30411,11 @@ msgstr "Can't save a draft yet (empty project or the write failed)"
 #: src/studio/game/ui/VotingPanel.tsx
 msgid "还差 {0} 个人表态——全员表态之后才能结算"
 msgstr "{0} still haven't had their say — settle once everyone has"
+
+#. placeholder {0}: round.votesPending
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "还差 {0} 人表态"
+msgstr "{0} players haven't voted yet"
 
 #. placeholder {0}: chosen.cost - gold
 #: src/studio/game/ui/EventPanel.tsx
@@ -30188,6 +30519,10 @@ msgstr "Can't load the blockout results that haven't been recovered yet (unstabl
 #: src/pages/CardDetailPage.tsx
 msgid "还没同步到服务端（{issue}）——换台设备暂时看不到，下次登录会自动补传。"
 msgstr "Not synced to the server yet ({issue}) — other devices won’t see it for now; it uploads automatically at your next sign-in."
+
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "还没开始第一回合"
+msgstr "The first round hasn't started"
 
 #: src/components/flow/GridShotsWizard.tsx
 msgid "还没挑"
@@ -30809,9 +31144,21 @@ msgstr "I have no clip for this round (rounds after elimination are run by AI)."
 msgid "这一回合没有别人的片子可投（只有你自己）"
 msgstr "There are no other entries to vote for this round (only yours)"
 
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "这一回合没有成片"
+msgstr "No finished clip for this round"
+
 #: src/studio/game/reasons.ts
 msgid "这一回合没有抽到事件"
 msgstr "No event was drawn this round"
+
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "这一回合没有片子。"
+msgstr "No clips for this round."
+
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "这一回合的片子可以去「历史回放」里逐条看。"
+msgstr "You can watch this round's clips one by one in 📼 Match replay."
 
 #: src/studio/game/roundsReasons.ts
 msgid "这一回合还没开（或者房间已经散了）"
@@ -30821,6 +31168,14 @@ msgstr "This round has not started (or the room is gone)"
 msgid "这一回合还没有人交片，结算不了"
 msgstr "No one has submitted this round, so it cannot be settled"
 
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "这一回合还没有收到片子——等玩家交片。"
+msgstr "No clips submitted for this round yet — waiting on players."
+
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "这一回合还没有片子。"
+msgstr "No clips for this round yet."
+
 #: src/studio/game/ui/RoundResultPanel.tsx
 msgid "这一回合还没有结算——先投票，再按「结算」。"
 msgstr "This round isn't settled yet — vote first, then tap “Settle”."
@@ -30828,6 +31183,10 @@ msgstr "This round isn't settled yet — vote first, then tap “Settle”."
 #: src/studio/game/ui/MatchHistory.tsx
 msgid "这一回合还没结算，影片还在路上。"
 msgstr "This round isn't settled yet; the clip is still on its way."
+
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "这一回合还没结算。"
+msgstr "This round hasn't been settled yet."
 
 #: src/studio/flowStore.ts
 msgid "这一套方案还没有剧情——先写点什么，我才知道要画成什么样"
@@ -30873,9 +31232,17 @@ msgstr "This chunk has been uploading for {hardMin} minutes and still isn't done
 msgid "这一小段有 {stallSec} 秒没传出去一个字节——网络断了或太不稳，换个网络再试"
 msgstr "This chunk hasn't sent a single byte in {stallSec} seconds — the connection dropped or is too unstable. Switch networks and try again"
 
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "这一局已经打完了"
+msgstr "This match is over"
+
 #: src/studio/game/roundsReasons.ts
 msgid "这一局已经结束了"
 msgstr "This game is already over"
+
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "这一局已结束"
+msgstr "This match has ended"
 
 #: src/studio/game/ui/GameSettings.tsx
 msgid "这一局当场结束、回到大厅；已经花掉的游戏券与 token 不退。"
@@ -30884,6 +31251,10 @@ msgstr "This match ends right now and you go back to the lobby; the game tickets
 #: src/studio/game/ui/PhaseBar.tsx
 msgid "这一局打完了"
 msgstr "This match is over"
+
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "这一局打完了（平局）"
+msgstr "The match is over (a draw)"
 
 #. placeholder {0}: remote?.memberCount ?? 0
 #: src/studio/game/ui/RoomScreen.tsx
@@ -30917,6 +31288,10 @@ msgstr "This game's online room has ended"
 #: src/studio/game/ui/GenPreview.tsx
 msgid "这一局还没有出过片——摆好卡，点「🎬 视频生成」先画首帧，再出片。"
 msgstr "No clips in this match yet — place your cards, hit 「🎬 Generate video」 to draw the first frame, then generate."
+
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "这一局还没有回合"
+msgstr "No rounds in this match yet"
 
 #: src/studio/game/ui/MatchHistory.tsx
 msgid "这一局还没有打完的回合"
@@ -31113,6 +31488,7 @@ msgid "这一条暂时收不起来：没能向上游核对到这一发的结局�
 msgstr "Can't dismiss this one yet: we couldn't confirm this run's outcome with upstream — tap “Got it” again in a moment (checking is free)."
 
 #: src/studio/game/ui/OnlineScreeningPanel.tsx
+#: src/studio/game/ui/SpectateScreen.tsx
 msgid "这一条的首帧"
 msgstr "The opening frame of this entry"
 
@@ -32299,6 +32675,10 @@ msgstr "Not in this phase — buying/selling/equipping is in the shop, submittin
 msgid "这个雨夜的光太顶了"
 msgstr "the lighting in this rain is unreal"
 
+#: src/studio/game/ui/PublicRooms.tsx
+msgid "这个页签下暂时没有房；换个页签看看，或者自己开一间。"
+msgstr "No rooms under this tab right now; try another tab or open your own."
+
 #: src/components/MaterialSheet.tsx
 msgid "这些卡本段已经有了"
 msgstr "This segment already has these cards"
@@ -32314,6 +32694,10 @@ msgstr "This content already cost tokens to generate — discard it and you'll h
 #: src/studio/studioStore.ts
 msgid "这些素材还差点意思，再补充点描述？"
 msgstr "These materials aren't quite enough — could you add some description?"
+
+#: src/studio/game/ui/GameSettings.tsx
+msgid "这些设置不影响这一局（画质下次进工坊生效）"
+msgstr "These settings don't affect this match (graphics apply next time you enter the studio)"
 
 #: src/studio/cutAgent.ts
 msgid "这件事不能对全部片段一起办，说一个编号"
@@ -32491,6 +32875,14 @@ msgstr "This server doesn't support detecting roles (the reply had the wrong sha
 msgid "这台服务器出片只接了 {via}"
 msgstr "This server only has {via} connected for video"
 
+#: src/studio/game/lobbyReasons.ts
+msgid "这台服务器把公开房列表关掉了"
+msgstr "This server has the public room list turned off"
+
+#: src/studio/game/ui/PublicRooms.tsx
+msgid "这台服务器把公开房列表关掉了。"
+msgstr "This server has the public room list turned off."
+
 #: src/studio/game/roundsReasons.ts
 msgid "这台服务器把回合服务关掉了"
 msgstr "This server has turned the round service off"
@@ -32498,6 +32890,10 @@ msgstr "This server has turned the round service off"
 #: src/studio/game/lobbyReasons.ts
 msgid "这台服务器把房间服务关掉了"
 msgstr "This server has turned the room service off"
+
+#: src/studio/game/lobbyReasons.ts
+msgid "这台服务器把观战关掉了"
+msgstr "This server has spectating turned off"
 
 #: src/studio/game/reasons.ts
 msgid "这台服务器暂时关掉了游戏券出片——这一发没有受理、也没有扣费；改成按 token 出片再试。"
@@ -33705,6 +34101,10 @@ msgid "这门课还没有可用的教材文本，回上一步传一份。"
 msgstr "This course has no usable material text yet; go back and upload one."
 
 #: src/studio/game/lobbyReasons.ts
+msgid "这间房已经不在了（可能刚解散或过期）"
+msgstr "This room is gone (it may have just closed or expired)"
+
+#: src/studio/game/lobbyReasons.ts
 msgid "这间房已经坐满了"
 msgstr "This room is full"
 
@@ -33725,7 +34125,9 @@ msgid "进卡的那一张"
 msgstr "Image for the card"
 
 #: src/components/support/AdminTicketsView.tsx
+#: src/studio/game/lobbyReasons.ts
 #: src/studio/game/ui/MatchHistory.tsx
+#: src/studio/game/ui/SpectateScreen.tsx
 msgid "进行中"
 msgstr "Active"
 
@@ -33786,6 +34188,10 @@ msgstr "Log out"
 #~ msgid "退出与存草稿"
 #~ msgstr "Leaving and saving drafts"
 
+#: src/studio/game/ui/GameSettings.tsx
+msgid "退出之后这一局照常打完；随时可以在大厅的公开房里再进来观战，观战不占座、也不影响这一局。"
+msgstr "The match keeps going after you leave; you can come back to spectate from the public room list anytime. Spectating doesn't take a seat or affect the match."
+
 #: src/pages/FeedPage.tsx
 #: src/pages/VideoPage.tsx
 msgid "退出全屏"
@@ -33818,6 +34224,15 @@ msgstr "Log out?"
 #: src/components/flow/FlowCanvas.tsx
 msgid "退出编辑"
 msgstr "Exit editing"
+
+#: src/studio/game/ui/GameSettings.tsx
+#: src/studio/game/ui/SpectateScreen.tsx
+msgid "退出观战"
+msgstr "Leave spectating"
+
+#: src/studio/game/ui/GameSettings.tsx
+msgid "退出观战？"
+msgstr "Leave spectating?"
 
 #: src/studio/game/ui/Lobby.tsx
 msgid "退出那间房"
@@ -34641,6 +35056,7 @@ msgstr "Re-detecting <0>overwrites the current descriptions</0> (including your 
 #: src/pages/VideoPage.tsx
 #: src/pages/WorkshopPage.tsx
 #: src/studio/game/ui/MatchHistory.tsx
+#: src/studio/game/ui/PublicRooms.tsx
 msgid "重试"
 msgstr "Retry"
 

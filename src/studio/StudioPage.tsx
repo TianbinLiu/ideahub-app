@@ -23,6 +23,7 @@ import GameLayer from "./game/ui/GameLayer";
 // 对局大厅（2026-11-23）：进对局之前先选开局方式（4 人匹配 / 8 人匹配 / 自定义房间）。
 // 它与 GameLayer 是**前后两屏**：大厅在"还没有 state"的那一拍，对局 UI 在有了 state 之后。
 import Lobby from "./game/ui/Lobby";
+import SpectateScreen from "./game/ui/SpectateScreen";
 // 对局内设置（2026-11-24）：顶栏 ⚙ 打开，整屏盖住对局 UI（音量 / 画质 / 语言 / 操作提示 / 退出游戏）。
 // 它挂在**页面**这一层而不是 GameLayer 里：选风格那一屏 GameLayer 是早退的（只画 StylePick），
 // 挂在那儿的话在那一屏点 ⚙ 会"点了没反应"。
@@ -35,6 +36,7 @@ import { useHistory } from "./game/historyStore";
 // 退出对局那一下（退房 + 收局 + 开大厅）的唯一实现，与设置页的「退出游戏」共用
 import { quitGameToLobby } from "./game/ui/quitGame";
 import { useLobby } from "./game/lobbyStore";
+import { useSpectate } from "./game/spectateStore";
 import { useGame } from "./game/store";
 // 对局那份「跟着做一局」的重看入口（2026-11-24）：顶栏那颗 `?`。
 // ★ 不放在 GameLayer 里：那一层在选风格那一屏是早退的，而 `?` 该在整局里都在。
@@ -302,6 +304,12 @@ export default function StudioPage() {
    */
   const lobbyOpen = useLobby((s) => s.open);
   /**
+   * 观战屏开着没有（2026-11-24）：从大厅的公开房列表点「观战」进来。
+   * ★ 与大厅同样进 canvasCovered：它也是铺满舞台的实底，盖着的时候 3D 桌面一帧都看不见、电却照烧。
+   * ★ 观战**不设 inGame**（本机没有这一局的 state）：它是大厅之上另开的一层（z-45 盖住 z-40 的大厅）。
+   */
+  const spectateOpen = useSpectate((s) => s.open);
+  /**
    * 离开 `/studio`（路由卸载）时把大厅收掉（2026-11-24 视觉 P0，docs/game-lobby-ui-benchmark.md §1.4 顺手修）：
    * ★ 症状：`lobbyStore.open` 是个**持久值**（store 活在整场会话里）。带 `?lobby=1` 进来后按系统返回键
    *   离开 `/studio` 时，StudioPage 卸载了、大厅那层却还开着 —— 下次从「我的仓库 / 回炉重做 / 发布后回工坊」
@@ -329,6 +337,8 @@ export default function StudioPage() {
         if (studioAlive.current) return;
         if (useLobby.getState().open) useLobby.getState().closeLobby();
         if (useHistory.getState().open) useHistory.getState().close();
+        // 观战也一样：离开工坊时把观众席退掉（服务端那边少挂一行；失败只留控制台一行）
+        if (useSpectate.getState().open) void useSpectate.getState().exit();
       }, 0);
     };
   }, []);
@@ -368,7 +378,7 @@ export default function StudioPage() {
    * ★ 大厅也算"盖着"（2026-11-23）：不进对局的那几屏不挂 3D —— 大厅铺满舞台、纯 2D 入口卡。
    * ★ 对局设置页也算（2026-11-24）：它同样是整屏实底，盖着的时候桌面还在每帧画 NPC（看不见、电照烧）。
    */
-  const canvasCovered = canvasOpen || lobbyOpen || settingsOpen || historyOpen;
+  const canvasCovered = canvasOpen || lobbyOpen || settingsOpen || historyOpen || spectateOpen;
   /**
    * 横屏宽布局（G1 施工单 docs/g1-scene-plan.md §2 A）：左右各一条常驻条，3D 桌面留在中间。
    * ★ 判据只有一份（hooks/useIsLandscape）：`(orientation: landscape)`，也就是画布宽 > 高。
@@ -574,6 +584,9 @@ export default function StudioPage() {
           它自己判 lobbyStore.open 与"有没有开着局"（对局中不出现），所以这里不重复判。
           层级 z-40：盖住顶栏那颗「▶ 开局」（大厅里有自己的「✕ 返回工坊」）。 */}
       {isLand && <Lobby />}
+      {/* 观战屏（2026-11-24）：盖在大厅之上（z-45 > 大厅的 z-40）；退出观战回到大厅的公开房列表。
+          它自己判 spectateStore.open，没在观战时一个像素都不出现。 */}
+      {isLand && <SpectateScreen />}
       {/* 对局设置页（2026-11-24）：z-50，盖住对局 UI 与顶栏那一排键。
           ★ 挂在这一层而不是 GameLayer 里：选风格那一屏 GameLayer 会早退（只画 StylePick），
             挂在那儿的话在那一屏点 ⚙ 点了没反应（铁律八）。
