@@ -406,6 +406,8 @@ export default function TripoNpc({
   cfg?: {
     scale: number;
     y: number;
+    /** 站位（世界）。x 缺省 0 = 桌子正中线上（老场景）；米制档 NPC 站在 −x 那侧（壁炉前） */
+    x?: number;
     z: number;
     yaw?: number;
     pose?: Partial<Record<keyof typeof POSE_KEYS, [number, number, number] | null>>;
@@ -436,7 +438,8 @@ export default function TripoNpc({
     /** 常态浅笑基线（默认 0.22；restMorphs 已供气质时设 0 防叠加双重眯眼） */
     smileBase?: number;
     /** 俯身位移曲线：back=先整体后撤（撤步期，弯腰的横向空间），z/y=落定净位移
-     *  ——90° 级深弯腰的胸前伸距离大，必须先退再弯才能正好落在桌沿上 */
+     *  ——90° 级深弯腰的胸前伸距离大，必须先退再弯才能正好落在桌沿上。
+     *  ★ 位移沿**模型正前方**走（`yaw` 决定的 sin/cos），所以 cfg 模型换个朝向不用重算这组数 */
     leanSlide?: { z: number; y: number; back?: number };
     /** 胸部软体物理：Breast 骨链弹簧 + 与前臂/桌沿/对侧胸/躯干碰撞——挤压避让由物理
      *  解出（breastLift 只提供"被托起"的 rest 目标，接触响应交给它） */
@@ -451,8 +454,9 @@ export default function TripoNpc({
       rootLiftSmooth?: number;
       /** 前臂碰撞胶囊半径（世界） */
       armRadius?: number;
-      /** 桌沿圆柱：中心高/z 位/半径（世界，场景固定） */
-      rail?: { y: number; z: number; radius: number };
+      /** 桌沿胶囊：中心高 + 半径（世界，场景固定）。给 `z` = 桌沿沿 x 走（老场景，NPC 在 −z 侧）；
+       *  给 `x` = 桌沿沿 z 走（米制档，NPC 在 −x 侧）。两者都有时优先 `x`。 */
+      rail?: { y: number; z?: number; x?: number; radius: number };
       /** 躯干球半径（世界，防胸陷进身体） */
       torsoRadius?: number;
       /** 中缝保留：尾端与胸中线横距 ≥ 站姿 × 此系数（>1=比站姿更开，露出门襟扣子；
@@ -592,15 +596,25 @@ export default function TripoNpc({
     };
     const bp = cfg.breastPhys;
     const rail = bp.rail ?? { y: 0.08, z: -3.55, radius: 0.17 };
+    // 桌沿胶囊：给了 x 就沿 z 走（米制档：NPC 站在桌子的 −x 侧、桌沿顺着长轴 z）
+    const railCapsule =
+      rail.x != null
+        ? {
+            kind: "capsule" as const,
+            a: new THREE.Vector3(rail.x, rail.y, -8),
+            b: new THREE.Vector3(rail.x, rail.y, 8),
+            radius: rail.radius,
+          }
+        : {
+            kind: "capsule" as const,
+            a: new THREE.Vector3(-8, rail.y, rail.z ?? -3.55),
+            b: new THREE.Vector3(8, rail.y, rail.z ?? -3.55),
+            radius: rail.radius,
+          };
     physColliders.current = [
       { kind: "capsule", a: new THREE.Vector3(), b: new THREE.Vector3(), radius: bp.armRadius ?? 0.075 },
       { kind: "capsule", a: new THREE.Vector3(), b: new THREE.Vector3(), radius: bp.armRadius ?? 0.075 },
-      {
-        kind: "capsule",
-        a: new THREE.Vector3(-8, rail.y, rail.z),
-        b: new THREE.Vector3(8, rail.y, rail.z),
-        radius: rail.radius,
-      },
+      railCapsule,
     ];
     if (bp.torsoRadius)
       physColliders.current.push({ kind: "sphere", center: new THREE.Vector3(), radius: bp.torsoRadius });
@@ -950,7 +964,14 @@ export default function TripoNpc({
       const arc = Math.sin(fw * Math.PI) * 0.06;
       const cwS = Math.min(1, Math.max(0, (leanP - 0.7) / 0.3));
       const sink = (bl?.sink ?? 0) * cwS * cwS * (3 - 2 * cwS);
-      gltf.scene.position.z = cfg.z - back * bw + ((ls?.z ?? 0) + back) * fw;
+      // ★ 位移沿**模型正前方**（yaw 决定）：老场景 yaw=0 ⇒ 全部落在 z 上（逐字节同上一版）；
+      //   米制档 yaw=π/2（面朝 +x，桌子在她正前方）⇒ 落在 x 上。上一版写死 .z，
+      //   换了朝向之后她会往桌子**旁边**撤步/俯身，看着像滑走。
+      const fwdX = Math.sin(cfg.yaw ?? 0);
+      const fwdZ = Math.cos(cfg.yaw ?? 0);
+      const slide = -back * bw + ((ls?.z ?? 0) + back) * fw;
+      gltf.scene.position.x = (cfg.x ?? 0) + fwdX * slide;
+      gltf.scene.position.z = cfg.z + fwdZ * slide;
       gltf.scene.position.y = y + (ls?.y ?? 0) * fw + arc - sink + Math.sin(t * 1.1) * 0.005;
     }
     // 演出动画先应用（LoopOnce 播放期间覆盖左臂程序姿势，播完自动交还），
@@ -1096,7 +1117,7 @@ export default function TripoNpc({
       {/* 点击 NPC 建模 = 进入对话（对话框默认隐藏，只由此唤起）；轨道拖拽末尾的 click 不误触 */}
       <primitive
         object={gltf.scene}
-        position={[0, y, cfg ? cfg.z : full ? -4.35 : bust ? -4.28 : -3.9]}
+        position={[cfg?.x ?? 0, y, cfg ? cfg.z : full ? -4.35 : bust ? -4.28 : -3.9]}
         scale={scale}
         onClick={(e: ThreeEvent<MouseEvent>) => {
           e.stopPropagation();

@@ -26,9 +26,12 @@ import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
 
-/** 火焰片的高度/宽度（m）：炉膛开口约 0.55 × 0.42，火焰只占中间一截 */
-const FLAME_W = 0.38;
-const FLAME_H = 0.55;
+/** 火焰片的高度/宽度（m）。★★ 2026-11-26 第 2 版（`feat/gs-layout-fix`）：**0.30 × 0.42**。
+ *  上一版 0.38 × 0.55 是按"炉膛开口 0.55 × 0.42"给的，结果火舌比炉口还高 —— 而且锚点在
+ *  炉膛**外面**（火焰从地板上舔起来，看着像浮在壁炉前面）。这一版：锚点 = 炉膛内**木柴堆的
+ *  上表面**（gsStep0.ANCHOR.fire），高度 0.42 按炉口内净高给，宽度 0.30 只占炉口的一半。 */
+const FLAME_W = 0.3;
+const FLAME_H = 0.42;
 
 const VERT = /* glsl */ `
   varying vec2 vUv;
@@ -82,13 +85,15 @@ const FRAG = /* glsl */ `
 `;
 
 export interface HearthFireProps {
-  /** 炉膛在世界里的位置（gsStep0.GS_FIRE_LIGHT.position，算出来的） */
+  /** ★ 锚点 = **炉膛内木柴堆的上表面**（火焰的底边就落在这里）。
+   *  上一版这个点是"炉心"（火焰片的中心），火焰因此一半在地板下、一半在炉口外；
+   *  这一版把它定义成"火从哪烧起来"，火焰/点光/光晕/光池四样都从这个点现算。 */
   position: [number, number, number];
   color?: string;
   baseIntensity?: number;
   distance?: number;
   decay?: number;
-  /** 地面高度（假光池贴地；米制场景是 -0.775） */
+  /** 地面高度（假光池贴地；米制场景是 -0.785） */
   floorY?: number;
 }
 
@@ -143,8 +148,9 @@ export default function HearthFire({
     const flick = 0.78 + 0.22 * (0.5 + 0.5 * (0.62 * Math.sin(t * 7.3) + 0.26 * Math.sin(t * 2.1 + 1.7) + 0.12 * Math.sin(t * 23.7 + 0.3)));
     if (light.current) {
       light.current.intensity = baseIntensity * flick;
-      // 炉心轻微跳动（±2.5 cm）：只动灯，火焰片不动 —— 两者一起动会像整团火在平移
-      light.current.position.set(px + Math.sin(t * 3.1) * 0.025, py + Math.sin(t * 5.7) * 0.02, pz + Math.cos(t * 4.3) * 0.025);
+      // 炉心轻微跳动（±2.5 cm）：只动灯，火焰片不动 —— 两者一起动会像整团火在平移。
+      // 灯比锚点再高一点（0.12）：挪到柴堆上方，桌沿吃到的暖边才和火舌的位置一致。
+      light.current.position.set(px + Math.sin(t * 3.1) * 0.025, py + 0.12 + Math.sin(t * 5.7) * 0.02, pz + Math.cos(t * 4.3) * 0.025);
     }
     if (flameMat.current) flameMat.current.uniforms.uTime.value = t;
     // 火焰片绕 y 轴面向相机（只转 y：转 x 会让火焰"躺下"，看着像烧到桌面上）
@@ -160,16 +166,17 @@ export default function HearthFire({
           阴影贴图那点预算对桌面几乎不可见，却要给每个 mesh 材质多上传一遍 shadow map。 */}
       <pointLight
         ref={light}
-        position={position}
+        position={[px, py + 0.12, pz]}
         color={color}
         intensity={baseIntensity}
         distance={distance}
         decay={decay}
       />
-      {/* ② 火焰：一块 0.34×0.5 m 的面向相机的噪声火焰片 + 一层更小的内焰
-          ★ billboard 的**原点就是炉心**（子片放在原点）：绕 y 转的是这一组自己，
-            如果把炉心坐标写进子节点、再绕原点转组，火焰会绕着世界原点甩出去。 */}
-      <group ref={billboard} position={[px, py - FLAME_H / 2 + 0.04, pz]}>
+      {/* ② 火焰：一块 0.30×0.42 m 的面向相机的噪声火焰片 + 一层更小的内焰
+          ★ billboard 的**原点就是火苗底边**（= 木柴堆上表面）：子片从原点往上长，
+            所以组的位置要抬 FLAME_H/2 让底边正好落在锚点上。
+          ★ 绕 y 转的是这一组自己；把锚点坐标写进子节点再绕原点转，火焰会绕着世界原点甩出去。 */}
+      <group ref={billboard} position={[px, py + FLAME_H / 2, pz]}>
         <mesh renderOrder={20}>
           <planeGeometry args={[FLAME_W, FLAME_H]} />
           <shaderMaterial
@@ -184,7 +191,7 @@ export default function HearthFire({
           />
         </mesh>
         {/* 内焰：同一条 shader、更小更亮（共享 uniforms，省一份时间 uniform） */}
-        <mesh renderOrder={20} position={[0, -0.04, 0.005]} scale={[0.55, 0.55, 1]}>
+        <mesh renderOrder={20} position={[0, -0.03, 0.005]} scale={[0.55, 0.55, 1]}>
           <planeGeometry args={[FLAME_W, FLAME_H]} />
           <shaderMaterial
             uniforms={uniforms}
@@ -196,8 +203,10 @@ export default function HearthFire({
             side={THREE.DoubleSide}
           />
         </mesh>
-        {/* 炉口柔光：比火焰大一圈的暖光晕（splat 的炉膛是烘死的暗色，这一层让它"亮起来"） */}
-        <mesh renderOrder={20} position={[0, 0.02, -0.01]} scale={[2.6, 2.2, 1]}>
+        {/* 炉口柔光：比火焰大一圈的暖光晕（splat 的炉膛是烘死的暗色，这一层让它"亮起来"）。
+            ★ 这一版**跟着火焰一起缩到 1.6 倍**（原来 2.6 倍 = 1.0×1.2 m，比炉口还大，
+              看上去像炉子前面挂了一团光）。 */}
+        <mesh renderOrder={20} position={[0, 0.02, -0.01]} scale={[1.6, 1.5, 1]}>
           <planeGeometry args={[FLAME_W, FLAME_H]} />
           <meshBasicMaterial
             ref={glowMat}
@@ -209,7 +218,8 @@ export default function HearthFire({
           />
         </mesh>
       </group>
-      {/* ③ 地面假光池：splat 地板不吃灯，这一块加色椭圆让炉前"有被照亮的意思" */}
+      {/* ③ 地面假光池：splat 地板不吃灯，这一块加色椭圆让炉前"有被照亮的意思"。
+          位置**留在炉前地面**（锚点往房间里挪 0.35 m）：它代表的是地面上被火照亮的那一块。 */}
       <mesh renderOrder={20} rotation={[-Math.PI / 2, 0, 0]} position={[px + 0.35, floorY + 0.004, pz - 0.1]}>
         <planeGeometry args={[1.5, 1.1]} />
         <meshBasicMaterial

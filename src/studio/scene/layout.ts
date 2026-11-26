@@ -127,7 +127,9 @@ export function focusCam(x: number, z: number): { pos: [number, number, number];
   // ★ 米制档（高斯场景）：卡片只有 0.30×0.45，机位按"桌面高度 + 1 m 外俯看"给；
   //   老场景那台 y=5.15 / z+2.0 是 UI 尺度的数，在米制下会飞到房顶外。
   if (gsMetric) {
-    return { pos: [fx * 0.75, 0.72, fz + 1.0], look: [fx, 0.02, fz - 0.15] };
+    // ★ 米制档第 2 版：相机在**玩家那一侧（+x）**，看的是桌面长边（见 GS_CAM 的注释），
+    //   所以拉近机位也换到 +x：pos 比卡心高 1 m、从玩家这一侧俯看，长轴方向按 0.75 收（别贴边）
+    return { pos: [fx + 1.0, 0.72, fz * 0.75], look: [fx - 0.15, 0.02, fz] };
   }
   return { pos: [fx * 0.75, 5.15, fz + 2.0], look: [fx, 0.45, fz - 2.3] };
 }
@@ -211,8 +213,24 @@ export const DECK_POS: [number, number, number] = [-1.5, 0, 2.75];
  *   场景位 (-1.55, 0.5) 在角色排左上方，投影到 8.3~20.4% / y 48.8~56.4% —— 仍在中线以内
  *   （z>0 = 玩家这一侧）。**竖屏的 3D 桌面逐字不动的是别的东西：卡组堆 / 市场 / 摊开排 / 机位。**
  */
-export const TABLE_SLOTS = {
-  roleZ: 1.2,
+/** 对局 5 个卡位的摆法。与 MarketLayout 同一套轴语义：
+ *  axis="x" = 4 个角色位**横排**（位子落在 z=roleAlong 那条线上，间距 roleDx，老场景）；
+ *  axis="z" = 4 个角色位**顺长轴竖排**（位子落在 x=roleAlong 那条线上，米制档的立牌一排）。 */
+export interface SlotLayout {
+  axis: "x" | "z";
+  /** 一排 4 个角色位的固定坐标（axis=x 时是 z，axis=z 时是 x） */
+  roleAlong: number;
+  /** 同排间距 */
+  roleDx: number;
+  roleScale: number;
+  sceneX: number;
+  sceneZ: number;
+  sceneScale: number;
+}
+
+export const TABLE_SLOTS: SlotLayout = {
+  axis: "x",
+  roleAlong: 1.2,
   roleDx: 0.85,
   roleScale: 0.55,
   sceneX: -1.55,
@@ -221,7 +239,7 @@ export const TABLE_SLOTS = {
 };
 
 /** 卡组展开排（用户手前一排，卡组右侧） */
-export const SPREAD = { z: 2.75, dx: 1.05, maxVisible: 3, centerX: 0.2 };
+export const SPREAD: SpreadLayout = { axis: "x", at: 2.75, gap: 1.05, maxVisible: 3, center: 0.2 };
 
 /** 市场平摊（NPC 侧，两排各 4 张，扑克式轻微重叠） */
 /**
@@ -237,7 +255,40 @@ export const SPREAD = { z: 2.75, dx: 1.05, maxVisible: 3, centerX: 0.2 };
  * 每页 6 张（2 排 × 3 列），多出来的靠左右箭头翻页——市场种子就有 18 张，
  * 旧代码在 searchMarket 里 slice(0,8) 把另外 10 张直接扔了。
  */
-export const MARKET = { rowsZ: [-1.05, -2.2], perRow: 3, dx: 0.66, lift: 0.02, scale: 0.55, perPage: 6 };
+/** 一排卡的摆法：老场景沿 x 排开（`axis: "x"`，`rows` 是各排的 z），
+ *  米制档沿长轴 z 排开（`axis: "z"`，`rows` 是各排的 x）。两种都只描述"排在哪、多宽"，
+ *  摆位算式仍然只有一处（marketSlot / DeckSpread），别在调用点各算一遍。 */
+export interface MarketLayout {
+  axis: "x" | "z";
+  /** 各排的固定坐标（axis=x 时是 z，axis=z 时是 x） */
+  rows: readonly number[];
+  perRow: number;
+  /** 同排相邻两张的间距 */
+  gap: number;
+  lift: number;
+  scale: number;
+  perPage: number;
+}
+
+/** 摊开的卡组（平放）：与 MarketLayout 同一套轴语义，只是一次只摆几张 */
+export interface SpreadLayout {
+  axis: "x" | "z";
+  /** 固定坐标（axis=x 时是 z，axis=z 时是 x） */
+  at: number;
+  gap: number;
+  maxVisible: number;
+  center: number;
+}
+
+export const MARKET: MarketLayout = {
+  axis: "x",
+  rows: [-1.05, -2.2],
+  perRow: 3,
+  gap: 0.66,
+  lift: 0.02,
+  scale: 0.55,
+  perPage: 6,
+};
 
 /** 溢出节点的左侧收起堆（贴左缘露半张=「收起」） */
 export const LEFT_STACK: [number, number, number] = [-1.85, 0, 0.95];
@@ -284,7 +335,7 @@ export const DECK_POS_LAND: [number, number, number] = [-1.8, 0, 3.0];
 /** 横屏摊开排：dx 1.05→1.2（卡片原尺寸 1.1 宽，留 0.1 的缝）、centerX 0.2→0.3。
  *  卡组挪到 -1.8 之后排头（-0.9，卡宽 ±0.55）正好从卡组右缘（-1.437）外一点开始摊；
  *  **2026-11-23 重量**：y 62.3~83.4%、x 桌面 32.3~75.0% / 真机 36.3~69.4% —— 全屏最近的一排。 */
-export const SPREAD_LAND = { z: 3.0, dx: 1.2, maxVisible: 3, centerX: 0.3 };
+export const SPREAD_LAND: SpreadLayout = { axis: "x", at: 3.0, gap: 1.2, maxVisible: 3, center: 0.3 };
 
 /**
  * 横屏的 G4 卡位（2026-11-23 新机位下的**重量结果**，量法见 LAND_CAM 的注释）：
@@ -306,8 +357,9 @@ export const SPREAD_LAND = { z: 3.0, dx: 1.2, maxVisible: 3, centerX: 0.3 };
  * ★ 为什么角色排不摆得更宽：窄画布（aspect 1.2~1.3 的浏览器窗口）里四张已经撑到 80% 以上，
  *   再宽会撞画布边；真机上四张占 32.6~67.4%，两侧留给卡组堆与法阵。
  */
-export const TABLE_SLOTS_LAND = {
-  roleZ: 0.45,
+export const TABLE_SLOTS_LAND: SlotLayout = {
+  axis: "x",
+  roleAlong: 0.45,
   roleDx: 1.45,
   roleScale: 0.8,
   sceneX: -3.8,
@@ -321,7 +373,7 @@ export const TABLE_SLOTS_LAND = {
  *  两排都落在桌面远边（27.4%）与中线（45.8%）之间，即"NPC 那一侧摊开的牌"。
  *  ⚠ 对局里这一块不摆（市场是工坊的事，对局买卡走 2D 商店）；工坊里没有对局 HUD，所以那两排不会被盖。
  *  为什么不是更宽：dx 1.25 已经是"四张之间留 0.645（> 一张卡宽）"的稀疏摆法，再宽就不像"摊开的一排"了。 */
-export const MARKET_LAND = { rowsZ: [-1.05, -2.2], perRow: 4, dx: 1.25, lift: 0.02, scale: 0.55, perPage: 8 };
+export const MARKET_LAND: MarketLayout = { axis: "x", rows: [-1.05, -2.2], perRow: 4, gap: 1.25, lift: 0.02, scale: 0.55, perPage: 8 };
 
 /** 横屏的左右收起堆：跟着节点链走 —— 链尾卡位 2.34 + 0.25 = 2.59，与竖屏 1.6→1.85 同一个
  *  "从最后一张后面露半张"的关系（收起堆的卡面因此始终压在链尾卡右下/左下角，一眼看出还有一段）。
@@ -364,49 +416,84 @@ export function gsSceneMetric(): boolean {
 /** 米制桌面：w = 世界 x 方向宽（房间的 s 轴）、d = 世界 z 方向长（房间的 d 轴）。
  *  ★ 长轴是 z（不像老桌面那样沿 x）：splat 里那张长桌本来就顺着房间纵深摆，量出来 2.50 沿 d。
  *    为了让它和 splat 里烘死的那张桌子重合（不出现"两张桌子"），网格桌面必须同向同寸。
- *  thick 只是桌板厚度（0.14），桌面顶面仍约定在 y=0（表体往下包，腿落到地板 y=-0.775）。 */
-export const GS_TABLE = { w: 1.17, d: 2.5, thick: 0.14, height: 0.765 };
+ *  ★★ 2026-11-26 第 2 版（`feat/gs-layout-fix`）：**长边从 2.50 收到 2.15**（长宽比 2.14 → 1.84）。
+ *    主人的参考图（《金铲铲之战》对局）里桌面是"分界线顺着长边走、两排卡分居两侧"，
+ *    2.50 的长条在 2.448 的横屏画幅里两侧只剩一条缝，两排卡摆不开；
+ *    2.15 × 1.17 之后两排各 0.34 m 间距的 4 张牌仍落在桌内，且两端还留 0.42 m。
+ *    ⚠ splat 里烘死的桌面仍是 2.50：两端各露出 0.175 m —— 由 WorkshopTable 的**木端板**
+ *      盖住（`splatLen` 就是那一版量出来的 2.50，别删）。
+ *  thick 只是桌板厚度（0.14），桌面顶面仍约定在 y=0（表体往下包，腿落到地板 y=-0.785）。 */
+export const GS_TABLE = { w: 1.17, d: 2.15, thick: 0.14, height: 0.765, splatLen: 2.5 };
 
-/** 米制卡牌：0.30 × 0.45 m（≈ 大塔罗牌）。为什么不是真塔罗的 0.07：真卡在手机上只有 ~20 px，
- *  看不清也点不准；0.28 宽让 4 张角色卡正好横跨 1.165 m ≈ 整张桌宽（1.17），
- *  同时卡面仍放得下封面 + 卡名。比值 0.28/1.17 = 24%，老场景是 1.1/22 = 5% —— 这是
- *  "卡能看清"与"卡不比桌子宽"之间量出来的落点（验收截图里量）。 */
+/** 米制卡牌：0.28 × 0.42 m（≈ 大塔罗牌）。为什么不是真塔罗的 0.07：真卡在手机上只有 ~20 px，
+ *  看不清也点不准；0.28 宽在 2.15 的桌面上 4 张一排占 1.30 m（含 0.06 间距），两端各留 0.42 m。
+ *  比值 0.28/1.17 = 24%，老场景是 1.1/22 = 5% —— 这是"卡能看清"与"卡不比桌子宽"之间量出来的落点。 */
 export const GS_CARD = { w: 0.28, h: 0.42, lift: 0.02 };
 
-/** 米制机位：桌面顶面中心为原点，相机在**玩家这一侧偏右**（+x/+z），俯角 ~20°。
- *  取景（docs/gs-table-light-log.md §相机）：桌面占画面下半、圆窗在右上、壁炉与炉火在左后、
- *  NPC 站在桌子远端（z≈-1.5）。相机高 1.15 是"略高于坐姿眼位"的游戏机位：
- *  再低桌面被压扁、再高 NPC 头顶会撞顶部 UI 条（真机 363 CSS px 高）。 */
+/** 米制机位：桌面顶面中心为原点，相机在**玩家这一侧**（+x，书柜墙那一头）俯看桌面。
+ *  ★★ 这一版换了**看的方向**（上一版在 +z 看桌子的短边）：参考图里中线顺着长边走、两排卡
+ *    一上一下分居两侧、人物站在壁炉那一侧 —— 三件事同时成立的唯一机位就是**从桌子长边看过去**
+ *    （玩家在 +x，铸卡师在 −x 的壁炉墙前）。桌面长轴（z）因此横在画面里，窗在画面右侧。
+ *  取景（按真机 852×348 的画幅量）：桌面占画面下半、壁炉与炉火在正后方、
+ *  NPC 站在炉前偏左（z=−0.28，让炉膛的火从她右手边露出来）。
+ *  相机高 1.06（略高于坐姿眼位）、离桌心 1.60 m、fov 50（App 的 Canvas 就是这个数）：
+ *  再高桌面被压扁、再低桌子近边会顶到画面下缘、再远会看到桌对面的地板接缝。 */
 export const GS_CAM: { pos: [number, number, number]; look: [number, number, number] } = {
-  pos: [0.55, 1.1, 2.0],
-  look: [-0.1, 0.0, -0.9],
+  pos: [1.6, 1.06, 0.06],
+  look: [-0.15, 0.02, 0.02],
 };
 
-/** 米制的 5 个卡位：4 个角色位**一排**横跨桌宽（dx 0.285 + 卡宽 0.30 = 1.155 ≤ 1.17），
- *  场景位在远端（z=-1.0）—— 4+1 的读法与老场景一致，只是整体缩到真实桌面尺寸上。
- *  为什么不改成 2×2：一排的屏幕读法（"四个玩家的位子"）是老场景花了两次迭代定的，
- *  而且桌面远端要留给场景位/市场卡，2×2 会把市场那两排挤到桌外。 */
-export const GS_SLOTS = {
-  roleZ: -0.35,
-  roleDx: 0.295,
+/** ★★ 两排卡位（`feat/gs-layout-fix`）：中线沿长轴（z）把人分成**玩家侧 (+x) / NPC 侧 (−x)**，
+ *  两排卡各占半边、沿长轴排 4 张。zs 是一排 4 张的间距 0.34（卡宽 0.28 + 缝 0.06）：
+ *  4 张占 1.30 m，两端离毡边各 0.42 m，不压桌沿。
+ *  ★ 为什么**平放**而不是立牌（试过立牌）：0.42 m 高的牌立在桌面上时，相机 1.16~1.45 m 高
+ *    "中线→近排"整条桌面都落在牌背后（要眼位 1.9 m 以上中线才露得出来，而那个机位在 splat 里
+ *    看进去是黑的）。参考图那两排骨牌的读感改用"两排分居中线两侧 + 中线沿长边"来表达：
+ *    牌面朝上、每排的"上边"背对主人（躺着读的那一面朝主人 —— 与看书同一套），
+ *    所以中心线从两排之间那条 0.14 m 的缝里整条露出来。 */
+export const GS_ROWS = {
+  npcX: -0.28,
+  playerX: 0.28,
+  zs: [-0.51, -0.17, 0.17, 0.51],
+  /** 平放牌在桌面上的朝向：绕牌面法线转 +90° ⇒ 牌的"上边"指向世界 −x（玩家那一侧读着正）。
+   *  deck / 市场的平放卡也走这一位，别在调用点各写一个 90°。 */
+  flatRotZ: Math.PI / 2,
+};
+
+/** 米制的 5 个卡位：4 个角色位**一排**在玩家侧（axis="z"：位子落在 x=roleAlong 那条线上），
+ *  场景位在 NPC 侧靠窗那一头、牌面朝着铸卡师（rotZ −90°，与玩家排相反）。 */
+export const GS_SLOTS: SlotLayout = {
+  axis: "z",
+  roleAlong: 0.28,
+  roleDx: 0.34,
   roleScale: 1,
-  sceneX: 0,
-  sceneZ: -1.0,
+  sceneX: -0.28,
+  sceneZ: 0.72,
   sceneScale: 0.8,
 };
 
-/** 米制卡组/市场/法阵：全部落在 1.17×2.50 的桌面上，分四层从玩家侧排到 NPC 侧：
- *  角色排 z=0.32（卡深 0.45 ⇒ 0.095~0.545）、市场两排 z=-0.2/-0.6（卡深 0.324）、
- *  场景位 z=-1.0、卡组/摊开/法阵在玩家侧 z≈0.85~1.0。四层互不重叠（见 gs 场景验收截图）。
+/** 米制卡组/市场/法阵：全部落在 2.15 × 1.17 的桌面上（中线沿长轴 z 在 x=0）——
+ *  NPC 侧（x<0）是市场两排（站牌，牌面朝玩家 = 买东西的那一位），
+ *  玩家侧（x>0）是 4 个角色位 + 卡组堆 + 合成法阵。四样互不重叠（top 视图量过）。
  *  ★ 卡组堆的卡面缩放沿用 `chain.scale`（老场景就是同一个数）—— 这里定 0.62，
  *    卡面 0.30×0.62=0.186 宽，一叠 24 张也只在桌角占 0.19 m。 */
 export const GS_CHAIN = { startX: -0.62, dx: 0.32, rowZ: 0.55, maxVisible: 7, scale: 0.62 };
-export const GS_DECK_POS: [number, number, number] = [-0.36, 0, 0.92];
-export const GS_SPREAD = { z: 1.0, dx: 0.33, maxVisible: 3, centerX: 0.12 };
-export const GS_MARKET = { rowsZ: [0.15, 0.5], perRow: 4, dx: 0.27, lift: 0.02, scale: 0.72, perPage: 8 };
+/** 卡组堆（平放）：玩家侧靠窗那一头，0.174×0.26 的牌堆落在毡面内（x 0.30~0.48 / z 0.63~0.89） */
+export const GS_DECK_POS: [number, number, number] = [0.39, 0, 0.76];
+/** 摊开的卡（平放）：桌子正中（中线上下各一张），一次 3 张；这是"翻卡组"的临时状态，
+ *  横跨中线没关系（它不是任何一边的排面）。 */
+export const GS_SPREAD: SpreadLayout = { axis: "z", at: 0, gap: 0.36, maxVisible: 3, center: 0 };
+/** 市场两排：NPC 侧（x<0）沿长轴排，每排 4 张、间距 0.34；站牌朝玩家（+x）。
+ *  ★ 为什么两排都在 NPC 侧：参考图里"NPC 侧一排 / 玩家侧一排"分居中线的两侧，
+ *    市场是铸卡师摊出来给玩家挑的货，正好占 NPC 那半边。 */
+/** 米制市场：NPC 侧（x<0）**一排 4 张平放**（牌面朝玩家 = 买东西的那一位），
+ *  沿长轴间距 0.34。为什么一页 4 张（老场景 8）：平放一张在桌宽方向上占 0.42，
+ *  1.17 m 的桌宽放下"每边一排"正好对称，两排平放会挤到桌沿外。 */
+export const GS_MARKET: MarketLayout = { axis: "z", rows: [-0.28], perRow: 4, gap: 0.34, lift: 0.02, scale: 0.72, perPage: 4 };
 export const GS_LEFT_STACK: [number, number, number] = [-0.62, 0, 0.55];
 export const GS_RIGHT_STACK: [number, number, number] = [0.62, 0, 0.55];
-export const GS_COMPOSE_POS: [number, number, number] = [0.34, 0.03, 0.92];
+/** 合成法阵（平放）：玩家侧靠书柜那一头（圆心 0.40 / 半径 0.166，仍在桌内） */
+export const GS_COMPOSE_POS: [number, number, number] = [0.4, 0.03, -0.76];
 
 /** 横屏/竖屏两套卡位的**唯一分派入口**（铁律六）。`land` 由 hooks/useIsLandscape 或
  *  `camera.aspect >= 1`（defaultCamFor 的同一判据）之后传进来，别在调用点各判一次。
@@ -415,13 +502,13 @@ export interface SceneLayout {
   table: typeof TABLE;
   chain: typeof CHAIN;
   deckPos: [number, number, number];
-  spread: typeof SPREAD;
-  market: typeof MARKET;
+  spread: SpreadLayout;
+  market: MarketLayout;
   leftStack: [number, number, number];
   rightStack: [number, number, number];
   composePos: [number, number, number];
   /** G4 的 5 个对局卡位（4 角色 + 1 场景） */
-  slots: typeof TABLE_SLOTS;
+  slots: SlotLayout;
 }
 
 const PORTRAIT_LAYOUT: SceneLayout = {
@@ -484,16 +571,22 @@ export function tableSpec(land: boolean): { w: number; d: number; thick: number;
  *  抽出来是因为这段算式原本有两份：TableScene 的 MarketFan 摆卡、modals 的详情单
  *  算飞卡起点。分页之后两边一个用页内下标、一个用全局下标就会当场错位——
  *  第二页点任何一张卡，卡都从第一页那个位置飞出来。
- *  ★ 横屏一页 8 张、竖屏 6 张，所以 `land` 必须由**同一个判据**传进来（见 sceneLayout）。 */
-export function marketSlot(land: boolean, i: number, countOnPage: number): { x: number; z: number } {
+ *  ★ 横屏一页 8 张、竖屏 6 张，所以 `land` 必须由**同一个判据**传进来（见 sceneLayout）。
+ *  ★ 两套轴向（MarketLayout.axis）：老场景一排沿 x、排与排差 z；米制档反过来
+ *    （一排沿长轴 z、排与排差 x）。`row` 与 `col` 两套轴向都是同一个意思，
+ *    调用点要拿它算牌的朝向时直接用，别自己再 floor/mod 一遍。 */
+export function marketSlot(
+  land: boolean,
+  i: number,
+  countOnPage: number
+): { x: number; z: number; row: number; col: number; rowCount: number } {
   const M = sceneLayout(land).market;
   const row = Math.floor(i / M.perRow);
   const col = i % M.perRow;
-  const rowCount = Math.min(M.perRow, countOnPage - row * M.perRow);
-  return {
-    x: (col - (rowCount - 1) / 2) * M.dx,
-    z: M.rowsZ[Math.min(row, M.rowsZ.length - 1)],
-  };
+  const rowCount = Math.max(1, Math.min(M.perRow, countOnPage - row * M.perRow));
+  const along = (col - (rowCount - 1) / 2) * M.gap;
+  const at = M.rows[Math.min(row, M.rows.length - 1)];
+  return M.axis === "z" ? { x: at, z: along, row, col, rowCount } : { x: along, z: at, row, col, rowCount };
 }
 
 export function chainX(land: boolean, visibleIndex: number): number {

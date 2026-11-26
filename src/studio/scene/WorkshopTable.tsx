@@ -36,6 +36,9 @@ export interface WorkshopTableProps {
   height?: number;
   /** 米制装饰档：护栏/桌沿/桌腿/法阵光毯按真实桌子尺寸收细、并叠光毯 */
   metric?: boolean;
+  /** splat 里烘死的那张桌子的长边（2.50 m）。给了就得把毡面之外那两截用**木端板**盖住 ——
+   *  网格桌面按主人要求收短到 2.15，而点云里那张桌子仍是 2.50，不盖会在两端露出"第二张桌子" */
+  splatLen?: number;
 }
 
 // ── 毡面：深绿底 + 噪点 + 金色印花（边框 / 庄家弧线 / 中央法阵 / 角花）──────
@@ -211,9 +214,10 @@ function TableCloth({ T, metric }: { T: { w: number; d: number }; metric: boolea
   );
 }
 
-// ── 皮革软包护栏（赌桌围边）：只留 NPC 侧长边 + 两侧短边 + 四角圆球 ──────────
-// 老代码里玩家侧那根是故意去掉的（玩家伏桌时胸会穿模），米制档同样不装。
-function TableRail({ T, metric }: { T: { w: number; d: number }; metric: boolean }) {
+// ── 皮革软包护栏（赌桌围边）：米制档只留 NPC 侧长边 + 两端短边 + 四角圆球 ──────────
+// ★ 2026-11-26（`feat/gs-layout-fix`）：玩家换到 **+x**（桌子长边）那一侧之后，去掉的变成 +x 那根
+//   （玩家伏桌时胸会穿模）—— 上一版去掉的是 +z 短边那根。NPC 侧（−x）那根留着。
+function TableRail({ T, metric, splatLen }: { T: { w: number; d: number }; metric: boolean; splatLen?: number }) {
   const [diff, nor, rough] = useLoader(THREE.TextureLoader, [
     "/models/study/tex/brown_leather_diff.jpg",
     "/models/study/tex/brown_leather_nor.jpg",
@@ -251,23 +255,28 @@ function TableRail({ T, metric }: { T: { w: number; d: number }; metric: boolean
   // 所有"伸出桌面"的量按桌宽比例收：老 0.25/0.14 是 22 宽桌面上的观感
   const out = metric ? 0.025 : 0.25;
   const capInset = metric ? 0.025 : 0.05;
+  // 米制档的护栏跟着**splat 那张 2.50 长的桌面**走（网格毡面只有 2.15，两端由木端板补齐）：
+  // 短边那两根落在端板外沿上，长边那根要长到端板之外，否则端板两侧会露出一截没有护栏的木边。
+  const halfD = (metric ? (splatLen ?? T.d) : T.d) / 2;
+  const sideLen = metric ? halfD * 2 + 0.06 : T.d + 0.1;
   return (
     <group>
-      {[-T.d / 2 - capInset].map((z, i) => (
+      {[-halfD - capInset, halfD + capInset].map((z, i) => (
         <mesh key={i} material={mat} position={[0, y, z]} rotation={[0, 0, Math.PI / 2]}>
           <cylinderGeometry args={[R, R, T.w + (metric ? 0.05 : 0.5), 14]} />
         </mesh>
       ))}
-      {[-T.w / 2 - out, T.w / 2 + out].map((x, i) => (
-        <mesh key={i} material={mat} position={[x, y, 0]} rotation={[Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[R, R, T.d + (metric ? 0.02 : 0.1), 14]} />
+      {/* 长边：米制档只留 NPC 侧（−x）那一根 */}
+      {(metric ? [-T.w / 2 - out] : [-T.w / 2 - out, T.w / 2 + out]).map((x, i) => (
+        <mesh key={`s${i}`} material={mat} position={[x, y, 0]} rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[R, R, sideLen, 14]} />
         </mesh>
       ))}
       {[
-        [-T.w / 2 - out, -T.d / 2 - capInset],
-        [T.w / 2 + out, -T.d / 2 - capInset],
-        [-T.w / 2 - out, T.d / 2 + capInset],
-        [T.w / 2 + out, T.d / 2 + capInset],
+        [-T.w / 2 - out, -halfD - capInset],
+        [T.w / 2 + out, -halfD - capInset],
+        [-T.w / 2 - out, halfD + capInset],
+        [T.w / 2 + out, halfD + capInset],
       ].map(([x, z], i) => (
         <mesh key={i} material={mat} position={[x, y, z]}>
           <sphereGeometry args={[R, 12, 12]} />
@@ -277,14 +286,18 @@ function TableRail({ T, metric }: { T: { w: number; d: number }; metric: boolean
   );
 }
 
-function CenterLine({ w, metric }: { w: number; metric: boolean }) {
+function CenterLine({ w, d, metric }: { w: number; d: number; metric: boolean }) {
   const mat = useRef<THREE.MeshBasicMaterial>(null);
   useFrame(() => {
     if (mat.current) mat.current.opacity = 0.32 + 0.16 * Math.sin(performance.now() / 700);
   });
   return (
     <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.006, 0]}>
-      <planeGeometry args={[w - (metric ? 0.02 : 0.4), metric ? 0.006 : 0.07]} />
+      {/* ★★ 米制档：中线**沿长边**（世界 z）—— 参考图（《金铲铲之战》对局）里分界线顺着长边走、
+          把桌面分成玩家侧 / NPC 侧两半；上一版是沿短边（横着切），方向正好反了。
+          plane 绕 x 转 −90° 之后 local x → 世界 x、local y → 世界 z，所以"长"的那一位写在第二个参数。
+          长度取 d − 0.1（两端各留 5 cm 不顶到木沿）。 */}
+      <planeGeometry args={metric ? [0.006, d - 0.1] : [w - 0.4, 0.07]} />
       <meshBasicMaterial ref={mat} color="#67e8f9" transparent blending={THREE.AdditiveBlending} depthWrite={false} />
     </mesh>
   );
@@ -345,7 +358,7 @@ function Lightmap({ w, d }: { w: number; d: number }) {
 }
 
 /** 旧场景那张长桌（含毡面/护栏/木沿/桌腿/中线；`metric` 档再加光毯与米制收细）。 */
-export default function WorkshopTable({ T, height, metric = false }: WorkshopTableProps) {
+export default function WorkshopTable({ T, height, metric = false, splatLen }: WorkshopTableProps) {
   const thick = T.thick;
   // 米制档：桌板厚度按真实桌子（0.14）走，桌腿从桌板底落到地板；老场景保持原来的"不落地"观感。
   const legH = metric ? Math.max(0.05, (height ?? 0.765) - thick) : 2.1;
@@ -354,6 +367,11 @@ export default function WorkshopTable({ T, height, metric = false }: WorkshopTab
   const legW = metric ? 0.06 : 0.4;
   const legInsetX = metric ? 0.1 : 0.6;
   const legInsetZ = metric ? 0.1 : 0.5;
+  // ★★ 木端板（米制档）：网格毡面收短到 2.15 之后，splat 里那张 2.50 的旧桌面会在两端各露出
+  //   0.175 m。两块木端板（顶面与毡面同高 y≈0）把这两截盖住 —— 观感是"一张带木框的长桌"，
+  //   游戏面（毡面）就是主人要的 2.15。不盖的话 top 视图里能看见两截颜色不同的旧桌面。
+  const endPlate = metric && splatLen && splatLen > T.d ? (splatLen - T.d) / 2 : 0;
+  const plateZ = T.d / 2 + endPlate / 2;
   return (
     <group>
       {/* 桌体（深胡桃木） */}
@@ -362,8 +380,16 @@ export default function WorkshopTable({ T, height, metric = false }: WorkshopTab
         <meshStandardMaterial color="#241a10" roughness={0.8} />
       </mesh>
       <TableCloth T={T} metric={metric} />
-      <TableRail T={T} metric={metric} />
+      <TableRail T={T} metric={metric} splatLen={splatLen} />
       {metric && <Lightmap w={T.w} d={T.d} />}
+      {/* 木端板：把 splat 里长出来的旧桌面盖住（只在 splatLen > d 时出现） */}
+      {endPlate > 0 &&
+        [-1, 1].map((s) => (
+          <mesh key={`end${s}`} position={[0, -0.05, s * plateZ]} castShadow>
+            <boxGeometry args={[T.w + 0.06, 0.1, endPlate + 0.02]} />
+            <meshStandardMaterial color="#2a1d10" roughness={0.65} />
+          </mesh>
+        ))}
       {/* 桌沿（木质外框） */}
       {[
         [0, -T.d / 2 - (metric ? 0.03 : 0.14)],
@@ -374,9 +400,16 @@ export default function WorkshopTable({ T, height, metric = false }: WorkshopTab
           <meshStandardMaterial color="#2a1d10" roughness={0.65} />
         </mesh>
       ))}
+      {/* 长边木沿：米制档要一直铺到 splat 那张桌子的两头（否则端板两侧各缺一截） */}
       {[-T.w / 2 - (metric ? 0.03 : 0.14), T.w / 2 + (metric ? 0.03 : 0.14)].map((x, i) => (
         <mesh key={i} position={[x, metric ? -0.03 : -0.06, 0]}>
-          <boxGeometry args={[metric ? 0.03 : 0.3, metric ? 0.06 : 0.24, T.d + (metric ? 0.06 : 0.6)]} />
+          <boxGeometry
+            args={[
+              metric ? 0.03 : 0.3,
+              metric ? 0.06 : 0.24,
+              (metric ? (splatLen ?? T.d) : T.d) + (metric ? 0.06 : 0.6),
+            ]}
+          />
           <meshStandardMaterial color="#2a1d10" roughness={0.65} />
         </mesh>
       ))}
@@ -392,7 +425,7 @@ export default function WorkshopTable({ T, height, metric = false }: WorkshopTab
           <meshStandardMaterial color="#20160c" roughness={0.8} />
         </mesh>
       ))}
-      <CenterLine w={T.w} metric={metric} />
+      <CenterLine w={T.w} d={T.d} metric={metric} />
     </group>
   );
 }
