@@ -427,3 +427,10 @@ adb -s emulator-5554 exec-out screencap -p > .tmp-gs-table/shot1-front.png
    底缘贴着石板（不再往下），真机验收时留意。
 4. **splat 桌面残差**仍在（§8 风险 1）：木端板只盖两端，长边仍是"网格毡面抬高 2.4 cm 压住点云"那套。
 5. **腰高 0.571×身高** 是按人体比例估的（模型没有"腰"骨可以探针量）；要更准就得读 Hips 骨。
+
+### 10.10 构建 / CI / 合流
+
+- `npm run build`：**通过**（tsc + lingui extract + 全部构建期检查 + vite build）。
+- `npm run apk` → 模拟器安装验收（§10.8 的四张图与读数）。
+- 分支 `feat/gs-layout-fix` → **PR #542** → CI 绿（build 1m18s / android 2m08s）→ merge（`543089ab`）。
+- 只在 `public/models/study/tex/` 里换了光毯这一张 PNG；截图与 SPZ 都在 `.tmp-gs-layout/`，不进仓库。
