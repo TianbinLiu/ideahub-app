@@ -24,6 +24,11 @@ export const ORBIT_MIN_Y = 0.12;
 export const PLAYER_FACE = new THREE.Vector3(0, 0, -1);
 /** NPC 头部世界坐标（TripoNpc 每帧写入） */
 export const NPC_HEAD = new THREE.Vector3(0, 0.9, -4.3);
+/** NPC **身体中心**（hips 骨）的世界坐标（TripoNpc 每帧写入）。
+ *  ★ 只给米制验收用：量"铸卡师的身体中心 vs 桌面中线"的偏差必须取躯干中心，
+ *    头骨在头顶、离中线再远也会被透视压回来，量出来比实际偏小。读数在
+ *    `window.__gsAccept.npcOffsetM`（TableScene.AcceptProbe）。 */
+export const NPC_CENTER = new THREE.Vector3(0, 0.4, -4.3);
 /** NPC 头顶的屏幕投影（TableScene 的锚点组件每帧写入；0~1 归一化坐标）。
  *  DOM 侧的对话气泡用 rAF 直读此对象定位——不走 React 状态，60fps 跟随零重渲。 */
 export const NPC_SCREEN = { x: 0.5, y: 0.3, visible: false };

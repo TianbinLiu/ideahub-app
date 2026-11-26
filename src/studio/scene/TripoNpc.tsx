@@ -16,7 +16,7 @@ import { applyCameraFade } from "./cameraFade";
 import { RigidBoneSim, createRigidBoneSim } from "./rigidBones";
 import { rigidBonesEnabled } from "../quality";
 import { npcCam } from "./layout";
-import { NPC_HEAD, orbit } from "./cameraOrbit";
+import { NPC_CENTER, NPC_HEAD, orbit } from "./cameraOrbit";
 import { gazeDelta, type GazeLimits } from "./gazeDelta";
 
 /** NPC 注视限幅：偏航 17°、抬头 10°、低头 4.6°。低头限得最死——脸前端到刘海外表面
@@ -485,7 +485,9 @@ export default function TripoNpc({
     (loader as GLTFLoader).setMeshoptDecoder(MeshoptDecoder);
   });
   const bones = useRef<Record<string, THREE.Object3D | null>>({});
-  const morphMeshes = useRef<THREE.Mesh[]>([]);
+  /** 身体中心骨（米制验收要量"她的身体中心 vs 桌面中线"的偏差，见 TableScene.AcceptProbe）。
+   *  hips 优先，没有就退到 Spine1 —— 都是"躯干**中心**"那一档，不会像头骨那样偏上。 */
+  const bodyBone = useRef<THREE.Object3D | null>(null);  const morphMeshes = useRef<THREE.Mesh[]>([]);
   const face = useRef<FaceDriver | null>(null);
   // 演出动画（wave 招手 / deal 发牌）：Blender IK 烘焙，只保留左臂链轨道避免覆盖程序姿势
   const mixer = useMemo(() => new THREE.AnimationMixer(gltf.scene), [gltf]);
@@ -667,6 +669,11 @@ export default function TripoNpc({
       if (m.isMesh && m.morphTargetDictionary && !m.userData.__isOutline) morphMeshes.current.push(m);
     });
     for (const [k, name] of Object.entries(POSE_KEYS)) bones.current[k] = gltf.scene.getObjectByName(name) ?? null;
+    // 身体中心骨单独找：POSE_KEYS 管的是"姿势要写哪几根"，hips 只给验收读数用，别混进那组
+    bodyBone.current =
+      gltf.scene.getObjectByName("mixamorigHips") ??
+      gltf.scene.getObjectByName("mixamorigSpine1") ??
+      bodyBone.current;
     // full 描边收窄：手臂贴身（托腮/垫胸）时外扩壳会从胸口表面戳出成黑斑，宽度减半；
     // full 开裙摆风摆（布料柔软感）
     toonify(gltf.scene, cfg ? 0.002 : full ? 0.0009 : bust ? 0.003 : 0.0012, full ? { amp: 0.006 } : undefined, cfg?.look);
@@ -1102,6 +1109,8 @@ export default function TripoNpc({
     gltf.scene.updateMatrixWorld(true);
     // 发布头部世界坐标：相机绕 NPC 头做球面运动 + 第一人称眼位的注视目标
     if (bones.current.head) bones.current.head.getWorldPosition(NPC_HEAD);
+    // 身体中心（hips 骨）：验收量"铸卡师的身体中心离桌面中线多远"读它
+    if (bodyBone.current) bodyBone.current.getWorldPosition(NPC_CENTER);
     // 辅助骨物理在姿势/动画之后模拟（读最新世界矩阵，回写局部旋转）；
     // 刚体版就绪前弹簧骨顶着（懒加载期间不裸奔）
     const physSim = rigidSimRef.current ?? springSim;

@@ -1,4 +1,4 @@
-// 卡片工坊 3D 场景：长桌 + 中线 + NPC 铸卡师 + 卡组 + 市场平摊 + 对局 5 个卡位 + 拖拽层。
+﻿// 卡片工坊 3D 场景：长桌 + 中线 + NPC 铸卡师 + 卡组 + 市场平摊 + 对局 5 个卡位 + 拖拽层。
 // 固定机位只露出双方手部/上身与桌面（NPC 不建头部模型）。
 // ★ G4（docs/g4-ui-revamp-spec.md §2）：桌面上的视频节点链撤了，换成对局的 4 个角色位 + 1 个场景位；
 //   节点卡搬进工作流面板是第 3 步，这一拍先把"摆卡台"的骨架立起来。
@@ -26,6 +26,7 @@ import {
   GS_TABLE,
   GS_CAM,
   GS_ROWS,
+  GS_PAD,
   cardLayout,
   gsSceneMetric,
   marketSlot,
@@ -38,6 +39,7 @@ import { useIsLandscape } from "../../hooks/useIsLandscape";
 import { abandonIntroCam, skipIntroCam, stepIntroCam } from "./introCam";
 import { npcModelUrl } from "../quality";
 import {
+  NPC_CENTER,
   NPC_HEAD,
   NPC_SCREEN,
   PLAYER_SCREEN,
@@ -178,9 +180,16 @@ const MILLTINA_CFG = {
 // ★★ 第 2 版（2026-11-26，主人的四条修正之第 2/4 条）：**她换到壁炉那一侧（−x）、面朝玩家、只露腰以上。**
 //   · 站位：x = **−0.82**（桌子远沿在 −0.61，她几乎贴着桌沿站 —— 站得越近，桌沿的遮挡线在她身上
 //     落得越高，需要的下沉量就越小：x=−1.05 时要沉 0.22 m、x=−0.82 时只要 0.12 m。下沉量小，
-//     侧面机位里"裙摆被地板截断"就越看不出来）、z = **+0.50**（炉膛在 z≈+0.10、椅子在 z≈−0.7，
-//     站 +0.5 时**火从她右手边整条露出来、椅子也不压在她身前**，同时也正是"她在桌子一端"那个读法）；
-//     yaw = **π/2**（模型默认面朝 +z，转 90° 之后面朝 +x = 玩家）。
+//     侧面机位里"裙摆被地板截断"就越看不出来）、z = **−0.03**、yaw = **π/2**（模型默认面朝 +z，
+//     转 90° 之后面朝 +x = 玩家）。
+//     ★★ 2026-11-26 第 3 版（`feat/gs-polish2`，主人第 2 条"人物位置偏左"）：z 从 **+0.50 → −0.03**。
+//       投影算过：屏幕右 = 世界 **−z**（相机在 +x）。她在 z=+0.50 时，身体中心投到画面上比桌面
+//       中心偏左 **0.52 m**；把 z 收到 −0.03 之后偏差 **0.00 m**（量法：把 `hips` 骨的世界坐标
+//       与桌心 (0,0,0) 各自投影，取两者在"过她身体中心、平行于画面"的那条轴上的距离；
+//       运行期读数在 `window.__gsAccept.npcOffsetM`，见 `AcceptProbe`）。
+//       z=−0.03 也是这条式子容许区间的中点（|偏差| ≤ 0.1 m ⇒ z ∈ [−0.13, +0.07]），
+//       取它是因为**炉膛在 z≈+0.10**：再往 +z 让火从她身侧露出来就会重新偏左。
+//       ⚠ 代价写在 docs 的风险表里：她站到炉口正前方之后，正面机位只剩两侧缝隙看得到火。
 //   · 身高：**scale 1.654 → 1.418（1.75 m → 1.50 m）**、y **−0.728 → −0.955**（额外下沉 0.22 m）。
 //     为什么必须沉/缩：相机眼位 1.06 m 时，**桌沿的遮挡线在她那处只有离地 0.74 m 高**
 //     （眼睛穿桌沿高点 (−0.61, 0.053) 的那条射线，到 x=−0.82 落到 y≈−0.043）——
@@ -199,7 +208,7 @@ const GS_MILLTINA_CFG = {
   scale: 1.418,
   y: -0.856,
   x: -0.82,
-  z: 0.5,
+  z: -0.03,
   yaw: Math.PI / 2,
   leanSlide: { back: 0.178, z: 0.034, y: 0.092 },
   springColliders: [
@@ -237,7 +246,8 @@ import CardMesh from "./CardMesh";
 // ★ 2026-11-26（feat/gs-table-fire）：PBR 盖板删了，桌面统一走 WorkshopTable（旧场景那张长桌）；
 //   米制档（高斯场景）只是把尺寸/机位/卡位换成 1 单位 = 1 米那套，见 layout 的 GS_* 常量。
 import { GsStep0Environment } from "./GsStep0Environment";
-import { GS_STEP0_TRANSFORM, useGsPhase } from "./gsStep0";
+import { GS_FIRE_LIGHT, GS_STEP0_TRANSFORM, useGsPhase } from "./gsStep0";
+import { FIRE_FX } from "./HearthFire";
 import WorkshopTable from "./WorkshopTable";
 import VrmNpc from "./VrmNpc";
 import TripoNpc from "./TripoNpc";
@@ -605,13 +615,19 @@ function Table() {
 //
 // 状态表达也重做了。旧版无论能不能点都写死"生成视频"，圆台暗着也不解释为什么，
 // 用户只能瞎试；现在铭牌副题随状态换文案，把前置条件说出来。
+//
+// ★★ 2026-11-26 第 3 版（`feat/gs-polish2`，主人第 5 条「按钮位置/大小，像炉石传说那样」）：
+//   米制档**换一套摆法**（`layout.GS_PAD`），老场景那套一个像素不动（`metric` 分支只加不改）：
+//    · 位置：中线**右侧**（屏幕右 = 世界 −z）、靠玩家这一侧的长桌沿 —— 中心 (0.46, −0.78)；
+//    · 尺寸：牌面 **0.39 × 0.12 m**（0.39 / 2.15 = 桌面长轴的 18%）；
+//    · 姿态：朝相机**后仰 40°**（正面机位仰角 33°，牌面几乎正对镜头；俯视机位也还看得见）；
+//    · 热区：另给一块**不可见**的 0.42 × 0.20 平面（正面机位投影出 117×56 CSS px ≥ 44×44）。
+//   文案一个字没改（还是那两句：就绪 / 尚未就绪 + 副题）。
 function ComposePad() {
   const { t } = useLingui();
   // 法阵摆在中线右端：横屏链尾卡在 2.34，法阵跟着挪到 3.0（layout.COMPOSE_POS_LAND 的注释）
   const composePos = sceneLayout(useIsLandscape()).composePos;
-  // ★ 米制档（高斯场景）整体缩到 0.32：台座直径 1.04 m 在 1.17 m 宽的桌面上放不下，
-  //   0.32 之后 ≈ 0.33 m、铭牌 ≈ 0.45×0.14 m —— 在 GS 机位（1.5 m 外）上约 150 px 宽，点得动。
-  const padScale = gsSceneMetric() ? 0.32 : 1;
+  const metric = gsSceneMetric();
   const nodes = useFlow((s) => s.nodes);
   const enabled = composable(nodes);
   // 亮不起来时要说清缺什么：末段还没挑方案，还是挑了没炼。以前一律写"先为当前段选定一个
@@ -644,16 +660,31 @@ function ComposePad() {
           enabled ? t`整片就绪` : t`尚未就绪`,
           enabled ? t`点亮法阵 · 去剪辑成片` : picked ? t`先生成当前段的视频` : t`先为当前段挑定一套方案`,
           enabled,
+          // 米制档的牌子只有 0.39 m 宽：字号放大 1.55 倍才在真机上读得出来（见 composePlateTexture）
+          metric ? 1.55 : 1,
         ),
         transparent: true,
         depthWrite: false,
       }),
     // t 进依赖：切界面语言要重画铭牌（纹理按文字缓存，换一句就是另一张）
-    [enabled, picked, t],
+    [enabled, picked, t, metric],
   );
   useEffect(() => () => sigilMat.dispose(), [sigilMat]);
   useEffect(() => () => runeMat.dispose(), [runeMat]);
   useEffect(() => () => plateMat.dispose(), [plateMat]);
+
+  /** ★ `padDbg`（localStorage `gsPadDebug=1`）：**验收钩子**。法阵只有在"流水线每段都出过片"
+   *    时才亮（`composable`），而模拟器上没有任何段（要么联网要么真炼一段），所以"点得开生成流程"
+   *    这条验收在没有段的机器上永远点不亮。这个钩子只做一件事：把暗着的键当亮的用 + 打一行日志。
+   *    生产里没人写这个键 = 完全不存在；验收完把数抄进文档，别把它当功能。 */
+  const padDbg = useMemo(() => {
+    try {
+      return localStorage.getItem("gsPadDebug") === "1";
+    } catch {
+      return false;
+    }
+  }, []);
+  const live = enabled || padDbg;
 
   useFrame((_, dt) => {
     const now = performance.now();
@@ -661,7 +692,7 @@ function ComposePad() {
     // 只给极轻的呼吸。**发光的必须是刻纹不是台面**：这屋子从桌毡到卡框到烛台，
     // 全是"暗底 + 细金线"，台面一亮就成了一枚金币，把旁边桌毡那圈细刻线整个压住
     // （第一版给到 0.45 就是这个下场）。
-    if (base.current) base.current.emissiveIntensity = enabled ? 0.10 + 0.05 * Math.sin(now / 380) : 0.02;
+    if (base.current) base.current.emissiveIntensity = live ? 0.10 + 0.05 * Math.sin(now / 380) : 0.02;
     // 符文环缓转——**只在可合成时转**。转动是这里唯一的动效，克制到底：
     // 暗房里一个持续闪烁的东西会一直抢注意力，而"缓慢旋转"读作蓄势，不吵
     if (ring.current) {
@@ -675,15 +706,68 @@ function ComposePad() {
     }
   });
 
+  /** 点下去 = 去工作流（两侧共用同一份；`enabled` 为假时是"能看见但按不动"） */
+  const go = (e: ThreeEvent<MouseEvent>) => {
+    e.stopPropagation();
+    if (padDbg) console.log(`[gs] pad hit（enabled=${enabled}）`);
+    // 不再一把梭合成整片：铺成工作流，去 /flow 逐段生成逐段确认
+    if (live) useStudio.getState().requestFlow();
+  };
+
+  // ── 米制档：炉石那样的牌子（位置/尺寸/姿态全在 layout.GS_PAD）────────────────
+  if (metric) {
+    const P = GS_PAD;
+    // 牌面姿态（推导写在 GS_PAD 的注释里）：
+    //   朝向组绕 y 转 90° ⇒ 组内 local +z（平面法线）指向世界 +x、local +x 指向世界 −z；
+    //   牌面网格再绕 local x 转 −tilt ⇒ 法线抬高 tilt（正对相机来的那个方向），上沿朝 +x 后仰。
+    //   组内位置的映射：local (x,y,z) → world (z, y, −x)，所以"往 +x 挪 dx"要写成 local z = dx。
+    const plateDx = (P.h / 2) * Math.sin(P.tilt);
+    const plateY = P.baseH + (P.h / 2) * Math.cos(P.tilt);
+    const hitDx = 0.03 + (P.hitH / 2) * Math.sin(P.tilt);
+    const hitY = P.baseH + 0.03 + (P.hitH / 2) * Math.cos(P.tilt);
+    return (
+      <group position={[P.x, 0, P.z]} onClick={go}>
+        {/* 台座：一块薄黄铜底板压在桌上 */}
+        <mesh position={[0, P.baseH / 2 + 0.002, 0]}>
+          <boxGeometry args={[P.baseD, P.baseH, P.baseW]} />
+          <meshStandardMaterial
+            ref={base}
+            color={live ? "#2b2314" : "#161c2c"}
+            metalness={0.85}
+            roughness={0.3}
+            emissive="#d6b26a"
+            emissiveIntensity={0.02}
+          />
+        </mesh>
+        {/* 台座里那一格法阵刻纹（平放）：读作"桌面法阵的右端节点"，不是贴上去的塑料键 */}
+        <mesh position={[-0.075, P.baseH + 0.003, 0]} rotation={[-Math.PI / 2, 0, 0]} material={sigilMat}>
+          <planeGeometry args={[0.16, 0.34]} />
+        </mesh>
+        {/* 缓转符文环（只在可合成时转，与老场景同一份动效） */}
+        <mesh ref={ring} position={[-0.075, P.baseH + 0.004, 0]} rotation={[-Math.PI / 2, 0, 0]} material={runeMat}>
+          <planeGeometry args={[0.23, 0.46]} />
+        </mesh>
+        <group rotation={[0, Math.PI / 2, 0]}>
+          {/* 牌面：0.39 × 0.12（= 桌长的 18%），朝相机后仰 40° */}
+          <mesh position={[0, plateY, plateDx]} rotation={[-P.tilt, 0, 0]} material={plateMat}>
+            <planeGeometry args={[P.w, P.h]} />
+          </mesh>
+          {/* 热区：**不可见**的 0.42×0.20 平面（与牌面同姿态）。
+              ★ 0.39×0.12 的牌子在真机上只有 ~101×33 CSS px —— 够宽不够高，热区要 ≥44×44，
+                所以补一块更高的隐形平面接点击（它不遮挡任何东西：那一片只有牌子和桌子近角）。 */}
+          <mesh position={[0, hitY, hitDx]} rotation={[-P.tilt, 0, 0]}>
+            <planeGeometry args={[P.hitW, P.hitH]} />
+            <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+          </mesh>
+        </group>
+      </group>
+    );
+  }
+
   return (
     <group
       position={composePos}
-      scale={padScale}
-      onClick={(e) => {
-        e.stopPropagation();
-        // 不再一把梭合成整片：铺成工作流，去 /flow 逐段生成逐段确认
-        if (enabled) useStudio.getState().requestFlow();
-      }}
+      onClick={go}
     >
       {/* 台座：黄铜而不是土棕。金属度拉高、粗糙度中等，才吃得到烛光的高光 */}
       <mesh>
@@ -1661,6 +1745,15 @@ function NpcScreenAnchor() {
 // ── 验收读数（2026-11-26，`feat/gs-table-fire`）：localStorage `gsAcceptDebug=1` 时把相机/视线/
 //    铸卡师头骨/落位参数挂到 window.__gsAccept 上。模拟器验收要靠它量"桌长/桌高/房深/NPC"四个比例
 //    （截图能量像素，但相机到底是哪台、NPC 站哪儿只有运行期读得到）。不写这个键 = 不存在。
+//
+// ★ 第 3 版（`feat/gs-polish2`）加了四项**这一版要报的数**，都能在真机上直接读：
+//   · `npcOffsetM`   —— 铸卡师**身体中心**（hips 骨）投影到屏幕后，与桌面中心投影之间那一段
+//                       在"过她身体中心、平行于画面"的轴上折回世界坐标的距离（米）。主人第 2 条
+//                       的 "≤ 0.1 m" 量的就是它；
+//   · `card`         —— 卡基尺寸、一排总宽、两排的屏幕框（主人第 4 条）；
+//   · `pad`          —— 生成按钮的牌面/热区在世界里的盒子 + **热区投影出来的 CSS 像素**（第 5 条）；
+//   · `fire`         —— 火焰的整体包围盒（三层 + 火星都算进去）与火星颗数（第 1 条）。
+// ★ 只在写了 `gsAcceptDebug=1` 时算：每帧算一遍这些投影对 60fps 是白烧，而验收只要一次读数。
 function AcceptProbe() {
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
   const on = useMemo(() => {
@@ -1670,14 +1763,71 @@ function AcceptProbe() {
       return false;
     }
   }, []);
+  const tmp = useMemo(() => ({ a: new THREE.Vector3(), b: new THREE.Vector3() }), []);
   useFrame(() => {
     if (!on) return;
+    // ── 身体中心 vs 桌心（两条投影的横向差，折回世界米数）──────────────────────
+    const cam = camera;
+    const right = tmp.a.set(1, 0, 0).applyQuaternion(cam.quaternion);
+    right.y = 0;
+    if (right.lengthSq() < 1e-6) right.set(1, 0, 0);
+    right.normalize();
+    // 两个点各自"沿相机右手方向"的世界坐标分量之差 = 画面上左右方向的偏差（米）。
+    // ★ 桌心就是世界原点 (0,0,0)，它在那条轴上的分量恒为 0，所以偏差 = 她的投影分量本身；
+    //   这个数恰好也等于"在过她身体中心、平行于画面的平面上折回来的米数"（推导：NDC 是分量
+    //   除以 x 一个与深度成比例的尺度，两边乘回来正好约掉）。主人第 2 条的 ≤ 0.1 m 量的是它。
+    const npcOffsetM = +NPC_CENTER.dot(right).toFixed(3);
+    // ── 卡：尺寸 / 一排总宽 / 两排是不是真不重叠 ─────────────────────────────
+    const C = cardLayout();
+    const rowW = GS_ROWS.zs[GS_ROWS.zs.length - 1] - GS_ROWS.zs[0] + C.w;
+    // ── 生成按钮：热区的屏幕投影（CSS px）──────────────────────────────────
+    const P = GS_PAD;
+    let minU = 1;
+    let maxU = 0;
+    let minV = 1;
+    let maxV = 0;
+    // 热区中心（与 ComposePad 米制分支里那块隐形平面同一处，别各算一份）
+    const hcx = P.x + 0.03 + (P.hitH / 2) * Math.sin(P.tilt);
+    const hcy = P.baseH + 0.03 + (P.hitH / 2) * Math.cos(P.tilt);
+    for (const dz of [-P.hitW / 2, P.hitW / 2]) {
+      for (const dy of [-P.hitH / 2, P.hitH / 2]) {
+        // 热区与牌面同姿态：法线 (cos tilt, sin tilt, 0)，宽度沿 z、高度沿 (−sin tilt, cos tilt, 0)
+        tmp.b.set(hcx - dy * Math.sin(P.tilt), hcy + dy * Math.cos(P.tilt), P.z + dz).project(cam);
+        minU = Math.min(minU, (tmp.b.x + 1) / 2);
+        maxU = Math.max(maxU, (tmp.b.x + 1) / 2);
+        minV = Math.min(minV, (1 - tmp.b.y) / 2);
+        maxV = Math.max(maxV, (1 - tmp.b.y) / 2);
+      }
+    }
+    // 画布 CSS 尺寸（投影是 NDC 0~1，乘画布宽高就是 CSS px —— 与主人要的 44×44 同口径）
+    const el = document.querySelector("canvas");
+    const cw = el ? el.clientWidth : 1;
+    const ch = el ? el.clientHeight : 1;
+    // 火焰的整体包围盒（世界坐标）：以锚点为准，x 取柴木厚度，y 取"柴底 → 火舌顶"，z 取外焰半宽。
+    // ★ 火焰片是绕 y 面向相机的单片，所以 x/z 那一头随相机变；这里给的是**正面机位**那一刻的值
+    //   （也就是主人要看的那张壁炉近景同口径的盒子）。
+    const [fx, fy, fz] = GS_FIRE_LIGHT.position;
+    const fireBox = {
+      x: [+(fx - 0.05).toFixed(3), +(fx + 0.05).toFixed(3)],
+      y: [+(fy - 0.13).toFixed(3), +(fy + 0.42).toFixed(3)],
+      z: [+(fz - 0.15).toFixed(3), +(fz + 0.15).toFixed(3)],
+    };
     (window as unknown as Record<string, unknown>).__gsAccept = {
-      pos: camera.position.toArray().map((n) => +n.toFixed(3)),
+      pos: cam.position.toArray().map((n) => +n.toFixed(3)),
       look: RIG_LOOK.toArray().map((n) => +n.toFixed(3)),
-      fov: camera.fov,
-      aspect: +camera.aspect.toFixed(3),
+      fov: cam.fov,
+      aspect: +cam.aspect.toFixed(3),
+      canvasCss: [Math.round(cw), Math.round(ch)],
       npcHead: NPC_HEAD.toArray().map((n) => +n.toFixed(3)),
+      npcCenter: NPC_CENTER.toArray().map((n) => +n.toFixed(3)),
+      npcOffsetM,
+      card: { w: C.w, h: C.h, rowW: +rowW.toFixed(3), rowX: [GS_ROWS.npcX, GS_ROWS.playerX], gap: +(GS_ROWS.zs[1] - GS_ROWS.zs[0]).toFixed(3) },
+      pad: {
+        plate: { w: P.w, h: P.h, x: P.x, z: P.z, tiltDeg: +((P.tilt * 180) / Math.PI).toFixed(1) },
+        hitCss: [Math.round((maxU - minU) * cw), Math.round((maxV - minV) * ch)],
+      },
+      fire: { ...FIRE_FX, box: fireBox },
+      table: { w: GS_TABLE.w, d: GS_TABLE.d },
       transform: GS_STEP0_TRANSFORM,
     };
   });
