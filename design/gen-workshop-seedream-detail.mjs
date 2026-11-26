@@ -128,6 +128,10 @@ const FRAME =
 // ───────────────────── 五档「动漫强度」（序号 + id 同时是 --only 的认法） ─────────────────────
 // ★ style 只写「这一档比别的多/少多少动漫感」，场景、光、陈设一个字都不许改。
 // ★ 第 4 档（赛璐璐）最险：平涂天然会丢细节，所以那一句末尾必须把「细节不许简化」焊回去。
+// ★ 第 4 档第一版写的是 "clear cel-animation look — clean flat colour areas…"，真出出来仍是
+//   一张偏手绘的插画（赛璐璐读不出来）。第二版把「大面积纯色 / 受光面与暗面边界干脆 /
+//   每种材质只给一个暗部色」写成正向句，同时再焊一遍细节——压细节的那几个词
+//   （flat colors / hard-edged shadows / cel shaded）仍然一个都不写。
 const TIERS = [
   {
     id: "detail-light",
@@ -151,7 +155,7 @@ const TIERS = [
     id: "cel",
     name: "明显赛璐璐（平涂不丢细节）",
     style:
-      "Stylization: clear cel-animation look — clean flat colour areas and crisp graphic shapes, yet the detail level stays high: intricate linework, individual book spines, carved wood, embroidery, cracks and wood grain are all still drawn; do not simplify, soften or blur the textures.",
+      "Stylization: unmistakably cel-animation — broad clean areas of pure flat colour, crisp boundaries between lit and shadowed planes, little blending, one shadow tone per material; yet every drawn detail stays: linework, individual book spines, carved wood, embroidery, cracks and wood grain all remain sharp and legible. Do not simplify or blur.",
   },
   {
     id: "stylized",
