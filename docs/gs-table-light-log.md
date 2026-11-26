@@ -730,5 +730,5 @@ dev 里 A/B 复现与修复见 `.tmp-accept/`；`window.__tripo.perfActions` 可
 
 - `npm run build`：**通过**（`tsc` + lingui extract + 全部构建期检查 + vite build，exit 0）。
 - `npm run apk` → 模拟器安装验收（§12.5 五张图与读数）。
-- 分支 `feat/gs-framing-orbit-panel` → PR #NNN → CI 绿 → merge（本小节随 PR 一起合入）。
+- 分支 `feat/gs-framing-orbit-panel` → PR **#546** → CI 绿 → merge（本小节随 PR 一起合入）。
 - 截图与 SPZ **不进仓库**；`public/` 一个字节都没改（这一版没有新增贴图/模型）。
