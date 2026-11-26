@@ -12,10 +12,13 @@
 //      `GsStep0Environment` 原样画回今天的程序化书房（见该文件）。
 //
 // 开发期免改代码开法：`npm run dev` 之后给地址加 `?gs=1`（`import.meta.env.DEV` 恒假的生产构建里永远关着；
-// 页面里想临时对尺度就再加 `gsScale=3.2&gsYaw=-37&gsTilt=0&gsX=0&gsY=0&gsZ=0`，五个数分别覆盖下面那组落位参数）。
+// 页面里想临时对尺度就再加 `gsScale=3.2&gsYaw=20.15&gsTilt=-6&gsX=0&gsY=0&gsZ=0`，五个数分别覆盖下面那组落位参数；
+// 两档高斯用 `?quality=draft` 切（真机上不用重出包，见 gsQuality 的注释）。
 import { useSyncExternalStore } from "react";
-import { Euler, Vector3 } from "three";
+import { Euler, Quaternion, Vector3 } from "three";
 import type { WebGLRenderer } from "three";
+// 探针的转轴要过相机位置：机位只有一处（layout.LAND_CAM），别在这里手抄坐标
+import { LAND_CAM } from "./layout";
 
 /** ★ 开关。要验收/试效果时改成 true（或在 dev 地址上加 ?gs=1），提交前保持 false。 */
 export const GS_STEP0 = false;
@@ -133,77 +136,107 @@ export function gsLoadMs(): number {
 /** splat 资产：**不进仓库**（见 .gitignore 的 `public/models/study/gs/`）。开启前把导出的 spz 放到这里。 */
 export const GS_STEP0_ASSET = "/models/study/gs/workshop-step0.spz";
 
+// ── 画质档（2026-11-26 第 2 版资产）：refined 2M / draft 524k ──────────────────
+// ★ 同一套 11 视角、同一份位姿，Atlas 给了两档：draft 500 credits（41 s）、refined 5000（18.5 min）。
+//   两档的**内容**是一样的（同一批输入、同一套位姿），差别只是高斯数（524,288 / 2,000,000）。
+//   留这个开关是为了真机 A/B：draft 档量"填充率是不是瓶颈"，refined 档量"画质值不值这 4 倍"。
+//   验收与两档读数见 docs/gs-step2-splat-log.md §4。
+// ★ 默认 refined。生产构建里也可以是 draft（改这一个常量即可，不用碰路径）；
+//   真机临时对照不用重新出包：设置里的实验档之外再给两个覆盖口子（dev 的 ?quality= / localStorage），
+//   与 `gsMaxSplats` 同一种做法 —— 换档要重新进工坊才会重新建 SplatMesh。
+export const GS_QUALITY: "refined" | "draft" = "refined";
+const QUALITY_KEY = "gsStep0Quality";
+/** 这一档此刻用哪个文件（覆盖顺序：dev 的 ?quality= > localStorage > GS_QUALITY） */
+export function gsQuality(): "refined" | "draft" {
+  if (import.meta.env.DEV && typeof location !== "undefined") {
+    const q = new URLSearchParams(location.search).get("quality");
+    if (q === "draft" || q === "refined") return q;
+  }
+  return lsRead(QUALITY_KEY) === "draft" ? "draft" : GS_QUALITY;
+}
+/** refined / draft 两个文件的名字都写在这里（路径是同一个目录，改名只改这一处） */
+export const GS_STEP0_ASSETS = {
+  refined: GS_STEP0_ASSET,
+  draft: "/models/study/gs/workshop-step0-draft.spz",
+} as const;
+/** 当前档的 URL —— GsStep0Room 建 SplatMesh 时读它（每次建 mesh 现读，所以换档后重进工坊生效） */
+export function gsAssetUrl(): string {
+  return GS_STEP0_ASSETS[gsQuality()];
+}
+
 // ── 落位（splat 世界 → 游戏世界）────────────────────────────────────────────
-// 推导与实测见 docs/gs-step1-splat-log.md。这里只留结论与"为什么"，以及**与上一版哪里不同**。
+// 推导、量法与三张验收截图见 docs/gs-step2-splat-log.md（上一版（单图重建）的推导在
+// docs/gs-step1-splat-log.md，两版的房间基、尺度、俯仰没有一位是抄来的）。这里只留结论与"为什么"。
 //
-// ★★ 这一版的资产换了：上一版（step0）是真人拍 12 个真实机位重出来的房间；这一版是
-//    **单图 → Atlas 补 12 视角 → 重建**（输入 `room-master.jpg` 那张「魔女阁楼」概念图）。
-//    导出包 `cameras.json` 里 12 个位姿**除 01 之外全是同一个占位值**（`3 2.5 4` + 同一个四元数），
-//    所以 step0 那套"拿 12 条视线求最小二乘交点"在这里**用不了**（求出来的是那个占位点）。
-//    这一版的定位改走两条腿，读数都抄进台账（§3）：
-//    ① **参考渲染对位**：splat 摆成恒等变换、相机放 cameras.json 的 01 位姿（pos (0, 0.8387, 0)、
-//       quaternion 只含 36.87° 的 yaw、垂直 fov 36.9°），渲出来与 ZIP 里的 `01-room-master.png`
-//       逐处对得上（圆窗 / 壁炉 / 书柜 / 长桌 / 跑表）。⇒ 坐实了 **splat 帧 = 01 相机帧**：
-//       U=+Y、F=(-0.6, 0, -0.8)（朝窗）、R=F×U=(0.8, 0, -0.6)（朝右）。
-//    ② **点云打射线量锚点**：拿那张参考图上的像素锚点（窗心、桌的近端/远端/左右缘、地板、炉膛…）
-//       在 2M 高斯的点云里取前表面，换算成房间坐标 (s=右, d=朝窗, h=高)，读数见下面 ANCHOR。
+// ★★ 这一版的资产又换了（2026-11-26，`feat/gs-step2-splat`）：同一间「魔女阁楼」，输入从**一张图**
+//    换成 **11 张伪多视角**（`design/atlas-prep-views.py` 归一，view-11 那张 18mm 剔掉），走 Atlas
+//    `images2PosedRGBD` **估出 11 个真位姿**（不再是上一版那个"11 个占位位姿"），再 `posedImages2Splats`
+//    出 refined 2M 高斯。⇒ 上一版"参考图对位 + 单条视线打射线"的定位法在这里能升级成**点云几何量测**：
+//    因为位姿是真的，点云在估计出的世界坐标系里是一个连续的房间，不再是一条视线推出来的平板。
 //
-// ① 朝向 **yaw = -36.87°**（= 抵消 01 相机的 yaw）：这一版**不做 step0 那个"再转 90°"**。
-//    原因：这间屋子的**长桌是顺着视线方向摆的**（参考图里桌子从画面下沿一路指向圆窗：
-//    近端宽 310 px、远端 160 px，是纵向透视），不像 step0 那样横在画面里（长轴 == X）。
-//    硬转 90° 会把圆窗推到侧墙 —— 既违背"圆窗在正对面"，也会让我们从**重建从没拍过的那一侧**
-//    看这间屋子（单视角重建只有那一个观察方向，侧看就是一堆拉伸的墙）。
-//    转 0° 时：圆窗 -z（正前方）、壁炉 -x（左）、书柜 +x（右）—— 与参考图逐处一致。
-//    （别用负 scale 去凑朝向：法线/阴影/背面剔除会一起反。）
-// ② 尺度 **SCALE = 3.2**：桌面在点云里 1.65 × 0.77 splat 单位（长轴沿 d）⇒ 3.2 之后是
-//    **5.28 × 2.46 世界单位**。为什么比上一版（6.6）小这么多：这间屋子的桌子只占房间很小一块
-//    （1.65 长的桌子放在 8 单位深的屋子里），而我们的盖板是"整张桌面的替身"。
-//    上限卡在**纵向**：桌面纵向 = 1.65 × SCALE，必须整段压进盖板 z∈[-4.5, 4.5]（横屏 9 深）
-//    ⇒ **SCALE ≤ 5.45**；取 3.2 留了 41% 余量（下面 ④ 的 tilt 还会把桌面近端抬起来，余量是要的）。
-//    横向 ±1.23 远窄于盖板 ±11 —— 盖板两侧的边缘本来就在画框外（近边可见半宽 ±3.7、远边 ±6.4），
-//    所以横向不是约束。
-// ③ 平移 **TARGET = [0, -1.1, 0]**：桌面顶面中心落到 (0, -1.1, 0)。
-//    · Y 低 1.1：让整张桌子（含 ④ 抬起来的近端 0.64 + 那 ±5 cm 噪声尾巴）全部躲在盖板顶面 y=0 以下。
-//    · Z = 0：桌子落在盖板正中。
-//    ★ 为什么不是"把屋子整体压下去"（上一版那种让让）：压 4.9 确实也能把圆窗拉进画框，但那是连
-//      **壁炉一起压到盖板顶面以下**（台面只比桌面高 0.56 splat 单位 = 1.8 世界单位）—— 左边那座
-//      雕花炉子就整块没了。这一版改用 ④ 的 tilt：只压远端，近处的壁炉/柜子几乎不动。
-// ④ 俯仰 **TILT_DEG = -14°**（这一版新增的第四位，见常量那行的注释）。
+// ① 房间基（由点云自己量出来，不靠参考图的像素对应）：见 FLOOR 常量。
+//    · **地板不是 y=0**（上一版是）：`y = -0.02313·d + 0.03890·s + 0.19252`（残差 std 0.035）——
+//      即地板在房间中线处 y≈0.07，整块板对世界 y 倾斜 1.4°。地板的 tilt 是重建时 Atlas 把
+//      "canonicalize 到第一帧相机"留下的（那台相机 pitch -1.24°），不是拍歪了；
+//      这一点**不纠正**（要纠就得多一位 roll，而墙本来就要被 ④ 的 tilt 前倾 6°）。
+//    · 用两面侧墙（s≈-3.33 壁炉墙 / s≈+0.70 书柜墙）的法线叉乘得"上"= (-0.012, 0.9999, -0.0007)，
+//      与 +y 只差 0.7° ⇒ 下面照旧只写 yaw + tilt 两位，不再引入 roll。
+//    · 房间尺寸：**纵深 d 7.96 × 宽 s 4.31 × 高 3.84**（上一版 4×8×3，同一间屋子的另一种画法）。
+//    · 圆窗在**远墙**（d≈6.85）正中：中心 (s -1.30, d 6.83, y 1.52)、直径 0.90。
+//    · 长桌顺视线摆：桌面顶面中心 (s -1.27, d 3.20, y 0.835)、**2.50（沿 d）× 1.17（沿 s）**，
+//      桌面比脚底（该处地板 y=0.070）高 **0.765**。
+//    · 屋子、桌子、窗**都在同一条中线 s=-1.28 上** ⇒ 朝向只剩一个 yaw。
+// ② 朝向 **yaw = +20.15°**：房间"朝窗"方向 F = +e1 = (0.3446, 0, -0.9387)。
+//    `R_y(20.15°)·F = (0,0,-1)` ⇒ 圆窗落在 **-z（正对面）**、壁炉墙在 **-x（左）**、书柜墙在 **+x（右）**，
+//    与 11 张参考图逐张一致（不要为了凑对称去转 90°：这间屋子的窗与桌长轴同向，转 90° 就是把窗甩到侧墙）。
+//    与上一版（-36.87°）差这么多，是因为两版重建的**世界坐标系是各自估出来的**（都以第一帧相机为原点）。
+// ③ 尺度 **SCALE = 3.2**（沿用上一版，好处是两版的观感差只是重建质量差，不是尺度差）：
+//    桌面 2.50 × 1.17 → **8.00 × 3.74** 世界单位；桌面中心落到 TARGET=(0,-1.1,0) 之后，整张桌子在
+//    世界 z ∈ [-3.98, +3.98]、y ∈ [-1.52, -0.68]（盖板是 22×9 ⇒ z∈[-4.52,+4.52]，**两侧各 0.54 余量**）。
+//    上限卡在纵深：桌面 2.50·SCALE ≤ 9 ⇒ **SCALE ≤ 3.60**；取 3.2 留了 11% 余量（④ 的 tilt 会把远端
+//    再往前压 0.09）。横向 ±1.87 远窄于盖板 ±11 —— 横向不是约束（同上一版）。
+//    ★ 别再往上抬到"桌子露出盖板"：一露就与 22×9 的网格桌面叠成两张桌子（上一版 §5 风险 5 同一条）。
+// ④ 俯仰 **TILT_DEG = -6°**（绕游戏 X，负 = 把房间远端往下压）。
+//    为什么需要（这一版比上一版小得多）：窗口中心只比桌面高 0.77 splat 单位 = 2.46 世界单位，
+//    相机却在桌面上方 5.0（LAND_CAM pos y=3.9、桌面顶 -1.1）。不压的话窗心在视平线上方一点点，
+//    而画面顶只到视平线下 5°（fov 50、俯角 30°）—— 窗会被画面顶裁掉一截。
+//    -6° 是量出来的（把点云按候选落位投进 LAND_CAM，取窗口亮点的像素包围盒）：
+//    **窗在屏幕 y 46~171 px 之间**，可见带是 y 0~197（盖板远边那条线），上方留 46 px、下方留 26 px；
+//    俯仰再少（-3°）窗顶就摸到 y=19；再多（-8°）窗底压到 187、快贴上盖板远边。
+//    ★ 代价照旧认下来：墙会前倾 6°（上一版 14°）。这一版**没有**上一版那种"沉屋子保壁炉"的两难 ——
+//    壁炉台在 y≈1.5（世界）远在盖板之上，怎么压都在。
+// ⑤ 平移 **TARGET = [0, -1.1, 0]**：桌面顶面中心落到 (0,-1.1,0)。
+//    Y=-1.1 与上一版相同：tilt 把桌面近端抬起 4.0·sin6° ≈ 0.42 ⇒ 桌面最高点 y≈-0.68，
+//    整张桌面躲在盖板顶面 y=0 以下；盖板盒往下包 0.5，连桌沿都在盒子里。
+//    Z=0 / X=0：桌子落在盖板正中（屋子中线就是 x=0）。
 const ANCHOR = {
-  /** 桌面高度：参考图上"跑表中"处量的 0.577（近端 0.50 / 远端 0.69 —— 参考图本身画得略有起伏） */
-  tableTopH: 0.577,
-  /** 桌面中心：横向在正中（0.04）；纵向 3.445 = 重建相机到桌心的距离（近端 2.62 / 远端 4.27） */
-  tableS: 0.04,
-  tableD: 3.445,
-  /** 桌面 1.65（沿 d，长轴）× 0.77（沿 s，宽） */
-  tableLen: 1.65,
-  tableWid: 0.77,
-  /** 地板 h=0（重建相机就在地面以上 0.84）；圆窗心 h=2.03、d=7.83 */
-  floorH: 0,
-  winH: 2.03,
-  winD: 7.83,
-  /** 壁炉炉膛 (s, d, h)（台面在 h=1.14）—— 火的占位光用它 */
-  fire: { s: -1.548, d: 3.94, h: 0.48 },
+  /** 桌面顶面中心（splat 帧的房间坐标 s=右 / d=朝窗 / y=**绝对高度**，不是相对地板） */
+  tableS: -1.27,
+  tableD: 3.2,
+  tableTopY: 0.835,
+  /** 桌面 2.50（沿 d，长轴）× 1.17（沿 s，宽） */
+  tableLen: 2.5,
+  tableWid: 1.17,
+  /** 圆窗（远墙正中）：直径 0.90，中心 y 1.52 */
+  win: { s: -1.303, d: 6.83, y: 1.515, dia: 0.9 },
+  /** 壁炉（左墙 s≈-3.33）：只给"火"的占位光用，**炉膛位置是估的**（h≈0.5 那一层点被家具挡住，量不准，
+   *  取与上一版同高）。火本身默认关（GS_FIRE），真火要等桌面切除之后才看得见。 */
+  fire: { s: -3.18, d: 4.8, y: 0.5 },
 };
-/** ★ 房间坐标 (s=右, d=朝窗, h=高) → splat 帧的 xyz。
+/** 地板平面（同一份点云的拟合结果，y = a·d + b·s + c；见 ①）。只用来把"相对地板高"换算成绝对 y。 */
+export const GS_FLOOR = { a: -0.02313, b: 0.0389, c: 0.19252 };
+/** ★ 房间坐标 (s=右, d=朝窗, y=高) → splat 帧的 xyz。
  *  为什么要有这一步：CENTER 是喂给 three 旋转矩阵的**splat 帧坐标**；
- *  (s,d,h) 是「房间自己的轴」上那三个数，直接塞进去等于把屋子又转了一次 ——
- *  2026-11-25 踩过：圆窗跑到画面右边、桌子偏到 -x，查了半天以为 yaw 反了。
+ *  (s,d,y) 是「房间自己的轴」上那三个数，直接塞进去等于把屋子又转了一次 ——
+ *  2026-11-25 上一版踩过：圆窗跑到画面右边、桌子偏到 -x，查了半天以为 yaw 反了。
  *  这一行只做基变换，不含朝向（朝向在 yaw 里）。
- *  ★ 0.8 / -0.6 不是魔数：R=(0.8,0,-0.6)、F=(-0.6,0,-0.8)，正好是 cos/sin 36.87° —— 也就是 01 相机的 yaw。 */
-const toSplat = (s: number, d: number, h: number): [number, number, number] => [0.8 * s - 0.6 * d, h, -0.6 * s - 0.8 * d];
+ *  ★ 0.9387 / 0.3446 = cos/sin(69.84°)：房间 s 轴（右）= (0.9387,0,0.3446)、d 轴（朝窗）=(0.3446,0,-0.9387)，
+ *    由两侧墙法线 + 远墙法线量出来（`basis.py`），不是从参考图猜的。 */
+const toSplat = (s: number, d: number, y: number): [number, number, number] => [0.9387 * s + 0.3446 * d, y, 0.3446 * s - 0.9387 * d];
 /** 桌面顶面中心（splat 帧的 xyz）—— 变换后它落到 TARGET */
-const CENTER: [number, number, number] = toSplat(ANCHOR.tableS, ANCHOR.tableD, ANCHOR.tableTopH);
-const YAW_DEG = -36.87;
-/** ★ 这一版新增的一位：绕**游戏 X 轴**的俯仰（负 = 把房间远端往下压）。
- *  为什么需要：重建相机是**桌面高度平视**（高 0.84，见顶部 ①），而我们的相机在桌面以上 3.9、俯角 30°
- *  （layout.LAND_CAM）—— 同一个房间从高 5 倍的位置看下去，圆窗（比桌面高 1.45 splat 单位 = 4.65 世界单位）
- *  会被顶到画框上方：它在视平线**以上** 11°，而画面顶只到视平线**以下** 5°，根本看不见。
- *  -14° 是量出来的：圆窗心落到视平线下 9.6°（窗在竖墙上、俯视又压扁 ≈0.72），整颗窗落在画面顶
- *  与盖板远边那条可见带里；壁炉台面 y=+0.20、烟囱顶 y=+3.5（都露在盖板之上）。
- *  取法与三条路线的比较见 docs/gs-step1-splat-log.md §3.5。
- *  ★ 代价：墙会略前倾 14°（这间屋子本来就有斜顶斜梁，读不出来）；地板的倾斜被盖板远边整块挡住。 */
-const TILT_DEG = -14;
+const CENTER: [number, number, number] = toSplat(ANCHOR.tableS, ANCHOR.tableD, ANCHOR.tableTopY);
+const YAW_DEG = 20.15;
+const TILT_DEG = -6;
 const SCALE = 3.2;
 const TARGET: [number, number, number] = [0, -1.1, 0];
 
@@ -225,20 +258,47 @@ const euler = new Euler(
   "XYZ",
 );
 
+// ── 验收钩子：±6° 平移视角（localStorage `gsStep0YawProbe`，单位度；缺省 0 = 完全不生效）──
+// ★ 为什么要在落位常量这一层做：App 的相机是**固定机位**（CameraRig 那套归演出，不接受这一档去动它），
+//   而"伪多视角重建在偏离原始视锥之后会不会重影/拉伸"只能靠**平移视角**去验。把 splat 绕
+//   **相机所在的竖轴**转 θ，等于房间相对相机原地转 θ —— 与"相机原地转头 θ"逐像素等价（纯旋转）。
+//   盖板 / NPC / 卡牌是网格，**不参与**这次旋转（截图里只看房间那一条带，见 docs/gs-step2-splat-log.md §4）。
+// ★ 只给验收用：默认 0；真机上用 WebView 调试口写 localStorage 再刷新（不必重出包）。
+const PROBE_KEY = "gsStep0YawProbe";
+/** 探针角（度）：读一次冷启动值，夹在 ±30° 里（写错也不至于把屋子转飞） */
+const probeDeg = Math.max(-30, Math.min(30, Number(lsRead(PROBE_KEY)) || 0));
+
 /** 挂 splat 的那个 group 的变换（position/rotation/scale 三件一起用，别在别处再乘一次）。
  *  ★ 位置 = TARGET − scale·(R 作用在 CENTER 上)：`CENTER` 那个点（桌面顶面中心）落到 `TARGET`。
  *    上一版是手写 cos/sin 展开的（只有 yaw 时够用），这一版多了 tilt，改成用 Euler 算一遍 ——
- *    以后再加一位不用重新对一遍符号。 */
+ *    以后再加一位不用重新对一遍符号。
+ *  ★ 旋转 = 探针（绕相机竖轴）· 基础（tilt·yaw）。探针为 0 时这一层是恒等，与没有它逐字节相同。 */
 const rotatedCenter = new Vector3(...CENTER).applyEuler(euler).multiplyScalar(scale);
+const basePos = new Vector3(
+  devNum("gsX", 0) + TARGET[0] - rotatedCenter.x,
+  devNum("gsY", 0) + TARGET[1] - rotatedCenter.y,
+  devNum("gsZ", 0) + TARGET[2] - rotatedCenter.z,
+);
+/** 探针的转轴（过相机位置的一条竖线；相机机位只读 layout，别手抄坐标） */
+const probeAxis = new Vector3(LAND_CAM.pos[0], 0, LAND_CAM.pos[2]);
+const qBase = new Quaternion().setFromEuler(euler);
+const qProbe = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), (probeDeg * Math.PI) / 180);
+const qTotal = qProbe.clone().multiply(qBase);
+const totalEuler = new Euler().setFromQuaternion(qTotal, "XYZ");
+const totalPos = basePos.clone().sub(probeAxis).applyQuaternion(qProbe).add(probeAxis);
+/** 落位钩子对外只剩这三个数（GsStep0Room 挂 primitive 用；换落位/探针都只改上面那一处） */
 export const GS_STEP0_TRANSFORM = {
   scale,
-  rotation: [euler.x, euler.y, euler.z] as [number, number, number],
-  position: [
-    devNum("gsX", 0) + TARGET[0] - rotatedCenter.x,
-    devNum("gsY", 0) + TARGET[1] - rotatedCenter.y,
-    devNum("gsZ", 0) + TARGET[2] - rotatedCenter.z,
-  ] as [number, number, number],
+  rotation: [totalEuler.x, totalEuler.y, totalEuler.z] as [number, number, number],
+  position: totalPos.toArray() as [number, number, number],
 };
+/** splat 帧的 xyz → 游戏世界（火/窗这些"跟着房间走"的点用它，别各自再拼一遍） */
+const toWorld = (p: [number, number, number]): Vector3 =>
+  new Vector3(...p).multiplyScalar(scale).applyQuaternion(qTotal).add(totalPos);
+/** 探针角（度）—— 角标上要写出来，截图本身就带着"这是不是 ±6° 那一张"的证据 */
+export function gsYawProbe(): number {
+  return probeDeg;
+}
 /** ★★ 火（占位接口，2026-11-25）：**现在不是真火，只是一盏默认关的点光 + 一个坐标**。
  *
  *  为什么先留接口：壁炉是这间屋子最抢眼的陈设（参考图左边那座雕花石炉），真火（体积 shader /
@@ -248,14 +308,11 @@ export const GS_STEP0_TRANSFORM = {
  *  把 `{GS_FIRE && <pointLight …/>}` 换成火焰的网格 / shader，位置仍旧读 `GS_FIRE_LIGHT.position`。
  *
  *  ★ 默认关（GS_FIRE = false）：打开它就是多一盏点光 + 一次 draw call；验收时按关/开各截一张。
- *  ★ 量出来的位置：炉膛 (s, d, h) = (-1.548, 3.94, 0.48)（splat 房间坐标），换到游戏世界之后
- *    y ≈ -1.8 —— 比盖板顶面低一大截，所以这盏灯此刻照不到桌面、也不会多出假亮斑。
+ *  ★ 这一版量出来的位置：炉膛 ≈ (s, d, y) = (-3.18, 4.80, 0.50)（splat 房间坐标；左墙 s≈-3.33），
+ *    换到游戏世界之后 y ≈ **-2.70** —— 比盖板顶面低 2.7，所以这盏灯此刻照不到桌面、也不会多出假亮斑。
  *    真火要上桌看得见，得先把桌面从 splat 里切掉（方案 B）或把这间屋子重出一版更深的。 */
 export const GS_FIRE = false;
-const fireWorld = new Vector3(...toSplat(ANCHOR.fire.s, ANCHOR.fire.d, ANCHOR.fire.h))
-  .applyEuler(euler)
-  .multiplyScalar(scale)
-  .add(new Vector3(...GS_STEP0_TRANSFORM.position));
+const fireWorld = toWorld(toSplat(ANCHOR.fire.s, ANCHOR.fire.d, ANCHOR.fire.y));
 /** 火那盏点光的参数（位置是算出来的，别手抄） */
 export const GS_FIRE_LIGHT = {
   position: fireWorld.toArray() as [number, number, number],
@@ -264,6 +321,10 @@ export const GS_FIRE_LIGHT = {
   distance: 16,
   decay: 1.8,
 };
+/** 圆窗在世界里的位置（同样是算出来的）：窗面泛光与"窗光从哪来"都读它。
+ *  ★ 这一版窗比上一版小得多（直径 0.90 splat × 3.2 = 2.88 世界单位，上一版 6.08），
+ *    所以在世界里的落点要靠 ANCHOR.win 现算，别手抄那几个数。 */
+const windowWorld = toWorld(toSplat(ANCHOR.win.s, ANCHOR.win.d, ANCHOR.win.y));
 
 /** 一档灯（方案 A 的光只照网格桌面与卡牌 —— splat 不吃灯，见 docs/gs-step0-plan.md §4.4）。
  *
@@ -277,14 +338,18 @@ export const GS_FIRE_LIGHT = {
 export const GS_DAY = {
   /** 背景色：只在 splat 没盖住的缝隙里露出来 —— 取房间自己的暗蓝灰，接缝处看不出边界 */
   bg: "#171b22",
-  /** 雾：这间屋子比上一版更深（圆窗在相机前 ~22 世界单位），雾起点推近一点、终点 70 就够 */
+  /** 雾：这一版屋子比上一版更深（圆窗在相机前 ~18.3 世界单位，房间纵深 7.96×3.2=25.5），
+   *  起点放到窗那一带（20）之后 —— 雾在 20 之前不起作用，窗与近处的墙都不吃雾。 */
   fog: [20, 70] as [number, number],
   /** 主光 = 月光：从**窗那侧（-z）斜上方**打进来（x 偏 -2.5 = 窗外偏左，与参考图里壁炉在左的明暗一致）；
    *  阴影框只框"桌面"那一块（框整间房 = 把有限的阴影像素摊薄，plan §4.4）。 */
   sun: { position: [-2.5, 7, -12] as [number, number, number], intensity: 1.5, color: "#c8d8f5" },
-  /** 窗面泛光：位置 = 圆窗在世界里的位置（落位常量算出来的，**别手抄**）；直径 ≈ 6（量出来窗径 6.08）。
+  /** 窗面泛光：位置 = 圆窗在世界里的位置（落位常量算出来的，**别手抄**）；直径 = 窗径 0.90×3.2 ≈ 2.88。
+   *  ★ 2026-11-26：这一版窗心只比桌面高 0.77 splat 单位 ⇒ 世界高度比上一版低得多
+   *    （圆窗世界 y ≈ -0.15，上一版 +0.17 —— 看着差不多，但这一版是"低到盖板顶面以下一点点"），
+   *    宽度也跟着从 6 降到 3 —— 面积小了 4 倍，同样的 intensity 会显得暗，所以比上一版抬了一点。
    *  不支持阴影 / 只支持 PBR 材质 / 必须先 RectAreaLightUniformsLib.init() */
-  window: { position: [0.22, 0.17, -14.72] as [number, number, number], width: 6, height: 6, intensity: 3 },
+  window: { position: windowWorld.toArray() as [number, number, number], width: 3, height: 3, intensity: 4 },
   /**
    * ★ NPC 补光（2026-11-25）。为什么需要：这一档的窗墙在 -z（正前方、窗光漂亮），
    * 而 NPC 站在桌子对面、**面朝 +z**（玩家）—— 窗光从她背后打进来，她的脸与躯干正面
@@ -313,9 +378,12 @@ export const GS_DAY = {
   envIntensity: 0.5,
 };
 
-/** 加载预算：8 秒没就绪就当失败（手机上几十 MB 的 splat 也够）；高斯数默认不截断，见下。 */
+/** 加载预算：没就绪就当失败（回退程序化书房，不黑屏）。
+ *  ★ 2026-11-26：12 秒（上一版 8 秒）。资产从 31.3 MiB 涨到 38.0 MB（仍是 2M 高斯，字段更满），
+ *    加上 Spark chunk 的冷启动，8 秒在模拟器上贴得太近（读数见 docs/gs-step2-splat-log.md §4）。
+ *    高斯数默认不截断，见下。 */
 export const GS_STEP0_BUDGET = {
-  timeoutMs: 8000,
+  timeoutMs: 12000,
   /**
    * ★ 0 = 不截断（2,000,000 个全画）。这个数原来写的是 1_200_000，但 2026-11-25 实测：
    *   Spark 的 `maxSplats` 选项只是**生成器分配容量**，不是渲染上限 —— 传 120 万照样画
