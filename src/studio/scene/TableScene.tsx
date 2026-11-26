@@ -25,6 +25,7 @@ import {
   focusCam,
   GS_TABLE,
   GS_CAM,
+  GS_ROWS,
   cardLayout,
   gsSceneMetric,
   marketSlot,
@@ -168,47 +169,57 @@ const MILLTINA_CFG = {
   breastLift: { angle: -0.3, childAngle: -0.15, splay: 0.24, sink: 0.06, swell: 0.15 },
 };
 
-// ★★ 高斯米制场景里的铸卡师（2026-11-26，feat/gs-table-fire）。
+// ★★ 高斯米制场景里的铸卡师（2026-11-26，`feat/gs-table-fire`；**站位/身高第 2 版** `feat/gs-layout-fix`）。
 //
 // 病根（验收探针量出来的，不是猜的）：MILLTINA_CFG 的 `scale: 3.35` 换算到世界是**约 3.43 m 高**
 // （她模型原点→头骨 1.0236 模型单位 × 3.35），不是注释里那句"头顶世界高约 1.75"。
 // 老场景看不出来是因为那张 22×9 的"UI 画布桌子"本来就是按同一套虚尺度量的（人是桌长的 1/6）。
-// 米制场景 1 单位 = 1 米之后她必须真的 1.75 m：**scale 从 3.35 收到 1.654**（= 3.35 × 1.75/3.55，
-// 含脚底 -0.0345 模型单位的离地偏移），y = 地板 -0.785 + 0.0345×1.654 = **-0.728**。
-// 验收探针读数：npcHead = [0, 2.76, -1.932]（scale 3.35 时）→ 收完应为 ≈ [0, 0.97, -1.93]。
-// 脚底落在地板、头顶在画面 ~12%、与桌高（0.775）的比值 2.26 —— 这就是"桌高≈腰、桌长≈1.5 个身高"那一组。
 //
-// ★ 所有**世界量纲**的物理/位移参数按同一比例 1.654/3.35 = 0.494 收（弹簧碰撞球半径与偏移、
-//   胸物理半径/抬升上限/臂半径/躯干球、leanSlide 的 back/z/y、breastLift 的 sink/swell）——
-//   它们原来是照 3.35 倍模型量的，不收就会对着一个 3.4 m 的假人解算。
-// ★ 胸物理的 rail（桌沿碰撞体）从旧桌的 z=-3.55 挪到新桌的 z=-1.25、y 从 0.08 降到 0.02：
-//   不挪的话弯腰时它会去撞一个两米外的隐形栏板，胸前会直接穿过桌沿。
-// ⚠ leanSlide 的"幅度"已按比例收（0.42→0.207 等），但桌沿从 4.3 m 远变成 0.65 m 远这件事
-//   不是等比能解决的 —— 进对话让她伏桌时要再看一次（docs/gs-table-light-log.md 风险 2）。
+// ★★ 第 2 版（2026-11-26，主人的四条修正之第 2/4 条）：**她换到壁炉那一侧（−x）、面朝玩家、只露腰以上。**
+//   · 站位：x = **−0.82**（桌子远沿在 −0.61，她几乎贴着桌沿站 —— 站得越近，桌沿的遮挡线在她身上
+//     落得越高，需要的下沉量就越小：x=−1.05 时要沉 0.22 m、x=−0.82 时只要 0.12 m。下沉量小，
+//     侧面机位里"裙摆被地板截断"就越看不出来）、z = **+0.50**（炉膛在 z≈+0.10、椅子在 z≈−0.7，
+//     站 +0.5 时**火从她右手边整条露出来、椅子也不压在她身前**，同时也正是"她在桌子一端"那个读法）；
+//     yaw = **π/2**（模型默认面朝 +z，转 90° 之后面朝 +x = 玩家）。
+//   · 身高：**scale 1.654 → 1.418（1.75 m → 1.50 m）**、y **−0.728 → −0.955**（额外下沉 0.22 m）。
+//     为什么必须沉/缩：相机眼位 1.06 m 时，**桌沿的遮挡线在她那处只有离地 0.74 m 高**
+//     （眼睛穿桌沿高点 (−0.61, 0.053) 的那条射线，到 x=−0.82 落到 y≈−0.043）——
+//     上一版她站在桌沿后 0.65 m 处、遮挡线只到 0.45 m 高，从大腿中段往上全露，
+//     就是主人说的"桌面上露出太多"。把腰线压到那条遮挡线上之后，画面里只剩**腰以上**：
+//     身高 1.50 m（scale 1.418）、下沉 0.12 m（y = −0.856）、腰高（世界 y）≈ −0.05（离地 0.74 m）、
+//     可见高度 0.64 m ≈ 她 1.50 m 的 **42%**。三个数记在 docs/gs-table-light-log.md 的表里。
+//   · 所有**世界量纲**的物理/位移参数按同一比例 1.418/3.35 = 0.423 收（弹簧碰撞球半径与偏移、
+//     胸物理半径/抬升上限/臂半径/躯干球、leanSlide 的 back/z/y、breastLift 的 sink/swell）。
+//   · 胸物理的桌沿碰撞体：上一版按"桌子在 −z 侧"写成 z=−1.25，这一版桌子在她 **+x** 侧 ⇒
+//     用 `rail.x = −0.62`（胶囊顺着长轴 z 走，见 TripoNpc 的 rail 注释）、y 跟着下沉量落到 0.02。
+// ⚠ leanSlide 只按比例收了，米制下"桌沿离她只有 0.3 m"这件事不是等比能解决的 ——
+//   进对话让她伏桌时要再看一次（docs/gs-table-light-log.md 风险表）。
 const GS_MILLTINA_CFG = {
   ...MILLTINA_CFG,
-  scale: 1.654,
-  y: -0.728,
-  z: -1.9,
-  x: 0,
-  leanSlide: { back: 0.207, z: 0.0395, y: 0.107 },
+  scale: 1.418,
+  y: -0.856,
+  x: -0.82,
+  z: 0.5,
+  yaw: Math.PI / 2,
+  leanSlide: { back: 0.178, z: 0.034, y: 0.092 },
   springColliders: [
-    { bone: "mixamorig:Head", radius: 0.128 },
-    { bone: "mixamorig:Spine1", radius: 0.207, offset: [0, 0.049, 0.02] as [number, number, number] },
-    { bone: "mixamorig:Hips", radius: 0.188 },
-    { bone: "Breast_L", radius: 0.077, offset: [0, 0, 0.025] as [number, number, number] },
-    { bone: "Breast_R", radius: 0.077, offset: [0, 0, 0.025] as [number, number, number] },
-    { bone: "mixamorigNeck", radius: 0.064, offset: [0, -0.0825, 0.052] as [number, number, number] },
+    { bone: "mixamorig:Head", radius: 0.11 },
+    { bone: "mixamorig:Spine1", radius: 0.178, offset: [0, 0.042, 0.017] as [number, number, number] },
+    { bone: "mixamorig:Hips", radius: 0.161 },
+    { bone: "Breast_L", radius: 0.066, offset: [0, 0, 0.021] as [number, number, number] },
+    { bone: "Breast_R", radius: 0.066, offset: [0, 0, 0.021] as [number, number, number] },
+    { bone: "mixamorigNeck", radius: 0.055, offset: [0, -0.071, 0.045] as [number, number, number] },
   ],
   breastPhys: {
     ...MILLTINA_CFG.breastPhys,
-    radii: [0.064, 0.054, 0.044],
-    rootLiftMax: 0.079,
-    armRadius: 0.037,
-    rail: { y: 0.02, z: -1.25, radius: 0.035 },
-    torsoRadius: 0.0395,
+    radii: [0.055, 0.046, 0.038],
+    rootLiftMax: 0.068,
+    armRadius: 0.032,
+    // 桌子在 +x 侧 ⇒ 桌沿用 x 位（沿长轴 z 走的胶囊），不再用 z
+    rail: { y: 0.02, x: -0.62, radius: 0.03 },
+    torsoRadius: 0.034,
   },
-  breastLift: { angle: -0.3, childAngle: -0.15, splay: 0.24, sink: 0.03, swell: 0.074 },
+  breastLift: { angle: -0.3, childAngle: -0.15, splay: 0.24, sink: 0.026, swell: 0.063 },
 };
 
 import {
@@ -582,7 +593,8 @@ function Table() {
   //   米制档（高斯场景）桌面顶面仍是 y=0、桌子离地 0.765，并叠光毯；老场景观感逐字节不变。
   const T = sceneLayout(useIsLandscape()).table;
   const metric = gsSceneMetric();
-  return <WorkshopTable T={T} height={metric ? GS_TABLE.height : undefined} metric={metric} />;
+  // 米制档把 splat 那张 2.50 的长桌长度一起传下去：毡面收短到 2.15 之后，两端由木端板盖住
+  return <WorkshopTable T={T} height={metric ? GS_TABLE.height : undefined} metric={metric} splatLen={metric ? GS_TABLE.splatLen : undefined} />;
 }
 
 // ── 合成法阵（中线右端）────────────────────────────────────
@@ -962,7 +974,7 @@ function DeckStack() {
     >
       {/* 卡组虚位标记（与节点链同一缩放档，桌面尺度统一） */}
       <mesh
-        rotation={[-Math.PI / 2, 0, 0]}
+        rotation={[-Math.PI / 2, 0, metric ? GS_ROWS.flatRotZ : 0]}
         position={[deckPos[0], 0.009, deckPos[2]]}
         scale={chainScale}
         material={markerMat}
@@ -972,7 +984,11 @@ function DeckStack() {
       {Array.from({ length: shown }, (_, i) => (
         <mesh
           key={i}
-          rotation={[-Math.PI / 2, 0, ((i * 37) % 11) * 0.012 - 0.06]}
+          rotation={[
+            -Math.PI / 2,
+            0,
+            (metric ? GS_ROWS.flatRotZ : 0) + ((i * 37) % 11) * 0.012 - 0.06,
+          ]}
           position={[deckPos[0], 0.012 + i * pileStep, deckPos[2]]}
           scale={chainScale}
           material={backMat}
@@ -981,7 +997,7 @@ function DeckStack() {
         </mesh>
       ))}
       <mesh
-        position={[deckPos[0], metric ? 0.02 : 0.12, deckPos[2] - (metric ? 0.2 : 0.62) * chainScale]}
+        position={[deckPos[0], metric ? 0.02 : 0.12, deckPos[2] - (metric ? 0.28 : 0.62) * chainScale]}
         rotation={[-Math.PI / 2, 0, 0]}
         scale={chainScale}
         material={countMat}
@@ -1009,13 +1025,17 @@ function DeckSpread() {
       {visible.map((card, i) => {
         const idx = start + i;
         const isCenter = idx === center;
-        const x = S.centerX + (i - (visible.length - 1) / 2) * S.dx;
+        // ★ 沿轴排（SpreadLayout.axis）：老场景沿 x、米制档沿长轴 z（NPC 侧那半张桌）
+        const along = S.center + (i - (visible.length - 1) / 2) * S.gap;
+        const [x, z] = S.axis === "z" ? [S.at, along + (isCenter ? 0.06 : 0)] : [along, S.at + (isCenter ? 0.1 : 0)];
         return (
           <CardMesh
             key={card.id}
             tex={cardFaceTexture(card)}
             from={L.deckPos}
-            target={[x, isCenter ? 0.16 : 0.04 + i * 0.012, S.z + (isCenter ? 0.1 : 0)]}
+            target={[x, isCenter ? 0.16 : 0.04 + i * 0.012, z]}
+            // 米制档：摊开的牌也按玩家那一侧读（牌的上边朝 −x）
+            rotZ={gsSceneMetric() ? GS_ROWS.flatRotZ : 0}
             scale={isCenter ? 1.07 : 0.98}
             hoverLift
             onPointerDown={(e) => {
@@ -1101,13 +1121,15 @@ function DragLayer() {
   );
 }
 
-// ── 市场平摊（NPC 侧一排扑克式摊开） ──────────────────────────
+// ── 市场平摊（NPC 侧那一排，沿长轴顺放） ──────────────
 function MarketFan() {
   const market = useStudio((s) => s.market);
   const detail = useStudio((s) => s.marketDetail);
   // 横屏一页 8 张（2 排 × 4），竖屏 6 张（2 × 3）—— 摆位与分页必须是同一套常量
   const land = useIsLandscape();
   const M = sceneLayout(land).market;
+  // ★ 米制档：NPC 侧那一排是**平放**的牌，跟玩家那排同一套朝向（牌的上边朝 −x，玩家从 +x 读着正）
+  const metric = gsSceneMetric();
   if (!market.open) return null;
   // 只摆本页那几张。以前是把 searchMarket 返回的 8 张全铺出去——那 8 是
   // "一屏摆得下几张"的旧口径，既切了卡又把另外 11 张种子卡藏了起来
@@ -1116,17 +1138,15 @@ function MarketFan() {
   return (
     <group>
       {page.map((card, i) => {
-        const { x, z } = marketSlot(land, i, page.length);
-        const col = i % M.perRow;
-        const rowCount = Math.min(M.perRow, page.length - Math.floor(i / M.perRow) * M.perRow);
+        const { x, z, col, rowCount } = marketSlot(land, i, page.length);
         const cam = focusCam(x, z);
         return (
           <CardMesh
             key={card.id}
             tex={cardFaceTexture(card)}
-            from={gsSceneMetric() ? [0.25, 0.35, -0.9] : [0.9, 0.9, -3.2]}
+            from={metric ? [0.25, 0.35, -0.9] : [0.9, 0.9, -3.2]}
             target={[x, M.lift + i * 0.004, z]}
-            rotZ={(col - (rowCount - 1) / 2) * -0.04}
+            rotZ={metric ? GS_ROWS.flatRotZ : (col - (rowCount - 1) / 2) * -0.04}
             scale={M.scale}
             hoverLift
             ring={detail?.id === card.id ? "#fbbf24" : null}
@@ -1161,6 +1181,7 @@ function SlotPlate({
   index,
   card,
   hot,
+  rotZ = 0,
 }: {
   x: number;
   z: number;
@@ -1171,6 +1192,9 @@ function SlotPlate({
   card: GameCard | null;
   /** 现在正拖着一张卡悬在这一格上 */
   hot: boolean;
+  /** 牌面在桌上的朝向（绕牌面法线转的角度）：米制档玩家那排 +90°（牌的"上边"朝 −x，
+   *  玩家从 +x 那一侧读着正）、场景位 −90°（朝铸卡师那一侧） */
+  rotZ?: number;
 }) {
   const w = cardLayout().w * scale;
   const h = cardLayout().h * scale;
@@ -1193,14 +1217,14 @@ function SlotPlate({
   const label = useMemo(() => labelTexture(name, labelInk), [name, labelInk]);
   return (
     <group position={[x, cardLayout().lift, z]}>
-      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh rotation={[-Math.PI / 2, 0, rotZ]}>
         <planeGeometry args={[w, h]} />
         <meshBasicMaterial color="#0b1a2c" transparent opacity={0.5} depthWrite={false} />
       </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.004, 0]} material={frame}>
+      <mesh rotation={[-Math.PI / 2, 0, rotZ]} position={[0, 0.004, 0]} material={frame}>
         <planeGeometry args={[w * 1.12, h * 1.09]} />
       </mesh>
-      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.008, card ? h * 0.3 : 0]}>
+      <mesh rotation={[-Math.PI / 2, 0, rotZ]} position={[0, 0.008, card ? 0.3 * h : 0]}>
         {/* 空位那个「+」比卡名放大一档（4:1 的文字纹理压进 2:1 的扁条）：不加大的话在横屏
             真机（800×363）上只有 4~5 px，等于没画。 */}
         <planeGeometry args={[card ? w * 0.92 : w * 1.05, card ? w * 0.23 : w * 0.5]} />
@@ -1209,7 +1233,7 @@ function SlotPlate({
       {/* 按下来 = 把这张卡从桌上拖走（落点由 2D 那层判；空位不接受 pointerdown —— 空位没有东西可拖） */}
       {card && (
         <mesh
-          rotation={[-Math.PI / 2, 0, 0]}
+          rotation={[-Math.PI / 2, 0, rotZ]}
           position={[0, 0.01, 0]}
           onPointerDown={(e: ThreeEvent<PointerEvent>) => {
             e.stopPropagation();
@@ -1235,35 +1259,69 @@ function GameTableSlots() {
   const meId = useGame((s) => s.meId);
   const hover = useGame((s) => s.drag?.hover ?? null);
   const camera = useThree((s) => s.camera);
+  const metric = gsSceneMetric();
   const table = (state ? gameViewOf(state, meId)?.table : null) ?? EMPTY_TABLE;
 
-  /** 五格的世界坐标（角色 4 + 场景 1），投影与绘制读同一份：位子挪了不会只挪一半 */
+  /** 五格的世界坐标（角色 4 + 场景 1），投影与绘制读同一份：位子挪了不会只挪一半。
+   *  一排 4 个角色位沿哪条轴由 SlotLayout.axis 定（老场景沿 x 横排、米制档顺长轴竖排）；
+   *  米制档的牌在桌上转 90°（牌的上边朝 −x = 背对玩家，躺着读正），场景位的牌朝铸卡师那一侧。 */
   const plates = useMemo(() => {
-    const roles = Array.from({ length: TABLE_ROLE_SLOTS }, (_, i) => ({
-      slot: { kind: "role" as const, index: i },
-      x: (i - (TABLE_ROLE_SLOTS - 1) / 2) * S.roleDx,
-      z: S.roleZ,
-      scale: S.roleScale,
-    }));
-    return [...roles, { slot: { kind: "scene" as const }, x: S.sceneX, z: S.sceneZ, scale: S.sceneScale }];
-  }, [S.roleDx, S.roleZ, S.roleScale, S.sceneX, S.sceneZ, S.sceneScale]);
+    const roleRot = metric ? GS_ROWS.flatRotZ : 0;
+    const roles = Array.from({ length: TABLE_ROLE_SLOTS }, (_, i) => {
+      const along = (i - (TABLE_ROLE_SLOTS - 1) / 2) * S.roleDx;
+      const [x, z] = S.axis === "z" ? [S.roleAlong, along] : [along, S.roleAlong];
+      return { slot: { kind: "role" as const, index: i }, x, z, scale: S.roleScale, rotZ: roleRot };
+    });
+    return [
+      ...roles,
+      {
+        slot: { kind: "scene" as const },
+        x: S.sceneX,
+        z: S.sceneZ,
+        scale: S.sceneScale,
+        rotZ: metric ? -GS_ROWS.flatRotZ : 0,
+      },
+    ];
+  }, [S, metric]);
 
   // 每帧把五格的屏占比重算进 SLOT_SCREEN（2D 那一层按它判落点、亮高亮）。
-  // ★ 相机这一刻就可能是商店机位 / 对话视角：不做缓存，宁可每帧算 5×3 次投影（这点量看不见）。
+  // ★ 相机这一刻就可能是商店机位 / 对话视角：不做缓存，宁可每帧算 5×4 次投影（这点量看不见）。
+  // ★ 米制档的牌在桌上转了 90°（牌的"上边"朝 −x）：屏占比要按**四角**算 —— 平铺那套
+  //   "中心 ± halfW/halfH"默认宽在 x、高在 z，转 90° 之后正好反过来，不改会算成横躺的框。
   const probe = useMemo(() => new THREE.Vector3(), []);
   useFrame(() => {
     const rects = plates.map((plate) => {
-      const halfW = (cardLayout().w * plate.scale) / 2;
-      const halfH = (cardLayout().h * plate.scale) / 2;
-      const center = probe.set(plate.x, cardLayout().lift, plate.z).project(camera);
-      const cx = (center.x + 1) / 2;
-      const cy = (1 - center.y) / 2;
-      const visible = center.z < 1;
-      const edgeX = probe.set(plate.x + halfW, cardLayout().lift, plate.z).project(camera);
-      const rx = Math.abs((edgeX.x + 1) / 2 - cx);
-      const edgeZ = probe.set(plate.x, cardLayout().lift, plate.z + halfH).project(camera);
-      const ry = Math.abs((1 - edgeZ.y) / 2 - cy);
-      return { slot: plate.slot, cx, cy, rx: Math.max(rx, 0.012), ry: Math.max(ry, 0.012), visible };
+      const w = cardLayout().w * plate.scale;
+      const h = cardLayout().h * plate.scale;
+      const c = Math.abs(Math.cos(plate.rotZ));
+      const s = Math.abs(Math.sin(plate.rotZ));
+      const halfX = (c * w + s * h) / 2;
+      const halfZ = (s * w + c * h) / 2;
+      let minX = 2;
+      let maxX = -2;
+      let minY = 2;
+      let maxY = -2;
+      let visible = false;
+      for (const dx of [-halfX, halfX]) {
+        for (const dz of [-halfZ, halfZ]) {
+          probe.set(plate.x + dx, cardLayout().lift, plate.z + dz).project(camera);
+          const sx = (probe.x + 1) / 2;
+          const sy = (1 - probe.y) / 2;
+          minX = Math.min(minX, sx);
+          maxX = Math.max(maxX, sx);
+          minY = Math.min(minY, sy);
+          maxY = Math.max(maxY, sy);
+          if (probe.z < 1) visible = true;
+        }
+      }
+      return {
+        slot: plate.slot,
+        cx: (minX + maxX) / 2,
+        cy: (minY + maxY) / 2,
+        rx: Math.max((maxX - minX) / 2, 0.012),
+        ry: Math.max((maxY - minY) / 2, 0.012),
+        visible,
+      };
     });
     SLOT_SCREEN.rects = rects;
   });
@@ -1276,6 +1334,7 @@ function GameTableSlots() {
           x={plate.x}
           z={plate.z}
           scale={plate.scale}
+          rotZ={plate.rotZ}
           kind={plate.slot.kind}
           index={plate.slot.kind === "role" ? plate.slot.index : undefined}
           card={plate.slot.kind === "scene" ? table.scene : (table.roles[plate.slot.index] ?? null)}
