@@ -7,10 +7,11 @@
 // ★ 1 秒刷新：fps 由 GsStep0Room 的 useFrame 累加器算（每次结算 = 1 秒的帧数），
 //   这里只负责把 GS_STATS 画出来 —— 别在角标里再挂一个 setInterval 各自算一遍。
 // ★ 文字全用 ASCII：这是开发者读数，不是界面文案（混进中文会被 scripts/check-i18n.mjs 当成漏译）。
-import { gsLoadMs } from "./gsStep0";
+import { gsLoadMs, gsYawProbe } from "./gsStep0";
 
-/** GsStep0Room 每帧写、角标每秒读一次。cap=这一档的高斯上限，fill=NPC 补光开没开 */
-export const GS_STATS = { fps: 0, splats: 0, calls: 0, tris: 0, cap: 0, fill: true };
+/** GsStep0Room 每帧写、角标每秒读一次。cap=这一档的高斯上限，fill=NPC 补光开没开，
+ *  quality=两档高斯（refined 2M / draft 524k，见 gsStep0.GS_QUALITY） */
+export const GS_STATS = { fps: 0, splats: 0, calls: 0, tris: 0, cap: 0, fill: true, quality: "refined" as "refined" | "draft" };
 
 let el: HTMLDivElement | null = null;
 let painted = "";
@@ -24,9 +25,10 @@ function num(n: number): string {
 function readout(): string {
   const s = GS_STATS;
   const load = gsLoadMs();
+  const probe = gsYawProbe();
   return [
-    `GS ${s.fps.toFixed(1)} fps   fill ${s.fill ? "on" : "off"}`,
-    `splat ${num(s.splats)} / cap ${s.cap > 0 ? num(s.cap) : "all"}`,
+    `GS ${s.fps.toFixed(1)} fps   fill ${s.fill ? "on" : "off"}${probe ? `   probe ${probe > 0 ? "+" : ""}${probe}deg` : ""}`,
+    `splat ${num(s.splats)} / cap ${s.cap > 0 ? num(s.cap) : "all"}  ${s.quality}`,
     `calls ${s.calls}  tris ${num(s.tris)}`,
     `load ${load > 0 ? `${(load / 1000).toFixed(2)}s` : "-"}`,
   ].join("\n");

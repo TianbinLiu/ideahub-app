@@ -221,6 +221,9 @@ Atlas 估出来的相机中心却移动了 2.7 m —— 伪多视角的视差/�
   头按 16 字节解析。refined 的 operation response 里 `draftSplat` 为 `null`、
   `refinedSplats` 按 splat 数（`"2000000"`）索引；draft 的 response 里
   `refinedSplats` 为空对象、结果在 `draftSplat`。
+- ★ **入包（App / Spark）时相反：要 gzip 那一层。** 2026-11-26 在 App 里实测：裸 `NGSP` 文件会被
+  Spark 判 `Unsupported NGSP version: 2`（它读的就是 gzip 包着的 `.spz`），必须把裸文件 gzip 回去再放进
+  `public/models/study/gs/`。详见 [`gs-step2-splat-log.md`](gs-step2-splat-log.md) §1.1。
 
 ## 7. 风险与后续
 

@@ -1,5 +1,9 @@
 # GS 第 1 步：单图 → Atlas 补 12 视角 → 重建 · 落位推导 + 验收读数
 
+> ★ **这一步已被第 2 步取代**（2026-11-26）：同一间房改用 **11 张伪多视角 + Atlas 估真位姿** 重建，
+> 落位常量（yaw/scale/tilt/target）与验收读数全部换过，见 [`gs-step2-splat-log.md`](gs-step2-splat-log.md)。
+> 这份留档只用于对照"单视角重建 vs 多视角重建"的观感差与推导思路。
+>
 > 2026-11-25 · 上一版（真人拍 12 个机位的房间）见 [`gs-step0-splat-log.md`](gs-step0-splat-log.md) · 施工单 [`gs-step0-plan.md`](gs-step0-plan.md)
 >
 > 代码落点：`src/studio/scene/gsStep0.ts`（开关 / 落位常量 / 火占位 / 一档灯）·

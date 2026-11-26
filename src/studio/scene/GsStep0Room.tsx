@@ -13,14 +13,15 @@ import { useFrame, useThree } from "@react-three/fiber";
 import { SparkRenderer, SplatMesh } from "@sparkjsdev/spark";
 import {
   GS_DAY,
-  GS_STEP0_ASSET,
   GS_STEP0_BUDGET,
   GS_STEP0_TRANSFORM,
+  gsAssetUrl,
   gsCapability,
   gsFillOn,
   gsLoadMs,
   gsMarkReady,
   gsMaxSplats,
+  gsQuality,
   setGsPhase,
 } from "./gsStep0";
 import { GS_STATS, mountGsHud, updateGsHud } from "./gsHud";
@@ -133,7 +134,9 @@ function SplatLayer({ gl }: { gl: THREE.WebGLRenderer }) {
   useLayoutEffect(() => {
     const spark = new SparkRenderer({ renderer: gl });
     const splat = new SplatMesh({
-      url: GS_STEP0_ASSET,
+      // ★ 两档高斯（refined 2M / draft 524k）走同一个开关，URL 在 gsStep0.gsAssetUrl() 里现读
+      //   （每次建 mesh 读一次 ⇒ 换档之后重新进工坊生效，见那里的注释）。
+      url: gsAssetUrl(),
       // ★ 这一档的高斯上限：设置页临时选 `全部` / 80 万（真机 A/B），dev 还能用 ?max= 覆盖。
       //   在 effect 里现读而不是渲染期读：换档之后重新进工坊才会建新 mesh（这就是量两档的方式）。
       maxSplats: gsMaxSplats(),
@@ -141,6 +144,7 @@ function SplatLayer({ gl }: { gl: THREE.WebGLRenderer }) {
     });
     // 角标读数里这两个数不随帧变：在建模这一拍定下来（省得每帧重新解析地址栏）
     GS_STATS.cap = gsMaxSplats();
+    GS_STATS.quality = gsQuality();
     GS_STATS.fill = gsFillOn();
     GS_STATS.splats = 0;
     setObjs({ spark, splat });
