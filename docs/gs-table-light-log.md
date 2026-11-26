@@ -1,4 +1,4 @@
-# GS 第 2.5 步：桌面回到真实尺度 · 旧桌复位 · 桌面光毯 · 壁炉真火
+﻿# GS 第 2.5 步：桌面回到真实尺度 · 旧桌复位 · 桌面光毯 · 壁炉真火
 
 > 2026-11-26 · 分支 `feat/gs-table-fire` · 上一版 [`gs-step2-splat-log.md`](gs-step2-splat-log.md)
 > 主人反馈两条：**① 桌子大小不对、桌面也不对；② 桌面要用原本旧场景那张桌子，并在上面做 lightmap（窗光斑 + 炉火光）**。
@@ -607,6 +607,6 @@ adb -s emulator-5554 exec-out screencap -p > .tmp-gs-table/shot1-front.png
 
 - `npm run build`：**通过**（`tsc` + lingui extract + 全部构建期检查 + vite build，exit 0）。
 - `npm run apk` → 模拟器安装验收（§11.7 的四张图与读数）。
-- 分支 `feat/gs-polish2` → **PR #544** → CI 绿 → merge。
+- 分支 `feat/gs-polish2` → **PR #544** → CI 绿（build 1m53s / android 2m26s）→ merge（`9b210a8c`）。
 - 这一版**没有新增任何贴图**：火/柴/火星全是程序化，椅子是裁点云（`SplatEdit`），
   所以 `public/` 里一个字节都没动。截图与 SPZ 都在 `.tmp-gs-polish/`，不进仓库。
