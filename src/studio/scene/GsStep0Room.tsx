@@ -37,22 +37,25 @@ function makeDayEquirect(): THREE.CanvasTexture {
   const g = c.getContext("2d");
   if (g) {
     const sky = g.createLinearGradient(0, 0, 0, H);
-    sky.addColorStop(0, "#9fc2ee");
-    sky.addColorStop(0.46, "#dfe9f6");
-    sky.addColorStop(0.5, "#f7eddb");
-    sky.addColorStop(0.52, "#6d5d4a");
-    sky.addColorStop(1, "#3a3129");
+    // ★ 2026-11-25（step1）：这间屋子是**月夜**（深蓝紫 + 圆窗的冷月光），不再走白天那组暖色。
+    //   天顶 → 地平线 → 地面三段都压暗，地平线那一档只留一点冷白（月光落在窗台/地板上的那一线）。
+    sky.addColorStop(0, "#141a2a");
+    sky.addColorStop(0.46, "#2b3550");
+    sky.addColorStop(0.5, "#5d6b88");
+    sky.addColorStop(0.52, "#1d2130");
+    sky.addColorStop(1, "#12141a");
     g.fillStyle = sky;
     g.fillRect(0, 0, W, H);
     // 窗在 -z：three 的 equirect 采样 u = atan2(z, x)/2π + 0.5 ⇒ -z 落在 u=0.25（画布左边 1/4 处）
     const winX = W * 0.25 - 22;
+    // 圆窗那一块：冷白（月光），比白天那版暗一档、更偏蓝
     const grd = g.createRadialGradient(winX + 22, H * 0.4, 4, winX + 22, H * 0.4, 62);
-    grd.addColorStop(0, "rgba(255, 246, 226, 1)");
-    grd.addColorStop(0.45, "rgba(255, 236, 205, 0.55)");
-    grd.addColorStop(1, "rgba(255, 236, 205, 0)");
+    grd.addColorStop(0, "rgba(214, 228, 255, 1)");
+    grd.addColorStop(0.45, "rgba(176, 198, 240, 0.5)");
+    grd.addColorStop(1, "rgba(150, 172, 214, 0)");
     g.fillStyle = grd;
     g.fillRect(winX - 30, H * 0.22, 110, H * 0.32);
-    g.fillStyle = "rgba(255, 249, 238, 0.95)";
+    g.fillStyle = "rgba(226, 236, 255, 0.92)";
     g.fillRect(winX, H * 0.31, 44, H * 0.16);
   }
   const tex = new THREE.CanvasTexture(c);
@@ -180,7 +183,8 @@ function SplatLayer({ gl }: { gl: THREE.WebGLRenderer }) {
           const bb = splat.getBoundingBox();
           const m = new THREE.Matrix4().compose(
             new THREE.Vector3(...GS_STEP0_TRANSFORM.position),
-            new THREE.Quaternion().setFromEuler(new THREE.Euler(0, GS_STEP0_TRANSFORM.rotation[1], 0)),
+            // ★ 带上 tilt（2026-11-25：这一版多了俯仰，只抄 yaw 会把包围盒算歪）
+            new THREE.Quaternion().setFromEuler(new THREE.Euler(...GS_STEP0_TRANSFORM.rotation)),
             new THREE.Vector3(GS_STEP0_TRANSFORM.scale, GS_STEP0_TRANSFORM.scale, GS_STEP0_TRANSFORM.scale),
           );
           const world = bb.clone().applyMatrix4(m);
