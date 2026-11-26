@@ -468,12 +468,16 @@ export function runeRingTexture(): THREE.CanvasTexture {
 
 /** 台前的黄铜铭牌：主标题 + 小字副题。
  *  副题**随状态换文案**——旧版无论能不能点都写死"生成视频"，圆台暗着也不说为什么，
- *  用户只能瞎试。铭牌是这里唯一能讲清前置条件的地方。 */
-export function composePlateTexture(title: string, sub: string, enabled: boolean): THREE.CanvasTexture {
+ *  用户只能瞎试。铭牌是这里唯一能讲清前置条件的地方。
+ *
+ *  `font` 是**字号倍率**（缺省 1 = 老场景那张逐像素不变）。米制档的「生成」牌子只有 0.39×0.12 m，
+ *  在真机上 ~95 CSS px 宽 —— 62px 的字号投上去只剩 9 px，所以米制档传 1.55（两行字一起放大，
+ *  文案一个字都不改）。 */
+export function composePlateTexture(title: string, sub: string, enabled: boolean, font = 1): THREE.CanvasTexture {
   const W2 = 640;
   const H2 = 200;
   const ink = enabled ? "#e8c98a" : "#7c8aa8";
-  return texFromDraw(`composePlate:${title}:${sub}:${enabled}`, W2, H2, [], (ctx) => {
+  return texFromDraw(`composePlate:${title}:${sub}:${enabled}:${font}`, W2, H2, [], (ctx) => {
     // 底板：深色半透 + 上下两道金线（塔罗牌匾同款处理）
     ctx.fillStyle = enabled ? "rgba(24,18,8,0.62)" : "rgba(14,18,30,0.55)";
     roundedPath(ctx, 8, 26, W2 - 16, H2 - 52, 14);
@@ -486,11 +490,11 @@ export function composePlateTexture(title: string, sub: string, enabled: boolean
     ctx.shadowColor = "#000000aa";
     ctx.shadowBlur = 8;
     ctx.fillStyle = ink;
-    ctx.font = "700 62px 'PingFang SC','Microsoft YaHei',serif";
+    ctx.font = `700 ${Math.round(62 * font)}px 'PingFang SC','Microsoft YaHei',serif`;
     ctx.fillText(title, W2 / 2, H2 / 2 - 18);
     ctx.shadowBlur = 4;
     ctx.fillStyle = enabled ? SIGIL_GOLD(0.72) : "rgba(140,160,196,0.7)";
-    ctx.font = "500 30px 'PingFang SC','Microsoft YaHei',sans-serif";
+    ctx.font = `500 ${Math.round(30 * font)}px 'PingFang SC','Microsoft YaHei',sans-serif`;
     ctx.fillText(sub, W2 / 2, H2 / 2 + 40);
     ctx.shadowBlur = 0;
     ctx.textAlign = "left";

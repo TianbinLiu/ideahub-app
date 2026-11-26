@@ -25,6 +25,7 @@ import {
   setGsPhase,
 } from "./gsStep0";
 import { GS_STATS, mountGsHud, updateGsHud } from "./gsHud";
+import GsSplatCull from "./GsSplatCull";
 
 /** 白天的"环境光"：真 HDR 还没进仓（plan §4.4 要的是 Poly Haven 1k CC0 ≈1 MB），
  *  先程序化画一张等距柱状图（天顶蓝 → 地平线暖白 → 地面褐 + -x 窗墙那一块高亮）再过 PMREM。
@@ -237,6 +238,8 @@ export default function GsStep0Room() {
     <>
       <DayEnvironment />
       <SplatLayer gl={gl} />
+      {/* ★ splat 里烘死的两把椅子在这里被剪掉（SplatEdit 盒状 SDF，见该文件头） */}
+      <GsSplatCull />
     </>
   );
 }
