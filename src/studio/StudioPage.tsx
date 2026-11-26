@@ -48,6 +48,11 @@ import { useIsLandscape } from "../hooks/useIsLandscape";
 // 工作流画布现在是工坊里的一层全屏浮层（2026-08-30 合并：创作入口不再有「工作流模式」）
 import FlowCanvas from "../components/flow/FlowCanvas";
 import { castEditorState } from "../pages/FlowPage";
+// ★ 2026-11-26（`feat/gs-framing-orbit-panel`，主人第 3 条）：GS 档的工作流是**小窗浮层**
+//   （66%×68%、居中偏右、波浪 clip-path 开关），3D 与 HUD 不卸载。壳在这个文件里，画布本身
+//   用 `embedded` 不再自己 portal 一层全屏壳（老场景/老路径那边一个字都没改）。
+import WorkflowWindow from "./ui/WorkflowWindow";
+import { useGsPhase } from "./scene/gsStep0";
 import { autoQualityOnFirstVisit, qualityLabel, type Quality } from "./quality";
 import Icon from "../components/Icon";
 
@@ -251,6 +256,16 @@ export default function StudioPage() {
   // 这一页会整个重挂，局部 state 归零，用户会从画布掉回 3D 桌面。它也因此进了返回栈。
   const canvasOpen = useStudio((s) => s.canvasOpen);
   const setCanvasOpen = useStudio((s) => s.setCanvasOpen);
+  /**
+   * GS 档开着没有（米制 splat 场景）：**只决定"工作流是整页浮层还是小窗"**这一件事。
+   * 判据与 TableScene 同一个（useGsPhase 的 loading/ready），不自己再问一次 localStorage。
+   * ★ 小窗这一版只在 GS 实验档里开：老场景的那些路径（/flow、工坊画布、对局预览）
+   *   连一个 class 都没变 —— 主人这一条要的是 GS 桌面的观感，别顺手改全站。
+   */
+  const gsPhase = useGsPhase();
+  const gsScene = gsPhase === "loading" || gsPhase === "ready";
+  /** 小窗从哪儿扩散（生成键 / 顶栏那颗 🧩 点下去的位置，viewport CSS px） */
+  const flowOrigin = useStudio((s) => s.flowOrigin);
   const flowActions = useFlowActions({ onLeave: () => setCanvasOpen(false) });
   const initGreet = useStudio((s) => s.initGreet);
   const spreadOpen = useStudio((s) => s.spreadOpen);
@@ -410,6 +425,32 @@ export default function StudioPage() {
    */
   const initCam = defaultCamFor(window.innerWidth / window.innerHeight);
 
+  /**
+   * 工作流画布本体：props 只有一份 —— GS 小窗（embedded）与老的整页浮层共用同一处，
+   * 差别只在"谁来给壳"。那三件页级活儿（存草稿 / 组稿 / 挂卡）实现也只有一份：
+   * 存草稿与组稿在 hooks/useFlowActions，挂卡入参在 FlowPage.castEditorState（回程 useCastReturn）。
+   */
+  const flowCanvas = (embedded: boolean) => (
+    <FlowCanvas
+      embedded={embedded}
+      onExit={() => setCanvasOpen(false)}
+      onLinear={() => setCanvasOpen(false)}
+      onCast={(tpl, value) => {
+        const st = castEditorState(tpl, value, "/studio");
+        if (st) navigate("/video-editor", { state: st });
+      }}
+      draft={{ state: flowActions.saveState, onSave: flowActions.saveNow }}
+      finish={{
+        allDone: flowActions.allDone,
+        finalizing: flowActions.finalizing,
+        note: flowActions.deckNote,
+        onRun: flowActions.toCut,
+        deckOn: !flowActions.deckOff,
+        onDeckToggle: flowActions.toggleDeck,
+      }}
+    />
+  );
+
   return (
     <div className={`relative h-full w-full overflow-hidden bg-ink ${isLand ? "p-1.5" : ""}`}>
       {/* ★ 舞台：3D 画布 + 所有 absolute 浮层（顶栏、提示条、投影窗、对话气泡、弹层）都挂在这一层。
@@ -494,9 +535,16 @@ export default function StudioPage() {
                 说的是"桌面（对局）右上那颗键"。
               不在对局里时：空流水线也照开，画布里有空态与「对画布说话」输入条。 */}
           <button
-            onClick={() =>
-              inGame ? useGame.getState().setPreviewOpen(true) : setCanvasOpen(true)
-            }
+            onClick={(e) => {
+              if (inGame) {
+                useGame.getState().setPreviewOpen(true);
+                return;
+              }
+              // 小窗的波浪从这颗键的中心长出来（与桌面生成键那条路同一个 store 字段）
+              const r = e.currentTarget.getBoundingClientRect();
+              useStudio.setState({ flowOrigin: [r.left + r.width / 2, r.top + r.height / 2] });
+              setCanvasOpen(true);
+            }}
             title={inGame ? t`工作流：本局每段的预览（只让看不让改）` : t`工作流画布：同一条流水线的另一面`}
             aria-label={inGame ? t`工作流预览` : t`工作流画布`}
             className="flex h-9 w-9 items-center justify-center rounded-full bg-panel/85 text-slate-100 backdrop-blur"
@@ -605,33 +653,21 @@ export default function StudioPage() {
         </div>
       )}
       <StudioLoader />
-      {/* ── 工作流画布：同一条流水线的另一个面，就地铺满这一屏（2026-08-30 合并）──
-          ★ 它自带 z-40 全屏 portal，所以挂在这里不影响上面那些浮层的层级关系。
-          ★ 那三件页级活儿（存草稿 / 组稿 / 挂卡）实现只有一份：存草稿与组稿在
-            hooks/useFlowActions，挂卡入参在 FlowPage.castEditorState（回程 useCastReturn
-            两页共用）—— 画布照旧只借按钮与状态，工坊这一面不抄第二份（铁律六）。
-          ★ ✕ 与「🎴 工坊」都是关掉浮层回到桌面：合并之后它们不再是"去另一页"。
+      {/* ── 工作流画布：同一条流水线的另一个面 ──
+          ★ 2026-11-26（`feat/gs-framing-orbit-panel`，主人第 3 条）：**GS 档走小窗**
+            （ui/WorkflowWindow：66%×68% 居中偏右、圆角、遮罩模糊暗化、圆形 clip-path 波浪开关），
+            3D 与 HUD 不卸载（canvasCovered 仍让它停帧，见 Canvas 那行的 ★）。
+          ★ 老场景/老路径仍是原来那张 z-40 全屏 portal，一个 class 都没动。
+          ★ 那三件页级活儿（存草稿 / 组稿 / 挂卡）只有一份实现：flowCanvas(true/false) 同一份 props。
           ★ 判据是 **canvasOpen**（不是 canvasCovered）：后者 2026-11-23 起也含大厅
             （大厅开着同样要停帧），而大厅开着时不该把画布一起铺上来。 */}
-      {canvasOpen && (
-        <FlowCanvas
-          onExit={() => setCanvasOpen(false)}
-          onLinear={() => setCanvasOpen(false)}
-          onCast={(tpl, value) => {
-            const st = castEditorState(tpl, value, "/studio");
-            if (st) navigate("/video-editor", { state: st });
-          }}
-          draft={{ state: flowActions.saveState, onSave: flowActions.saveNow }}
-          finish={{
-            allDone: flowActions.allDone,
-            finalizing: flowActions.finalizing,
-            note: flowActions.deckNote,
-            onRun: flowActions.toCut,
-            deckOn: !flowActions.deckOff,
-            onDeckToggle: flowActions.toggleDeck,
-          }}
-        />
-      )}
+      {gsScene ? (
+        <WorkflowWindow open={canvasOpen} origin={flowOrigin}>
+          {flowCanvas(true)}
+        </WorkflowWindow>
+      ) : canvasOpen ? (
+        flowCanvas(false)
+      ) : null}
       </div>
     </div>
   );

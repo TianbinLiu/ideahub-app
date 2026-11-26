@@ -610,3 +610,125 @@ adb -s emulator-5554 exec-out screencap -p > .tmp-gs-table/shot1-front.png
 - 分支 `feat/gs-polish2` → **PR #544** → CI 绿（build 1m53s / android 2m26s）→ merge（`9b210a8c`）。
 - 这一版**没有新增任何贴图**：火/柴/火星全是程序化，椅子是裁点云（`SplatEdit`），
   所以 `public/` 里一个字节都没动。截图与 SPZ 都在 `.tmp-gs-polish/`，不进仓库。
+
+## 12. 第 4 版：构图右移 + 小幅环视 + 工作流小窗（2026-11-26 · `feat/gs-framing-orbit-panel`）
+
+> 第 3 版（§11）验收之后主人又提了三条：**整体构图偏左**（NPC 头在画面中偏左）、**发布包里拖拽完全不生效**、
+> **点生成键整页翻到工作流**（3D 与 HUD 在后头空跑）。这一节逐条写"改了什么、怎么量的、还差什么"。
+> 截图与一次性脚本仍在 `.tmp-accept/`（**不进仓库**）。
+
+### 12.1 三条 → 落点
+
+| # | 修正 | 落点 |
+|---|---|---|
+| 1 | NPC 与桌子整体往右 | 新增 `layout.GS_FRAME_SHIFT = 0.09`；`TableScene.syncGsFrameShift` 用 `camera.setViewOffset(W+2δ,H,0,0,W,H)` 把投影窗口右移（等效移轴镜头）。**相机位姿/朝向/焦距一个数都不改** |
+| 2 | 给玩家一档小幅环视 | 新文件 `scene/gsLook.ts`：±6°/±3° 硬停、单指拖、松手 750 ms ease-out 回中；手势入口在 `TableScene.TableCatcher` 的 `mode()` 里新加 `"gsLook"`，按下时对场景做一次 raycast 做**卡牌/铭牌/空白**的闸门 |
+| 3 | 工作流改成小窗 + 波浪切换 | 新文件 `studio/ui/WorkflowWindow.tsx`（66%×68%、居中偏右、圆角、遮罩模糊暗化、圆形 `clip-path` 扩散/收缩）+ `FlowCanvas` 新 `embedded` 位（不 portal、不铺全屏）；GS 档之外的老路径一个 class 都没动 |
+
+### 12.2 取景右移：为什么最后是「移轴」而不是转头
+
+**目标**：NPC 身体中心 49.5% → **58%~62%**，桌子中线同样右移，且**桌右沿不出画**。
+
+**先试「把 `GS_CAM.look` 点往右挪」（纯转头），量完否掉**（画布 852×348、fov 50）：
+
+| look 点 z | NPC 身体中心 | 桌右沿（木端板 z=−1.25） |
+|---|---|---|
+| +0.00（原） | 50.61% | 89.14% |
+| +0.25 | 56.50% | 98.95% |
+| **+0.30** | **57.7%** | **101.2%（出画）** |
+| +0.34（把 NPC 推到 60% 需要的量） | ~60% | ~104% |
+
+纯转头是**角度**平移，靠画面右边的桌右沿走得比人物多 —— 主人两条要求在这个做法下**无解**，不是没调好。
+「整体 group 平移 x」也不行：网格桌面会跟 splat 里烘死的那张桌子错开（两端就靠 `GS_TABLE.splatLen` 的木端板盖着），
+平移 NPC 又会让炉膛的火偏出她身侧；而且单纯平移（不转 look）不改变构图。
+
+**最后用投影窗口右移**：`camera.setViewOffset(W + 2·δ, H, 0, 0, W, H)`，`δ = round(852×0.09) = 77 px`。
+只换投影窗口、不改相机位姿/朝向/焦距 ⇒ 桌子在画面里的尺寸与人物高度**逐像素不变**，画面里所有东西一起右移 77 px。
+
+量出来的数（`window.__gsAccept`，模拟器 852×348）：
+
+- NPC 身体中心（hips 投影）**50.61% → 59.65%**；截图上"亮发+绿裙+肤色 → 最大连通块"量到 **59.75%**（差 0.1%，同一处）；
+- 桌右沿（z=−1.25 的木端板）**89.14% → 98.18%**（仍在画内，余 1.8%）；桌左沿 11.8% → 20.8%；
+- 生成键铭牌 73.8% → 83.2%（还在画内，离右缘约 5% 余量）。
+
+⚠ **只在设计机位上生效**：验收用的 `gsSceneCam` 覆盖、对话/聚焦/商店机位都不移（`syncGsFrameShift` 的条件里那四个判断）；
+⚠ 按真机横向（aspect 2.448）校准：桌面 dev 浏览器（1.75）桌右沿本来就出画（第 2 版起就是这样），这一版在窄窗口里更明显 —— App 锁横屏，只在 dev 出现。
+
+### 12.3 小幅环视 ±6°/±3°（`scene/gsLook.ts`）
+
+- **手势门**：`TableCatcher` 的 `mode()` 在"米制档 + `camera.kind === "default"` + 无 orbit"时返回 `"gsLook"`；
+  老场景仍返回 `null`（`SHOW_PLAYER_BODY=false` + `orbit=null` ⇒ 手势门恒 null —— 这就是主人说的"拖拽完全不生效"）。
+- **卡牌/铭牌上按下不进入环视**：按下时对 `scene` 做一次 `Raycaster.intersectObjects(scene.children, true)`，
+  逐层看 `object.__r3f.eventCount`（R3F 自己的命中筛选就是它）；`userData.noCam` 的**空白桌面拾取面**跳过。
+  卡牌 / 铭牌 / NPC / 卡组 / 场景位都挂着 onClick/onPointerDown ⇒ 按在上面走原路，不进入 gsLook；空白桌面与背景（splat 的 `raycastable: false`）才环视。
+- **参数**：横向 0.0014 rad/px（75 px ≈ 6°）、纵向 0.0010 rad/px（52 px ≈ 3°）；**硬停 ±6°/±3°**（夹在 `gsLookDrag` 里，撞住不弹）。
+- **回中**：松手 750 ms、ease-out 三次曲线（`1-(1-t)^3`），在 `CameraRig` 的每帧里推进（不另起 rAF；面板盖着停帧时回中也跟着停，关掉后从停下的角度接着回）。
+- **实测（emulator-5554，CDP 触摸）**：按住拖到底读数 **yaw 6.000° / pitch 3.000°**；松手后 60 ms 采样在 **717 ms** 读到 `|yaw| < 0.05°`（750 ms 曲线，采样粒度 60 ms + CDP 往返）。
+- 与卡牌拖拽：卡上按下根本不进 gsLook 分支；`g.current.moved` 仍照旧累计，拖完的 click 不会误触 `unfocus()`。
+- 与"转头"不是一套：`cameraOrbit.eyeLook` 是第一人称（还要驱动角色头骨），这一档只转相机；共用一个模块会把状态搅在一起。
+
+### 12.4 工作流小窗 + 波浪切换（`studio/ui/WorkflowWindow.tsx`）
+
+| 项 | 值 |
+|---|---|
+| 尺寸 | **66% × 68%**（模拟器 864×360 CSS 上 = **570 × 245**），中心 (60%, 44%) —— 主人要的"屏幕 62%~70%、居中偏右"取中段 |
+| 壳 | 圆角 `rounded-2xl` + `ring-white/15` + 阴影；遮罩 `bg-black/45 + backdrop-blur-[2px]`；底边停在 78%，右下角 GS 角标（z-9999）刚好露在小窗下面 |
+| 打开/关闭 | 圆形 `clip-path: circle()` 从**点击位置**扩散到盖住整个小窗 / 反向收缩；**460 / 420 ms**、`cubic-bezier(0.22,1,0.36,1)`（380~520 内） |
+| reduced-motion | `prefers-reduced-motion: reduce` 时不播 clip-path，只 **180 ms** 淡入淡出 |
+| 从哪长出来 | 生成键是 3D 网格、不是 DOM：`ComposePad.go` 把 `e.nativeEvent.clientX/Y` 经 `studioStore.flowOrigin` 交给小窗；顶栏 🧩 用按钮中心 |
+| 关闭动画 | 不能立刻卸载：小窗自己留 `present`，收缩播完再卸（`gen` 计数作废上一发的 onDone，关一半又开不会把新的卸掉） |
+| 画布壳 | `FlowCanvas` 新 `embedded`：不 `createPortal`、不铺 `fixed inset-0`，只留一层 `flex h-full w-full flex-col`；GS 档之外老路径默认 false，一个 class 都没动 |
+| 引导 | 小窗里**不自动弹**画布引导（那份说明卡是整屏宽的，在小窗里会横穿到窗外）；顶栏 `?` 仍可手动重看 |
+
+**3D / HUD 在小窗打开时**（主人第 3 条的"不卸载/不空跑"）：
+
+- 3D **从未卸载**（小窗是叠上去的浮层，不是路由切换）；但 `canvasCovered` 让它**停帧**（`frameloop="never"`，与原来全屏画布同一条机制）。
+- 实测：小窗开着 1.3 s，`__gsAccept.frames` **delta = 0**（停帧，不空跑）；关掉后 1.3 s **delta = 62**（≈48 fps）。
+- HUD 是 `document.body` 上的 DOM 角标（z-9999）—— **一直挂着**，读数冻结在停帧前那一帧；关掉后恢复（45.7 fps）。
+- 3D 画面上能看到桌面/人物在遮罩外露出来的部分，所以"底下还有东西"是看得见的。
+
+**★ 联带修的一个既有 bug**（第一次验收才暴露）：停帧 → 恢复后，`TripoNpc` 的 `leanBody/leanArm` 两个 action 会变成
+**stopped 但 `time=0 / timeScale=0`**；旧判据 `pinned = ts===0 && !paused && enabled && time<=0.001` 把它当"已钉住"，
+于是 mixer 不再写这两条轨道，头骨停在停帧前那一帧 —— 现象是**关掉小窗后铸卡师歪着头/头发盖脸**。
+判据补上 `isRunning()` 之后（`TripoNpc` 两处：站姿钉帧 + 头部注视的 `pinnedNow`），恢复时重新 `reset().play()` 钉回站姿。
+dev 里 A/B 复现与修复见 `.tmp-accept/`；`window.__tripo.perfActions` 可直接看 action 状态。
+
+### 12.5 验收（模拟器 `emulator-5554`，横屏 852×348 CSS，dpr 2.625）
+
+五张截图都在 `.tmp-accept/`（**不进仓库**）：
+
+| # | 内容 | 文件 | 读数 |
+|---|---|---|---|
+| 1 | **正面**（设计机位） | `01-front.png` | NPC 身体中心 **59.65%**（截图量 59.75%）· 桌右沿 **98.18%** · `viewOffsetOn true` |
+| 2 | **环视到 yaw 硬停**（按住不放） | `02-look-yaw6.png` | `yaw 6.000°` · pitch 0（拖到底） |
+| 3 | **小窗打开中**（波浪暂停在 200 ms） | `03-panel-wave-mid.png` | 2 条 WAAPI 动画暂停在 `currentTime=200`；圆形边缘可见 |
+| 4 | **小窗完全打开** | `04-panel-open.png` | 面板 **570×245 @ (233,36)**；帧计数 `724 → 724`（1.3 s delta **0**，停帧）；HUD 冻结在 46.7 fps |
+| 5 | **关掉小窗回 3D** | `05-back-to-3d.png` | 帧计数 `790 → 852`（1.3 s delta **62** ≈ 48 fps）；HUD 45.7 fps；`npcScreenPct 59.65` / `tableRightPct 98.18` 不变 |
+
+- **截图量法**（NPC 可见身体中心）：亮发（中性高亮）+ 绿裙 + 肤色 → 最大连通块 → bbox 中心；`01` 与 `05` 都是 **59.75%**（同一处，量法可复现）。
+- **卡牌上按下不进入环视**（模拟器实测）：从卡组堆的牌面（viewport 335,248）横拖 135 px，`gsLook` 全程 **yaw 0**；
+  对照：同一套动作从背景（250,60）横拖 160 px → **yaw 6.000°**（§12.3 的闸门在真机同一条路上成立）。
+- **fps 的口径**：模拟器上 fps 随暖机 / 负载在 15~60 之间大幅抖（宿主机 GPU），**不当结论**；
+  真正说明"停没停"的是帧计数（delta 0 / delta 62）。HUD 是 DOM 角标，停帧时读数冻结在停帧前那一帧。
+- **复现**：`gsStep0Experiment=1` + `gsAcceptDebug=1`（探针）+ `gsPadDebug=1`（生成键暗着也当亮的用）+ `gsFlowDebug=1`（空流水线也开小窗 —— **验收钩子**，生产里没人写这个键）。
+  点 3D 生成键用 **CDP `Input.dispatchTouchEvent`**（`adb shell input tap` 打不到 3D 画布，见 §11.7 同一条注）；
+  波浪中间态用 `document.getAnimations()` 把两条动画 `pause(); currentTime=200`（不另做慢动作开关）。
+- 探针字段（`window.__gsAccept`，写 `gsAcceptDebug=1` 才有）：`npcScreenPct` / `tableRightPct` / `frame { shift, viewOffsetOn, size }` / `gsLook { yaw, pitch, maxYawDeg, maxPitchDeg, returnMs }` / `frames`（帧计数）/ `pad.hitCenterCss`。
+
+### 12.6 这一版的风险 / 下一步
+
+1. **小窗里是完整的画布 UI**（卡 216×158 等固定像素）：570×245 下编辑窗 42% 只有 240 px 宽。这一版只验了**空流水线**；
+   有段以后的编辑窗（选模板/挂卡/方案台）得再看一眼 —— 下一步是给 `embedded` 一套更紧的尺寸（缩卡、藏次要键）。
+2. **取景右移按 aspect 2.448 校准**：桌面 dev（1.75）桌右沿本来就出画（第 2 版起如此），这一版更明显；App 锁横屏，真机不受影响。
+3. **环视是硬停 ±6°/±3°**：伪多视角在 ±10~15° 才开始双影（[`gs-step2-splat-log.md`](gs-step2-splat-log.md) §5），6° 有余量；但快速甩动/双指同时按下时第二指会被忽略（只认第一指）。
+4. **小窗开着时停帧**：HUD 的 fps 读数是冻结的（不是坏了）；"开着的 fps"记的是停帧前那一帧。要实时读数就得不停帧（代价见 §12.4）。
+5. **`isRunning()` 修复是补判据，不是根治** r3f `setFrameloop` 对 action 状态的影响；以后升级 r3f 要重验这一条（`window.__tripo.perfActions` 能看）。
+6. `gsFlowDebug` / `gsPadDebug` / `gsAcceptDebug` 都是验收钩子：生产里没人写 = 完全不存在。
+7. 上一版的风险（splat 桌面残差、下沉 0.12 m、GS 资产不进仓库、真机帧率未量）都还在。
+
+### 12.7 构建 / CI / 合流
+
+- `npm run build`：**通过**（`tsc` + lingui extract + 全部构建期检查 + vite build，exit 0）。
+- `npm run apk` → 模拟器安装验收（§12.5 五张图与读数）。
+- 分支 `feat/gs-framing-orbit-panel` → PR **#546** → CI 绿（build **1m38s** / android **2m6s**）→ merge（本小节随 PR 一起合入）。
+- 截图与 SPZ **不进仓库**；`public/` 一个字节都没改（这一版没有新增贴图/模型）。

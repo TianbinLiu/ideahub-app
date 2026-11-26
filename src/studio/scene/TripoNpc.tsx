@@ -886,7 +886,13 @@ export default function TripoNpc({
         for (const a of [perfActions.leanBody, perfActions.leanArm]) {
           if (!a) continue;
           // 已钉住（timeScale 0 持续播放于 frame0）则跳过；倒播进行中（time>0）也别打断
-          const pinned = a.timeScale === 0 && !a.paused && a.enabled && a.time <= 0.001;
+          // ★★ 2026-11-26（`feat/gs-framing-orbit-panel`）：判据里必须带 `isRunning()`。
+          //   小窗开着时 3D 停帧（frameloop=never）、关掉再恢复之后，实测这两个 action 会变成
+          //   **stopped 但 time=0 / timeScale=0**：旧判据把它当"已钉住"，于是 mixer 再不写这两条
+          //   轨道，头骨停在停帧前那一帧的姿态（验收里看到"铸卡师歪着头/头发盖脸"）。
+          //   补上 isRunning 之后，停过的 action 会被下面这几行重新 reset().play() 钉回站姿。
+          //   （同一判据在下面头部注视那段也有一份，两处要一起改。）
+          const pinned = a.isRunning() && a.timeScale === 0 && !a.paused && a.enabled && a.time <= 0.001;
           const reversing = a.isRunning() && a.timeScale < 0;
           if (!pinned && !reversing) {
             a.stop();
@@ -1054,7 +1060,7 @@ export default function TripoNpc({
     if (cfg && perfActions.leanBody && b.head) {
       const lb = perfActions.leanBody;
       const head = b.head;
-      const pinnedNow = lb.timeScale === 0 && !lb.paused && lb.enabled && lb.time <= 0.001;
+      const pinnedNow = lb.isRunning() && lb.timeScale === 0 && !lb.paused && lb.enabled && lb.time <= 0.001;
       const settled = lb.paused && lb.time >= lb.getClip().duration - 0.001;
       const animState = pinnedNow ? 1 : settled ? 2 : 0;
       // 门限缓变：过渡段交还动画、钉帧/定格段允许叠加，中间用 ~0.35s 过渡不硬跳

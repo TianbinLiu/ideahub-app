@@ -148,7 +148,15 @@ export default function FlowCanvas({
   draft,
   finish,
   autoTheme,
+  embedded,
 }: {
+  /**
+   * ★ 2026-11-26（`feat/gs-framing-orbit-panel`，主人第 3 条）：**嵌进小窗**。
+   *  GS 档的工作流是叠在 3D 桌面上的小窗（ui/WorkflowWindow），壳（定位/圆角/波浪 clip-path）
+   *  由宿主给；这一位让画布**不再**自己 `createPortal` 一个 fixed 全屏壳。
+   *  默认 false = 原来那个 z-40 全屏浮层，一个字都不变（/flow 与工坊老路径都走它）。
+   */
+  embedded?: boolean;
   /**
    * 按配方做同款时填的「我的主题」（2026-10-02 P3a）：画布一挂上就开「按主题改写全片剧本」的面板、主题预填。
    * 铺是免费的、改写花钱，所以不能在铺的那一拍顺手跑 —— 只是把面板开到眼前，钱仍要人点。
@@ -232,7 +240,9 @@ export default function FlowCanvas({
   const [themeSheet, setThemeSheet] = useState<string | null>(() => (autoTheme && autoTheme.trim() ? autoTheme : null));
   // 第一次打开画布强制放一遍引导（看过一次不再自动弹；顶栏那颗 ? 随时能重看）。
   // ★ 由**这一屏自己**声明（useAutoGuide 的 ★★）：画布是浮层不是路由，按 pathname 派发轮不到它
-  useAutoGuide("canvas");
+  // ★ 嵌进小窗时不自动弹（2026-11-26，主人第 3 条）：那份引导的说明卡是**整屏宽**的，在小窗里
+  //   会横穿到窗外、指着窗外的元素 —— 小窗是"换一种看法"，不是第一次进工作流。`?` 仍能手动重看。
+  useAutoGuide("canvas", !embedded);
   /** 正在回看成片的那一段（node.id）。★ 认 id 不认下标：删段会让下标整体前移 */
   const [playing, setPlaying] = useState<string | null>(null);
   // ★★ 打开画布时把**当前段**挪进视野（2026-08-21 第六轮对抗评审）：sel 初值就是 cursor，
@@ -1142,6 +1152,17 @@ export default function FlowCanvas({
   //   「重载这一块」只换 key 重挂画布，flowStore / studioStore 原地不动；full 另给「回首页」—— 画布自己的 ✕ 在出错的那棵子树里，没了。
   //   弹层（PlanSheet / 各 picker）虽各自 createPortal 到 body，React 树上仍是这里的后代，抛错一样落到这道边界上。
   //   ⚠ 它接不住 useFrame（rAF）里抛的错：那不经 React 树；导演台那层 Canvas 仍只能靠先校验再用（CLAUDE.md「渲染循环里别信任外部状态的形状」）。
+  // ★ 嵌进小窗（GS 档）：不自己 portal、不出全屏壳 —— 定位/圆角/波浪动画全在宿主 ui/WorkflowWindow。
+  //   里层仍是同一棵 body（顶栏 / 画布 / 编辑窗 / 各种 Sheet 一个不少），只是"壳"换了。
+  if (embedded) {
+    return (
+      <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-ink">
+        <ErrorBoundary label={t`工作流画布`} full>
+          {body}
+        </ErrorBoundary>
+      </div>
+    );
+  }
   return createPortal(
     <div className="fixed inset-0 z-40 flex flex-col bg-ink">
       <ErrorBoundary label={t`工作流画布`} full>
