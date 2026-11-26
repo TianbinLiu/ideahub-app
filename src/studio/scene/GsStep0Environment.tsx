@@ -11,7 +11,7 @@ import * as THREE from "three";
 import { sceneLayout } from "./layout";
 import { useIsLandscape } from "../../hooks/useIsLandscape";
 import MagicStudy from "./MagicStudy";
-import { GS_DAY, gsFillOn, gsMarkEntered, gsStep0On, setGsPhase, useGsPhase } from "./gsStep0";
+import { GS_DAY, GS_FIRE, GS_FIRE_LIGHT, gsFillOn, gsMarkEntered, gsStep0On, setGsPhase, useGsPhase } from "./gsStep0";
 
 const GsStep0Room = lazy(() => import("./GsStep0Room"));
 
@@ -73,6 +73,20 @@ function DayLights() {
           窗光仍然是唯一"有方向"的主光。dev 的 ?gs=1&nofill=1 不挂它（A/B 对照）。 */}
       {gsFillOn() && (
         <directionalLight position={GS_DAY.fill.position} intensity={GS_DAY.fill.intensity} color={GS_DAY.fill.color} />
+      )}
+      {/* ★★ 火（占位，2026-11-25）：壁炉炉膛的位置上一盏**默认关**的点光。
+          现在没有真火 —— 这一档只把接口留好：以后接体积 shader / 火焰视频面片时，
+          把这一行换成火焰本身，位置仍旧读 GS_FIRE_LIGHT.position（由落位常量现算，换落位自动跟着走）。
+          为什么默认关：炉膛这一刻在盖板顶面以下（见 gsStep0.GS_FIRE 的注释），开了也只有一点点
+          反射到桌沿；等第 2 步把桌面从 splat 里切掉、炉膛露出来，再打开它并换成真火。 */}
+      {GS_FIRE && (
+        <pointLight
+          position={GS_FIRE_LIGHT.position}
+          color={GS_FIRE_LIGHT.color}
+          intensity={GS_FIRE_LIGHT.intensity}
+          distance={GS_FIRE_LIGHT.distance}
+          decay={GS_FIRE_LIGHT.decay}
+        />
       )}
     </>
   );

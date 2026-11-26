@@ -1,5 +1,11 @@
 # GS 第 0 步：Atlas splat 的资产台账 + 落位推导 + 验收读数
 
+
+> ⚠ **2026-11-25 之后这份台账对应的资产已经被换掉了**：现在 public/models/study/gs/workshop-step0.spz 里放的是
+> 第 1 步那一版（单图 → Atlas 补 12 视角 → 重建，2,000,000 高斯 / 29.87 MiB），落位常量也整组换了（yaw −36.87°、
+> 新增 tilt −14°、scale 3.2、target [0,−1.1,0]）。**这一份留着是当方法记录（怎么解 spz、怎么量、怎么开）**，
+> 现行读数与推导看 [gs-step1-splat-log.md](gs-step1-splat-log.md)。
+
 > 2026-11-25 · 施工单 [`docs/gs-step0-plan.md`](gs-step0-plan.md)（方案 A：桌面盖板）· 总纲 [`docs/gaussian-splatting-workshop.md`](gaussian-splatting-workshop.md)
 >
 > 这一份回答四件事：**这份 splat 是哪来的、花了多少钱、怎么落进游戏坐标、第 0 步量到了什么**。
