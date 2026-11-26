@@ -2,7 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { ThreeEvent, useFrame } from "@react-three/fiber";
-import { CARD } from "./layout";
+import { cardLayout } from "./layout";
 import { ringTexture } from "./cardTexture";
 
 export interface CardMeshProps {
@@ -95,11 +95,11 @@ export default function CardMesh({
         onPointerOver={interactive ? (e) => (e.stopPropagation(), setHovered(true)) : undefined}
         onPointerOut={interactive ? () => setHovered(false) : undefined}
       >
-        <planeGeometry args={[CARD.w, CARD.h]} />
+        <planeGeometry args={[cardLayout().w, cardLayout().h]} />
       </mesh>
       {ringMat && (
         <mesh rotation={[-Math.PI / 2, 0, rotZ]} position={[0, -0.002, 0]} material={ringMat}>
-          <planeGeometry args={[CARD.w * 1.12, CARD.h * 1.09]} />
+          <planeGeometry args={[cardLayout().w * 1.12, cardLayout().h * 1.09]} />
         </mesh>
       )}
     </group>

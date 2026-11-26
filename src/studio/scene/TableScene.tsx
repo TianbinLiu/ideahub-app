@@ -4,7 +4,7 @@
 //   节点卡搬进工作流面板是第 3 步，这一拍先把"摆卡台"的骨架立起来。
 import { Suspense, useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
-import { ThreeEvent, advance, useFrame, useLoader, useThree } from "@react-three/fiber";
+import { ThreeEvent, advance, useFrame, useThree } from "@react-three/fiber";
 import { useLingui } from "@lingui/react/macro";
 import { FlowNode, useFlow } from "../flowStore";
 import { chosenProposal, composable, placeholderVisible, useStudio, Flight } from "../studioStore";
@@ -18,13 +18,15 @@ import type { GameCard, TableSlots } from "../game/types";
 // G4 第 3 步：卡位的屏幕坐标（拖拽落点判定），与 cameraOrbit.NPC_SCREEN 同一套 project 做法
 import { SLOT_SCREEN, sameTableSlot } from "./slotScreen";
 import {
-  CARD,
   DECK_CAM,
-  LAND_CAM,
   SHOW_PLAYER_BODY,
   chainX,
   defaultCamFor,
   focusCam,
+  GS_TABLE,
+  GS_CAM,
+  cardLayout,
+  gsSceneMetric,
   marketSlot,
   sceneLayout,
 } from "./layout";
@@ -166,6 +168,49 @@ const MILLTINA_CFG = {
   breastLift: { angle: -0.3, childAngle: -0.15, splay: 0.24, sink: 0.06, swell: 0.15 },
 };
 
+// ★★ 高斯米制场景里的铸卡师（2026-11-26，feat/gs-table-fire）。
+//
+// 病根（验收探针量出来的，不是猜的）：MILLTINA_CFG 的 `scale: 3.35` 换算到世界是**约 3.43 m 高**
+// （她模型原点→头骨 1.0236 模型单位 × 3.35），不是注释里那句"头顶世界高约 1.75"。
+// 老场景看不出来是因为那张 22×9 的"UI 画布桌子"本来就是按同一套虚尺度量的（人是桌长的 1/6）。
+// 米制场景 1 单位 = 1 米之后她必须真的 1.75 m：**scale 从 3.35 收到 1.654**（= 3.35 × 1.75/3.55，
+// 含脚底 -0.0345 模型单位的离地偏移），y = 地板 -0.785 + 0.0345×1.654 = **-0.728**。
+// 验收探针读数：npcHead = [0, 2.76, -1.932]（scale 3.35 时）→ 收完应为 ≈ [0, 0.97, -1.93]。
+// 脚底落在地板、头顶在画面 ~12%、与桌高（0.775）的比值 2.26 —— 这就是"桌高≈腰、桌长≈1.5 个身高"那一组。
+//
+// ★ 所有**世界量纲**的物理/位移参数按同一比例 1.654/3.35 = 0.494 收（弹簧碰撞球半径与偏移、
+//   胸物理半径/抬升上限/臂半径/躯干球、leanSlide 的 back/z/y、breastLift 的 sink/swell）——
+//   它们原来是照 3.35 倍模型量的，不收就会对着一个 3.4 m 的假人解算。
+// ★ 胸物理的 rail（桌沿碰撞体）从旧桌的 z=-3.55 挪到新桌的 z=-1.25、y 从 0.08 降到 0.02：
+//   不挪的话弯腰时它会去撞一个两米外的隐形栏板，胸前会直接穿过桌沿。
+// ⚠ leanSlide 的"幅度"已按比例收（0.42→0.207 等），但桌沿从 4.3 m 远变成 0.65 m 远这件事
+//   不是等比能解决的 —— 进对话让她伏桌时要再看一次（docs/gs-table-light-log.md 风险 2）。
+const GS_MILLTINA_CFG = {
+  ...MILLTINA_CFG,
+  scale: 1.654,
+  y: -0.728,
+  z: -1.9,
+  x: 0,
+  leanSlide: { back: 0.207, z: 0.0395, y: 0.107 },
+  springColliders: [
+    { bone: "mixamorig:Head", radius: 0.128 },
+    { bone: "mixamorig:Spine1", radius: 0.207, offset: [0, 0.049, 0.02] as [number, number, number] },
+    { bone: "mixamorig:Hips", radius: 0.188 },
+    { bone: "Breast_L", radius: 0.077, offset: [0, 0, 0.025] as [number, number, number] },
+    { bone: "Breast_R", radius: 0.077, offset: [0, 0, 0.025] as [number, number, number] },
+    { bone: "mixamorigNeck", radius: 0.064, offset: [0, -0.0825, 0.052] as [number, number, number] },
+  ],
+  breastPhys: {
+    ...MILLTINA_CFG.breastPhys,
+    radii: [0.064, 0.054, 0.044],
+    rootLiftMax: 0.079,
+    armRadius: 0.037,
+    rail: { y: 0.02, z: -1.25, radius: 0.035 },
+    torsoRadius: 0.0395,
+  },
+  breastLift: { angle: -0.3, childAngle: -0.15, splay: 0.24, sink: 0.03, swell: 0.074 },
+};
+
 import {
   cardBackTexture,
   composePlateTexture,
@@ -177,9 +222,12 @@ import {
   tickCardFades,
 } from "./cardTexture";
 import CardMesh from "./CardMesh";
-// ★ GS 第 0 步实验档（2026-11-25）：房间/灯组与桌面盖板都在这两个模块里，开关见 ./gsStep0（默认关）
-import { GsStep0Environment, GsTableCover } from "./GsStep0Environment";
-import { useGsPhase } from "./gsStep0";
+// ★ GS 第 0 步实验档（2026-11-25）：房间/灯组/真火都在这个模块里，开关见 ./gsStep0（默认关）
+// ★ 2026-11-26（feat/gs-table-fire）：PBR 盖板删了，桌面统一走 WorkshopTable（旧场景那张长桌）；
+//   米制档（高斯场景）只是把尺寸/机位/卡位换成 1 单位 = 1 米那套，见 layout 的 GS_* 常量。
+import { GsStep0Environment } from "./GsStep0Environment";
+import { GS_STEP0_TRANSFORM, useGsPhase } from "./gsStep0";
+import WorkshopTable from "./WorkshopTable";
 import VrmNpc from "./VrmNpc";
 import TripoNpc from "./TripoNpc";
 import { MILLTINA_FACE } from "./faceExpr";
@@ -236,9 +284,10 @@ export function computeChain(path: FlowNode[], focusId: string | null | undefine
 
 // ── 相机：朝目标位姿缓动（transient 直读 store，避免订阅延迟一帧） ──
 // RIG_LOOK 提到模块级：手势层需要读取当前视线锚点。
-// 初值取落点机位（横屏那台）：它只影响**第一帧**的 lookAt，而第一帧被 StudioLoader 盖着；
-// 竖屏窗口由 CameraRig 在头一帧就把视线带到 defaultCamFor() 给的那台上（不到 1 秒的缓动）。
-const RIG_LOOK = new THREE.Vector3(...LAND_CAM.look);
+// 初值取当前场景的落点机位（米制高斯档 GS_CAM / 老场景 LAND_CAM）：它只影响**第一帧**的
+// lookAt，而第一帧被 StudioLoader 盖着；竖屏窗口由 CameraRig 在头一帧就把视线带到
+// defaultCamFor() 给的那台上（不到 1 秒的缓动）。
+const RIG_LOOK = new THREE.Vector3(...(gsSceneMetric() ? GS_CAM.look : defaultCamFor(1.8).look));
 
 /** 解析当前轨道圆心（npc 每帧跟随头骨，node 用点击时记下的卡片坐标）。
  *  ★ "player" 这一支自 G1 施工单第 1 步（docs/g1-scene-plan.md §1）起已经没有调用方
@@ -527,261 +576,13 @@ function CameraRig() {
   return null;
 }
 
-// ── 桌子与环境 ───────────────────────────────────────────────
-// ── 赌桌绒呢桌布：深绿毡面 + 噪点 + 金色印花（边框/庄家弧线/中央法阵/角花） ──
-// 画布高度按桌面宽深比算：竖屏 16×7 → 2048×896，与第 3 步之前的写死值逐像素相同；
-// 横屏 22×9 → 2048×838，边框/庄家弧线/法阵/角花仍按画布比例画，换桌子时"中线两侧的比例"不用再手调。
-function makeFeltCloth(T: { w: number; d: number }): THREE.CanvasTexture {
-  const W = 2048;
-  const H = Math.round((W * T.d) / T.w);
-  const canvas = document.createElement("canvas");
-  canvas.width = W;
-  canvas.height = H;
-  const ctx = canvas.getContext("2d")!;
-  ctx.fillStyle = "#123c2a";
-  ctx.fillRect(0, 0, W, H);
-  const img = ctx.getImageData(0, 0, W, H);
-  const d = img.data;
-  for (let i = 0; i < d.length; i += 4) {
-    const n = (Math.random() - 0.5) * 13;
-    d[i] += n;
-    d[i + 1] += n;
-    d[i + 2] += n;
-  }
-  ctx.putImageData(img, 0, 0);
-  const vg = ctx.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, W * 0.62);
-  vg.addColorStop(0, "rgba(0,0,0,0)");
-  vg.addColorStop(1, "rgba(0,0,0,0.42)");
-  ctx.fillStyle = vg;
-  ctx.fillRect(0, 0, W, H);
-
-  const gold = (a: number) => `rgba(214,178,106,${a})`;
-  const rr = (x: number, y: number, w: number, h: number, r: number) => {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.arcTo(x + w, y, x + w, y + h, r);
-    ctx.arcTo(x + w, y + h, x, y + h, r);
-    ctx.arcTo(x, y + h, x, y, r);
-    ctx.arcTo(x, y, x + w, y, r);
-    ctx.closePath();
-  };
-  // 双重边框
-  ctx.strokeStyle = gold(0.42);
-  ctx.lineWidth = 7;
-  rr(52, 52, W - 104, H - 104, 46);
-  ctx.stroke();
-  ctx.lineWidth = 2.5;
-  rr(84, 84, W - 168, H - 168, 34);
-  ctx.stroke();
-  // 庄家弧线（canvas 顶部 = NPC 侧）
-  ctx.strokeStyle = gold(0.34);
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.arc(W / 2, -H * 0.62, H * 1.02, Math.PI * 0.28, Math.PI * 0.72);
-  ctx.stroke();
-  ctx.lineWidth = 1.8;
-  ctx.beginPath();
-  ctx.arc(W / 2, -H * 0.62, H * 1.12, Math.PI * 0.3, Math.PI * 0.7);
-  ctx.stroke();
-  // 中央法阵
-  ctx.strokeStyle = gold(0.3);
-  for (const [r, lw] of [
-    [150, 3.5],
-    [122, 1.6],
-  ] as const) {
-    ctx.lineWidth = lw;
-    ctx.beginPath();
-    ctx.arc(W / 2, H / 2, r, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-  ctx.lineWidth = 2;
-  for (let i = 0; i < 24; i++) {
-    const a = (i / 24) * Math.PI * 2;
-    ctx.beginPath();
-    ctx.moveTo(W / 2 + Math.cos(a) * 122, H / 2 + Math.sin(a) * 122);
-    ctx.lineTo(W / 2 + Math.cos(a) * (i % 2 ? 138 : 150), H / 2 + Math.sin(a) * (i % 2 ? 138 : 150));
-    ctx.stroke();
-  }
-  // 四角菱花
-  ctx.strokeStyle = gold(0.36);
-  ctx.lineWidth = 2.5;
-  for (const [cx, cy] of [
-    [150, 150],
-    [W - 150, 150],
-    [150, H - 150],
-    [W - 150, H - 150],
-  ] as const) {
-    ctx.beginPath();
-    ctx.moveTo(cx, cy - 34);
-    ctx.lineTo(cx + 34, cy);
-    ctx.lineTo(cx, cy + 34);
-    ctx.lineTo(cx - 34, cy);
-    ctx.closePath();
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(cx, cy, 9, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 8;
-  return tex;
-}
-
-function TableCloth({ T }: { T: { w: number; d: number } }) {
-  const cloth = useMemo(() => makeFeltCloth(T), [T]);
-  const [nor, rough] = useLoader(THREE.TextureLoader, [
-    "/models/study/tex/velour_velvet_nor.jpg",
-    "/models/study/tex/velour_velvet_rough.jpg",
-  ]);
-  const maps = useMemo(() => {
-    const mk = (t: THREE.Texture) => {
-      const c = t.clone();
-      c.wrapS = c.wrapT = THREE.RepeatWrapping;
-      // 贴图密度按桌面尺寸摊：竖屏 16×7 时是原来的 7×3（一个重复≈2.29×2.33 世界单位）
-      c.repeat.set((7 * T.w) / 16, (3 * T.d) / 7);
-      c.needsUpdate = true;
-      return c;
-    };
-    return { n: mk(nor), r: mk(rough) };
-  }, [nor, rough, T]);
-  useEffect(
-    () => () => {
-      cloth.dispose();
-      maps.n.dispose();
-      maps.r.dispose();
-    },
-    [cloth, maps]
-  );
-  return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.004, 0]}>
-      {/* 毡面比桌面小一圈（竖屏 15.8×6.85 = 16-0.2 / 7-0.15），四周露出木框 */}
-      <planeGeometry args={[T.w - 0.2, T.d - 0.15]} />
-      <meshStandardMaterial map={cloth} normalMap={maps.n} roughnessMap={maps.r} />
-    </mesh>
-  );
-}
-
-// ── 皮革软包护栏（赌桌围边）：四边圆柱 + 四角圆球 ──────────────
-function TableRail({ T }: { T: { w: number; d: number } }) {
-  const [diff, nor, rough] = useLoader(THREE.TextureLoader, [
-    "/models/study/tex/brown_leather_diff.jpg",
-    "/models/study/tex/brown_leather_nor.jpg",
-    "/models/study/tex/brown_leather_rough.jpg",
-  ]);
-  const mat = useMemo(() => {
-    const mk = (t: THREE.Texture, srgb: boolean) => {
-      const c = t.clone();
-      c.wrapS = c.wrapT = THREE.RepeatWrapping;
-      c.repeat.set(9, 1);
-      if (srgb) c.colorSpace = THREE.SRGBColorSpace;
-      c.needsUpdate = true;
-      return c;
-    };
-    return new THREE.MeshStandardMaterial({
-      map: mk(diff, true),
-      normalMap: mk(nor, false),
-      roughnessMap: mk(rough, false),
-      color: "#8a6a4a",
-    });
-  }, [diff, nor, rough]);
-  useEffect(
-    () => () => {
-      mat.map?.dispose();
-      mat.normalMap?.dispose();
-      mat.roughnessMap?.dispose();
-      mat.dispose();
-    },
-    [mat]
-  );
-  const R = 0.17;
-  const y = 0.08;
-  return (
-    <group>
-      {/* 只保留 NPC 侧长边护栏：玩家侧那根（z=+3.55）顶面高出桌毡 0.25，是玩家伏桌时
-          胸部够不到桌面的物理屏障（blender-mcp 网格检测实证：胸部 356 顶点无一越过它，
-          胸底正好压在护栏顶）。移除后近边只剩高 0.06 的木框，胸可真正落到桌面 */}
-      {[-T.d / 2 - 0.05].map((z, i) => (
-        <mesh key={i} material={mat} position={[0, y, z]} rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[R, R, T.w + 0.5, 14]} />
-        </mesh>
-      ))}
-      {[-T.w / 2 - 0.25, T.w / 2 + 0.25].map((x, i) => (
-        <mesh key={i} material={mat} position={[x, y, 0]} rotation={[Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[R, R, T.d + 0.1, 14]} />
-        </mesh>
-      ))}
-      {[
-        [-T.w / 2 - 0.25, -T.d / 2 - 0.05],
-        [T.w / 2 + 0.25, -T.d / 2 - 0.05],
-        [-T.w / 2 - 0.25, T.d / 2 + 0.05],
-        [T.w / 2 + 0.25, T.d / 2 + 0.05],
-      ].map(([x, z], i) => (
-        <mesh key={i} material={mat} position={[x, y, z]}>
-          <sphereGeometry args={[R, 12, 12]} />
-        </mesh>
-      ))}
-    </group>
-  );
-}
-
+// ── 桌面（旧场景那张长桌；尺寸/朝向由 layout 决定） ─────────────
 function Table() {
-  // ★ 横屏/竖屏两套桌面尺寸（layout.sceneLayout）：横屏的 22×9 见 TABLE_LAND，竖屏的 16×7 一个数不动。
+  // ★ 桌面尺寸/朝向只有一处：layout.sceneLayout（横屏 22×9 / 竖屏 16×7 / 高斯米制 2.50×1.17）。
+  //   米制档（高斯场景）桌面顶面仍是 y=0、桌子离地 0.765，并叠光毯；老场景观感逐字节不变。
   const T = sceneLayout(useIsLandscape()).table;
-  return (
-    <group>
-      {/* 桌体（深胡桃木） */}
-      <mesh position={[0, -T.thick / 2, 0]}>
-        <boxGeometry args={[T.w, T.thick, T.d]} />
-        <meshStandardMaterial color="#241a10" roughness={0.8} />
-      </mesh>
-      <TableCloth T={T} />
-      <TableRail T={T} />
-      {/* 桌沿（木质外框） */}
-      {[
-        [0, -T.d / 2 - 0.14],
-        [0, T.d / 2 + 0.14],
-      ].map(([x, z], i) => (
-        <mesh key={i} position={[x, -0.06, z]}>
-          <boxGeometry args={[T.w + 0.6, 0.24, 0.3]} />
-          <meshStandardMaterial color="#2a1d10" roughness={0.65} />
-        </mesh>
-      ))}
-      {[-T.w / 2 - 0.14, T.w / 2 + 0.14].map((x, i) => (
-        <mesh key={i} position={[x, -0.06, 0]}>
-          <boxGeometry args={[0.3, 0.24, T.d + 0.6]} />
-          <meshStandardMaterial color="#2a1d10" roughness={0.65} />
-        </mesh>
-      ))}
-      {/* 桌腿 */}
-      {[
-        [-T.w / 2 + 0.6, -T.d / 2 + 0.5],
-        [T.w / 2 - 0.6, -T.d / 2 + 0.5],
-        [-T.w / 2 + 0.6, T.d / 2 - 0.5],
-        [T.w / 2 - 0.6, T.d / 2 - 0.5],
-      ].map(([x, z], i) => (
-        <mesh key={i} position={[x, -1.35, z]}>
-          <boxGeometry args={[0.4, 2.1, 0.4]} />
-          <meshStandardMaterial color="#20160c" />
-        </mesh>
-      ))}
-      <CenterLine w={T.w} />
-    </group>
-  );
-}
-
-function CenterLine({ w }: { w: number }) {
-  const mat = useRef<THREE.MeshBasicMaterial>(null);
-  useFrame(() => {
-    if (mat.current) mat.current.opacity = 0.32 + 0.16 * Math.sin(performance.now() / 700);
-  });
-  return (
-    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.006, 0]}>
-      <planeGeometry args={[w - 0.4, 0.07]} />
-      <meshBasicMaterial ref={mat} color="#67e8f9" transparent blending={THREE.AdditiveBlending} depthWrite={false} />
-    </mesh>
-  );
+  const metric = gsSceneMetric();
+  return <WorkshopTable T={T} height={metric ? GS_TABLE.height : undefined} metric={metric} />;
 }
 
 // ── 合成法阵（中线右端）────────────────────────────────────
@@ -796,6 +597,9 @@ function ComposePad() {
   const { t } = useLingui();
   // 法阵摆在中线右端：横屏链尾卡在 2.34，法阵跟着挪到 3.0（layout.COMPOSE_POS_LAND 的注释）
   const composePos = sceneLayout(useIsLandscape()).composePos;
+  // ★ 米制档（高斯场景）整体缩到 0.32：台座直径 1.04 m 在 1.17 m 宽的桌面上放不下，
+  //   0.32 之后 ≈ 0.33 m、铭牌 ≈ 0.45×0.14 m —— 在 GS 机位（1.5 m 外）上约 150 px 宽，点得动。
+  const padScale = gsSceneMetric() ? 0.32 : 1;
   const nodes = useFlow((s) => s.nodes);
   const enabled = composable(nodes);
   // 亮不起来时要说清缺什么：末段还没挑方案，还是挑了没炼。以前一律写"先为当前段选定一个
@@ -862,6 +666,7 @@ function ComposePad() {
   return (
     <group
       position={composePos}
+      scale={padScale}
       onClick={(e) => {
         e.stopPropagation();
         // 不再一把梭合成整片：铺成工作流，去 /flow 逐段生成逐段确认
@@ -1121,6 +926,10 @@ function DeckStack() {
   const L = sceneLayout(useIsLandscape());
   const deckPos = L.deckPos;
   const chainScale = L.chain.scale;
+  // ★ 米制档（高斯场景）：一叠 24 张按老步长 0.014 会摞成 0.35 m 高（真牌叠只有 4~5 cm），
+  //   步长按 1/5 收；卡名标签的尺寸也跟着桌子收（见下面 countMat 那张平面）。
+  const metric = gsSceneMetric();
+  const pileStep = metric ? 0.003 : 0.014;
   const backMat = useMemo(
     () => new THREE.MeshBasicMaterial({ map: cardBackTexture(), transparent: true, side: THREE.DoubleSide }),
     []
@@ -1158,26 +967,26 @@ function DeckStack() {
         scale={chainScale}
         material={markerMat}
       >
-        <planeGeometry args={[CARD.w * 1.1, CARD.h * 1.08]} />
+        <planeGeometry args={[cardLayout().w * 1.1, cardLayout().h * 1.08]} />
       </mesh>
       {Array.from({ length: shown }, (_, i) => (
         <mesh
           key={i}
           rotation={[-Math.PI / 2, 0, ((i * 37) % 11) * 0.012 - 0.06]}
-          position={[deckPos[0], 0.012 + i * 0.014, deckPos[2]]}
+          position={[deckPos[0], 0.012 + i * pileStep, deckPos[2]]}
           scale={chainScale}
           material={backMat}
         >
-          <planeGeometry args={[CARD.w, CARD.h]} />
+          <planeGeometry args={[cardLayout().w, cardLayout().h]} />
         </mesh>
       ))}
       <mesh
-        position={[deckPos[0], 0.12, deckPos[2] - 0.62 * chainScale]}
+        position={[deckPos[0], metric ? 0.02 : 0.12, deckPos[2] - (metric ? 0.2 : 0.62) * chainScale]}
         rotation={[-Math.PI / 2, 0, 0]}
         scale={chainScale}
         material={countMat}
       >
-        <planeGeometry args={[1.1, 0.3]} />
+        <planeGeometry args={metric ? [0.42, 0.115] : [1.1, 0.3]} />
       </mesh>
     </group>
   );
@@ -1260,7 +1069,8 @@ function DragLayer() {
 
   useFrame(() => {
     if (ghost.current) {
-      ghost.current.position.set(dragState.x, 0.45, dragState.z);
+      // 米制档拖拽中的卡悬在桌面上方 0.12 m（老场景 0.45 —— 那是"UI 单位"）。
+      ghost.current.position.set(dragState.x, gsSceneMetric() ? 0.12 : 0.45, dragState.z);
       ghost.current.rotation.z = (dragState.x - dragState.startX) * -0.06;
     }
   });
@@ -1275,7 +1085,7 @@ function DragLayer() {
         onPointerMove={(e: ThreeEvent<PointerEvent>) => {
           dragState.x = e.point.x;
           dragState.z = e.point.z;
-          if (Math.hypot(e.point.x - dragState.startX, e.point.z - dragState.startZ) > 0.25) dragState.moved = true;
+          if (Math.hypot(e.point.x - dragState.startX, e.point.z - dragState.startZ) > (gsSceneMetric() ? 0.06 : 0.25)) dragState.moved = true;
         }}
       >
         <planeGeometry args={[L.table.w + 6, L.table.d + 6]} />
@@ -1283,7 +1093,7 @@ function DragLayer() {
       </mesh>
       <group ref={ghost}>
         <mesh rotation={[-Math.PI / 2, 0, 0]}>
-          <planeGeometry args={[CARD.w, CARD.h]} />
+          <planeGeometry args={[cardLayout().w, cardLayout().h]} />
           <meshBasicMaterial map={cardFaceTexture(card)} transparent opacity={0.92} side={THREE.DoubleSide} />
         </mesh>
       </group>
@@ -1314,7 +1124,7 @@ function MarketFan() {
           <CardMesh
             key={card.id}
             tex={cardFaceTexture(card)}
-            from={[0.9, 0.9, -3.2]}
+            from={gsSceneMetric() ? [0.25, 0.35, -0.9] : [0.9, 0.9, -3.2]}
             target={[x, M.lift + i * 0.004, z]}
             rotZ={(col - (rowCount - 1) / 2) * -0.04}
             scale={M.scale}
@@ -1362,8 +1172,8 @@ function SlotPlate({
   /** 现在正拖着一张卡悬在这一格上 */
   hot: boolean;
 }) {
-  const w = CARD.w * scale;
-  const h = CARD.h * scale;
+  const w = cardLayout().w * scale;
+  const h = cardLayout().h * scale;
   // 角色位青、场景位金；空位是同一档的暗色（空 ≠ 没有这一格，只是还没放）；正悬在上面时更亮一档
   const ink = hot ? (kind === "role" ? "#a5f3fc" : "#f3d69a") : card ? (kind === "role" ? "#67e8f9" : "#d6b26a") : "#31465c";
   const frame = useMemo(
@@ -1382,7 +1192,7 @@ function SlotPlate({
   const labelInk = card ? ink : "#5e8199";
   const label = useMemo(() => labelTexture(name, labelInk), [name, labelInk]);
   return (
-    <group position={[x, CARD.lift, z]}>
+    <group position={[x, cardLayout().lift, z]}>
       <mesh rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[w, h]} />
         <meshBasicMaterial color="#0b1a2c" transparent opacity={0.5} depthWrite={false} />
@@ -1443,15 +1253,15 @@ function GameTableSlots() {
   const probe = useMemo(() => new THREE.Vector3(), []);
   useFrame(() => {
     const rects = plates.map((plate) => {
-      const halfW = (CARD.w * plate.scale) / 2;
-      const halfH = (CARD.h * plate.scale) / 2;
-      const center = probe.set(plate.x, CARD.lift, plate.z).project(camera);
+      const halfW = (cardLayout().w * plate.scale) / 2;
+      const halfH = (cardLayout().h * plate.scale) / 2;
+      const center = probe.set(plate.x, cardLayout().lift, plate.z).project(camera);
       const cx = (center.x + 1) / 2;
       const cy = (1 - center.y) / 2;
       const visible = center.z < 1;
-      const edgeX = probe.set(plate.x + halfW, CARD.lift, plate.z).project(camera);
+      const edgeX = probe.set(plate.x + halfW, cardLayout().lift, plate.z).project(camera);
       const rx = Math.abs((edgeX.x + 1) / 2 - cx);
-      const edgeZ = probe.set(plate.x, CARD.lift, plate.z + halfH).project(camera);
+      const edgeZ = probe.set(plate.x, cardLayout().lift, plate.z + halfH).project(camera);
       const ry = Math.abs((1 - edgeZ.y) / 2 - cy);
       return { slot: plate.slot, cx, cy, rx: Math.max(rx, 0.012), ry: Math.max(ry, 0.012), visible };
     });
@@ -1483,10 +1293,12 @@ function FlightCard({ f }: { f: Flight }) {
   const start = useRef<number | null>(null);
   const fromV = useMemo(() => new THREE.Vector3(...f.from), [f]);
   const deckPos = sceneLayout(useIsLandscape()).deckPos;
+  // 米制档：卡从上方 0.4 m 飘落（老场景 1.5 是世界单位；1 单位=1 米之后 1.5 m 会飞出画面）
+  const metric = gsSceneMetric();
   const toV = useMemo(() => {
     const len = useStudio.getState().deck.length;
-    return new THREE.Vector3(deckPos[0], 0.06 + len * 0.014, deckPos[2]);
-  }, [deckPos]);
+    return new THREE.Vector3(deckPos[0], (metric ? 0.015 : 0.06) + len * (metric ? 0.003 : 0.014), deckPos[2]);
+  }, [deckPos, metric]);
   useFrame(({ clock }) => {
     if (!group.current || landed.current) return;
     if (start.current == null) start.current = clock.elapsedTime + f.delay;
@@ -1498,7 +1310,7 @@ function FlightCard({ f }: { f: Flight }) {
     group.current.visible = true;
     const e = Math.min(1, 1 - Math.pow(1 - Math.min(t, 1), 3));
     group.current.position.lerpVectors(fromV, toV, e);
-    group.current.position.y += Math.sin(Math.min(t, 1) * Math.PI) * 1.5;
+    group.current.position.y += Math.sin(Math.min(t, 1) * Math.PI) * (metric ? 0.4 : 1.5);
     group.current.rotation.y = e * Math.PI * 2;
     if (t >= 1) {
       landed.current = true;
@@ -1508,7 +1320,7 @@ function FlightCard({ f }: { f: Flight }) {
   return (
     <group ref={group} visible={false}>
       <mesh rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[CARD.w * 0.92, CARD.h * 0.92]} />
+        <planeGeometry args={[cardLayout().w * 0.92, cardLayout().h * 0.92]} />
         <meshBasicMaterial map={cardFaceTexture(f.card)} transparent side={THREE.DoubleSide} />
       </mesh>
     </group>
@@ -1567,19 +1379,21 @@ function DialogTableCards() {
   if (!dialogView || marketOpen) return null;
   const shown = deck.slice(0, 6);
   const n = shown.length;
+  // 米制档：6 张卡按 0.2 m 间距、0.6 缩放（真卡大小）摊在桌面远端；老场景逐字保留。
+  const metric = gsSceneMetric();
   return (
     <group>
       {shown.map((card, i) => {
         const off = i - (n - 1) / 2;
-        const x = off * 0.72;
-        const z = -1.7 - Math.abs(off) * 0.08;
+        const x = off * (metric ? 0.19 : 0.72);
+        const z = metric ? -0.45 - Math.abs(off) * 0.02 : -1.7 - Math.abs(off) * 0.08;
         return (
           <CardMesh
             key={card.id}
             tex={cardFaceTexture(card)}
             target={[x, 0.02 + i * 0.004, z]}
             rotZ={-off * 0.06}
-            scale={0.64}
+            scale={metric ? 0.6 : 0.64}
             hoverLift
             onClick={(e) => {
               e.stopPropagation();
@@ -1785,19 +1599,49 @@ function NpcScreenAnchor() {
   return null;
 }
 
+// ── 验收读数（2026-11-26，`feat/gs-table-fire`）：localStorage `gsAcceptDebug=1` 时把相机/视线/
+//    铸卡师头骨/落位参数挂到 window.__gsAccept 上。模拟器验收要靠它量"桌长/桌高/房深/NPC"四个比例
+//    （截图能量像素，但相机到底是哪台、NPC 站哪儿只有运行期读得到）。不写这个键 = 不存在。
+function AcceptProbe() {
+  const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
+  const on = useMemo(() => {
+    try {
+      return localStorage.getItem("gsAcceptDebug") === "1";
+    } catch {
+      return false;
+    }
+  }, []);
+  useFrame(() => {
+    if (!on) return;
+    (window as unknown as Record<string, unknown>).__gsAccept = {
+      pos: camera.position.toArray().map((n) => +n.toFixed(3)),
+      look: RIG_LOOK.toArray().map((n) => +n.toFixed(3)),
+      fov: camera.fov,
+      aspect: +camera.aspect.toFixed(3),
+      npcHead: NPC_HEAD.toArray().map((n) => +n.toFixed(3)),
+      transform: GS_STEP0_TRANSFORM,
+    };
+  });
+  return null;
+}
+
 export default function TableScene() {
   // ★ GS 第 0 步实验档（2026-11-25）：`gsPhase` 在开关关着时恒为 "off"，下面那棵树与今天逐字节相同。
-  //   开着且没失败时，桌面换成方案 A 的 PBR 盖板（splat 里烘死的桌面/卡/杯就压在它下面），房间与灯组
-  //   整块交给 GsStep0Environment（splat 房间 + 白天一档）。失败/超时它会自己翻回 "failed" ⇒ 今天那套。
-  //   开关与落位参数在 ./gsStep0，施工单 docs/gs-step0-plan.md，台账 docs/gs-step0-splat-log.md。
+  //   开着且没失败时，**整个桌面布局换成米制那套**（1 世界单位 = 1 米：layout.GS_*），房间与灯组
+  //   整块交给 GsStep0Environment（splat 房间 + 月光 + 壁炉真火）。失败/超时它会自己翻回 "failed"
+  //   ⇒ 今天那套。开关与落位参数在 ./gsStep0，台账 docs/gs-step2-splat-log.md 与 docs/gs-table-light-log.md。
+  //   ★ 这里订阅 gsPhase 是必须的：米制布局的标志位由 gsStep0 在阶段变化时写，TableScene 要在
+  //     翻到 failed 的那一拍重渲染，桌位/机位/NPC 才会跟着退回老场景（见 layout.setGsSceneMetric）。
   const gsPhase = useGsPhase();
-  const gsOn = gsPhase === "loading" || gsPhase === "ready";
+  const metric = gsPhase === "loading" || gsPhase === "ready";
   return (
     <>
       {/* 房间 + 灯组：默认走今天的书房；GS 实验档开着时换成 splat 房间（见 GsStep0Environment） */}
       <GsStep0Environment />
       <CameraRig />
-      {gsOn ? <GsTableCover /> : <Table />}
+      {/* ★ 桌面统一这一处：旧场景那张长桌（WorkshopTable）。尺寸/朝向由 layout.sceneLayout 决定
+          （高斯米制档 2.50×1.17 + 光毯；其余两套逐字节不变）。原来这里的 PBR 盖板已删除。 */}
+      <Table />
       <TableCatcher />
       <ComposePad />
       <Suspense fallback={<Npc />}>
@@ -1812,7 +1656,12 @@ export default function TableScene() {
           // 默认铸卡师 = 委托定制的 Milltina（**自有版权，随包发布**；加密只是防直接取用，
           // 不是"不能发"——别和 protected/ 下那些第三方版权模型混为一谈，见 prune-app-assets）：
           // VRC 原生形键 + 弹簧骨物理 + 调暗描边
-          <TripoNpc url="/models/protected/milltina-opt.glbx?v=m16" cfg={MILLTINA_CFG} face={MILLTINA_FACE} />
+          // ★ 高斯米制档换一份站位配置（GS_MILLTINA_CFG：脚踩 -0.775 的地板、站在桌子远端 z=-1.5）
+          <TripoNpc
+            url="/models/protected/milltina-opt.glbx?v=m16"
+            cfg={metric ? GS_MILLTINA_CFG : MILLTINA_CFG}
+            face={MILLTINA_FACE}
+          />
         )}
       </Suspense>
       {/* ★ G1 施工单第 1 步（docs/g1-scene-plan.md §1）：「玩家自己」那具粗糙人偶摘掉。
@@ -1833,6 +1682,7 @@ export default function TableScene() {
           没有"头侧"可标，按钮本身也一起休眠（AvatarSwapButton 里有同一道守卫）。 */}
       {SHOW_PLAYER_BODY && <PlayerScreenAnchor />}
       {import.meta.env.DEV && <CaptureHook />}
+      <AcceptProbe />
     </>
   );
 }

@@ -15,7 +15,7 @@ import { BreastPhysics, type PhysCollider } from "./breastPhysics";
 import { applyCameraFade } from "./cameraFade";
 import { RigidBoneSim, createRigidBoneSim } from "./rigidBones";
 import { rigidBonesEnabled } from "../quality";
-import { NPC_CAM } from "./layout";
+import { npcCam } from "./layout";
 import { NPC_HEAD, orbit } from "./cameraOrbit";
 import { gazeDelta, type GazeLimits } from "./gazeDelta";
 
@@ -1063,7 +1063,7 @@ export default function TripoNpc({
         if (weight > 0.001) {
           head.updateWorldMatrix(true, false);
           gv.headPos.setFromMatrixPosition(head.matrixWorld);
-          gv.baseDir.set(NPC_CAM.pos[0], NPC_CAM.pos[1], NPC_CAM.pos[2]).sub(gv.headPos).normalize();
+          { const c = npcCam(); gv.baseDir.set(c.pos[0], c.pos[1], c.pos[2]).sub(gv.headPos).normalize(); }
           gv.camDir.copy(camera.position).sub(gv.headPos).normalize();
           // 偏航/俯仰分离限幅（见 gazeDelta.ts）。实测：脸最前端距头骨 0.0759 模型单位，
           // 到刘海外表面余量仅 0.0187，低头方向必须限死。
