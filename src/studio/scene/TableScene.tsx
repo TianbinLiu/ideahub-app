@@ -25,9 +25,11 @@ import {
   focusCam,
   GS_TABLE,
   GS_CAM,
+  GS_FRAME_SHIFT,
   GS_ROWS,
   GS_PAD,
   cardLayout,
+  gsAcceptCamOn,
   gsSceneMetric,
   marketSlot,
   sceneLayout,
@@ -61,6 +63,8 @@ import {
   orbitToPosition,
   syncOrbitFromCamera,
 } from "./cameraOrbit";
+// 米制档的小幅环视（±6°/±3° + 松手回中）：状态与手势原子在 gsLook 一处
+import { GS_LOOK, applyGsLook, gsLookDeg, gsLookDown, gsLookDrag, gsLookMoving, gsLookRelease, gsLookReset, gsLookTick } from "./gsLook";
 
 // 委托定制模型 Milltina（默认铸卡师，**自有版权**）的配置
 // （模块级常量：内联对象会让 TripoNpc 的 memo 每帧重建）
@@ -382,6 +386,41 @@ if (import.meta.env.DEV) {
     );
 }
 
+/**
+ * 米制设计机位的**取景右移**（layout.GS_FRAME_SHIFT 的落地处，主人第 1 条）。
+ * `setViewOffset(fullW, fullH, 0, 0, W, H)`：把投影窗口往虚拟画幅的左边裁 δ 像素 ⇒ 画面内容整体右移 δ，
+ * **相机位姿 / 朝向 / 焦距一个数都不改**（桌子在画面里的尺寸、人物高度逐像素不变）。
+ * ★ 只在画布尺寸变了才重设；`on=false`（对话/聚焦/验收机位）时清掉。
+ * ★ 与 r3f 的 resize 共存：r3f 在尺寸变化时只改 camera.aspect + updateProjectionMatrix，
+ *   `view` 对象留在相机上；下一帧这里按新尺寸重设，最多一帧的旧 fullWidth（看不出）。
+ */
+function syncGsFrameShift(
+  camera: THREE.PerspectiveCamera,
+  w: number,
+  h: number,
+  on: boolean,
+  ref: { current: { w: number; h: number } | null },
+): void {
+  if (!on || w <= 0 || h <= 0) {
+    if (ref.current) {
+      // ★ three 的 setViewOffset 会把 camera.aspect 改成 fullWidth/fullHeight（本仓 three 版本的行为，
+      //   见 node_modules/three/src/cameras/PerspectiveCamera.js），而 clearViewOffset **不还原**它 ——
+      //   不在这里写回真实画幅比，退出去之后整屏会横向拉扁（对话/聚焦机位都中招）。
+      camera.aspect = w / h;
+      camera.clearViewOffset();
+      ref.current = null;
+    }
+    return;
+  }
+  const W = Math.round(w);
+  const H = Math.round(h);
+  const prev = ref.current;
+  if (prev && prev.w === W && prev.h === H) return;
+  const delta = Math.round(W * GS_FRAME_SHIFT);
+  camera.setViewOffset(W + 2 * delta, H, 0, 0, W, H);
+  ref.current = { w: W, h: H };
+}
+
 function CameraRig() {
   const tmp = useRef(new THREE.Vector3());
   const ctr = useRef(new THREE.Vector3());
@@ -390,6 +429,10 @@ function CameraRig() {
   const deckAnim = useRef<{ p: number; start: THREE.Vector3 } | null>(null);
   const prevDeck = useRef(false);
   const lastCamObj = useRef<unknown>(null);
+  /** 取景右移当前生效的尺寸（null = 没生效）——只在尺寸/开关变化时重设投影 */
+  const frameShift = useRef<{ w: number; h: number } | null>(null);
+  /** r3f 量出来的画布 CSS 尺寸（转屏/分屏时跟着变；只用它的宽高，不订阅每帧） */
+  const size = useThree((s) => s.size);
   /** 开场运镜的"可跳过"（G1 施工单 docs/g1-scene-plan.md §4）：运镜期间**点一下屏幕/触摸拖动**
    *  就立刻落到终点。
    *  ★ 监听常驻，不随"在播没在播"挂/摘：那个状态活在 introCam 的模块单例里、**不进 React**
@@ -410,6 +453,12 @@ function CameraRig() {
   }, []);
   useFrame(({ camera, scene, clock }, dt) => {
     const st = useStudio.getState();
+    // ── 米制档的小幅环视（主人第 2 条）：每帧推一次回中 ──
+    // 面板盖着时渲染循环停（StudioPage 的 frameloop），回中也跟着停 —— 关掉面板会从停下的角度接着回，
+    // 不会卡住（见 gsLook.ts 头注释）。
+    gsLookTick();
+    // 离开米制档（splat 失败回退老书房 / 关实验档）时把角度归零：老场景那台相机不接受这一层。
+    if (!gsSceneMetric() && gsLookMoving()) gsLookReset();
     /** 摘掉玩家模型后的默认机位（`SHOW_PLAYER_BODY=false` 时求值）。
      *
      *  ★ G1 施工单第 1 步（docs/g1-scene-plan.md §1）：人偶摘掉，第一人称眼位就没有骨骼可跟了
@@ -427,6 +476,16 @@ function CameraRig() {
      *    就跟着换成另一台，CameraRig 的缓动负责把它平滑带过去，不需要额外的 resize 监听。
      *  ★ 别把机位接回任何骨骼 / PLAYER_HEAD —— 那就等于把要摘掉的那根依赖又装回去了。 */
     const defCam = defaultCamFor((camera as THREE.PerspectiveCamera).aspect);
+    // ── 取景右移（layout.GS_FRAME_SHIFT，主人第 1 条）：只给米制档的**设计机位** ──
+    // 对话/聚焦/商店（kind!=="default" 或 st.orbit 在）与验收机位覆盖（gsSceneCam）都不移 ——
+    // 那几台被演出/验收依赖的取景别跟着漂（见 layout.GS_FRAME_SHIFT 的注释）。
+    syncGsFrameShift(
+      camera as THREE.PerspectiveCamera,
+      size.width,
+      size.height,
+      gsSceneMetric() && !gsAcceptCamOn() && st.camera.kind === "default" && !st.orbit && !orbit.active,
+      frameShift,
+    );
     // 节点卡卡面的首尾帧轮播（渐变期才真重绘，停留期内部直接返回）
     tickCardFades(clock.elapsedTime * 1000);
     // 新机位落位（点击互动点）→ 交还脚本运镜控制权
@@ -591,6 +650,9 @@ function CameraRig() {
     camera.position.lerp(tmp.current.set(target.pos[0], target.pos[1], target.pos[2] + narrowPull), k);
     RIG_LOOK.lerp(tmp.current.set(target.look[0], target.look[1], target.look[2]), k);
     camera.lookAt(RIG_LOOK);
+    // ── 小幅环视（layout.GS_LOOK 那一套）：**只转朝向、不动位置**，叠在 lookAt 之后 ──
+    // 只在设计机位上生效（与人偶第一人称 eyeLook 是两套，见 gsLook.ts 头注释）。
+    if (gsSceneMetric() && st.camera.kind === "default") applyGsLook(camera);
     // 脚本运镜期间持续同步球面参数：用户随时接管都不跳变
     if (center) syncOrbitFromCamera(camera.position, center);
   });
@@ -711,7 +773,9 @@ function ComposePad() {
     e.stopPropagation();
     if (padDbg) console.log(`[gs] pad hit（enabled=${enabled}）`);
     // 不再一把梭合成整片：铺成工作流，去 /flow 逐段生成逐段确认
-    if (live) useStudio.getState().requestFlow();
+    // ★ 小窗的"波浪扩散"要从**点击位置**长出来：生成键是 3D 网格，把这一下的屏幕坐标交给 store
+    //   （ui/WorkflowWindow 读它算 clip-path 圆心）。老路径 / 空流水线不用这个数。
+    if (live) useStudio.getState().requestFlow([e.nativeEvent.clientX, e.nativeEvent.clientY]);
   };
 
   // ── 米制档：炉石那样的牌子（位置/尺寸/姿态全在 layout.GS_PAD）────────────────
@@ -1551,7 +1615,7 @@ function DialogTableCards() {
 
 // ── 空白桌面点击捕获：聚焦且无投影时，点卡片之外拉远回默认机位 ──
 function TableCatcher() {
-  const { camera, gl } = useThree();
+  const { camera, gl, scene } = useThree();
   // 空白桌面的点击平面跟桌子大小走：横屏 22×9，竖屏 16×7（点击捕获范围别比桌面小）
   const T = sceneLayout(useIsLandscape()).table;
   // 自由视角手势状态：首指必须落在空白桌面（r3f 命中本 mesh 才回调=天然的"非互动点"闸门），
@@ -1569,16 +1633,63 @@ function TableCatcher() {
     const ctrTmp = new THREE.Vector3();
     // 轨道手势只在"投影小窗之外的画布"上起效：HTML 面板的 target 不是 canvas，天然滤掉；
     // 互动点的点按走 click 通道不受影响（几乎无位移的拖拽照常触发 click）
-    // 两种拖拽语义：有轨道中心 → 绕圆心球面运动；第一人称眼位 → 转角色的头环视
+    // 两种拖拽语义：有轨道中心 → 绕圆心球面运动；第一人称眼位 → 转角色的头环视；
+    // ★ 2026-11-26 第 4 版（主人第 2 条）：米制高斯档（没有玩家身体、也没有轨道）多一档 **小幅环视** ——
+    //   单指在**空白桌面 / 背景**上拖 → 视线转 ±6°/±3°，松手 0.75s 回中（状态在 gsLook.ts）。
     // ★ G1 §1：玩家模型摘掉后默认机位是**固定**的，没有"转头"这件事可做 —— 手势直接不接，
     //   否则拖动会攒 eyeLook 却什么都不动（看着像坏了）。轨道拖拽/缩放照 ORBIT_LIMITS 走。
     const mode = () => {
       const st = useStudio.getState();
       if (st.orbit) return "orbit" as const;
+      // 米制档的默认机位：只有它接小幅环视（老场景的落点机位不接，逐字节不变）
+      if (gsSceneMetric() && st.camera.kind === "default") return "gsLook" as const;
       return SHOW_PLAYER_BODY && st.camera.kind === "default" ? ("eye" as const) : null;
     };
+    /** 按下的那一点是不是压在**可交互的 3D 物件**上（卡牌 / 铭牌 / NPC / 卡组 / 场景位…）。
+     *  主人第 2 条："在卡牌/铭牌上按下不进入环视，只在空白桌面/背景拖动才环视"。
+     *  ★ 判据用 R3F 记在对象上的 `__r3f.eventCount`（有 onClick/onPointer* 才算）——R3F 自己的
+     *    命中筛选就是它，另造一套标记（给每张卡挂 userData）迟早漏一处。这是内部字段，
+     *    与本仓别处依赖 r3f frameloop 行为一样，升级 r3f 时要知道这一行。
+     *  ★ `userData.noCam` 是本文件那块**空白桌面拾取面**（TableCatcher 自己）的标记：
+     *    射线先打到它 = 落在空桌上，跳过它继续看下一层（下面就是桌子网格，也不交互 ⇒ 可以环视）。
+     *  ★ 只取**最前面那块**真正挡视线的东西：压在卡上的点不会被卡后面的桌子"放行"。 */
+    const rc = new THREE.Raycaster();
+    const ndc = new THREE.Vector2();
+    const hitInteractive = (e: PointerEvent): boolean => {
+      const r = el.getBoundingClientRect();
+      if (!r.width || !r.height) return false;
+      ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -(((e.clientY - r.top) / r.height) * 2 - 1));
+      rc.setFromCamera(ndc, camera);
+      const hits = rc.intersectObjects(scene.children, true);
+      for (const h of hits) {
+        let o: THREE.Object3D | null = h.object;
+        let blank = false;
+        let interactive = false;
+        while (o) {
+          if (o.userData?.noCam) {
+            blank = true;
+            break;
+          }
+          const inst = (o as unknown as { __r3f?: { eventCount?: number } }).__r3f;
+          if (inst?.eventCount) {
+            interactive = true;
+            break;
+          }
+          o = o.parent;
+        }
+        if (blank) continue; // 空白桌面的拾取面：看下一层
+        return interactive; // 第一块真正压在手底下的东西说了算
+      }
+      return false;
+    };
     const onDown = (e: PointerEvent) => {
-      if (!mode() || e.target !== el) return;
+      const m = mode();
+      if (!m || e.target !== el) return;
+      // 卡牌/铭牌/NPC 上按下不进入环视（卡自己的拖拽/点击照旧）
+      if (m === "gsLook") {
+        if (hitInteractive(e)) return;
+        gsLookDown();
+      }
       g.current.pointers.set(e.pointerId, [e.clientX, e.clientY]);
       g.current.lastPinch = null;
       g.current.moved = 0;
@@ -1589,6 +1700,7 @@ function TableCatcher() {
       const m = mode();
       if (!m) {
         s.pointers.clear();
+        gsLookRelease(); // 拖到一半轨道中心/机位被换掉：别把"按着"的状态留在 module 单例里
         return;
       }
       const prev = s.pointers.get(e.pointerId)!;
@@ -1596,6 +1708,10 @@ function TableCatcher() {
       const dy = e.clientY - prev[1];
       s.moved += Math.hypot(dx, dy);
       s.pointers.set(e.pointerId, [e.clientX, e.clientY]);
+      if (m === "gsLook") {
+        if (s.pointers.size === 1) gsLookDrag(dx, dy);
+        return;
+      }
       if (m === "eye") {
         // 眼位环视：滑屏 = 转头（画面跟手，向左滑看向左）。
         // 升空俯瞰态不再转头——头此刻可见，跟手转脖子会与头发穿插（实测），
@@ -1644,8 +1760,10 @@ function TableCatcher() {
       }
     };
     const onUp = (e: PointerEvent) => {
-      g.current.pointers.delete(e.pointerId);
+      const had = g.current.pointers.delete(e.pointerId);
       g.current.lastPinch = null;
+      // 最后一根手指抬起 = 松手 → 开始回中（gsLook 自己判"是不是真的在拖"）
+      if (had && g.current.pointers.size === 0) gsLookRelease();
     };
     // 桌面调试便利：滚轮 = 轨道半径推拉；第一人称下 = 升空俯瞰（与双指捏合同源）
     const onWheel = (e: WheelEvent) => {
@@ -1679,8 +1797,10 @@ function TableCatcher() {
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
       el.removeEventListener("wheel", onWheel);
+      // 拖到一半就卸载（切路由 / splat 回退）：状态在 module 单例里，不归零会带进下一次
+      gsLookReset();
     };
-  }, [camera, gl]);
+  }, [camera, gl, scene]);
   return (
     <mesh
       rotation={[-Math.PI / 2, 0, 0]}
@@ -1756,6 +1876,7 @@ function NpcScreenAnchor() {
 // ★ 只在写了 `gsAcceptDebug=1` 时算：每帧算一遍这些投影对 60fps 是白烧，而验收只要一次读数。
 function AcceptProbe() {
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera;
+  const size = useThree((s) => s.size);
   const on = useMemo(() => {
     try {
       return localStorage.getItem("gsAcceptDebug") === "1";
@@ -1764,7 +1885,10 @@ function AcceptProbe() {
     }
   }, []);
   const tmp = useMemo(() => ({ a: new THREE.Vector3(), b: new THREE.Vector3() }), []);
+  /** 渲染帧计数：面板盖着时 frameloop=never，这个数会停住 —— 验收用它回答"还在空跑吗" */
+  const frames = useRef(0);
   useFrame(() => {
+    frames.current += 1;
     if (!on) return;
     // ── 身体中心 vs 桌心（两条投影的横向差，折回世界米数）──────────────────────
     const cam = camera;
@@ -1825,10 +1949,22 @@ function AcceptProbe() {
       pad: {
         plate: { w: P.w, h: P.h, x: P.x, z: P.z, tiltDeg: +((P.tilt * 180) / Math.PI).toFixed(1) },
         hitCss: [Math.round((maxU - minU) * cw), Math.round((maxV - minV) * ch)],
+        // 热区中心在画布上的 CSS px：验收脚本用它落触摸点（不用手算投影）
+        hitCenterCss: [Math.round(((minU + maxU) / 2) * cw), Math.round(((minV + maxV) / 2) * ch)],
       },
       fire: { ...FIRE_FX, box: fireBox },
       table: { w: GS_TABLE.w, d: GS_TABLE.d },
       transform: GS_STEP0_TRANSFORM,
+      // ── 第 4 版（`feat/gs-framing-orbit-panel`）新加的三组读数 ──
+      // 主人第 1 条：NPC 身体中心 / 桌右沿（木端板 z=−splatLen/2）在画布上的 x%。
+      // 移轴之后投影矩阵里已经带着 viewOffset，所以这里读到的就是**成图上的数**。
+      npcScreenPct: +((((tmp.a.copy(NPC_CENTER).project(cam).x + 1) / 2) * 100).toFixed(2)),
+      tableRightPct: +((((tmp.a.set(GS_TABLE.w / 2, 0, -GS_TABLE.splatLen / 2).project(cam).x + 1) / 2) * 100).toFixed(2)),
+      frame: { shift: GS_FRAME_SHIFT, viewOffsetOn: cam.view?.enabled === true, size: [Math.round(size.width), Math.round(size.height)] },
+      // 主人第 2 条：环视当前角度（拖到底看这个数）、硬停与回中时长。
+      // ★ 字段名 gsLook（不叫 look）：上面那个 `look` 是相机朝向锚点，两个不能撞。
+      gsLook: { ...gsLookDeg(), maxYawDeg: GS_LOOK.yawMaxDeg, maxPitchDeg: GS_LOOK.pitchMaxDeg, returnMs: GS_LOOK.returnMs },
+      frames: frames.current,
     };
   });
   return null;

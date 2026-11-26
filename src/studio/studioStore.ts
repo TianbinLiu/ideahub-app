@@ -531,6 +531,14 @@ interface StudioState {
    */
   canvasOpen: boolean;
   setCanvasOpen: (v: boolean) => void;
+  /**
+   * 「波浪小窗」从哪儿扩散（viewport CSS px）。
+   * ★ 2026-11-26（`feat/gs-framing-orbit-panel`，主人第 3 条）：GS 档的工作流改成小窗浮层，
+   *   打开/关闭用圆形 clip-path 从**点击位置**扩散/收缩 —— 生成键是 3D 网格、不是 DOM，
+   *   所以点它的那一拍把屏幕坐标记在这里，由 ui/WorkflowWindow 读。
+   * null = 走缺省位置（生成键在正面机位的大致落点）。
+   */
+  flowOrigin: [number, number] | null;
   deckView: boolean;
   /** 点卡组堆：打开卡组小窗（窗内右上角在"卡组/卡片"两个视图间切换） */
   openDeckView: () => void;
@@ -743,7 +751,7 @@ interface StudioState {
   /** 点法阵：去工作流那一面（同一条流水线，见 activePath 的 ★★单一真相）。
    *  流水线是空的就说一句该先铸段——不导航到一个会被弹回创作入口的页。
    *  ★ 导航本身在 StudioPage（store 里没有 router）：这里只把意图记在 goFlowAt 上。 */
-  requestFlow: () => void;
+  requestFlow: (origin?: [number, number]) => void;
   /** requestFlow 的意图时间戳（0 = 没有待处理的跳转）。StudioPage 监听它执行 navigate */
   goFlowAt: number;
 
@@ -2490,14 +2498,24 @@ export const useStudio = create<StudioState>()((set, get) => ({
   },
 
   goFlowAt: 0,
-  requestFlow: () => {
+  flowOrigin: null,
+  requestFlow: (origin) => {
     // 单一真相后"法阵"不再铺表（没有第二份数据要同步），它只是去另一面的门。
     // 空流水线不导航：/flow 对 0 段会弹回创作入口，看着像法阵坏了——如实指路
-    if (useFlow.getState().nodes.length === 0) {
+    // ★ 验收钩子（2026-11-26，主人第 3 条的小窗截图）：模拟器上没有服务端、一条段都炼不出来，
+    //   而"点生成键 → 波浪小窗"这条验收必须真的走一次。写 localStorage `gsFlowDebug=1` 时空流水线照开，
+    //   仅此一位；生产里没人写这个键 = 完全不存在（与 gsPadDebug 同一套做法）。
+    let flowDbg = false;
+    try {
+      flowDbg = localStorage.getItem("gsFlowDebug") === "1";
+    } catch {
+      /* 隐私模式：当作没写 */
+    }
+    if (useFlow.getState().nodes.length === 0 && !flowDbg) {
       get().npcSay(t`桌上还没有段——先点虚线卡位做第一段，或去模板市场挑一个「用它出片」。`);
       return;
     }
-    set({ goFlowAt: Date.now() });
+    set({ flowOrigin: origin ?? null, goFlowAt: Date.now() });
   },
 
 
