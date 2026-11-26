@@ -3,7 +3,7 @@ import { create } from "zustand";
 import { shotLineOf, V3_CARD_WIPE_MS, BranchNodeData, BranchTree, Card, CardType, DEFAULT_ASPECT, DEFAULT_VIDEO_CATEGORY, DraftVideo, NodeSlot, Proposal, VideoAspect, VideoSegment, VideoTemplate, uid } from "../types";
 import { AI_REAL, MaterialFile, chargeNote, chargeOnFail, deriveCharacterModels, deriveDeckCards, generateCards, generateFrame, generateProposals, joinNotes, npcChat, npcChatOffline, prepareMaterialRefs } from "../ai";
 import { frameMoment, momentCards } from "../data/shotScript";
-import { DECK_CAM, MARKET, NPC_CAM, SHOP_CAM, SHOP_ORBIT_YAW, SHOW_PLAYER_BODY } from "./scene/layout";
+import { DECK_CAM, MARKET, SHOP_CAM, SHOP_ORBIT_YAW, SHOW_PLAYER_BODY, npcCam } from "./scene/layout";
 // 商店机位要"贴着她"摆，所以得读她**当前**的头骨世界坐标（TripoNpc 每帧写，换身形会动）。
 // cameraOrbit 只 import three 与自身常量，不认识任何 store —— 这里 import 它不会成环。
 import { NPC_HEAD } from "./scene/cameraOrbit";
@@ -1561,7 +1561,7 @@ export const useStudio = create<StudioState>()((set, get) => ({
       spreadOpen: false,
       deckView: false,
       dialogView: true,
-      camera: { kind: "pos", pos: NPC_CAM.pos, look: NPC_CAM.look },
+      camera: { kind: "pos", pos: npcCam().pos, look: npcCam().look },
       orbit: { target: "npc" },
     });
   },

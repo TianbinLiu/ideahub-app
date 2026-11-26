@@ -66,6 +66,35 @@ export const LAND_CAM: { pos: [number, number, number]; look: [number, number, n
   look: [0, 0.2, 1.0],
 };
 
+/** ★ 验收机位覆盖（localStorage `gsSceneCam`，JSON：{pos:[x,y,z], look:[x,y,z]}）。
+ *  给模拟器验收拍"正面 / 俯视 / 壁炉侧近景"三张用 —— App 的相机是固定机位，没有这个口子
+ *  就只能拍同一个角度；而重出三次包（每次 1~2 分钟）只为换机位太慢。
+ *  读法：`defaultCamFor` 每帧读一次缓存值（写 localStorage 之后**刷新一下**生效）。
+ *  生产里不写这个键 = 完全不存在；形状不对（缺坐标/NaN）当没写，绝不把坏坐标送进相机。
+ *  真机验收命令见 docs/gs-table-light-log.md §5。 */
+const CAM_KEY = "gsSceneCam";
+let camCache: { pos: [number, number, number]; look: [number, number, number] } | null = null;
+let camCacheAt = -1e9;
+function acceptCam(): { pos: [number, number, number]; look: [number, number, number] } | null {
+  // 缓存 200 ms：CameraRig 每帧问一次，而 localStorage 是同步 IO
+  const now = typeof performance !== "undefined" ? performance.now() : 0;
+  if (now - camCacheAt < 200) return camCache;
+  camCacheAt = now;
+  camCache = null;
+  try {
+    const raw = localStorage.getItem(CAM_KEY);
+    if (!raw) return null;
+    const j = JSON.parse(raw) as { pos?: unknown; look?: unknown };
+    const ok = (a: unknown): a is [number, number, number] =>
+      Array.isArray(a) && a.length === 3 && a.every((n) => typeof n === "number" && Number.isFinite(n));
+    if (!ok(j.pos) || !ok(j.look)) return null;
+    camCache = { pos: j.pos, look: j.look };
+  } catch {
+    return null;
+  }
+  return camCache;
+}
+
 /** 工坊的默认机位：**横屏用落点机位，竖屏退回俯视兜底**。
  *
  *  ★ 竖屏为什么不能直接用 `LAND_CAM`：竖屏（aspect 0.46）水平视野只有 ±12°，而卡组堆在水平 23.5° 处
@@ -78,6 +107,10 @@ export const LAND_CAM: { pos: [number, number, number]; look: [number, number, n
  *  ★ 用画布宽高比而不是 `innerWidth > innerHeight`：宽高比就是相机自己那个 aspect，
  *    横屏布局两侧的常驻条把画布挤窄之后，这里跟着变窄的也还是它。 */
 export function defaultCamFor(aspect: number): { pos: [number, number, number]; look: [number, number, number] } {
+  // ★ GS 测地场景只有一台机位（米制那台），不看 aspect：这一档在 App 里锁横屏，
+  //   浏览器窄窗口只是开发预览，按米制那台画至少桌面/人物比例是对的。
+  //   验收时 localStorage 的 `gsSceneCam` 覆盖它（见 acceptCam）。
+  if (gsMetric) return acceptCam() ?? GS_CAM;
   // 1.0 起算横屏：正方形（aspect=1）时卡组堆仍在框里（x 6.1~25.2%）、市场也在框里（23.7~76.3%）、
   // 节点链 8.9~91.1%，两种机位都站得住，这里取"正方形算横屏"——毕竟此时横屏那台给的构图更接近
   // 玩家真正看到的桌子。（法阵铭牌那个极端情况下右缘到 101.3%，那颗是纯装饰、画外半行字看不出来）
@@ -91,6 +124,11 @@ export function focusCam(x: number, z: number): { pos: [number, number, number];
   // （消费端 TableScene 也挡了一道——这里是产出端，两头都不该放 NaN 过去）
   const fx = Number.isFinite(x) ? x : 0;
   const fz = Number.isFinite(z) ? z : 0;
+  // ★ 米制档（高斯场景）：卡片只有 0.30×0.45，机位按"桌面高度 + 1 m 外俯看"给；
+  //   老场景那台 y=5.15 / z+2.0 是 UI 尺度的数，在米制下会飞到房顶外。
+  if (gsMetric) {
+    return { pos: [fx * 0.75, 0.72, fz + 1.0], look: [fx, 0.02, fz - 0.15] };
+  }
   return { pos: [fx * 0.75, 5.15, fz + 2.0], look: [fx, 0.45, fz - 2.3] };
 }
 
@@ -102,6 +140,18 @@ export const NPC_CAM: { pos: [number, number, number]; look: [number, number, nu
   pos: [0, 3.05, 2.45],
   look: [0, -1.45, -4.1],
 };
+
+/** 高斯米制档的对话机位：桌子顶面 y=0、NPC 站在 z=-1.5，相机在桌面上方 0.72 m、z=1.15
+ *  （桌沿内侧一点）—— 与她的胸口同高偏上，一屏里是她的头肩 + 桌面下半。
+ *  ★ 老场景那台（NPC_CAM）的世界坐标是 UI 尺度，米制下会落到桌子底下；两处都读 npcCam()。 */
+export const GS_NPC_CAM: { pos: [number, number, number]; look: [number, number, number] } = {
+  pos: [0, 0.72, 1.05],
+  look: [0, 0.35, -1.85],
+};
+/** 对话机位：米制档 / 老场景各一台（studioStore 进对话、TripoNpc 的注视基准都读它） */
+export function npcCam(): { pos: [number, number, number]; look: [number, number, number] } {
+  return gsMetric ? GS_NPC_CAM : NPC_CAM;
+}
 
 /** 卡组浏览视角：悬浮在玩家前方、与桌沿同高的摄像机（rail 顶 0.25），仰拍玩家 */
 export const DECK_CAM: { pos: [number, number, number]; look: [number, number, number] } = {
@@ -285,8 +335,82 @@ export const RIGHT_STACK_LAND: [number, number, number] = [2.59, 0, 0.95];
  *  （改机位之前是 94.2%，贴着边）。 */
 export const COMPOSE_POS_LAND: [number, number, number] = [3.0, 0.03, 0];
 
+// ─────────────────────────────────────────────────────────────
+// ★★ GS 测地场景（2026-11-26，`feat/gs-table-fire`）：**1 世界单位 = 1 米**
+//
+// 为什么单开一套而不是把上面那两套改小：上面那两套的 22×9 桌面是"UI 画布"尺度（卡 1.1 宽、
+// 人 1.7 高、桌子 22 —— 三者本来就不在一个物理尺度上），全仓几十处投影/落点都按它量过。
+// 高斯这一档要做的是**把 splat 房间当真房间用**：量出来桌长 2.50 m、桌高 0.765 m、房深
+// 7.96 m，NPC 1.7 m —— 这四个数只有 1:1 摆在一起才不打架。所以高斯开着时（`gsSceneMetric()`）
+// 整个桌面布局换成下面这套米制常量，关着时逐字节还是上面那两套（默认体验一个字不变）。
+//
+// 数值怎么来的（splat 点云量测，见 docs/gs-step2-splat-log.md §2 与 docs/gs-table-light-log.md）：
+//  · 桌面 2.50（沿房间纵深 d = 世界 z）× 1.17（沿 s = 世界 x），桌面顶面高 0.765；
+//  · 世界原点 = 桌面顶面中心（splat 落位 TARGET），所以桌角 x=±0.585 / z=±1.25、地板 y=-0.775；
+//  · 圆窗 0.90 m 直径在 z=-3.63、窗心只比桌面高 0.68；壁炉在左墙 x≈-1.91、z=-1.6。
+// ⚠ 改机位/桌面尺寸时**四个数一起核**：桌长/桌高/房深/NPC 身高三者比例（docs 里那三条验收）。
+// ─────────────────────────────────────────────────────────────
+let gsMetric = false;
+/** 高斯测地场景开没开（TableScene 随 gsPhase 写；layout 自己的函数在渲染期读它）。
+ *  ★ 只在这里存一位：让它进 React 状态会让每帧的 sceneLayout 调用变成订阅，
+ *    而这一位每帧都一样，没必要。写入口只有 setGsSceneMetric 一处。 */
+export function setGsSceneMetric(on: boolean): void {
+  gsMetric = on;
+}
+export function gsSceneMetric(): boolean {
+  return gsMetric;
+}
+
+/** 米制桌面：w = 世界 x 方向宽（房间的 s 轴）、d = 世界 z 方向长（房间的 d 轴）。
+ *  ★ 长轴是 z（不像老桌面那样沿 x）：splat 里那张长桌本来就顺着房间纵深摆，量出来 2.50 沿 d。
+ *    为了让它和 splat 里烘死的那张桌子重合（不出现"两张桌子"），网格桌面必须同向同寸。
+ *  thick 只是桌板厚度（0.14），桌面顶面仍约定在 y=0（表体往下包，腿落到地板 y=-0.775）。 */
+export const GS_TABLE = { w: 1.17, d: 2.5, thick: 0.14, height: 0.765 };
+
+/** 米制卡牌：0.30 × 0.45 m（≈ 大塔罗牌）。为什么不是真塔罗的 0.07：真卡在手机上只有 ~20 px，
+ *  看不清也点不准；0.28 宽让 4 张角色卡正好横跨 1.165 m ≈ 整张桌宽（1.17），
+ *  同时卡面仍放得下封面 + 卡名。比值 0.28/1.17 = 24%，老场景是 1.1/22 = 5% —— 这是
+ *  "卡能看清"与"卡不比桌子宽"之间量出来的落点（验收截图里量）。 */
+export const GS_CARD = { w: 0.28, h: 0.42, lift: 0.02 };
+
+/** 米制机位：桌面顶面中心为原点，相机在**玩家这一侧偏右**（+x/+z），俯角 ~20°。
+ *  取景（docs/gs-table-light-log.md §相机）：桌面占画面下半、圆窗在右上、壁炉与炉火在左后、
+ *  NPC 站在桌子远端（z≈-1.5）。相机高 1.15 是"略高于坐姿眼位"的游戏机位：
+ *  再低桌面被压扁、再高 NPC 头顶会撞顶部 UI 条（真机 363 CSS px 高）。 */
+export const GS_CAM: { pos: [number, number, number]; look: [number, number, number] } = {
+  pos: [0.55, 1.1, 2.0],
+  look: [-0.1, 0.0, -0.9],
+};
+
+/** 米制的 5 个卡位：4 个角色位**一排**横跨桌宽（dx 0.285 + 卡宽 0.30 = 1.155 ≤ 1.17），
+ *  场景位在远端（z=-1.0）—— 4+1 的读法与老场景一致，只是整体缩到真实桌面尺寸上。
+ *  为什么不改成 2×2：一排的屏幕读法（"四个玩家的位子"）是老场景花了两次迭代定的，
+ *  而且桌面远端要留给场景位/市场卡，2×2 会把市场那两排挤到桌外。 */
+export const GS_SLOTS = {
+  roleZ: -0.35,
+  roleDx: 0.295,
+  roleScale: 1,
+  sceneX: 0,
+  sceneZ: -1.0,
+  sceneScale: 0.8,
+};
+
+/** 米制卡组/市场/法阵：全部落在 1.17×2.50 的桌面上，分四层从玩家侧排到 NPC 侧：
+ *  角色排 z=0.32（卡深 0.45 ⇒ 0.095~0.545）、市场两排 z=-0.2/-0.6（卡深 0.324）、
+ *  场景位 z=-1.0、卡组/摊开/法阵在玩家侧 z≈0.85~1.0。四层互不重叠（见 gs 场景验收截图）。
+ *  ★ 卡组堆的卡面缩放沿用 `chain.scale`（老场景就是同一个数）—— 这里定 0.62，
+ *    卡面 0.30×0.62=0.186 宽，一叠 24 张也只在桌角占 0.19 m。 */
+export const GS_CHAIN = { startX: -0.62, dx: 0.32, rowZ: 0.55, maxVisible: 7, scale: 0.62 };
+export const GS_DECK_POS: [number, number, number] = [-0.36, 0, 0.92];
+export const GS_SPREAD = { z: 1.0, dx: 0.33, maxVisible: 3, centerX: 0.12 };
+export const GS_MARKET = { rowsZ: [0.15, 0.5], perRow: 4, dx: 0.27, lift: 0.02, scale: 0.72, perPage: 8 };
+export const GS_LEFT_STACK: [number, number, number] = [-0.62, 0, 0.55];
+export const GS_RIGHT_STACK: [number, number, number] = [0.62, 0, 0.55];
+export const GS_COMPOSE_POS: [number, number, number] = [0.34, 0.03, 0.92];
+
 /** 横屏/竖屏两套卡位的**唯一分派入口**（铁律六）。`land` 由 hooks/useIsLandscape 或
- *  `camera.aspect >= 1`（defaultCamFor 的同一判据）之后传进来，别在调用点各判一次。 */
+ *  `camera.aspect >= 1`（defaultCamFor 的同一判据）之后传进来，别在调用点各判一次。
+ *  ★ 高斯测地场景开着时**不看 land**（这一档是横屏 App 的实验档；浏览器窄窗口下也按米制那套画）。 */
 export interface SceneLayout {
   table: typeof TABLE;
   chain: typeof CHAIN;
@@ -324,8 +448,36 @@ const LAND_LAYOUT: SceneLayout = {
   slots: TABLE_SLOTS_LAND,
 };
 
+const GS_LAYOUT: SceneLayout = {
+  // GS_TABLE 比 typeof TABLE 多一个 height（桌腿要落到地板）—— 多出来的字段对结构类型无害，
+  // 但桌子组件要读它，所以下面另给一个 gsTableHeight() 而不是把 GS_TABLE 强转成 typeof TABLE
+  table: GS_TABLE,
+  chain: GS_CHAIN,
+  deckPos: GS_DECK_POS,
+  spread: GS_SPREAD,
+  market: GS_MARKET,
+  leftStack: GS_LEFT_STACK,
+  rightStack: GS_RIGHT_STACK,
+  composePos: GS_COMPOSE_POS,
+  slots: GS_SLOTS,
+};
+
 export function sceneLayout(land: boolean): SceneLayout {
+  if (gsMetric) return GS_LAYOUT;
   return land ? LAND_LAYOUT : PORTRAIT_LAYOUT;
+}
+
+/** 桌面上卡牌的当前尺寸档：高斯测地场景 0.30×0.45（米），其余照旧 1.1×1.65（UI 尺度）。
+ *  ★ 所有摆卡/投影的地方都必须走这个函数（CardMesh、SlotPlate、SLOT_SCREEN 的投影框），
+ *    各写一份早晚会出现"卡画的是小米制、落点算的是老尺寸"。 */
+export function cardLayout(): typeof CARD {
+  return gsMetric ? GS_CARD : CARD;
+}
+
+/** 高斯测地场景下桌面的"桌板厚度 + 离地高"（老桌面那两套没有 height 字段，按老数据兜底）。 */
+export function tableSpec(land: boolean): { w: number; d: number; thick: number; height?: number } {
+  const T = sceneLayout(land).table;
+  return T === GS_TABLE ? GS_TABLE : { w: T.w, d: T.d, thick: T.thick };
 }
 
 /** 市场卡在桌上的位置。**本页内的下标**（0 ~ perPage-1），不是全局下标。

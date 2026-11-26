@@ -17,8 +17,8 @@
 import { useSyncExternalStore } from "react";
 import { Euler, Quaternion, Vector3 } from "three";
 import type { WebGLRenderer } from "three";
-// 探针的转轴要过相机位置：机位只有一处（layout.LAND_CAM），别在这里手抄坐标
-import { LAND_CAM } from "./layout";
+// 探针的转轴要过相机位置：机位只有一处（layout.GS_CAM / LAND_CAM），别在这里手抄坐标
+import { GS_CAM, setGsSceneMetric } from "./layout";
 
 /** ★ 开关。要验收/试效果时改成 true（或在 dev 地址上加 ?gs=1），提交前保持 false。 */
 export const GS_STEP0 = false;
@@ -168,20 +168,24 @@ export function gsAssetUrl(): string {
 // 推导、量法与三张验收截图见 docs/gs-step2-splat-log.md（上一版（单图重建）的推导在
 // docs/gs-step1-splat-log.md，两版的房间基、尺度、俯仰没有一位是抄来的）。这里只留结论与"为什么"。
 //
-// ★★ 这一版的资产又换了（2026-11-26，`feat/gs-step2-splat`）：同一间「魔女阁楼」，输入从**一张图**
-//    换成 **11 张伪多视角**（`design/atlas-prep-views.py` 归一，view-11 那张 18mm 剔掉），走 Atlas
-//    `images2PosedRGBD` **估出 11 个真位姿**（不再是上一版那个"11 个占位位姿"），再 `posedImages2Splats`
-//    出 refined 2M 高斯。⇒ 上一版"参考图对位 + 单条视线打射线"的定位法在这里能升级成**点云几何量测**：
-//    因为位姿是真的，点云在估计出的世界坐标系里是一个连续的房间，不再是一条视线推出来的平板。
+// ★★ 2026-11-26（`feat/gs-table-fire`）：**尺度从 3.2 改成 1.0 —— 1 世界单位 = 1 米**。
+//
+//   为什么必须改（主人反馈"桌子大小不对、桌面也不对"）：上一版为了让 22×9 的桌面盖板把 splat
+//   里的桌面盖住，把房间放大到 SCALE=3.2 —— 量出来纵深 7.96 m 的屋子变成 **25 世界单位深**，
+//   而铸卡师（TripoNpc，真人比例 1.7 m）还是 1.7 世界单位高。于是上一版验收图里她像个
+//   1/10 大小的手办站在一张 8×3.7 的"平台"上 —— 桌子相对人、相对房间**同时**大了 3.2 倍。
+//   现在反过来：**以房间为基准**（量出来的 7.96×4.31×3.84 就是米），SCALE=1，
+//   桌子 2.50×1.17、桌面高 0.765 —— 桌长 ≈ 1.47 个 NPC 身高、桌高 ≈ 她腰、房深 ≈ 4.7 个她。
+//   "桌子在画面里占多大"改由**相机位置**调（layout.GS_CAM），不再靠缩放场景。
 //
 // ① 房间基（由点云自己量出来，不靠参考图的像素对应）：见 FLOOR 常量。
 //    · **地板不是 y=0**（上一版是）：`y = -0.02313·d + 0.03890·s + 0.19252`（残差 std 0.035）——
 //      即地板在房间中线处 y≈0.07，整块板对世界 y 倾斜 1.4°。地板的 tilt 是重建时 Atlas 把
 //      "canonicalize 到第一帧相机"留下的（那台相机 pitch -1.24°），不是拍歪了；
-//      这一点**不纠正**（要纠就得多一位 roll，而墙本来就要被 ④ 的 tilt 前倾 6°）。
+//      这一点**不纠正**（要纠就得多一位 roll；桌面/窗按 yaw 定位后肉眼无差，见 ④ 为什么删了 tilt）。
 //    · 用两面侧墙（s≈-3.33 壁炉墙 / s≈+0.70 书柜墙）的法线叉乘得"上"= (-0.012, 0.9999, -0.0007)，
-//      与 +y 只差 0.7° ⇒ 下面照旧只写 yaw + tilt 两位，不再引入 roll。
-//    · 房间尺寸：**纵深 d 7.96 × 宽 s 4.31 × 高 3.84**（上一版 4×8×3，同一间屋子的另一种画法）。
+//      与 +y 只差 0.7° ⇒ 下面照旧只写 yaw 一位，不引 roll。
+//    · 房间尺寸：**纵深 d 7.96 × 宽 s 4.31 × 高 3.84（m）**。
 //    · 圆窗在**远墙**（d≈6.85）正中：中心 (s -1.30, d 6.83, y 1.52)、直径 0.90。
 //    · 长桌顺视线摆：桌面顶面中心 (s -1.27, d 3.20, y 0.835)、**2.50（沿 d）× 1.17（沿 s）**，
 //      桌面比脚底（该处地板 y=0.070）高 **0.765**。
@@ -190,25 +194,20 @@ export function gsAssetUrl(): string {
 //    `R_y(20.15°)·F = (0,0,-1)` ⇒ 圆窗落在 **-z（正对面）**、壁炉墙在 **-x（左）**、书柜墙在 **+x（右）**，
 //    与 11 张参考图逐张一致（不要为了凑对称去转 90°：这间屋子的窗与桌长轴同向，转 90° 就是把窗甩到侧墙）。
 //    与上一版（-36.87°）差这么多，是因为两版重建的**世界坐标系是各自估出来的**（都以第一帧相机为原点）。
-// ③ 尺度 **SCALE = 3.2**（沿用上一版，好处是两版的观感差只是重建质量差，不是尺度差）：
-//    桌面 2.50 × 1.17 → **8.00 × 3.74** 世界单位；桌面中心落到 TARGET=(0,-1.1,0) 之后，整张桌子在
-//    世界 z ∈ [-3.98, +3.98]、y ∈ [-1.52, -0.68]（盖板是 22×9 ⇒ z∈[-4.52,+4.52]，**两侧各 0.54 余量**）。
-//    上限卡在纵深：桌面 2.50·SCALE ≤ 9 ⇒ **SCALE ≤ 3.60**；取 3.2 留了 11% 余量（④ 的 tilt 会把远端
-//    再往前压 0.09）。横向 ±1.87 远窄于盖板 ±11 —— 横向不是约束（同上一版）。
-//    ★ 别再往上抬到"桌子露出盖板"：一露就与 22×9 的网格桌面叠成两张桌子（上一版 §5 风险 5 同一条）。
-// ④ 俯仰 **TILT_DEG = -6°**（绕游戏 X，负 = 把房间远端往下压）。
-//    为什么需要（这一版比上一版小得多）：窗口中心只比桌面高 0.77 splat 单位 = 2.46 世界单位，
-//    相机却在桌面上方 5.0（LAND_CAM pos y=3.9、桌面顶 -1.1）。不压的话窗心在视平线上方一点点，
-//    而画面顶只到视平线下 5°（fov 50、俯角 30°）—— 窗会被画面顶裁掉一截。
-//    -6° 是量出来的（把点云按候选落位投进 LAND_CAM，取窗口亮点的像素包围盒）：
-//    **窗在屏幕 y 46~171 px 之间**，可见带是 y 0~197（盖板远边那条线），上方留 46 px、下方留 26 px；
-//    俯仰再少（-3°）窗顶就摸到 y=19；再多（-8°）窗底压到 187、快贴上盖板远边。
-//    ★ 代价照旧认下来：墙会前倾 6°（上一版 14°）。这一版**没有**上一版那种"沉屋子保壁炉"的两难 ——
-//    壁炉台在 y≈1.5（世界）远在盖板之上，怎么压都在。
-// ⑤ 平移 **TARGET = [0, -1.1, 0]**：桌面顶面中心落到 (0,-1.1,0)。
-//    Y=-1.1 与上一版相同：tilt 把桌面近端抬起 4.0·sin6° ≈ 0.42 ⇒ 桌面最高点 y≈-0.68，
-//    整张桌面躲在盖板顶面 y=0 以下；盖板盒往下包 0.5，连桌沿都在盒子里。
-//    Z=0 / X=0：桌子落在盖板正中（屋子中线就是 x=0）。
+// ③ 尺度 **SCALE = 1.0**（米）。桌面 2.50 × 1.17、桌面顶面中心落到 TARGET 之后：
+//    桌角在世界 x=±0.585、z=±1.25；地板 y=-0.775；圆窗心 y≈0.68（只比桌面高 0.68 m）。
+//    ★ 与 splat 里烘死的那张桌子的关系：**同向同寸**（长轴 z）。网格桌面把 splat 桌面整个盖住
+//      （TARGET.y 取 -0.01 ⇒ splat 桌面在网格毡面下 1.4 cm，点云 ±5 cm 噪声尾部会零星透出来，
+//      这是方案 A 的已知残留，见 docs/gs-table-light-log.md 风险 1 —— 别用"把桌面抬高 30 cm"去盖，
+//      那会让桌高从 0.78 变成 1.08，与 NPC 的腰线对不上）。
+// ④ 俯仰 **TILT = 0°**（上一版 -6°）。为什么这版不能有 tilt：桌面要**贴住 splat 里那张桌子**，
+//    一俯仰，网格桌面与 splat 桌面就上下错开 2.5·sin(tilt)，两侧会露出"第二张桌子"或穿模。
+//    上一版能压是因为整张桌面被 22×9 的盖板盖住了（盖板比桌面高 1.1 世界单位）。
+//    删掉 tilt 之后圆窗还在画面里吗？在：米制机位（GS_CAM）俯角 20°、窗心只比桌面高 0.68 m、
+//    在相机前 5.8 m ⇒ 窗心在视野轴上方 ~15°，50° 垂直视野（半角 25°）装得下（截图见 docs）。
+// ⑤ 平移 **TARGET = [0, -0.01, 0]**：桌面顶面中心落到 (0,-0.01,0)。
+//    Y=-0.01 是让 splat 桌面沉到网格毡面下 1.4 cm（毡面在 y=+0.004）——再高会与毡面 z-fighting，
+//    再低桌子相对地板就更高（桌高 = 0.775 - TARGET.y）。Z=0 / X=0：桌子落在正中（屋子中线就是 x=0）。
 const ANCHOR = {
   /** 桌面顶面中心（splat 帧的房间坐标 s=右 / d=朝窗 / y=**绝对高度**，不是相对地板） */
   tableS: -1.27,
@@ -219,9 +218,9 @@ const ANCHOR = {
   tableWid: 1.17,
   /** 圆窗（远墙正中）：直径 0.90，中心 y 1.52 */
   win: { s: -1.303, d: 6.83, y: 1.515, dia: 0.9 },
-  /** 壁炉（左墙 s≈-3.33）：只给"火"的占位光用，**炉膛位置是估的**（h≈0.5 那一层点被家具挡住，量不准，
-   *  取与上一版同高）。火本身默认关（GS_FIRE），真火要等桌面切除之后才看得见。 */
-  fire: { s: -3.18, d: 4.8, y: 0.5 },
+  /** 壁炉（左墙 s≈-3.33）：炉膛位置量不准（被家具挡住），取 h≈0.43 那一层；
+   *  火烧在那个点上（HearthFire），位置允许按视觉微调，但**只改这里一处**（火/光/假光池都读它）。 */
+  fire: { s: -2.72, d: 3.1, y: 0.62 },
 };
 /** 地板平面（同一份点云的拟合结果，y = a·d + b·s + c；见 ①）。只用来把"相对地板高"换算成绝对 y。 */
 export const GS_FLOOR = { a: -0.02313, b: 0.0389, c: 0.19252 };
@@ -236,9 +235,18 @@ const toSplat = (s: number, d: number, y: number): [number, number, number] => [
 /** 桌面顶面中心（splat 帧的 xyz）—— 变换后它落到 TARGET */
 const CENTER: [number, number, number] = toSplat(ANCHOR.tableS, ANCHOR.tableD, ANCHOR.tableTopY);
 const YAW_DEG = 20.15;
-const TILT_DEG = -6;
-const SCALE = 3.2;
-const TARGET: [number, number, number] = [0, -1.1, 0];
+/** ★ 0：桌面必须贴住 splat 里那张桌子（理由见 ④），这一位不许再随手加 */
+const TILT_DEG = 0;
+/** ★★ 侧倾 1.203°（2026-11-26 从点云量出来的，**不是**凑对称）：splat 桌面那层点云对世界的
+ *  法线是 (-0.0212, 0.9998, 0.0005) —— 绕世界 z 轴歪 1.2°（房间的 s 轴方向）。
+ *  不纠的话，2.5 m 长的桌面远端会高出近端 2.5·sin1.2° ≈ 5.2 cm，网格毡面压不住它：
+ *  验收截图里"桌面远半截变成 splat 的灰桌面"就是这么来的（只在远端露）。
+ *  纠完之后桌面法线与 +y 差 0.03°、点云残差 std 0.94 cm ⇒ 网格毡面抬高 2.4 cm 就够盖住。
+ *  ★ 代价：整间屋子绕视线轴侧倾 1.2°（窗心横移 ~12 cm），肉眼看不出来。
+ *  这是这一版唯一新增的旋转位；上一位 tilt 仍是 0（理由见 ④）。 */
+const ROLL_DEG = 1.203;
+const SCALE = 1;
+const TARGET: [number, number, number] = [0, -0.02, 0];
 
 /** dev 的 ?gsXxx 覆盖（生产构建里一律走常量） */
 function devNum(name: string, fallback: number): number {
@@ -250,13 +258,13 @@ function devNum(name: string, fallback: number): number {
 }
 
 const scale = devNum("gsScale", SCALE);
-/** R = Rx(tilt)·Ry(yaw)（three 的 XYZ 顺序：先 yaw 再绕世界 X 俯仰） */
-const euler = new Euler(
-  (devNum("gsTilt", TILT_DEG) * Math.PI) / 180,
-  (devNum("gsYaw", YAW_DEG) * Math.PI) / 180,
-  0,
-  "XYZ",
-);
+/** 基础旋转 = Rz(roll)·Rx(tilt)·Ry(yaw)（先朝窗、再俯仰、最后侧倾纠桌面）。
+ *  改成四元数链而不是 Euler：这一版多了一位 roll，Euler 的 XYZ 顺序与"先 yaw 后 roll"
+ *  的复合顺序容易对反（对反的表现就是桌面歪向另一边，看起来像"点云噪了"）。 */
+const qYaw = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), (devNum("gsYaw", YAW_DEG) * Math.PI) / 180);
+const qTilt = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), (devNum("gsTilt", TILT_DEG) * Math.PI) / 180);
+const qRoll = new Quaternion().setFromAxisAngle(new Vector3(0, 0, 1), (devNum("gsRoll", ROLL_DEG) * Math.PI) / 180);
+const qBase = qRoll.clone().multiply(qTilt).multiply(qYaw);
 
 // ── 验收钩子：±6° 平移视角（localStorage `gsStep0YawProbe`，单位度；缺省 0 = 完全不生效）──
 // ★ 为什么要在落位常量这一层做：App 的相机是**固定机位**（CameraRig 那套归演出，不接受这一档去动它），
@@ -270,18 +278,16 @@ const probeDeg = Math.max(-30, Math.min(30, Number(lsRead(PROBE_KEY)) || 0));
 
 /** 挂 splat 的那个 group 的变换（position/rotation/scale 三件一起用，别在别处再乘一次）。
  *  ★ 位置 = TARGET − scale·(R 作用在 CENTER 上)：`CENTER` 那个点（桌面顶面中心）落到 `TARGET`。
- *    上一版是手写 cos/sin 展开的（只有 yaw 时够用），这一版多了 tilt，改成用 Euler 算一遍 ——
- *    以后再加一位不用重新对一遍符号。
- *  ★ 旋转 = 探针（绕相机竖轴）· 基础（tilt·yaw）。探针为 0 时这一层是恒等，与没有它逐字节相同。 */
-const rotatedCenter = new Vector3(...CENTER).applyEuler(euler).multiplyScalar(scale);
+ *  ★ 旋转 = 探针（绕相机竖轴）· 基础（yaw；tilt 这一版恒 0）。探针为 0 时这一层是恒等。 */
+const rotatedCenter = new Vector3(...CENTER).applyQuaternion(qBase).multiplyScalar(scale);
 const basePos = new Vector3(
   devNum("gsX", 0) + TARGET[0] - rotatedCenter.x,
   devNum("gsY", 0) + TARGET[1] - rotatedCenter.y,
   devNum("gsZ", 0) + TARGET[2] - rotatedCenter.z,
 );
-/** 探针的转轴（过相机位置的一条竖线；相机机位只读 layout，别手抄坐标） */
-const probeAxis = new Vector3(LAND_CAM.pos[0], 0, LAND_CAM.pos[2]);
-const qBase = new Quaternion().setFromEuler(euler);
+/** 探针的转轴（过相机位置的一条竖线；相机机位只读 layout.GS_CAM，别手抄坐标） */
+const probeAxis = new Vector3(GS_CAM.pos[0], 0, GS_CAM.pos[2]);
+
 const qProbe = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), (probeDeg * Math.PI) / 180);
 const qTotal = qProbe.clone().multiply(qBase);
 const totalEuler = new Euler().setFromQuaternion(qTotal, "XYZ");
@@ -292,6 +298,13 @@ export const GS_STEP0_TRANSFORM = {
   rotation: [totalEuler.x, totalEuler.y, totalEuler.z] as [number, number, number],
   position: totalPos.toArray() as [number, number, number],
 };
+// ★ DEV 读数（验收/调机位时在控制台一眼看到四个关键落点；生产构建里这几行不存在）
+if (import.meta.env.DEV) {
+  console.log(
+    `[gs] transform scale=${scale} pos=${GS_STEP0_TRANSFORM.position.map((n) => n.toFixed(3)).join(",")} ` +
+      `rot=${GS_STEP0_TRANSFORM.rotation.map((n) => ((n * 180) / Math.PI).toFixed(2)).join(",")}° yaw=${YAW_DEG} roll=${ROLL_DEG}`,
+  );
+}
 /** splat 帧的 xyz → 游戏世界（火/窗这些"跟着房间走"的点用它，别各自再拼一遍） */
 const toWorld = (p: [number, number, number]): Vector3 =>
   new Vector3(...p).multiplyScalar(scale).applyQuaternion(qTotal).add(totalPos);
@@ -299,81 +312,68 @@ const toWorld = (p: [number, number, number]): Vector3 =>
 export function gsYawProbe(): number {
   return probeDeg;
 }
-/** ★★ 火（占位接口，2026-11-25）：**现在不是真火，只是一盏默认关的点光 + 一个坐标**。
+/** ★★ 火（2026-11-26，`feat/gs-table-fire`）：**现在是真火** —— 壁炉炉膛一盏闪烁点光 +
+ *  `HearthFire.tsx` 的程序化火焰着色器 + 炉前假光池。
  *
- *  为什么先留接口：壁炉是这间屋子最抢眼的陈设（参考图左边那座雕花石炉），真火（体积 shader /
- *  火焰视频面片）要等第 2 步做完桌面切除之后才有地方放 —— 现在炉膛在盖板顶面以下，火看也看不见。
- *  所以这一版只在**壁炉炉膛**的位置放一盏点光：位置由下面的 FIRE 常量经同一个 GS_STEP0_TRANSFORM 现算
- *  （换落位常量时自动跟着走，别在别处再手抄一份坐标）。以后接真火只改 `GsStep0Environment` 里那一段：
- *  把 `{GS_FIRE && <pointLight …/>}` 换成火焰的网格 / shader，位置仍旧读 `GS_FIRE_LIGHT.position`。
- *
- *  ★ 默认关（GS_FIRE = false）：打开它就是多一盏点光 + 一次 draw call；验收时按关/开各截一张。
- *  ★ 这一版量出来的位置：炉膛 ≈ (s, d, y) = (-3.18, 4.80, 0.50)（splat 房间坐标；左墙 s≈-3.33），
- *    换到游戏世界之后 y ≈ **-2.70** —— 比盖板顶面低 2.7，所以这盏灯此刻照不到桌面、也不会多出假亮斑。
- *    真火要上桌看得见，得先把桌面从 splat 里切掉（方案 B）或把这间屋子重出一版更深的。 */
-export const GS_FIRE = false;
+ *  ★ 位置由下面的 ANCHOR.fire 经同一个 GS_STEP0_TRANSFORM 现算（换落位常量时自动跟着走，
+ *    别在别处再手抄一份坐标）。米制之后的世界落点 ≈ (-1.91, -0.335, -1.60)：
+ *    左墙在 x≈-2.06，所以火在墙前 0.15 m、离桌面远角 0.9 m、离 NPC 左肩 1.9 m。
+ *  ★ 这盏点光**只照 mesh**（桌子 / NPC / 卡牌 / 法阵）：splat 是 ShaderMaterial，不吃灯 ——
+ *    所以墙不会因为"火了"就变暖，地面变暖靠 HearthFire 的假光池，桌面变暖靠光毯。
+ *  ★ 数值是米制的（点光 1/d² 衰减）：intensity 4.2 / distance 5.5 / decay 2 ⇒
+ *    桌沿 ≈ 5 lux、NPC 左肩 ≈ 1.2 lux，与窗光（白色 1.5 方向光）亮度差一档，火只当"第二光源"。
+ *    验收时按"火开 / 火关"各截一张看真实增益（读数在 docs/gs-table-light-log.md §4）。 */
+export const GS_FIRE = true;
 const fireWorld = toWorld(toSplat(ANCHOR.fire.s, ANCHOR.fire.d, ANCHOR.fire.y));
 /** 火那盏点光的参数（位置是算出来的，别手抄） */
 export const GS_FIRE_LIGHT = {
   position: fireWorld.toArray() as [number, number, number],
-  color: "#ffb066",
-  intensity: 14,
-  distance: 16,
-  decay: 1.8,
+  color: "#ff9a4a",
+  intensity: 7,
+  distance: 5.5,
+  decay: 2,
 };
 /** 圆窗在世界里的位置（同样是算出来的）：窗面泛光与"窗光从哪来"都读它。
- *  ★ 这一版窗比上一版小得多（直径 0.90 splat × 3.2 = 2.88 世界单位，上一版 6.08），
- *    所以在世界里的落点要靠 ANCHOR.win 现算，别手抄那几个数。 */
+ *  ★ 米制之后：直径 0.90 m（世界单位），窗心 y≈0.68（只比桌面高 0.68 m）、在相机前 ≈5.8 m。 */
 const windowWorld = toWorld(toSplat(ANCHOR.win.s, ANCHOR.win.d, ANCHOR.win.y));
 
 /** 一档灯（方案 A 的光只照网格桌面与卡牌 —— splat 不吃灯，见 docs/gs-step0-plan.md §4.4）。
  *
- *  ★★ 2026-11-25（step1 新场景）：**从「白天暖窗光」改成「月光」**。上一版那间屋子是白天、暖光、
- *  窗在正前方；这一版的概念图是**晚上**：深蓝紫的月光从正前方的圆窗进来，房间整体冷、暗。
- *  所以这里三样都换了（数值不是拍的，是照参考图的色温/亮度对着调的，取值与对照见台账 §4）：
- *    · bg / fog 换成房间自己的暗蓝灰（原来那个暖灰 #2b2a28 在接缝处会露一撮暖色）；
- *    · 主光从 #fff2df / 2.4 换成冷月白 / 1.5，方向仍是**从窗那边（-z）斜上方**打进来；
- *    · 窗面泛光挪到**圆窗在世界里的位置**（按落位现算，见 GS_DAY.window 的注释），色温也转冷。
- *  fill（NPC 顺光）**原样保留** —— 它跟这一版房间朝向无关，是给她的脸兜底的。 */
+ *  ★★ 2026-11-25 版是「月光」：深蓝紫、圆窗在 -z、房间整体冷暗。**这一版沿用色温，数值按米制重调**：
+ *  场景尺度从 3.2 换成 1 之后，同样 intensity 的灯照在离得近 3 倍的物体上会亮 9 倍 ——
+ *  下面每个数都在米制场景里重新量过（截图 A/B：火开/关、补光开/关），换算方法写在每一条后面。 */
 export const GS_DAY = {
   /** 背景色：只在 splat 没盖住的缝隙里露出来 —— 取房间自己的暗蓝灰，接缝处看不出边界 */
   bg: "#171b22",
-  /** 雾：这一版屋子比上一版更深（圆窗在相机前 ~18.3 世界单位，房间纵深 7.96×3.2=25.5），
-   *  起点放到窗那一带（20）之后 —— 雾在 20 之前不起作用，窗与近处的墙都不吃雾。 */
-  fog: [20, 70] as [number, number],
-  /** 主光 = 月光：从**窗那侧（-z）斜上方**打进来（x 偏 -2.5 = 窗外偏左，与参考图里壁炉在左的明暗一致）；
-   *  阴影框只框"桌面"那一块（框整间房 = 把有限的阴影像素摊薄，plan §4.4）。 */
-  sun: { position: [-2.5, 7, -12] as [number, number, number], intensity: 1.5, color: "#c8d8f5" },
-  /** 窗面泛光：位置 = 圆窗在世界里的位置（落位常量算出来的，**别手抄**）；直径 = 窗径 0.90×3.2 ≈ 2.88。
-   *  ★ 2026-11-26：这一版窗心只比桌面高 0.77 splat 单位 ⇒ 世界高度比上一版低得多
-   *    （圆窗世界 y ≈ -0.15，上一版 +0.17 —— 看着差不多，但这一版是"低到盖板顶面以下一点点"），
-   *    宽度也跟着从 6 降到 3 —— 面积小了 4 倍，同样的 intensity 会显得暗，所以比上一版抬了一点。
-   *  不支持阴影 / 只支持 PBR 材质 / 必须先 RectAreaLightUniformsLib.init() */
-  window: { position: windowWorld.toArray() as [number, number, number], width: 3, height: 3, intensity: 4 },
+  /** 雾：米制之后房间纵深 7.96 m、圆窗在相机前 ≈5.8 m ⇒ 雾从窗那一带之后起（7 m），
+   *  窗前 7 m 不吃雾（否则圆窗会被雾压灰，那是这一档最亮的东西）。 */
+  fog: [7, 22] as [number, number],
+  /** 主光 = 月光：从**窗那侧（-z）斜上方**打进来（x 偏 -1.2 = 窗外偏左，与壁炉在左的明暗一致）。
+   *  ★ 方向光的强度与距离无关，只与"照度"有关：米制之后桌面离窗近了 3 倍，但方向光不看距离 ——
+   *    0.9（上一版 1.5）是照着 splat 墙面的亮度校的：再高桌面比 splat 桌面亮一档，接缝就显形。
+   *  阴影框按米制桌+人那个范围给（±2.2 × ±1.6），2048² 的阴影图全落在桌面这一块，窗棂影才不糊。 */
+  sun: { position: [-1.2, 3.2, -6] as [number, number, number], intensity: 0.9, color: "#c8d8f5" },
+  /** 窗面泛光：位置 = 圆窗在世界里的位置（落位常量算出来的，**别手抄**）；宽高 = 窗径 0.90 m。
+   *  ★ RectAreaLight 的亮度按**立体角**算：面积从 3×3 缩到 0.9×0.9（1/11），
+   *    同样的 intensity 会暗一个档，所以从 4 提到 26（≈ 4 × 11 / 1.7，再按现场观感收一点）。
+   *  不支持阴影 / 只支持 PBR 材质 / 必须先 RectAreaLightUniformsLib.init()。 */
+  window: { position: windowWorld.toArray() as [number, number, number], width: 0.9, height: 0.9, intensity: 12 },
   /**
-   * ★ NPC 补光（2026-11-25）。为什么需要：这一档的窗墙在 -z（正前方、窗光漂亮），
-   * 而 NPC 站在桌子对面、**面朝 +z**（玩家）—— 窗光从她背后打进来，她的脸与躯干正面
-   * 只剩环境光，在手机屏上就是一块剪影（见 docs/gs-step0-splat-log.md §5 已知风险 1）。
+   * ★ NPC 补光（2026-11-25 加，米制后重调）。为什么需要：窗墙在 -z（正前方），
+   *  而 NPC 站在桌子对面、**面朝 +z**（玩家）—— 窗光从她背后打进来，她的脸与躯干正面
+   *  只剩环境光，在手机屏上就是一块剪影。
    *
    * 为什么是"相机这一侧（+z）、略高于桌面"的方向光：
-   *  · 相机在 +z（layout.LAND_CAM pos z=7.4，俯角 30°），NPC 面朝 +z ⇒ 从 +z 打过来正好
-   *    照亮她的脸与躯干正面，而不动窗光在她身后/侧面的塑形；
-   *  · 仰角 atan(2.6 / 7.6) ≈ 18.9°，比相机俯角低 11°：差着这点角度，脸上才有从上到下的
-   *    过渡；完全同角会拍成一张平脸（影棚里的"机位灯"就是这么丢立体感的）；
-   *  · x 偏 +0.8（相机右侧）是给鼻梁/脸颊留一点侧向明暗，同时不抢窗光"从 -z 来"的方向感；
+   *  · 相机在 (0.95, 1.15, 2.15)（GS_CAM），NPC 面朝 +z ⇒ 从 +z 打过来正好照亮她的脸与躯干正面；
+   *  · 仰角 atan(1.6/3.6) ≈ 24°，比相机俯角（20°）高 4°：差着这点角度，脸上才有从上到下的过渡；
+   *  · x 偏 +0.4 是给鼻梁/脸颊留一点侧向明暗，同时不抢窗光"从 -z 来"的方向感；
    *  · 用**方向光**而不是点光/聚光：补光要均匀兜住整张脸 + 上身，点光离得近会在脸上留一块
    *    过曝圆斑与一条桌面上的假高光；方向光没有距离衰减，且默认不投影 ⇒ 不会多出第二条影子。
-   *  · 颜色比窗光（#fff2df）冷一点：补光在摄影里本来就更接近冷色环境光，也不把她的皮肤
-   *    和暖色窗光染成同一条色带。
-   *
-   * ★ 强度为什么是 0.9（2026-11-25 量的，不是拍的）：主光 sun = 2.4 ⇒ 补光 ≈ 主光的 1/2.7。
-   *   在浏览器同机位截 A/B 两张，量 NPC 那一块的平均亮度：补光 0.75 时脸 +22%、0.9 时 +27%
-   *   （不补光时她的躯干正面只剩环境光，整块接近剪影）；桌面只被提亮 +4% / +5%。
-   *   再往上（≥1.0）桌板朝向相机那一侧会开始比 splat 里的桌面更亮 —— splat 不响应灯光（本文件头 ②），
-   *   **网格与 splat 的接缝**就是从那里开始显形的，所以取 0.9 不再往上。
-   * ★ 对照档：dev 的 `?gs=1&nofill=1` 不挂这盏灯（gsFillOn()），同机位 A/B。
-   */
-  fill: { position: [0.8, 2.6, 7.6] as [number, number, number], intensity: 0.9, color: "#eef2f7" },
+   * ★ 强度 0.9：与主光 0.9 同档（老场景是主光的 1/2.7）—— 这一版主光按米制调低了，
+   *  补光保持 0.9 正好把她的正面从剪影提到"看得清表情"；桌面只被提亮约 +5%
+   *  （量法：同机位 nofill=1 A/B，见 gsFillOn）。
+   * ★ 对照档：dev 的 `?gs=1&nofill=1` 不挂这盏灯（gsFillOn()）。 */
+  fill: { position: [0.4, 1.6, 3.6] as [number, number, number], intensity: 0.9, color: "#eef2f7" },
   /** 环境：程序化的"月夜窗光"等距柱状图 → PMREM（真 HDR 以后换，见 GsStep0Room 的注释） */
   envIntensity: 0.5,
 };
@@ -400,11 +400,18 @@ export const GS_STEP0_BUDGET = {
 export type GsPhase = "off" | "loading" | "ready" | "failed";
 
 let phase: GsPhase = gsStep0On() ? "loading" : "off";
+/** ★ 米制场景的开关（layout.setGsSceneMetric）：loading/ready 时整个桌面布局换成 1 单位 = 1 米
+ *  那一套（见 layout.GS_TABLE/GS_CAM）。failed 必须退回 false —— 回退到今天的书房时，
+ *  桌面/机位/卡位要跟今天那套**逐字节相同**，不能留在米制坐标上（那会是"房子换了、桌子没换"）。
+ *  初值在模块加载时就写一次：dev 的 ?gs=1 不走 setGsPhase，靠这一行。 */
+const metricOf = (p: GsPhase): boolean => p === "loading" || p === "ready";
+setGsSceneMetric(metricOf(phase));
 const listeners = new Set<() => void>();
 
 export function setGsPhase(next: GsPhase): void {
   if (next === phase) return;
   phase = next;
+  setGsSceneMetric(metricOf(next));
   listeners.forEach((fn) => fn());
 }
 
