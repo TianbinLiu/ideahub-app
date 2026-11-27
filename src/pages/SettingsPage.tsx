@@ -23,10 +23,12 @@ import { childSafetyUrl } from "../utils/shareLink";
 import { openExternal } from "../utils/openExternal";
 import { getQuality, qualityLabel } from "../studio/quality";
 import {
+  GS_SPLAT_TIERS,
   gsExperimentOn,
-  gsMaxSplatsSetting,
+  gsSplatTierSetting,
   setGsExperiment,
-  setGsMaxSplats,
+  setGsSplatTier,
+  type GsSplatTier,
 } from "../studio/scene/gsStep0";
 import { currentVoice } from "../studio/voices";
 import {
@@ -292,19 +294,24 @@ function LangRow() {
  * ★ 为什么要有它：release 包里的 `import.meta.env.DEV` 恒假，dev 的 `?gs=1` 在手机上打不开；
  *   而这一档又不能默认开（普通用户不该看见没验收完的房间）。所以给它一行**默认关**的开关，
  *   值只存本机（localStorage），打开后与 `?gs=1` 走同一条路径（见 studio/scene/gsStep0）。
- * ★ 下面那两颗芯片是同一件事的第二档：真机上量「全部 / 80 万高斯」的帧率差，
- *   不用为了第二档再出一个 APK（读数记在 docs/gs-step0-splat-log.md）。
+ * ★ 下面那四颗芯片是同一件事的第二维：真机上量「全部 / 1.6M / 1.4M / 1.2M」的帧率与观感，
+ *   不用为了每一档再出一个 APK（读数记在 docs/gs-table-light-log.md §15）。
+ *   ★ 2026-11-26 起这四档是**四份文件**（`design/decimate-spz.mjs` 均匀抽稀 + gzip），
+ *   不是渲染期截断 —— 截尾会把整块房间切掉（§14.4-④）。换档要重进工坊才生效。
  * ★ 文案照设置页其余行：图标一列 + 标题/副标题，右边是开关本身（不再给箭头 —— 这一行不跳页）。
  */
 function GsExperimentRow() {
   const { t } = useLingui();
   const [on, setOn] = useState(() => gsExperimentOn());
-  const [cap, setCap] = useState(() => gsMaxSplatsSetting());
-  /** 「全部」= 不截断（默认）；0.8M = 真机 A/B 的成本对照档（会截掉房间一块，见 GsStep0Room 的 ★） */
-  const CAPS: ReadonlyArray<{ n: number; label: string }> = [
-    { n: 0, label: t`全部` },
-    { n: 800_000, label: "0.8M" },
-  ];
+  const [tier, setTier] = useState<GsSplatTier>(() => gsSplatTierSetting());
+  /** 「全部」= 2.0M 原文件；其余三档 = 均匀抽稀后的独立 spz（文件名见 gsStep0.GS_STEP0_TIER_ASSETS）。
+   *  顺序只认 GS_SPLAT_TIERS（本地存储与 HUD 认的是同一个顺序），这里只补人看的标签。 */
+  const TIER_LABELS: Record<GsSplatTier, string> = {
+    full: t`全部`,
+    "1.6": "1.6M",
+    "1.4": "1.4M",
+    "1.2": "1.2M",
+  };
   return (
     <div>
       <button
@@ -332,18 +339,18 @@ function GsExperimentRow() {
       {on && (
         <div className="flex items-center gap-2 px-4 pb-3">
           <span className="text-[11px] text-slate-500">{t`高斯数量`}</span>
-          {CAPS.map(({ n, label }) => (
+          {GS_SPLAT_TIERS.map((key) => (
             <button
-              key={n}
+              key={key}
               onClick={() => {
-                setGsMaxSplats(n);
-                setCap(n);
+                setGsSplatTier(key);
+                setTier(key);
               }}
               className={`rounded-lg px-2.5 py-1 text-[11px] ${
-                cap === n ? "bg-brand/15 text-brand ring-1 ring-brand/60" : "bg-ink text-slate-400 ring-1 ring-slate-700"
+                tier === key ? "bg-brand/15 text-brand ring-1 ring-brand/60" : "bg-ink text-slate-400 ring-1 ring-slate-700"
               }`}
             >
-              {label}
+              {TIER_LABELS[key]}
             </button>
           ))}
         </div>

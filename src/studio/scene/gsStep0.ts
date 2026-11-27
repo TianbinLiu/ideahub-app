@@ -13,7 +13,8 @@
 //
 // 开发期免改代码开法：`npm run dev` 之后给地址加 `?gs=1`（`import.meta.env.DEV` 恒假的生产构建里永远关着；
 // 页面里想临时对尺度就再加 `gsScale=3.2&gsYaw=20.15&gsTilt=-6&gsX=0&gsY=0&gsZ=0`，五个数分别覆盖下面那组落位参数；
-// 两档高斯用 `?quality=draft` 切（真机上不用重出包，见 gsQuality 的注释）。
+// 两档画质用 `?quality=draft` 切（真机上不用重出包，见 gsQuality 的注释）；
+// 三档抽稀用 `?tier=1.6` / `1.4` / `1.2` 切（见 GS_SPLAT_TIER 那一段）。
 import { useSyncExternalStore } from "react";
 import { Euler, Quaternion, Vector3 } from "three";
 import type { WebGLRenderer } from "three";
@@ -35,9 +36,11 @@ const devOn = (): boolean => {
 //    设置 → 这台设备 → 高斯场景（实验），值存 localStorage。它不是产品功能，
 //    只是把 `gsStep0On()` 的第三个条件打开；打开后走的就是同一条 splat 路径。
 const EXP_KEY = "gsStep0Experiment";
-/** 高斯数量上限（同一行里 `全部` / 80 万两档：真机 A/B 帧率用；缺省 0 = 全画不截断） */
-const MAX_KEY = "gsStep0MaxSplats";
-const MIN_CAP = 10_000;
+// ★ 2026-11-26（`feat/gs-lod-tiers`）：设置页原来那颗「高斯数量」上限（`gsStep0MaxSplats` /
+//   `gsStep0MaxSplatsSetting`）撤了 —— 那是渲染期截断 `splat.splats.numSplats`，而 SPZ 打包数组
+//   按空间顺序排，截尾 = **整块房间消失**（左墙/炉拱成片噪点与空洞，§14.4-④ 的对照图）。
+//   现在三档 LOD 是**三份均匀抽稀后的独立文件**（`design/decimate-spz.mjs`），选择见下面的
+//   GS_SPLAT_TIER 那一段；渲染期截断只留 dev 的 `?max=` 成本对照口子（见 gsMaxSplats）。
 
 function lsRead(key: string): string {
   try {
@@ -56,8 +59,6 @@ function lsWrite(key: string, value: string): void {
 
 /** 设置里那一行开关的状态（默认关；读一次冷启动值） */
 let expOn = lsRead(EXP_KEY) === "1";
-/** 设置里选的高斯上限；0 = 全部（不截断） */
-let expMax = Number(lsRead(MAX_KEY)) || 0;
 
 /** 这一档此刻到底开没开（`GS_STEP0` 常量 / dev 的 ?gs=1 / 设置里的本机开关；三者任一） */
 export const gsStep0On = (): boolean => GS_STEP0 || devOn() || expOn;
@@ -79,27 +80,19 @@ export function setGsExperiment(on: boolean): void {
   if (!devOn()) setGsPhase(on ? "loading" : "off");
 }
 
-/** 这一档实际用几个高斯：dev 的 ?max= 覆盖 > 设置里选的档 > 0（= 全画，不截断）
- *  ★ 0 不是"用 0 个"，是"不截断"：Spark 的 maxSplats 选项实测不截断（见 GS_STEP0_BUDGET）。 */
+/** dev `?max=` 的合理下限（写 10 之类等于把房间清空，直接忽略） */
+const MIN_CAP_DEV = 10_000;
+
+/** 渲染期截断用几个高斯：**只剩 dev 的 `?max=` 一个口子**（0 = 全画，不截断）。
+ *  ★ 0 不是"用 0 个"，是"不截断"：Spark 的 maxSplats 选项实测不截断（见 GS_STEP0_BUDGET）。
+ *  ★ 设置页的「高斯数量」上限 2026-11-26 撤了（理由见上面 MAX_KEY 那一行）——
+ *    这里的口子只给 dev 做"截断 vs 均匀抽稀"的对照，生产构建里恒 0。 */
 export function gsMaxSplats(): number {
   if (import.meta.env.DEV && typeof location !== "undefined") {
     const raw = Number(new URLSearchParams(location.search).get("max"));
-    if (Number.isFinite(raw) && raw >= MIN_CAP) return Math.round(raw);
+    if (Number.isFinite(raw) && raw >= MIN_CAP_DEV) return Math.round(raw);
   }
-  return expMax >= MIN_CAP ? Math.round(expMax) : 0;
-}
-
-/** 设置页那一行显示的当前档（0 = 全部） */
-export function gsMaxSplatsSetting(): number {
-  return expMax >= MIN_CAP ? Math.round(expMax) : 0;
-}
-
-/** 设置页那一行写它（0 = 全部不截断） */
-export function setGsMaxSplats(n: number): void {
-  if (!Number.isFinite(n) || n < 0) return;
-  if (n > 0 && n < MIN_CAP) return;
-  expMax = Math.round(n);
-  lsWrite(MAX_KEY, String(expMax));
+  return 0;
 }
 
 /**
@@ -168,9 +161,62 @@ export const GS_STEP0_ASSETS = {
   refined: GS_STEP0_ASSET,
   draft: "/models/study/gs/workshop-step0-draft.spz",
 } as const;
-/** 当前档的 URL —— GsStep0Room 建 SplatMesh 时读它（每次建 mesh 现读，所以换档后重进工坊生效） */
+
+// ── 三档 LOD（2026-11-26，`feat/gs-lod-tiers`）────────────────────────────────
+// ★★ 为什么是"三份独立文件"而不是渲染期截断：SPZ 打包数组是**按空间顺序**排的，截尾 =
+//   保留前半段空间 = 整块房间消失（§14.4-④）。三份文件由 `design/decimate-spz.mjs` 对点索引
+//   做**固定种子（42）的均匀随机抽样**、再**按原空间顺序回排**、gzip 得到：
+//     full = 2.0M（现有 workshop-step0.spz）/ 1.6M / 1.4M / 1.2M
+//   点数与体积、抽稀算法与种子见 docs/gs-table-light-log.md §15。
+//   ★ 抽样后回排顺序是有意的：Spark 按数组顺序做批处理/缓存，打乱顺序的 spz 在真机上更慢。
+//   ★ 四个文件都**不进仓库**（.gitignore 的 `public/models/study/gs/`），换机器要重跑脚本。
+export type GsSplatTier = "full" | "1.6" | "1.4" | "1.2";
+
+/** ★ 默认档。生产默认 full（2M）；真机 A/B 用设置页四档（写 localStorage，换档后重进工坊生效）。 */
+export const GS_SPLAT_TIER: GsSplatTier = "full";
+
+const TIER_KEY = "gsStep0SplatTier";
+/** 四档的固定顺序（设置页芯片与本地存储都按它认，写错的值一律当没设） */
+export const GS_SPLAT_TIERS: readonly GsSplatTier[] = ["full", "1.6", "1.4", "1.2"];
+
+/** 认一个字符串是不是合法档位（localStorage / dev 地址里的值都可能是脏的） */
+function tierOf(raw: string | null | undefined): GsSplatTier | null {
+  return raw && (GS_SPLAT_TIERS as readonly string[]).includes(raw) ? (raw as GsSplatTier) : null;
+}
+
+/** 这一档此刻用哪一档：dev 的 `?tier=` 覆盖 > localStorage > GS_SPLAT_TIER。
+ *  ★ 与 `gsMaxSplats` 同一种做法 —— 换档要重新进工坊才会重新建 SplatMesh（读 URL 在 effect 里）。 */
+export function gsSplatTier(): GsSplatTier {
+  if (import.meta.env.DEV && typeof location !== "undefined") {
+    const q = tierOf(new URLSearchParams(location.search).get("tier"));
+    if (q) return q;
+  }
+  return tierOf(lsRead(TIER_KEY)) ?? GS_SPLAT_TIER;
+}
+
+/** 设置页那四颗芯片显示的当前档（只认 localStorage，dev 的 ?tier= 不写回设置页） */
+export function gsSplatTierSetting(): GsSplatTier {
+  return tierOf(lsRead(TIER_KEY)) ?? GS_SPLAT_TIER;
+}
+
+/** 设置页那四颗芯片写它（换档后重进工坊才生效：SplatMesh 只在 effect 里建一次） */
+export function setGsSplatTier(tier: GsSplatTier): void {
+  if (!tierOf(tier)) return;
+  lsWrite(TIER_KEY, tier);
+}
+
+/** 四档文件的名字都写在这里（同一目录；改名只改这一处）。full 就是原来那份 2M。 */
+export const GS_STEP0_TIER_ASSETS: Record<GsSplatTier, string> = {
+  full: GS_STEP0_ASSET,
+  "1.6": "/models/study/gs/workshop-step0-1.6.spz",
+  "1.4": "/models/study/gs/workshop-step0-1.4.spz",
+  "1.2": "/models/study/gs/workshop-step0-1.2.spz",
+};
+
+/** 当前档的 URL —— GsStep0Room 建 SplatMesh 时读它（每次建 mesh 现读，所以换档后重进工坊生效）。
+ *  ★ draft（524k 的旧资产档）优先：它是"画质对不对"那一维，与三档抽稀（"数量够不够"）正交。 */
 export function gsAssetUrl(): string {
-  return GS_STEP0_ASSETS[gsQuality()];
+  return gsQuality() === "draft" ? GS_STEP0_ASSETS.draft : GS_STEP0_TIER_ASSETS[gsSplatTier()];
 }
 
 // ── 落位（splat 世界 → 游戏世界）────────────────────────────────────────────
@@ -410,9 +456,10 @@ export const GS_STEP0_BUDGET = {
 };
 
 /**
- * ★ 候选常量（**默认不生效**，2026-11-26 性能验收给主人的数据用）：按"屏上占比"裁到 160 万。
- *   实测与观感差异见 docs/gs-table-light-log.md §14；要真的切，把 GS_STEP0_BUDGET.maxSplats
- *   改成它（或设置页选 80 万那档）—— **别在调用点写死**，截断只有 GsStep0Room 那一处。
+ * ★ 候选常量（**默认不生效**）：按"屏上占比"截到 160 万 —— 2026-11-26 性能验收量过的那一版。
+ *   实测与观感差异见 docs/gs-table-light-log.md §14；**§15 起 1.6M 改由独立文件实现**
+ *   （均匀抽稀，见 GS_SPLAT_TIERS），这个截断常量只留作"截断 vs 均匀抽稀"的对照记录，
+ *   别再把它接回设置页（截尾会掉整块房间）。
  */
 export const GS_MAX_SPLATS_CANDIDATE = 1_600_000;
 

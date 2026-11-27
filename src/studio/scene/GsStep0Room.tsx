@@ -22,6 +22,7 @@ import {
   gsMarkReady,
   gsMaxSplats,
   gsQuality,
+  gsSplatTier,
   setGsPhase,
 } from "./gsStep0";
 import { GS_STATS, mountGsHud, updateGsHud } from "./gsHud";
@@ -135,17 +136,18 @@ function SplatLayer({ gl }: { gl: THREE.WebGLRenderer }) {
   useLayoutEffect(() => {
     const spark = new SparkRenderer({ renderer: gl });
     const splat = new SplatMesh({
-      // ★ 两档高斯（refined 2M / draft 524k）走同一个开关，URL 在 gsStep0.gsAssetUrl() 里现读
-      //   （每次建 mesh 读一次 ⇒ 换档之后重新进工坊生效，见那里的注释）。
+      // ★ URL 按「画质档（refined 2M / draft 524k）」×「三档 LOD（full / 1.6 / 1.4 / 1.2）」现读，
+      //   在 gsStep0.gsAssetUrl() 里（每次建 mesh 读一次 ⇒ 换档之后重新进工坊生效）。
       url: gsAssetUrl(),
-      // ★ 这一档的高斯上限：设置页临时选 `全部` / 80 万（真机 A/B），dev 还能用 ?max= 覆盖。
-      //   在 effect 里现读而不是渲染期读：换档之后重新进工坊才会建新 mesh（这就是量两档的方式）。
+      // ★ 渲染期截断只剩 dev 的 ?max= 成本对照口子（0 = 不截断）。三档 LOD 不靠截断：
+      //   截尾会掉整块房间，§15 起改由均匀抽稀的独立文件实现（见 gsStep0.GS_SPLAT_TIER）。
       maxSplats: gsMaxSplats(),
       raycastable: false, // 点选只对 mesh 开 raycaster：splat 的 depthWrite=false 不会替你挡（plan §4.5）
     });
-    // 角标读数里这两个数不随帧变：在建模这一拍定下来（省得每帧重新解析地址栏）
+    // 角标读数里这几个数不随帧变：在建模这一拍定下来（省得每帧重新解析地址栏）
     GS_STATS.cap = gsMaxSplats();
     GS_STATS.quality = gsQuality();
+    GS_STATS.tier = gsSplatTier();
     GS_STATS.fill = gsFillOn();
     GS_STATS.splats = 0;
     setObjs({ spark, splat });
