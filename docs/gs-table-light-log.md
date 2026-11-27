@@ -894,4 +894,4 @@ dev 里 A/B 复现与修复见 `.tmp-accept/`；`window.__tripo.perfActions` 可
 - `npm run apk` → 模拟器安装验收（13.6 五张图与读数）。
 - 图集**提交**（`public/models/study/tex/fire-atlas.webp`，0.27 MB）与生成脚本（`design/gen-fire-atlas.mjs`）；
   截图 / SPZ / `.tmp-*` 不进仓库。
-- 分支 `feat/gs-fullscreen-fire` → PR **#___** → CI 绿 → merge（本小节随 PR 一起合入）。
+- 分支 `feat/gs-fullscreen-fire` → PR **#547** → CI 绿（build **1m12s** / android **2m29s**）→ merge（本小节随 PR 一起合入）。
