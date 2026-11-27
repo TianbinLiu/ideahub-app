@@ -20,6 +20,8 @@ import { Euler, Quaternion, Vector3 } from "three";
 import type { WebGLRenderer } from "three";
 // 探针的转轴要过相机位置：机位只有一处（layout.GS_CAM / LAND_CAM），别在这里手抄坐标
 import { GS_CAM, setGsSceneMetric } from "./layout";
+// ★ 2026-11-27：这一档默认开不开由它判（机型探测 + 规则），见 gsAutoGateRules / gsGate
+import { gsAutoGate } from "./gsGate";
 
 /** ★ 开关。要验收/试效果时改成 true（或在 dev 地址上加 ?gs=1），提交前保持 false。 */
 export const GS_STEP0 = false;
@@ -29,12 +31,17 @@ const devOn = (): boolean => {
   return new URLSearchParams(location.search).get("gs") === "1";
 };
 
-// ── 实验入口：真机（release 包）怎么打开这一档 ────────────────────────────────
+// ── 实验入口：release 包里这一档怎么开 ──────────────────────────────────────
 // ★★ 为什么不能只靠 ?gs=1（2026-11-25 真机验收）：devOn() 读的是 `import.meta.env.DEV`，
 //    release 包里那一位恒假 —— 手机上无论地址写什么都不可能打开这一档。
-//    但这一档也**不能默认开**（普通用户不该看见实验画面）。所以多一个**默认关**的本机开关：
-//    设置 → 这台设备 → 高斯场景（实验），值存 localStorage。它不是产品功能，
-//    只是把 `gsStep0On()` 的第三个条件打开；打开后走的就是同一条 splat 路径。
+// ★★ 2026-11-27（`feat/gs-auto-gate-align`，主人这一轮）：**不再"默认关"** —— 改成按机型自动判定
+//    （规则/门槛在 `gsAutoGateRules`，探测在 `gsGate`）：够格的机器默认开 1.6M 档，不够格的
+//    保持今天的程序化书房。设置 → 这台设备 → 高斯场景 那一行保留为**用户覆盖**：
+//      · 没点过（localStorage 里没有这个键）= 听自动判定；
+//      · 点过（"1"/"0"）= 按用户的来，显式开/关优先于自动判定（下次冷启动也算数）；
+//      · 键名沿用 `gsStep0Experiment`：老版本里点过开关的用户升级后手里的那条显式值仍然有效。
+//    优先级：常量 `GS_STEP0` > dev 的 `?gs=1` > 用户显式 > 自动判定。
+//    （`?gs=1` 排在用户前面是给开发/验收留的应急口子：地址栏说开就开。）
 const EXP_KEY = "gsStep0Experiment";
 // ★ 2026-11-26（`feat/gs-lod-tiers`）：设置页原来那颗「高斯数量」上限（`gsStep0MaxSplats` /
 //   `gsStep0MaxSplatsSetting`）撤了 —— 那是渲染期截断 `splat.splats.numSplats`，而 SPZ 打包数组
@@ -57,27 +64,41 @@ function lsWrite(key: string, value: string): void {
   }
 }
 
-/** 设置里那一行开关的状态（默认关；读一次冷启动值） */
-let expOn = lsRead(EXP_KEY) === "1";
+/** 用户显式选择（"on"/"off"）；null = 没点过，听自动判定。读一次冷启动值。 */
+let expOverride: "on" | "off" | null = (() => {
+  const raw = lsRead(EXP_KEY);
+  return raw === "1" ? "on" : raw === "0" ? "off" : null;
+})();
 
-/** 这一档此刻到底开没开（`GS_STEP0` 常量 / dev 的 ?gs=1 / 设置里的本机开关；三者任一） */
-export const gsStep0On = (): boolean => GS_STEP0 || devOn() || expOn;
+/** 这一档此刻到底开没开（`GS_STEP0` 常量 / dev 的 ?gs=1 / 用户显式 / 自动判定）。
+ *  ★ 自动判定只算一次（`gsGate.gsAutoGate` 缓存），每次调用不会重新探 GPU。 */
+export const gsStep0On = (): boolean => {
+  if (GS_STEP0 || devOn()) return true;
+  if (expOverride) return expOverride === "on";
+  return gsAutoGate().on;
+};
 
-/** 设置页那一行读它 */
+/** 设置页那一行读它（有效状态：用户覆盖优先，没覆盖过就是自动判定的结论） */
 export function gsExperimentOn(): boolean {
-  return expOn;
+  return gsStep0On();
+}
+
+/** 用户有没有显式点过这一行（设置页文案要区分"自动开"与"手动开"） */
+export function gsExperimentOverride(): "on" | "off" | null {
+  return expOverride;
 }
 
 /**
- * 设置页那一行写它（真机验收用）。不刷新页面也能生效：
+ * 设置页那一行写它（写的是**用户显式选择**，从此压过自动判定）。不刷新页面也能生效：
  * 阶段是模块级单例 —— 打开时从 off 回到 loading（TableScene 会挂上 splat 子树），关掉时置 off。
  * ★ dev 的 ?gs=1 是另一路开关：开着它时这一行不把正在看的场景摘掉（只影响下次冷启动）。
  */
 export function setGsExperiment(on: boolean): void {
-  if (on === expOn) return;
-  expOn = on;
+  const next = on ? "on" : "off";
+  if (next === expOverride) return;
+  expOverride = next;
   lsWrite(EXP_KEY, on ? "1" : "0");
-  if (!devOn()) setGsPhase(on ? "loading" : "off");
+  if (!devOn()) setGsPhase(gsStep0On() ? "loading" : "off");
 }
 
 /** dev `?max=` 的合理下限（写 10 之类等于把房间清空，直接忽略） */

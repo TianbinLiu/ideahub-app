@@ -30,6 +30,8 @@ import {
   setGsSplatTier,
   type GsSplatTier,
 } from "../studio/scene/gsStep0";
+// ★ 2026-11-27（`feat/gs-auto-gate-align`）：这一档默认开不开由机型判定，见 studio/scene/gsGate
+import { gsAutoGate } from "../studio/scene/gsGate";
 import { currentVoice } from "../studio/voices";
 import {
   checkUpdate,
@@ -289,11 +291,13 @@ function LangRow() {
 }
 
 /**
- * 高斯泼溅第 0 步实验档的本机开关（2026-11-25 真机验收用）。
+ * 高斯场景那一行（2026-11-25 起是本机开关；2026-11-27 起改成**机型自动判定 + 用户覆盖**）。
  *
- * ★ 为什么要有它：release 包里的 `import.meta.env.DEV` 恒假，dev 的 `?gs=1` 在手机上打不开；
- *   而这一档又不能默认开（普通用户不该看见没验收完的房间）。所以给它一行**默认关**的开关，
- *   值只存本机（localStorage），打开后与 `?gs=1` 走同一条路径（见 studio/scene/gsStep0）。
+ * ★ 自动判定（`studio/scene/gsAutoGateRules` + `gsGate`）：够格的机器默认开 1.6M 档，
+ *   不够格的保持今天的程序化书房；取不到 GPU / Android 版本时保守不开。
+ * ★ 这一行上的开关仍然是**用户覆盖**：点一下写 localStorage `gsStep0Experiment`（"1"/"0"），
+ *   从此按用户的来（显式开/关优先于自动判定）—— 所以副标题要把**自动判定的结论**写出来，
+ *   不然用户看不出"现在这个开着的状态是自动给的，还是我上次点的"。
  * ★ 下面那四颗芯片是同一件事的第二维：真机上量「全部 / 1.6M / 1.4M / 1.2M」的帧率与观感，
  *   不用为了每一档再出一个 APK（读数记在 docs/gs-table-light-log.md §15）。
  *   ★ 2026-11-26 起这四档是**四份文件**（`design/decimate-spz.mjs` 均匀抽稀 + gzip），
@@ -304,6 +308,8 @@ function GsExperimentRow() {
   const { t } = useLingui();
   const [on, setOn] = useState(() => gsExperimentOn());
   const [tier, setTier] = useState<GsSplatTier>(() => gsSplatTierSetting());
+  /** 自动判定的结论（只探一次，结论缓存）——副标题写它；`title` 里挂完整依据（验收/排查用） */
+  const auto = gsAutoGate();
   /** 「全部」= 2.0M 原文件；其余三档 = 均匀抽稀后的独立 spz（文件名见 gsStep0.GS_STEP0_TIER_ASSETS）。
    *  顺序只认 GS_SPLAT_TIERS（本地存储与 HUD 认的是同一个顺序），这里只补人看的标签。 */
   const TIER_LABELS: Record<GsSplatTier, string> = {
@@ -321,12 +327,21 @@ function GsExperimentRow() {
           setOn(next);
         }}
         aria-pressed={on}
+        // 完整判定依据（cores / mem / screen / android / gpu）挂在 title 上：HUD 只在开着时有，
+        // 而"为什么这台机器没有高斯房间"要有个地方能看（验收/客服排查都问这一句）。
+        title={auto.reason}
         className="flex w-full items-center gap-3 px-4 py-3.5 text-left active:bg-slate-800/40"
       >
         <Icon name="sparkle" size={20} className="flex-none text-slate-400" />
         <span className="min-w-0 flex-1">
           <span className="block text-sm text-slate-100">{t`高斯场景（实验）`}</span>
-          <span className="block truncate text-[11px] text-slate-500">{t`用实景重建的房间替代 3D 工坊；默认关`}</span>
+          <span className="block truncate text-[11px] text-slate-500">
+            {/* ★ 副标题要**短到不截断**：真机竖屏一行只有 ~240 CSS px，11px 中文字约 22 个 ——
+                "（自动判定：已启用）"这 10 个字必须整段落在可见区里（验收要看这一行）。 */}
+            {auto.on
+              ? t`实景重建的房间（自动判定：已启用）`
+              : t`实景重建的房间（自动判定：未启用）`}
+          </span>
         </span>
         <span className={`relative h-6 w-11 flex-none rounded-full transition ${on ? "bg-brand" : "bg-slate-700"}`}>
           <span

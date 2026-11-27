@@ -14433,6 +14433,14 @@ msgstr "Live connection restored"
 msgid "实时连接断了，正在用轮询"
 msgstr "Live connection lost — polling instead"
 
+#: src/pages/SettingsPage.tsx
+msgid "实景重建的房间（自动判定：已启用）"
+msgstr "Real-scanned room (auto: enabled)"
+
+#: src/pages/SettingsPage.tsx
+msgid "实景重建的房间（自动判定：未启用）"
+msgstr "Real-scanned room (auto: disabled)"
+
 #: src/components/support/AdminTicketsView.tsx
 #: src/pages/SupportPage.tsx
 msgid "客服"
@@ -24829,10 +24837,6 @@ msgstr "Add voiceover right after applying ({voiceName}, free for now · {voiceF
 #: src/components/cut/AutoEditSheet.tsx
 msgid "用完就配音（{voiceName}）"
 msgstr "Add voiceover right after applying ({voiceName})"
-
-#: src/pages/SettingsPage.tsx
-msgid "用实景重建的房间替代 3D 工坊；默认关"
-msgstr "Replaces the 3D workshop room with a real-scanned room; off by default"
 
 #: src/components/CardModelFit.tsx
 msgid "用得上"

@@ -232,6 +232,9 @@ export interface SlotLayout {
   sceneX: number;
   sceneZ: number;
   sceneScale: number;
+  /** 角色排沿"排列方向"的整体偏移（可选；米制档用 `GS_TABLE_SHIFT.z` 把整排跟桌子一起挪）。
+   *  ★ 只挪这条线、不动 roleAlong：`npcOffsetM` 量的是桌心线，偏移必须落在这一位上。 */
+  roleShift?: number;
 }
 
 export const TABLE_SLOTS: SlotLayout = {
@@ -274,6 +277,8 @@ export interface MarketLayout {
   lift: number;
   scale: number;
   perPage: number;
+  /** 整排沿"排开方向"的偏移（可选；米制档用 `GS_TABLE_SHIFT.z` 把市场那排跟桌子一起挪）。 */
+  center?: number;
 }
 
 /** 摊开的卡组（平放）：与 MarketLayout 同一套轴语义，只是一次只摆几张 */
@@ -431,6 +436,30 @@ export function gsSceneMetric(): boolean {
  *  thick 只是桌板厚度（0.14），桌面顶面仍约定在 y=0（表体往下包，腿落到地板 y=-0.785）。 */
 export const GS_TABLE = { w: 1.17, d: 2.15, thick: 0.14, height: 0.765, splatLen: 2.5 };
 
+/**
+ * ★★ 2026-11-27 第 10 版（`feat/gs-auto-gate-align`，主人第 2 件）：**整张桌面沿世界 −z 平移 0.20 m**。
+ *
+ * 来由：上一版（§17）为了让炉火从铸卡师身侧露出来，把她一个人往 −z 挪了 0.20 m（屏幕右 = 世界 −z）——
+ *   火出来了，但她偏离桌子中线 `npcOffsetM = 0.212`（主人这一轮把上限收回 0.05）。这一版把
+ *   **桌子连同卡位 / 铭牌 / 法阵 / 光毯**往同一个方向挪同样的 0.20 m：她相对桌子的关系回到
+ *   上一版之前（实测 0.012 m），画面里的整体右移效果不变。
+ *   ★ 不许只挪人不挪桌：那样两套中心线永远差着 0.2 m，卡位/铭牌也会和她的身体错开。
+ *   ★ 唯一不跟着动的是 **splat 里烘死的那张桌子与壁炉**（点云，不能平移）。所以：
+ *     · 毡面 + 光毯 + 卡位 + 铭牌 + 法阵 + 卡组/市场/摊开排 = 跟着走（世界 −z 0.20 m）；
+ *     · 桌子的**木框（端板 / 木沿 / 护栏）**锚在点云那张 2.50 m 桌子的两端（它不能动）——
+ *       端板与木沿按 `splatLen` 现算，+z 那一头因此多出一块 0.375 m 的木板盖住露出来的旧桌面
+ *       （WorkshopTable 的端板注释；实测画面上看不出来，§18.5 有图）。桌腿跟着桌体走（在毡面底下）。
+ *   换句话说：**"桌子"在玩法上就是那张 2.15×1.17 的毡面，它整体走了 0.20 m**；围边只是点云桌的皮。
+ * ★ 为什么所有桌面常量都要跟着减 0.20（而不是给某个组件单独加偏移）：桌面上东西有 6 个来源
+ *   （GS_SLOTS 的 5 个卡位、GS_PAD、GS_DECK_POS、GS_SPREAD、GS_MARKET、WorkshopTable 的光毯/法阵）。
+ *   只挪一半的话，卡位还停在旧桌面上 —— 而 `npcOffsetM` 是按桌心量的，两套中心线当场回来。
+ * ★ 光毯贴图**不用重烘**：它是 1024×512、u=桌面长轴、v=桌面短轴的**桌面局部 UV**
+ *   （WorkshopTable.Lightmap），整张桌子一起平移时 UV 与光斑的相对关系不变。
+ * ★ GS_CAM 一个数不动：右移量由 `GS_FRAME_SHIFT` 那一层继续给 —— 这一版按实测复算是否需要它
+ *   （结论与数写在 §18.2；改之前先读那一节，别只调一个数）。
+ */
+export const GS_TABLE_SHIFT = { z: -0.2 } as const;
+
 /** 米制卡牌：**0.20 × 0.30 m**（第 3 版，`feat/gs-polish2`；前两版是 0.30×0.45 / 0.28×0.42）。
  *
  *  ★★ 2026-11-26 主人第 4 条："卡片太大" —— 0.28×0.42 在 2.15×1.17 的桌面上是"每张占桌面 13%×36%"，
@@ -458,7 +487,7 @@ export const GS_CAM: { pos: [number, number, number]; look: [number, number, num
 
 /**
  * ★★ 2026-11-26 第 4 版（`feat/gs-framing-orbit-panel`，主人第 1 条「NPC 和桌子整体往右一点」）：
- *  正面机位的**取景右移量**（占画布宽度的比例，0.09 = 9%）。
+ *  正面机位的**取景右移量**（占画布宽度的比例）。
  *
  *  目标：NPC 身体中心从 **49.5%~51%** 落到 **58%~62%**（量法见 docs/gs-table-light-log.md §12）。
  *
@@ -467,20 +496,33 @@ export const GS_CAM: { pos: [number, number, number]; look: [number, number, num
  *    look 点 z +0.30（NPC 到 57.7%）时桌右沿已经到 **101.2%**（出画）；把 NPC 推到 60%
  *    需要 look z ≈ +0.34，右沿到 104%。主人两条要求（NPC 58~62% + 桌右沿不出画）
  *    在纯转头下**无解**，不是没调好。
- *  ★ 为什么不是「整体 group 平移 x」：平移桌子会让网格桌面与 splat 里烘死的那张桌子错开
+ *  ★ 为什么当时没选「整体 group 平移 x」：那会让网格桌面与 splat 里烘死的那张桌子错开
  *    （两端就靠 `GS_TABLE.splatLen` 的木端板盖着），平移 NPC 又会让炉膛的火偏出她身侧。
- *    而且 group 平移不改变画面构图（相机跟着看同一个点）——除非同时转 look，那就回到上一条。
+ *    ★★ 2026-11-27（第 10 版）主人改了口径：就要"桌子跟人一起挪"，错开问题改由木端板重算
+ *    （见 GS_TABLE_SHIFT 与 WorkshopTable 的端板注释）—— 这条历史结论**只对第 4 版成立**。
  *  ★ 最后用的是**投影窗口右移（等效移轴镜头 / 横向裁切）**：
  *    `camera.setViewOffset(W + 2·δ, H, 0, 0, W, H)` 只挪投影窗口，**不改相机位姿、朝向、焦距**，
  *    所以桌子在画面里的尺寸与人物高度逐像素不变，画面里所有东西一起右移 δ 像素。
- *    量出来的数（画布 852×348、fov 50、GS_CAM、δ = round(852×0.09) = 77 px）：
+ *    第 4 版量出来的数（画布 852×348、fov 50、GS_CAM、δ = round(852×0.09) = 77 px）：
  *    NPC 身体中心 **50.61% → 59.65%**、桌右沿（z=−1.25 的木端板）**89.14% → 98.18%**、
  *    桌左沿 11.8% → 20.8% —— 右沿不出画，两条要求同时成立。δ 再大（0.095）右沿 99.4%，
  *    余量只剩 0.6%，取 0.09 留 1.8%。
+ *
+ *  ★★ 2026-11-27 第 10 版（`feat/gs-auto-gate-align`）：**0.09 → 0.04**（这一位仍然需要）。
+ *    这一版桌子（毡面 + 卡位 + 铭牌 + 法阵 + 光毯）已经跟着铸卡师沿世界 −z 挪了 0.20 m
+ *    （`GS_TABLE_SHIFT`），"右移"已经有一半是**世界位移**给的；而桌子近角那一段的投影斜率很陡
+ *    （0.2 m ≈ 6.5 个百分点），再叠 0.09 的移轴，桌右沿会被推出画。同几何（真机画布 788×351、
+ *    fov 50、GS_CAM）复算三个候选值：
+ *      · δ = **0.09**（第 9 版）：桌右沿 **108.19%**（出画）、桌左沿 ~34%、NPC **63.42%**；
+ *      · δ = **0.04（这一版）**：桌右沿 **99.29%**（不出画，余 0.71%）、桌左沿 **29.15%**、
+ *        NPC **58.47%** —— 正好回到 §12 定的 58~62% 那一档；
+ *      · δ = 0（不要移轴）：桌右沿 95.29%、NPC 54.47% —— 整体右移效果弱了一半，§12 的目标丢掉。
+ *    所以"世界位移 + 少量移轴"才是这一版的正解：`__gsAccept.tableRightPct / tableLeftPct /
+ *    npcScreenPct` 三个数把这三条量在一起（§18.4 记了真机读数）。
  *  ★ 只在**设计机位**（GS_CAM）上生效：验收用的 `gsSceneCam` 覆盖、对话/聚焦/商店机位都不移，
  *    否则那几台被验收/演出依赖的取景会跟着漂（见 TableScene.CameraRig 的应用条件）。
  */
-export const GS_FRAME_SHIFT = 0.09;
+export const GS_FRAME_SHIFT = 0.04;
 
 /** ★★ 两排卡位（`feat/gs-layout-fix` 起：中线沿长轴 z 把人分成**玩家侧 (+x) / NPC 侧 (−x)**）；
  *  第 3 版（`feat/gs-polish2`，主人"卡片太大"）把卡从 0.28×0.42 缩到 **0.20×0.30**，这一排的
@@ -512,8 +554,11 @@ export const GS_SLOTS: SlotLayout = {
   roleDx: 0.24,
   roleScale: 1,
   sceneX: -0.26,
-  sceneZ: 0.72,
+  // 场景位与角色排一起跟着桌子平移（§18.2 的 GS_TABLE_SHIFT）
+  sceneZ: 0.72 + GS_TABLE_SHIFT.z,
   sceneScale: 0.8,
+  // ★ 4 个角色位沿长轴 z 排开 ⇒ 整排沿 z 平移；roleAlong（x）不动
+  roleShift: GS_TABLE_SHIFT.z,
 };
 
 /** 米制卡组/市场/法阵：全部落在 2.15 × 1.17 的桌面上（中线沿长轴 z 在 x=0）——
@@ -523,15 +568,27 @@ export const GS_SLOTS: SlotLayout = {
  *    卡面 0.20×0.62=0.124 宽，一叠 24 张也只在桌角占 0.13 m。 */
 export const GS_CHAIN = { startX: -0.62, dx: 0.32, rowZ: 0.55, maxVisible: 7, scale: 0.62 };
 /** 卡组堆（平放）：玩家侧靠窗那一头（卡缩 0.62 ⇒ 约 0.124×0.186），落在毡面内
- *  （x 0.33~0.45 / z 0.67~0.85；桌沿 x=0.585 / z=1.075 都还有余量）。 */
-export const GS_DECK_POS: [number, number, number] = [0.39, 0, 0.76];
+ *  （x 0.33~0.45 / z 0.67~0.85；桌沿 x=0.585 / z=1.075 都还有余量）。
+ *  ★ 2026-11-27：跟着 `GS_TABLE_SHIFT.z` 一起挪 0.20 m（桌上所有东西都用同一份偏移）。 */
+export const GS_DECK_POS: [number, number, number] = [0.39, 0, 0.76 + GS_TABLE_SHIFT.z];
 /** 摊开的卡（平放）：桌子正中（中线上下各一张），一次 3 张；这是"翻卡组"的临时状态，
- *  横跨中线没关系（它不是任何一边的排面）。gap 0.36→**0.30**（跟着新卡宽收）。 */
-export const GS_SPREAD: SpreadLayout = { axis: "z", at: 0, gap: 0.3, maxVisible: 3, center: 0 };
+ *  横跨中线没关系（它不是任何一边的排面）。gap 0.36→**0.30**（跟着新卡宽收）。
+ *  ★ 2026-11-27：`center` 带 `GS_TABLE_SHIFT.z`，"桌子正中"跟着桌子走（at 是 x，不动）。 */
+export const GS_SPREAD: SpreadLayout = { axis: "z", at: 0, gap: 0.3, maxVisible: 3, center: GS_TABLE_SHIFT.z };
 /** 米制市场：NPC 侧（x<0）**一排 4 张平放**（牌面朝玩家 = 买东西的那一位），
  *  沿长轴间距 0.24（与角色排同一档）、缩放 0.88（卡面 0.176×0.264，比卡位小一档"货"感）。
- *  为什么一页 4 张（老场景 8）：平放一张在桌宽方向占 0.264，1.17 m 的桌宽放下"每边一排"正好对称。 */
-export const GS_MARKET: MarketLayout = { axis: "z", rows: [-0.26], perRow: 4, gap: 0.24, lift: 0.02, scale: 0.88, perPage: 4 };
+ *  为什么一页 4 张（老场景 8）：平放一张在桌宽方向占 0.264，1.17 m 的桌宽放下"每边一排"正好对称。
+ *  ★ 2026-11-27：`center` 带 `GS_TABLE_SHIFT.z`，这一排跟着桌子一起挪。 */
+export const GS_MARKET: MarketLayout = {
+  axis: "z",
+  rows: [-0.26],
+  perRow: 4,
+  gap: 0.24,
+  lift: 0.02,
+  scale: 0.88,
+  perPage: 4,
+  center: GS_TABLE_SHIFT.z,
+};
 export const GS_LEFT_STACK: [number, number, number] = [-0.62, 0, 0.55];
 export const GS_RIGHT_STACK: [number, number, number] = [0.62, 0, 0.55];
 
@@ -551,9 +608,11 @@ export const GS_RIGHT_STACK: [number, number, number] = [0.62, 0, 0.55];
  *    上只有 ~95×29 CSS px，够宽不够高，热区要 ≥44×44 —— 0.20 m 高按 244 px/m 换算 ≈ 48 px。
  */
 export const GS_PAD = {
-  /** 台座中心（世界 x,z）；y 由桌面顶面 0 现算 */
+  /** 台座中心（世界 x,z）；y 由桌面顶面 0 现算。
+   *  ★ 2026-11-27：z = **−0.78 + GS_TABLE_SHIFT.z = −0.98** —— 铭牌是桌面上的东西，
+   *    跟桌子一起挪 0.20 m（它离桌沿/卡排的相对位置一个数没变）。 */
   x: 0.46,
-  z: -0.78,
+  z: -0.78 + GS_TABLE_SHIFT.z,
   /** 牌面尺寸（m）：宽 × 高 */
   w: 0.39,
   h: 0.12,
@@ -661,7 +720,9 @@ export function marketSlot(
   const row = Math.floor(i / M.perRow);
   const col = i % M.perRow;
   const rowCount = Math.max(1, Math.min(M.perRow, countOnPage - row * M.perRow));
-  const along = (col - (rowCount - 1) / 2) * M.gap;
+  // ★ center（可选）：整排沿"排开方向"平移。米制档拿它把市场那排跟桌子一起挪 0.20 m；
+  //   老两套没写这一位 ⇒ ?? 0，逐字节不变。
+  const along = (col - (rowCount - 1) / 2) * M.gap + (M.center ?? 0);
   const at = M.rows[Math.min(row, M.rows.length - 1)];
   return M.axis === "z" ? { x: at, z: along, row, col, rowCount } : { x: along, z: at, row, col, rowCount };
 }
