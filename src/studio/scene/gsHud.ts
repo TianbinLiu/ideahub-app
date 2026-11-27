@@ -7,11 +7,22 @@
 // ★ 1 秒刷新：fps 由 GsStep0Room 的 useFrame 累加器算（每次结算 = 1 秒的帧数），
 //   这里只负责把 GS_STATS 画出来 —— 别在角标里再挂一个 setInterval 各自算一遍。
 // ★ 文字全用 ASCII：这是开发者读数，不是界面文案（混进中文会被 scripts/check-i18n.mjs 当成漏译）。
-import { gsLoadMs, gsYawProbe } from "./gsStep0";
+import { gsLoadMs, gsYawProbe, type GsSplatTier } from "./gsStep0";
 
-/** GsStep0Room 每帧写、角标每秒读一次。cap=这一档的高斯上限，fill=NPC 补光开没开，
- *  quality=两档高斯（refined 2M / draft 524k，见 gsStep0.GS_QUALITY） */
-export const GS_STATS = { fps: 0, splats: 0, calls: 0, tris: 0, cap: 0, fill: true, quality: "refined" as "refined" | "draft" };
+/** GsStep0Room 每帧写、角标每秒读一次。cap=dev 的渲染期截断（0 = 不截断），fill=NPC 补光开没开，
+ *  quality=两档画质（refined 2M / draft 524k，见 gsStep0.GS_QUALITY），
+ *  tier=三档 LOD（full / 1.6 / 1.4 / 1.2，见 gsStep0.GS_SPLAT_TIER；
+ *  ★ 它读的是**实际用哪个文件**，不是设置里存的愿望值） */
+export const GS_STATS = {
+  fps: 0,
+  splats: 0,
+  calls: 0,
+  tris: 0,
+  cap: 0,
+  fill: true,
+  quality: "refined" as "refined" | "draft",
+  tier: "full" as GsSplatTier,
+};
 
 let el: HTMLDivElement | null = null;
 let painted = "";
@@ -28,7 +39,7 @@ function readout(): string {
   const probe = gsYawProbe();
   return [
     `GS ${s.fps.toFixed(1)} fps   fill ${s.fill ? "on" : "off"}${probe ? `   probe ${probe > 0 ? "+" : ""}${probe}deg` : ""}`,
-    `splat ${num(s.splats)} / cap ${s.cap > 0 ? num(s.cap) : "all"}  ${s.quality}`,
+    `splat ${num(s.splats)}  tier ${s.tier}${s.cap > 0 ? `  cap ${num(s.cap)}` : ""}  ${s.quality}`,
     `calls ${s.calls}  tris ${num(s.tris)}`,
     // ★ 毫秒（2026-11-26 验收口径）：首进 8~12 s 的量级下，秒的小数位读起来像噪声；
     //   真机报告要的就是"非零毫秒数"，与 gsStep0.gsLoadMs 的单位一致。
