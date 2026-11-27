@@ -699,7 +699,14 @@ export default function FlowCanvas({
             className="absolute inset-0 bg-cover bg-center opacity-[0.18]"
             style={{ backgroundImage: "url(/create/workflow.jpg)" }}
           />
-          <div className="absolute inset-0 bg-gradient-to-b from-ink/80 via-ink/55 to-ink/85" />
+          {/* ★ 嵌进全屏面板（GS 档）时这一层压得更透：面板自己是半透明磨砂底（ui/WorkflowWindow 的
+              bg-ink/88 + backdrop-blur-md），底下那圈 3D 的暖光要能隐约透上来 —— 原来 80/55/85 三层
+              叠上去就是实底，半透明成了句空话。老路径（embedded=false）逐字节不变。 */}
+          <div
+            className={`absolute inset-0 bg-gradient-to-b ${
+              embedded ? "from-ink/68 via-ink/44 to-ink/74" : "from-ink/80 via-ink/55 to-ink/85"
+            }`}
+          />
           <div
             ref={gridRef}
             className="absolute inset-0 opacity-[0.14]"
@@ -1156,7 +1163,10 @@ export default function FlowCanvas({
   //   里层仍是同一棵 body（顶栏 / 画布 / 编辑窗 / 各种 Sheet 一个不少），只是"壳"换了。
   if (embedded) {
     return (
-      <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-ink">
+      // ★ 壳的底色交给宿主（ui/WorkflowWindow 的半透明磨砂面）：这里再刷一层 bg-ink 就把面板的
+      //   半透明模糊盖没了。全屏面板版（2026-11-26 `feat/gs-fullscreen-fire`）起这么做；
+      //   老路径那个 `fixed inset-0 … bg-ink` 的壳（下面 createPortal 那一支）一个字节没动。
+      <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
         <ErrorBoundary label={t`工作流画布`} full>
           {body}
         </ErrorBoundary>
@@ -2479,7 +2489,11 @@ function EmptyPipelineHint() {
   const { active } = useLang();
   const addExample = EXAMPLES[active].add;
   return (
-    <div className="absolute left-6 top-24 text-sm text-slate-500">
+    // ★ 2026-11-26（全屏面板那一版）：这张提示卡在**画布世界层**里（跟着平移缩放），
+    //   而世界层在 0 段时宽度只有 1 px（它唯一的在流子节点是那张 width=max(1,0) 的 SVG）
+    //   ⇒ 绝对定位的这句提示会按 1 px 宽折行，屏幕上表现为"一列竖排的字"（小窗那版就有，
+    //   只是当时没人盯这张空态图）。`w-max` 按内容定宽，再给一个上限免得长句顶出画布。
+    <div className="absolute left-6 top-24 w-max max-w-[min(88vw,520px)] text-sm text-slate-500">
       <Trans>这条流水线还没有段——对下面的输入条说「{addExample}」</Trans>
     </div>
   );
