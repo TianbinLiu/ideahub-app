@@ -14441,6 +14441,14 @@ msgstr "实时连接恢复了"
 msgid "实时连接断了，正在用轮询"
 msgstr "实时连接断了，正在用轮询"
 
+#: src/pages/SettingsPage.tsx
+msgid "实景重建的房间（自动判定：已启用）"
+msgstr "实景重建的房间（自动判定：已启用）"
+
+#: src/pages/SettingsPage.tsx
+msgid "实景重建的房间（自动判定：未启用）"
+msgstr "实景重建的房间（自动判定：未启用）"
+
 #: src/components/support/AdminTicketsView.tsx
 #: src/pages/SupportPage.tsx
 msgid "客服"
@@ -24837,10 +24845,6 @@ msgstr "用完就配音（{voiceName}，现在免费 · 每天 {voiceFree} 字�
 #: src/components/cut/AutoEditSheet.tsx
 msgid "用完就配音（{voiceName}）"
 msgstr "用完就配音（{voiceName}）"
-
-#: src/pages/SettingsPage.tsx
-msgid "用实景重建的房间替代 3D 工坊；默认关"
-msgstr "用实景重建的房间替代 3D 工坊；默认关"
 
 #: src/components/CardModelFit.tsx
 msgid "用得上"

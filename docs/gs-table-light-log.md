@@ -1515,3 +1515,97 @@ fps 与上一版**不是同一场同机位对照**：§16.6 的真机没量（�
    真机的火像素、过曝白、fps、draw call 都是设备直读；两组图的相机与画布尺寸逐像素一致。
 5. **验收包**（`webContentsDebuggingEnabled: true`）与「出包」是**同一次构建**：要发给别人之前
    记得重新跑一次 `npm run apk:release`，别把带 devtools 的包发出去（这次只装在本机验收）。
+
+## 18. 第 10 版：机型自动判定 + 桌子跟铸卡师一起回到中线（2026-11-27 · `feat/gs-auto-gate-align`）
+
+> 真机验收 `3C15CJ00C8V00000`（OnePlus CPH2771 / Android 16 / Adreno 829 / 1272×2800 / 8 核 8 GB）。
+> 一次性脚本与截图在 `.tmp-align/`（**不进仓库**），父提交 `7004d746`（§17 那一版）。
+
+### 18.1 两条 → 落点
+
+| # | 要求 | 改动 | 落点 |
+|---|---|---|---|
+| 1 | 高斯场景从"默认关的开关"改成**按机型自动判定**（至少两项探测；软渲染一律不开；拿不到信息保守不开；手动开关仍优先；HUD/日志与设置页能看到结论与依据） | 新增零依赖规则 `gsAutoGateRules.ts` + 探测层 `gsGate.ts`；`gsStep0On()` 改成"常量 > dev ?gs=1 > 用户显式 > 自动判定"；HUD 第一行与启动 console 打 `gsAutoGate: on|off reason:...`；设置页那行副标题写"（自动判定：已启用/未启用）"，`title` 挂完整依据 | `src/studio/scene/gsAutoGateRules.ts`、`gsGate.ts`、`gsStep0.ts`、`gsHud.ts`、`pages/SettingsPage.tsx`、`scripts/check-gs-auto-gate.mjs`（+ `package.json` build 链） |
+| 2 | NPC 回到桌子中线（`\|npcOffsetM\| ≤ 0.05`），做法是**桌子跟着她一起挪 0.20 m**，不许只挪人 | 新增 `layout.GS_TABLE_SHIFT = { z: −0.20 }`；毡面/光毯/法阵/卡位/铭牌/卡组堆/市场排/摊开排/对话卡全部跟着走；`WorkshopTable` 的木框按**不能动的 splat 桌面**重新算端板/木沿/护栏；`GS_FRAME_SHIFT` 0.09 → **0.04**（复算见 18.2）；`npcOffsetM` 改成"相对桌心"量 | `layout.ts`、`TableScene.tsx`、`WorkshopTable.tsx` |
+
+### 18.2 桌子怎么跟着人走（以及 GS_FRAME_SHIFT 为什么还留、从 0.09 收到 0.04）
+
+**为什么只把"玩法桌面"挪、而不把整张桌子连同木框一起挪**：splat 里那张 2.50 m 的桌子和壁炉是**点云烘死的**，
+不能平移。网格这一层是盖在它上面的"玩法桌面"（2.15×1.17 的毡面 + 卡位 + 铭牌 + 法阵 + 光毯）——
+这一版让**这层整体沿世界 −z 挪 0.20 m**（世界 −z = 画面右），她相对桌心线的偏差就从 0.212 回到 **0.012 m**。
+木框/桌腿仍锚在点云桌子的两端：端板与长边木沿按 `splatLen` 现算，+z 那一头因此多出一块 **0.375 m**
+的木板盖住露出来的旧桌面（`WorkshopTable` 端板注释）。**光毯不用重烘**：它是桌面局部 UV（u=长轴、v=短轴），
+整层平移时 UV 与光斑的相对关系不变。
+
+**为什么 `GS_FRAME_SHIFT` 还需要、但要从 0.09 收到 0.04**：世界位移已经把右移量给了一半；桌子近角那一段的
+投影斜率很陡（0.2 m ≈ 6.5 个百分点），再叠 0.09 的移轴桌右沿会被推出画。同几何（真机画布 788×351、fov 50、
+GS_CAM）三个候选值：
+
+| δ（移轴比例） | 桌右沿 | 桌左沿 | NPC 身体中心 |
+|---|---|---|---|
+| 0.09（§17） | 108.19%（出画） | ~34% | 63.42% |
+| **0.04（这一版）** | **99.29%** | **29.15%** | **58.47%** |
+| 0 | 95.29% | 25.15% | 54.47% |
+
+0.04 同时满足"桌子不出画"与 §12 的 "NPC 58~62%"，所以这一位**保留**、只收一档。
+
+### 18.3 自动判定：条件、门槛、手动优先级、日志
+
+**探测项（本机读，不发网络请求）**：`navigator.hardwareConcurrency`（核数）、`navigator.deviceMemory`（有才用）、
+WebGL `WEBGL_debug_renderer_info` 的 renderer 字符串、`screen × devicePixelRatio` 的物理分辨率、UA 里的
+Android 大版本。**门槛**（`GS_GATE_MIN`）：核数 ≥ 6、内存 ≥ 4 GB（量不到不拦）、物理短边 ≥ 1080、
+Android ≥ 12；**GPU 是硬门槛**：拿不到 renderer（`gpu=unknown`）或命中软渲染黑名单
+（SwiftShader / llvmpipe / softpipe / Microsoft Basic Render / D3D11 WARP …）→ **一律不开**；
+量到的项里任何一项不达标 → 不开（`weak(...)`）；连两项都量不到 → 不开（`too-few-signals`）。
+判开之后档位仍走 `GS_SPLAT_TIER`（1.6M），换档芯片照旧。
+
+**为什么 Android 必须量到**：这一档只在 Capacitor 的 Android WebView 里发；桌面浏览器量不到 Android 时按保守
+处理（dev 要看效果有 `?gs=1`）。**断网**不影响这一层（全本机信息，不发请求）。
+
+**手动优先**：设置里那一行仍是开关，但写的是**用户显式选择**（localStorage `gsStep0Experiment` = "1"/"0"）。
+优先级：常量 `GS_STEP0` > dev `?gs=1` > 用户显式 > 自动判定。老版本里点过开关的用户升级后手里的显式值仍然有效；
+没点过的（键不存在）= 听自动判定。设置页副标题显示自动判定的结论，`title` 挂 `cores/mem/screen/android` 依据；
+验收钩子 `gsAutoGateForce=on|off` 可以把判定强制拨到某一边（截"自动判定未启用"那一屏用，生产里没人写这个键）。
+
+**判定一处实现**：`gsAutoGateRules.decideGsAutoGate` 是纯函数、零依赖，`scripts/check-gs-auto-gate.mjs`
+在构建里拿 24 组正反例实跑（含真机探针、软渲染、弱机、只量到一项等）；`gsGate.ts` 只负责探测 + 缓存 + 打日志。
+构建里试红过两处：删掉软渲染正则（SwiftShader 用例红）、把软渲染正则改坏（4 条红）。
+
+### 18.4 读数（真机默认机位）
+
+| 项 | §17（改前） | **这一版（改后）** |
+|---|---|---|
+| `npcOffsetM`（相对桌心） | 0.212 | **0.012** |
+| `npcScreenPct` | — | **58.47%** |
+| `tableRightPct` / `tableLeftPct` | — | **99.29% / 29.15%** |
+| 火可见像素（火盒内，阈值同 §17.3） | 1457 | **1545** |
+| 火可见占画布 | 0.0409% | **0.0434%**（≥ 上一版的 80%） |
+| `gsAutoGate` 判定与理由 | —（默认关） | **on** · `cores=8,mem=8,screen=2804x1274,android=16`（gpu=Adreno (TM) 829） |
+| fps（1.6 档，3 次） | 58.0 / 58.4 / 59.4 | **56.9 / 57.1 / 58.4**（均值 57.5；load 1142 ms、calls 114、tris 3.45M、1.60M / tier 1.6 / refined） |
+
+### 18.5 三张截图观感
+
+1. **默认机位**：NPC 身体中心在 58.47%（§12 的目标档），她压在桌面中线（0.012 m）；火从她左侧可见（火盒内 1545 px，占画布 0.0434%）；桌右沿 99.29% —— 桌子的木框右端整块在画里（余量 0.71%，比上一版 108.19% 好）。
+2. **自动判定未启用**（`gsAutoGateForce=off`）：回到程序化书房（旧长桌 + 旧机位），HUD 不挂（`hudPresent=false`），启动日志 `gsAutoGate: off reason: forced=off`。
+3. **设置页那行**：`高斯场景（实验）` + `实景重建的房间（自动判定：已启用）`，开关在开、下面四颗档位芯片；`title` 属性是完整依据。
+
+### 18.6 构建 / CI / 合流
+
+- `npm run build`：**通过**（tsc + lingui extract + 全部构建期检查含新增的 `check-gs-auto-gate` + vite build，exit 0）。
+- 出包：`android/app/build/outputs/apk/sideload/release/app-sideload-release.apk`，**100.2 MB（100,153,539 B）**，
+  包里**只有 `workshop-step0-1.6.spz`** 那一份（另两档本来就不在本机 `public/models/study/gs/`）。
+  验收包临时开了 `capacitor.config.ts` 的 `webContentsDebuggingEnabled: true`（WebView CDP 要用），**提交前已还原**。
+- 分支 `feat/gs-auto-gate-align` → PR（代码 + 文档；截图 / spz / `.tmp-*` 不进仓库）→ CI 绿 → merge。
+
+### 18.7 风险 / 下一步
+
+1. **点云桌面与网格桌面的"错位"还在**：splat 里烘死的 2.50 m 桌面不能动，网格毡面走了 0.20 m —— +z 那一头
+   多一块 0.375 m 木板盖着，−z 那一头毡面探出 0.025 m。默认机位看不出来（§18.5），但**侧向环视 / 近景**没验。
+2. **自动判定的门槛是"底线"不是"推荐值"**：6 核 / 4 GB / 1080p / Android 12。改任何一条之前先想"谁会被关掉"；
+   构建里的 24 组正反例钉着现在的行为。
+3. **内存这一项 WebView 报的是取整值**（Chrome 上限报 8），4 GB 的真实机器可能报 4；报不出来的不拦。
+4. **设置页没有"恢复自动"的出口**：显式点过开关之后只能再点一次（写死成显式开/关），要回到自动判定得清
+   `gsStep0Experiment`。要不要加一颗"跟随自动"是产品取舍。
+5. **验收钩子 `gsAutoGateForce`** 留在包里（只认 localStorage，生产没人写它就不存在）；不想要的话下一版删掉。
+6. **真机 1.6 档的 fps 与上一版不是同一场对照**（上一版 §17 的 3 次是另一场）；这一版只报同一场内的读数。
+

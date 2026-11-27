@@ -24,6 +24,7 @@ import {
   defaultCamFor,
   focusCam,
   GS_TABLE,
+  GS_TABLE_SHIFT,
   GS_CAM,
   GS_FRAME_SHIFT,
   GS_ROWS,
@@ -208,6 +209,11 @@ const MILLTINA_CFG = {
 //       就能让开，动火是三个数加一处已知的"火与炉膛中点对不上"风险。
 //       ⚠ 对话机位（GS_NPC_CAM）与验收机位不受影响：它们读的是同一份 cfg，但 z 变的是"她站哪"，
 //         伏桌距离由 x 决定，米制下没变。
+//     ★★ 2026-11-27 第 5 版（`feat/gs-auto-gate-align`，主人第 2 件「NPC 要回到桌子中线」）：
+//       **她的站位一个数没动**（仍然 z=−0.23）—— 动的是桌子：毡面/卡位/铭牌/法阵/光毯整体
+//       沿世界 −z 平移 0.20 m（layout.GS_TABLE_SHIFT）。于是她与桌心线的偏差 0.212 → **0.012 m**
+//       （`__gsAccept.npcOffsetM` 已改成"相对桌心"量），火仍然从她身侧露出来（世界位置没变）。
+//       画面里她回到 **58.47%**（GS_FRAME_SHIFT 0.09→0.04，复算见 layout 那一段注释）。
 //   · 身高：**scale 1.654 → 1.418（1.75 m → 1.50 m）**、y **−0.728 → −0.955**（额外下沉 0.22 m）。
 //     为什么必须沉/缩：相机眼位 1.06 m 时，**桌沿的遮挡线在她那处只有离地 0.74 m 高**
 //     （眼睛穿桌沿高点 (−0.61, 0.053) 的那条射线，到 x=−0.82 落到 y≈−0.043）——
@@ -680,7 +686,16 @@ function Table() {
   const T = sceneLayout(useIsLandscape()).table;
   const metric = gsSceneMetric();
   // 米制档把 splat 那张 2.50 的长桌长度一起传下去：毡面收短到 2.15 之后，两端由木端板盖住
-  return <WorkshopTable T={T} height={metric ? GS_TABLE.height : undefined} metric={metric} splatLen={metric ? GS_TABLE.splatLen : undefined} />;
+  // ★ 2026-11-27：整张网格桌面跟 NPC 一起沿世界 −z 平移 0.20 m（layout.GS_TABLE_SHIFT，§18.2）
+  return (
+    <WorkshopTable
+      T={T}
+      height={metric ? GS_TABLE.height : undefined}
+      metric={metric}
+      splatLen={metric ? GS_TABLE.splatLen : undefined}
+      offsetZ={metric ? GS_TABLE_SHIFT.z : 0}
+    />
+  );
 }
 
 // ── 合成法阵（中线右端）────────────────────────────────────
@@ -1263,7 +1278,8 @@ function DragLayer() {
       {/* 捕获指针移动的隐形平面 */}
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
-        position={[0, 0.3, 0]}
+        // ★ 2026-11-27：米制档平面跟着桌子平移（拖到桌沿附近时才不会提前"出桌"）
+        position={[0, 0.3, gsSceneMetric() ? GS_TABLE_SHIFT.z : 0]}
         onPointerMove={(e: ThreeEvent<PointerEvent>) => {
           dragState.x = e.point.x;
           dragState.z = e.point.z;
@@ -1429,9 +1445,11 @@ function GameTableSlots() {
    *  米制档的牌在桌上转 90°（牌的上边朝 −x = 背对玩家，躺着读正），场景位的牌朝铸卡师那一侧。 */
   const plates = useMemo(() => {
     const roleRot = metric ? GS_ROWS.flatRotZ : 0;
+    // ★ 米制档整排跟着桌子平移 0.20 m（§18.2）：S.roleShift 是唯一的偏移位
+    const roleShift = S.roleShift ?? 0;
     const roles = Array.from({ length: TABLE_ROLE_SLOTS }, (_, i) => {
       const along = (i - (TABLE_ROLE_SLOTS - 1) / 2) * S.roleDx;
-      const [x, z] = S.axis === "z" ? [S.roleAlong, along] : [along, S.roleAlong];
+      const [x, z] = S.axis === "z" ? [S.roleAlong, along + roleShift] : [along, S.roleAlong + roleShift];
       return { slot: { kind: "role" as const, index: i }, x, z, scale: S.roleScale, rotZ: roleRot };
     });
     return [
@@ -1607,7 +1625,8 @@ function DialogTableCards() {
       {shown.map((card, i) => {
         const off = i - (n - 1) / 2;
         const x = off * (metric ? 0.19 : 0.72);
-        const z = metric ? -0.45 - Math.abs(off) * 0.02 : -1.7 - Math.abs(off) * 0.08;
+        // ★ 2026-11-27：米制档这排对话卡也在桌面上，跟着桌子一起平移 0.20 m（§18.2）
+        const z = metric ? -0.45 - Math.abs(off) * 0.02 + GS_TABLE_SHIFT.z : -1.7 - Math.abs(off) * 0.08;
         return (
           <CardMesh
             key={card.id}
@@ -1818,7 +1837,9 @@ function TableCatcher() {
   return (
     <mesh
       rotation={[-Math.PI / 2, 0, 0]}
-      position={[0, 0.001, 0]}
+      // ★ 2026-11-27：米制档的网格桌面整体沿世界 −z 平移了 0.20 m（layout.GS_TABLE_SHIFT），
+      //   点空白桌面/拉远回默认机位的那块捕获平面必须跟它重合，否则右侧 0.2 m 点不到、左侧多一条假桌面。
+      position={[0, 0.001, gsSceneMetric() ? GS_TABLE_SHIFT.z : 0]}
       userData={{ noCam: true }}
       onClick={() => {
         // 轨道拖拽期间点空白桌面不触发落卡/回退（拖拽末尾的 click 误伤）
@@ -1911,10 +1932,14 @@ function AcceptProbe() {
     if (right.lengthSq() < 1e-6) right.set(1, 0, 0);
     right.normalize();
     // 两个点各自"沿相机右手方向"的世界坐标分量之差 = 画面上左右方向的偏差（米）。
-    // ★ 桌心就是世界原点 (0,0,0)，它在那条轴上的分量恒为 0，所以偏差 = 她的投影分量本身；
-    //   这个数恰好也等于"在过她身体中心、平行于画面的平面上折回来的米数"（推导：NDC 是分量
-    //   除以 x 一个与深度成比例的尺度，两边乘回来正好约掉）。主人第 2 条的 ≤ 0.1 m 量的是它。
-    const npcOffsetM = +NPC_CENTER.dot(right).toFixed(3);
+    // ★ 这个数恰好也等于"在过她身体中心、平行于画面的平面上折回来的米数"（推导：NDC 是分量
+    //   除以 x 一个与深度成比例的尺度，两边乘回来正好约掉）。
+    // ★★ 2026-11-27（feat/gs-auto-gate-align）：桌心**不再是世界原点** —— 桌子（含卡位/铭牌/
+    //   法阵/光毯）沿世界 −z 平移了 `GS_TABLE_SHIFT.z`。`npcOffsetM` 量的是"她 vs 桌心线"，
+    //   所以要把桌心在那条轴上的分量减掉：桌心 (0,0,shiftZ)·right = shiftZ·right.z。
+    //   （right.z ≈ −1：世界 −z 是画面右；shiftZ=−0.2 ⇒ 减 0.2 ⇒ 0.212 回到 ≈0.012。）
+    const tableCenterDot = GS_TABLE_SHIFT.z * right.z;
+    const npcOffsetM = +(NPC_CENTER.dot(right) - tableCenterDot).toFixed(3);
     // ── 卡：尺寸 / 一排总宽 / 两排是不是真不重叠 ─────────────────────────────
     const C = cardLayout();
     const rowW = GS_ROWS.zs[GS_ROWS.zs.length - 1] - GS_ROWS.zs[0] + C.w;
@@ -2001,13 +2026,23 @@ function AcceptProbe() {
       canvasRect: cRect
         ? { left: +cRect.left.toFixed(1), top: +cRect.top.toFixed(1), width: +cRect.width.toFixed(1), height: +cRect.height.toFixed(1) }
         : null,
-      table: { w: GS_TABLE.w, d: GS_TABLE.d },
+      table: { w: GS_TABLE.w, d: GS_TABLE.d, shiftZ: GS_TABLE_SHIFT.z },
       transform: GS_STEP0_TRANSFORM,
       // ── 第 4 版（`feat/gs-framing-orbit-panel`）新加的三组读数 ──
-      // 主人第 1 条：NPC 身体中心 / 桌右沿（木端板 z=−splatLen/2）在画布上的 x%。
+      // 主人第 1 条：NPC 身体中心 / 桌右沿（木端板与长边护栏的外沿）在画布上的 x%。
       // 移轴之后投影矩阵里已经带着 viewOffset，所以这里读到的就是**成图上的数**。
+      // ★ 2026-11-27：整桌平移之后，可见桌面的左右沿是**套在 splat 桌面两端**的木框：
+      //   右侧是长边木沿外沿（x = w/2 + 0.03 + 0.015 = 0.63；玩家那一侧的皮革护栏按设计没有），
+      //   左侧到 NPC 侧皮革护栏外沿（x = −(w/2 + 0.025 + 0.035) = −0.645）；两端都让出 3 cm。
+      //   木框锚在**不能动的点云桌子**上（world z = ±1.28），不跟 GS_TABLE_SHIFT 走 ——
+      //   跟它走的是毡面/卡位/铭牌/光毯。"桌子不出画"以这个世界坐标为准。
       npcScreenPct: +((((tmp.a.copy(NPC_CENTER).project(cam).x + 1) / 2) * 100).toFixed(2)),
-      tableRightPct: +((((tmp.a.set(GS_TABLE.w / 2, 0, -GS_TABLE.splatLen / 2).project(cam).x + 1) / 2) * 100).toFixed(2)),
+      tableRightPct: +(
+        (((tmp.a.set(GS_TABLE.w / 2 + 0.045, 0.02, -(GS_TABLE.splatLen / 2 + 0.03)).project(cam).x + 1) / 2) * 100).toFixed(2)
+      ),
+      tableLeftPct: +(
+        (((tmp.a.set(-(GS_TABLE.w / 2 + 0.06), 0.02, GS_TABLE.splatLen / 2 + 0.03).project(cam).x + 1) / 2) * 100).toFixed(2)
+      ),
       frame: { shift: GS_FRAME_SHIFT, viewOffsetOn: cam.view?.enabled === true, size: [Math.round(size.width), Math.round(size.height)] },
       // 主人第 2 条：环视当前角度（拖到底看这个数）、硬停与回中时长。
       // ★ 字段名 gsLook（不叫 look）：上面那个 `look` 是相机朝向锚点，两个不能撞。

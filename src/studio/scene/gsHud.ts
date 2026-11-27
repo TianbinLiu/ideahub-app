@@ -7,6 +7,7 @@
 // ★ 1 秒刷新：fps 由 GsStep0Room 的 useFrame 累加器算（每次结算 = 1 秒的帧数），
 //   这里只负责把 GS_STATS 画出来 —— 别在角标里再挂一个 setInterval 各自算一遍。
 // ★ 文字全用 ASCII：这是开发者读数，不是界面文案（混进中文会被 scripts/check-i18n.mjs 当成漏译）。
+import { gsAutoGate } from "./gsGate";
 import { gsLoadMs, gsYawProbe, type GsSplatTier } from "./gsStep0";
 
 /** GsStep0Room 每帧写、角标每秒读一次。cap=dev 的渲染期截断（0 = 不截断），fill=NPC 补光开没开，
@@ -37,7 +38,11 @@ function readout(): string {
   const s = GS_STATS;
   const load = gsLoadMs();
   const probe = gsYawProbe();
+  const gate = gsAutoGate();
   return [
+    // ★ 2026-11-27（`feat/gs-auto-gate-align`）：这一行是"为什么这台机器有这个房间"的证据。
+    //   HUD 只在开着时存在 —— 判 off 的那一侧看的是 gsGate 在启动时打的那行 console。
+    `gsAutoGate: ${gate.on ? "on" : "off"} reason: ${gate.reason}`,
     `GS ${s.fps.toFixed(1)} fps   fill ${s.fill ? "on" : "off"}${probe ? `   probe ${probe > 0 ? "+" : ""}${probe}deg` : ""}`,
     `splat ${num(s.splats)}  tier ${s.tier}${s.cap > 0 ? `  cap ${num(s.cap)}` : ""}  ${s.quality}`,
     `calls ${s.calls}  tris ${num(s.tris)}`,
