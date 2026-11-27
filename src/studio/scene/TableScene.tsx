@@ -1936,6 +1936,26 @@ function AcceptProbe() {
       y: [+(fy - 0.13).toFixed(3), +(fy + 0.42).toFixed(3)],
       z: [+(fz - 0.15).toFixed(3), +(fz + 0.15).toFixed(3)],
     };
+    // ★ 火焰在**这一帧画布上的**包围盒（CSS px）：验收要比"同一机位隔 200 ms 两帧"的像素差，
+    //   必须知道该裁哪一块 —— 让探针现算，脚本里别手抄坐标（换机位/换分辨率就错了）。
+    //   8 个角点全部投影取 min/max；盒子比火焰略大（±0.05 / +0.42），裁出来带一点背景也正常。
+    let fMinU = 1;
+    let fMaxU = 0;
+    let fMinV = 1;
+    let fMaxV = 0;
+    for (const dx of [fireBox.x[0], fireBox.x[1]]) {
+      for (const dy of [fireBox.y[0], fireBox.y[1]]) {
+        for (const dz of [fireBox.z[0], fireBox.z[1]]) {
+          tmp.b.set(dx, dy, dz).project(cam);
+          fMinU = Math.min(fMinU, (tmp.b.x + 1) / 2);
+          fMaxU = Math.max(fMaxU, (tmp.b.x + 1) / 2);
+          fMinV = Math.min(fMinV, (1 - tmp.b.y) / 2);
+          fMaxV = Math.max(fMaxV, (1 - tmp.b.y) / 2);
+        }
+      }
+    }
+    const canvasEl = document.querySelector("canvas");
+    const cRect = canvasEl ? canvasEl.getBoundingClientRect() : null;
     (window as unknown as Record<string, unknown>).__gsAccept = {
       pos: cam.position.toArray().map((n) => +n.toFixed(3)),
       look: RIG_LOOK.toArray().map((n) => +n.toFixed(3)),
@@ -1952,7 +1972,21 @@ function AcceptProbe() {
         // 热区中心在画布上的 CSS px：验收脚本用它落触摸点（不用手算投影）
         hitCenterCss: [Math.round(((minU + maxU) / 2) * cw), Math.round(((minV + maxV) / 2) * ch)],
       },
-      fire: { ...FIRE_FX, box: fireBox },
+      fire: {
+        ...FIRE_FX,
+        box: fireBox,
+        // 画布 CSS px（含画布在窗口里的偏移）：截图裁火焰区域用（画布外的系统栏不算）
+        screenBox: [
+          Math.round(fMinU * cw),
+          Math.round(fMinV * ch),
+          Math.round(fMaxU * cw),
+          Math.round(fMaxV * ch),
+        ],
+      },
+      // 画布在窗口里的位置/尺寸（CSS px）：脚本把 CSS → 截图物理像素 那一层换算要用
+      canvasRect: cRect
+        ? { left: +cRect.left.toFixed(1), top: +cRect.top.toFixed(1), width: +cRect.width.toFixed(1), height: +cRect.height.toFixed(1) }
+        : null,
       table: { w: GS_TABLE.w, d: GS_TABLE.d },
       transform: GS_STEP0_TRANSFORM,
       // ── 第 4 版（`feat/gs-framing-orbit-panel`）新加的三组读数 ──
