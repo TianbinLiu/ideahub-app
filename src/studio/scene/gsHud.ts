@@ -30,7 +30,9 @@ function readout(): string {
     `GS ${s.fps.toFixed(1)} fps   fill ${s.fill ? "on" : "off"}${probe ? `   probe ${probe > 0 ? "+" : ""}${probe}deg` : ""}`,
     `splat ${num(s.splats)} / cap ${s.cap > 0 ? num(s.cap) : "all"}  ${s.quality}`,
     `calls ${s.calls}  tris ${num(s.tris)}`,
-    `load ${load > 0 ? `${(load / 1000).toFixed(2)}s` : "-"}`,
+    // ★ 毫秒（2026-11-26 验收口径）：首进 8~12 s 的量级下，秒的小数位读起来像噪声；
+    //   真机报告要的就是"非零毫秒数"，与 gsStep0.gsLoadMs 的单位一致。
+    `load ${load > 0 ? `${load}ms` : "-"}`,
   ].join("\n");
 }
 

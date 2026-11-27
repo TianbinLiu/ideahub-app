@@ -133,6 +133,15 @@ export function gsLoadMs(): number {
   return GS_LOAD.ready > 0 && GS_LOAD.entered > 0 ? Math.round(GS_LOAD.ready - GS_LOAD.entered) : 0;
 }
 
+/**
+ * 验收读数探针（`TableScene.AcceptProbe`，即 `window.__gsAccept`）挂不挂。
+ * ★ 2026-11-26 性能验收：以前它无条件挂载，虽然 `gsAcceptDebug` 没写时每帧早退，但**每帧仍有一次
+ *   r3f useFrame 回调**；生产里没人写这个键，所以连组件都不挂（见 TableScene 的 `{... && <AcceptProbe/>}`）。
+ */
+export function gsAcceptProbeOn(): boolean {
+  return lsRead("gsAcceptDebug") === "1";
+}
+
 /** splat 资产：**不进仓库**（见 .gitignore 的 `public/models/study/gs/`）。开启前把导出的 spz 放到这里。 */
 export const GS_STEP0_ASSET = "/models/study/gs/workshop-step0.spz";
 
@@ -399,6 +408,13 @@ export const GS_STEP0_BUDGET = {
    */
   maxSplats: 0,
 };
+
+/**
+ * ★ 候选常量（**默认不生效**，2026-11-26 性能验收给主人的数据用）：按"屏上占比"裁到 160 万。
+ *   实测与观感差异见 docs/gs-table-light-log.md §14；要真的切，把 GS_STEP0_BUDGET.maxSplats
+ *   改成它（或设置页选 80 万那档）—— **别在调用点写死**，截断只有 GsStep0Room 那一处。
+ */
+export const GS_MAX_SPLATS_CANDIDATE = 1_600_000;
 
 // ── 加载阶段（一个模块级的极小 store，TableScene 与两处环境切换都读它）──
 // 为什么不是 prop：盖板要替换 `<Table />`、房间要替换 `<MagicStudy />`，两处在 TableScene 的不同行，

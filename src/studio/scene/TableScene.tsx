@@ -1,4 +1,4 @@
-﻿// 卡片工坊 3D 场景：长桌 + 中线 + NPC 铸卡师 + 卡组 + 市场平摊 + 对局 5 个卡位 + 拖拽层。
+// 卡片工坊 3D 场景：长桌 + 中线 + NPC 铸卡师 + 卡组 + 市场平摊 + 对局 5 个卡位 + 拖拽层。
 // 固定机位只露出双方手部/上身与桌面（NPC 不建头部模型）。
 // ★ G4（docs/g4-ui-revamp-spec.md §2）：桌面上的视频节点链撤了，换成对局的 4 个角色位 + 1 个场景位；
 //   节点卡搬进工作流面板是第 3 步，这一拍先把"摆卡台"的骨架立起来。
@@ -250,7 +250,7 @@ import CardMesh from "./CardMesh";
 // ★ 2026-11-26（feat/gs-table-fire）：PBR 盖板删了，桌面统一走 WorkshopTable（旧场景那张长桌）；
 //   米制档（高斯场景）只是把尺寸/机位/卡位换成 1 单位 = 1 米那套，见 layout 的 GS_* 常量。
 import { GsStep0Environment } from "./GsStep0Environment";
-import { GS_FIRE_LIGHT, GS_STEP0_TRANSFORM, useGsPhase } from "./gsStep0";
+import { GS_FIRE_LIGHT, GS_STEP0_TRANSFORM, gsAcceptProbeOn, useGsPhase } from "./gsStep0";
 import { FIRE_FX } from "./HearthFire";
 import WorkshopTable from "./WorkshopTable";
 import VrmNpc from "./VrmNpc";
@@ -2027,7 +2027,9 @@ export default function TableScene() {
           没有"头侧"可标，按钮本身也一起休眠（AvatarSwapButton 里有同一道守卫）。 */}
       {SHOW_PLAYER_BODY && <PlayerScreenAnchor />}
       {import.meta.env.DEV && <CaptureHook />}
-      <AcceptProbe />
+      {/* ★ 2026-11-26：验收探针只在写了 `gsAcceptDebug=1` 时挂（生产里连 useFrame 回调都不存在）。
+          写成条件渲染而不是组件内早退，是因为验收脚本本来就是"写键 → reload"（见 gsStep0.gsAcceptProbeOn）。 */}
+      {gsAcceptProbeOn() && <AcceptProbe />}
     </>
   );
 }

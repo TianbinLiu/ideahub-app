@@ -119,12 +119,22 @@ export function GsStep0Environment() {
   const phase = useGsPhase();
   // 真机验收要的"从进入工坊到 splat 出现"：这一组件随 TableScene 挂载，从这里开始计时
   //（懒加载的 spark chunk、31/8 MiB 的 spz 下载都算在里面）。只在这一档开着时打。
+  //
+  // ★★ 2026-11-26（`feat/gs-perf-fire`，真机验收"load 恒为 -"）：依赖数组**不能带 phase**。
+  //   这一组件不会重新挂载，phase 在 splat 就绪时 loading→ready；带 phase 的时候这个 effect
+  //   会再跑一遍，调 gsMarkEntered() 把 GS_LOAD.ready 清零 —— HUD 的 load 从此恒为 "-"。
+  //   计时要的是"这一次进工坊"，所以只在挂载时记一次。
   useLayoutEffect(() => {
     if (!gsStep0On()) return;
     gsMarkEntered();
-    // ★ 米制档跳过开场运镜：introCam 的起点是旧尺度（从高处/远处俯冲），米制房间里会从房顶外
-    //   飞进来。终点机位是 defaultCamFor 现算的（GS_CAM），不播开场就直接落在正确机位上。
-    if (phase !== "failed") skipIntroCam();
+  }, []);
+  // ★ 米制档跳过开场运镜：introCam 的起点是旧尺度（从高处/远处俯冲），米制房间里会从房顶外
+  //   飞进来。终点机位是 defaultCamFor 现算的（GS_CAM），不播开场就直接落在正确机位上。
+  //   失败回退（failed）不跳：那一屏回到旧场景，旧开场运镜照旧。skipIntroCam 自身幂等，
+  //   phase 翻转时重复调用无害（这就是它不跟计时那个 effect 共用的原因）。
+  useLayoutEffect(() => {
+    if (!gsStep0On() || phase === "failed") return;
+    skipIntroCam();
   }, [phase]);
   if (!gsStep0On() || phase === "off" || phase === "failed") return <LegacyRoom />;
   return (
