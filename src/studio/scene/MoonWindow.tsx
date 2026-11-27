@@ -69,10 +69,15 @@ void main() {
 
 /** 夜空：深蓝紫的渐变 + 地平线一层冷光 + 稀疏星 + 两条很淡的云带。
  *  ★ 颜色是**线性空间**的（three 会做 tone mapping + sRGB 输出）：地平线那一档别写太亮，
- *    否则窗洞周围会比 splat 的墙亮一档，接缝立刻显形（0.05 线性 ≈ 0.25 sRGB）。 */
+ *    否则窗洞周围会比 splat 的墙亮一档，接缝立刻显形（0.05 线性 ≈ 0.25 sRGB）。
+ *  ★ 2026-11-27（`feat/gs-ui-moon-polish` 第 2 条）：月亮周围那圈**暗区改由这里画** ——
+ *    月盘是加色混合的，画不出"比夜空更暗"的环；夜空是正常混合，在它身上乘一个系数才压得下去。
+ *    宽度按相机现看的月盘角半径算（`atan(uMoonR / 距离)`），飞行途中月亮变大、暗环跟着变大。 */
 // i18n-ignore-next-line: GLSL 源码（片元着色器注释，不是界面文案）
 const SKY_FRAG = /* glsl */ `
 varying vec3 vWorld;
+uniform vec3 uMoonC;
+uniform float uMoonR;
 ${PORTAL_GLSL}
 ${NOISE_GLSL}
 
@@ -96,6 +101,16 @@ void main() {
            + mwNoise(vec2(atan(dir.z, dir.x) * 5.0 + 7.0, up * 9.0)) * 0.35;
   cl = smoothstep(0.48, 0.86, cl) * smoothstep(-0.02, 0.3, up) * 0.30;
   col = mix(col, vec3(0.085, 0.11, 0.17), cl);
+
+  // 月盘外那圈暗区（第 2 条）：月盘边缘压到夜空的 12%，向外 9% 径向回到夜蓝 ——
+  // 再往外的窗洞边沿就是"夜蓝"，月亮才像挂在天上、不是一块发光的玻璃。
+  // ★ 只用**方向**判据：月盘是 7 m 外的一张平面，相机飞近时 toMoon 仍指同一片天。
+  vec3 toMoon = uMoonC - cameraPosition;
+  float moonDist = max(length(toMoon), 1e-3);
+  float moonAng = atan(uMoonR / moonDist);
+  float ang = acos(clamp(dot(dir, toMoon / moonDist), -1.0, 1.0));
+  col *= mix(0.12, 1.0, smoothstep(moonAng, moonAng * 1.09, ang));
+
   gl_FragColor = vec4(col, 1.0);
 }
 `;
@@ -111,9 +126,15 @@ void main() {
 }
 `;
 
-/** 月亮：亮盘 + 月海 + 环形山 + 临边昏暗 + 冷白 halo。
- *  ★ 平面比月盘大 1.45 倍（halo 要露在盘外），`r` 在片元里按这个比例还原成"1 = 月盘边"。
- *  ★ 加色混合（Additive）：底色是夜空，月亮本身就是光源；halo 叠在天空上不会画出黑边。 */
+/** 月亮：硬边亮盘 + 月海 + 环形山（亮环 + 暗坑）+ 临边昏暗 + 1~2 px 亮边 + 很薄的辉光。
+ *  2026-11-27（`feat/gs-ui-moon-polish` 第 2 条）从"发光毛玻璃"改成"一眼是月亮"，四处改动：
+ *    ① 月盘边缘：`smoothstep(0.972, 1.0)` 的柔光渐变 → **硬边（AA 约 0.5 px）+ 外侧亮环**；
+ *    ② 月海对比拉高：底色真的换（高地冷白 / 月海压暗），不是整体乘一个 0.5；中位亮度压到 ~100/255；
+ *    ③ 三座固定环形山（暗坑 + 亮环）+ 少量小坑，坑底压到 ~70/255；
+ *    ④ 临边昏暗中心 1.0、边沿 0.75；盘外只留很薄一层辉光（第一版拖到 1.44 倍 ⇒ 一团光）。
+ *  ★ 平面比月盘大 1.45 倍（亮环 / 薄辉光要露在盘外），`r` 在片元里按这个比例还原成"1 = 月盘边"。
+ *  ★ 加色混合（Additive）：底色是夜空，月亮本身就是光源；"比夜空更暗的暗环"画不出来，
+ *    所以那圈暗区在**夜空着色器**里（见 SKY_FRAG 的 uMoonC/uMoonR），这里只负责发亮的部分。 */
 // i18n-ignore-next-line: GLSL 源码（片元着色器注释，不是界面文案）
 const MOON_FRAG = /* glsl */ `
 varying vec2 vUv;
@@ -122,15 +143,23 @@ uniform float uHalo;
 ${PORTAL_GLSL}
 ${NOISE_GLSL}
 
-// 圆形环形山：每个格子里最多一个坑，返回 0..0.5 的压暗量
-float mwCraters(vec2 q) {
+// 圆形环形山：返回 (暗坑, 亮环)，都是 0..1。位置固定 —— 每次靠近都换坑位就成了贴纸。
+vec2 mwCrater(vec2 p, vec2 c, float rad) {
+  float d = length(p - c) / rad;
+  float pit = 1.0 - smoothstep(0.0, 0.90, d);
+  float rim = smoothstep(0.72, 0.93, d) * (1.0 - smoothstep(0.93, 1.20, d));
+  return vec2(pit, rim);
+}
+
+// 一层小坑（比第一版弱：只是月面的麻点，不该抢三座大坑的戏）
+float mwSmallCraters(vec2 q) {
   vec2 cell = floor(q);
   vec2 f = fract(q) - 0.5;
   float h = mwHash(cell);
-  if (h < 0.62) return 0.0;
-  float rad = 0.16 + 0.20 * mwHash(cell + 4.0);
+  if (h < 0.70) return 0.0;
+  float rad = 0.14 + 0.18 * mwHash(cell + 4.0);
   float d = length(f) / rad;
-  return (1.0 - smoothstep(0.35, 1.0, d)) * 0.5;
+  return (1.0 - smoothstep(0.35, 1.0, d)) * 0.28;
 }
 
 void main() {
@@ -139,26 +168,42 @@ void main() {
 
   vec2 p = (vUv - 0.5) * 2.0 * uHalo; // 1 = 月盘边
   float r = length(p);
-  float disc = 1.0 - smoothstep(0.972, 1.0, r);
+  // 硬边：0.0045 ≈ 0.5 px（匹配页月盘屏幕半径约 90~100 px）。第一版 0.972~1.0 是 2.8% 的柔化。
+  float disc = 1.0 - smoothstep(1.0 - 0.0045, 1.0 + 0.0045, r);
 
-  // 月海：三档低频噪声叠成"大块暗斑"（不要用硬阈值 —— 硬阈值在屏幕上是块状色斑）
-  float m = mwNoise(p * 1.7 + vec2(3.1, 7.7)) * 0.55
-          + mwNoise(p * 3.3 + vec2(11.0, 2.0)) * 0.30
-          + mwNoise(p * 6.1 + vec2(5.0, 9.0)) * 0.15;
-  float mare = smoothstep(0.38, 0.68, m);
-  // 环形山：两档圆形坑，只暗一点
-  // ★ 2026-11-27 第一版用 hash 格子 + smoothstep 做坑，屏幕上是一格一格的方块 —— 别再用格子做纹理。
-  float craters = mwCraters(p * 6.5) * 0.55 + mwCraters(p * 13.0 + 11.0) * 0.30;
-  // 临边昏暗：边缘压到 0.55、中心 1.0 —— 月亮是球，不是贴纸
-  float limb = 0.58 + 0.42 * sqrt(max(0.0, 1.0 - r * r));
-  // 底色：冷白偏蓝，高地略暖（对比拉足一点：这一块要被 ACES 压，太软就成了一团白光）
-  vec3 base = mix(vec3(0.62, 0.66, 0.76), vec3(1.0, 0.98, 0.93), smoothstep(0.3, 0.62, m));
-  vec3 moonCol = base * (1.0 - 0.50 * mare - 0.30 * craters) * limb;
-  // 光晕：只在盘外（r > 1）出现 —— 放在盘内的那一版从 r=0.7 就开始加亮，月亮边缘糊成一圈白
-  // ★ 光晕要在**平面边界之前**衰减到 0：月亮盘画在一张方平面上，halo 被平面截断的话，
-  //   天上会留下方形的两道边（2026-11-27 穿窗截图里就是两条竖暗带）。
-  float halo = r > 1.0 ? exp(-(r - 1.0) * 4.0) * 0.45 * (1.0 - smoothstep(1.18, 1.44, r)) : 0.0;
-  vec3 col = moonCol * disc + vec3(0.42, 0.55, 0.88) * halo;
+  // 月海：三档低频噪声叠成"大块暗斑"。对比度从 0.38~0.68 收到 0.45~0.55（约 ×1.7），
+  // 再靠"高地 / 月海两种底色"拉开明暗（0.92 vs 0.39），而不是整体压暗。
+  float m = mwNoise(p * 1.7 + vec2(3.1, 7.7)) * 0.50
+          + mwNoise(p * 3.4 + vec2(11.0, 2.0)) * 0.28
+          + mwNoise(p * 6.8 + vec2(5.0, 9.0)) * 0.16
+          + mwNoise(p * 12.0 + vec2(2.0, 4.0)) * 0.06;
+  float mare = smoothstep(0.45, 0.55, m);
+  vec3 highland = vec3(0.92, 0.95, 1.01); // 高地：冷白
+  vec3 mareCol = vec3(0.39, 0.42, 0.53); // 月海：压暗、偏蓝（与高地差 ≈ 2.4 倍）
+  vec3 albedo = mix(highland, mareCol, mare);
+  // 中频"海岸线"：让月海边界不是一团一团的模糊云，而是有碎边的地形
+  albedo *= 0.96 + 0.08 * mwNoise(p * 8.5 + vec2(3.0, 6.0));
+  // 细粒：两层高频，幅度不大；只给"月面"一点质感，不改变整体亮度
+  albedo *= 0.93 + 0.14 * (mwNoise(p * 22.0) * 0.6 + mwNoise(p * 47.0 + 7.3) * 0.4);
+
+  // 三座环形山（固定位置、大小不同）：暗坑 + 坑沿亮环
+  vec2 c1 = mwCrater(p, vec2(-0.36, 0.16), 0.22);
+  vec2 c2 = mwCrater(p, vec2(0.32, -0.30), 0.14);
+  vec2 c3 = mwCrater(p, vec2(0.10, 0.46), 0.10);
+  float small = mwSmallCraters(p * 7.5) + mwSmallCraters(p * 15.0 + 11.0) * 0.6;
+  float pit = max(max(c1.x, c2.x), max(c3.x, small * 0.5));
+  float rim = max(max(c1.y, c2.y), c3.y * 0.7);
+  // 临边昏暗：中心 1.0、边沿 0.75（"加一档"后的度数）。smoothstep 形状 ⇒ 中间盘面平、只压外圈。
+  float limb = 1.0 - 0.25 * smoothstep(0.30, 1.0, r);
+  vec3 moonCol = albedo * (1.0 - 0.68 * pit) * limb;
+  // 坑沿亮环：加色；只在坑沿一点点，不能把月面整体提亮
+  moonCol += vec3(0.70, 0.72, 0.68) * rim * 0.26;
+
+  // 硬边外侧 1~2 px 的亮环（真实满月边缘更亮；这圈是"不像贴纸"的关键）
+  float edgeRim = exp(-pow((r - 1.006) / 0.010, 2.0)) * 0.55;
+  // 盘外很薄的一层辉光：3% 半径内衰减到 0（第一版 exp(-(r-1)*4) 拖到 1.18 倍 ⇒ 发光毛玻璃）
+  float glow = r > 1.0 ? exp(-(r - 1.0) * 18.0) * 0.26 * (1.0 - smoothstep(1.02, 1.065, r)) : 0.0;
+  vec3 col = moonCol * disc + vec3(0.88, 0.92, 1.0) * edgeRim + vec3(0.42, 0.55, 0.88) * glow;
   gl_FragColor = vec4(col, 1.0);
 }
 `;
@@ -210,6 +255,9 @@ export default function MoonWindow() {
           uWinC: { value: new THREE.Vector3(...WINDOW.center) },
           uWinN: { value: new THREE.Vector3(...WINDOW.normal) },
           uWinR: { value: WINDOW.radius },
+          // 月盘外的暗环（2026-11-27）：夜空自己乘一个系数才压得出"比夜空更暗"的环
+          uMoonC: { value: new THREE.Vector3(...moon.center) },
+          uMoonR: { value: moon.radius },
         },
         vertexShader: SKY_VERT,
         fragmentShader: SKY_FRAG,
@@ -219,6 +267,8 @@ export default function MoonWindow() {
         depthTest: true,
         fog: false,
       }),
+    // moon 由上面同一个渲染周期的 useMemo 固定下来，不会变
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
   const moonMat = useMemo(

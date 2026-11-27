@@ -45,6 +45,16 @@ canvas {
 .safe-top {
   padding-top: calc(env(safe-area-inset-top, 0px) + 10px);
 }
+/* ★★ 浮层按钮的统一安全区偏移（2026-11-27，`feat/gs-ui-moon-polish`）。
+   真机验收（3C15CJ00C8V00000，横屏 800×363 CSS、dpr 3.5）量到：
+   `env(safe-area-inset-top) = 41px`，而大厅右上「✕ 返回工坊」的 y 是 14~46 CSS ——
+   只有最下 5 CSS px（46−41）露在状态栏外，其余点不到（y=14~40 全部被系统状态栏吃掉）。
+   飞行中的「✕ 取消」`top-3`（12px）更糟，整颗都在状态栏底下。
+   ⇒ 贴顶的浮层按钮一律读这一个变量：inset 可用就用它，再加最小 8px 余量（浏览器/无刘海机上
+   inset=0 时正好 8px，看起来与原来的贴顶呼吸感一致）。别在各处手写 env()。 */
+:root {
+  --safe-float-top: calc(env(safe-area-inset-top, 0px) + 8px);
+}
 /* 自带安全区的那一行表头（覆盖层表头、分区页的搜索行）：上内边距同 .safe-top，高度 = 状态栏 + 10px 呼吸 + 48px 一行。
    ★ 2026-10-26 主人真机：分区页滑到顶，搜索栏挡住「浏览分区」上半截。这些行原来写的是 `safe-top h-[58px]`（58 = 10 + 48），
      这个数只在状态栏 inset 为 0 时对（浏览器里量的都是 0）；真机 inset 41px（上面那段注释量过），border-box 下内容区被压到
