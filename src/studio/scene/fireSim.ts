@@ -18,6 +18,12 @@
 // ★ 关于"相位永不复位"：这里所有时间项都是 `+ dt` 累积（`this.time`），没有 `fract()`、
 //   没有 `% 周期`。粒子寿命到点的是**那一颗**（重新出生），不是整层复位 —— 任意两颗的
 //   相位都不同，整层永远读不到"同一帧"。
+//
+// ★★ 2026-11-27（`feat/gs-fire-visibility`）两处：世界尺寸各收一档
+//   （火焰 0.0022~0.0044 → **0.0019~0.0038 m**、余烬 0.002~0.004 → **0.0017~0.0032 m**），
+//   并给每颗一个**自己的亮度 gain**（余烬 0.6~1.0、火焰 0.85~1.0，出生/重生各摇一次）——
+//   上一版同一层只差温度，近景里一排颗粒亮度一样，读成"散景光斑"。上限那一刀
+//   （画面高度的 1.6%）在 HearthFire 的 PARTICLE_VERT 里（uMaxPx），这里只管世界尺寸。
 
 /** 火焰粒子数（主人给的 300~600，取 420；与余烬分成两种 kind，共用一次 draw call） */
 export const FLAME_PARTICLES = 420;
@@ -213,6 +219,9 @@ export class FireParticles {
   private readonly age: Float32Array;
   private readonly life: Float32Array;
   private readonly baseSize: Float32Array;
+  /** 每颗自己的亮度系数（0.6~1.0；余烬按主人要求随机，火焰粒子只做一点点抖动）——
+   *  上一版同一层所有颗粒亮度只由温度决定，近景里读成"一排同样亮的圆点"。 */
+  private readonly gain: Float32Array;
   private readonly seed: Float32Array;
   private readonly rnd: () => number;
   private readonly curl = new Float32Array(3);
@@ -226,6 +235,7 @@ export class FireParticles {
     this.age = new Float32Array(this.total);
     this.life = new Float32Array(this.total);
     this.baseSize = new Float32Array(this.total);
+    this.gain = new Float32Array(this.total);
     this.seed = new Float32Array(this.total);
     this.rnd = mulberry32(seed);
     this.reset();
@@ -241,7 +251,10 @@ export class FireParticles {
       this.kinds[i] = flame ? 0 : 1;
       this.seed[i] = this.rnd() * 10;
       this.life[i] = flame ? this.range(FLAME_LIFE[0], FLAME_LIFE[1]) : this.range(EMBER_LIFE[0], EMBER_LIFE[1]);
-      this.baseSize[i] = flame ? 0.0022 + this.rnd() * 0.0022 : 0.002 + this.rnd() * 0.002;
+      // ★ 2026-11-27（`feat/gs-fire-visibility`）：世界尺寸各收一档（近景散景光斑的一半来源），
+      //   余烬亮度**每颗随机 0.6~1.0**（主人要求：不许一排同样亮）。
+      this.baseSize[i] = flame ? 0.0019 + this.rnd() * 0.0019 : 0.0017 + this.rnd() * 0.0015;
+      this.gain[i] = flame ? 0.85 + this.rnd() * 0.15 : 0.6 + this.rnd() * 0.4;
       this.age[i] = 0;
       this.spawn(i);
       // 预演：把这一颗从出生推进到随机年龄（物理与实时同一条积分器，只是不推进全局时间）
@@ -317,7 +330,9 @@ export class FireParticles {
     // 余烬的亮度带一点每颗自己的闪烁（频率/相位由 seed 定，不是整层同频正弦）
     const flick = flame ? 1 : 0.72 + 0.28 * Math.sin(this.time * (5 + this.seed[i]) + this.seed[i] * 20);
     this.states[o] = t;
-    this.states[o + 1] = heat * flick;
+    // ★ 再乘每颗自己的 gain（0.6~1.0）：色温与 alpha 一起走这条线 —— 暗的那颗同时更红，
+    //   而不是"同样白、只是透明度不同"（后者正是近景里一排白点观感的来源）。
+    this.states[o + 1] = heat * flick * this.gain[i];
     this.states[o + 2] = size;
   }
 
@@ -339,7 +354,8 @@ export class FireParticles {
         // 这一颗寿终：只重生这一颗（不是整层复位 —— 每颗相位都不同）
         const flame = this.kinds[i] === 0;
         this.life[i] = flame ? this.range(FLAME_LIFE[0], FLAME_LIFE[1]) : this.range(EMBER_LIFE[0], EMBER_LIFE[1]);
-        this.baseSize[i] = flame ? 0.0022 + this.rnd() * 0.0022 : 0.002 + this.rnd() * 0.002;
+        this.baseSize[i] = flame ? 0.0019 + this.rnd() * 0.0019 : 0.0017 + this.rnd() * 0.0015;
+        this.gain[i] = flame ? 0.85 + this.rnd() * 0.15 : 0.6 + this.rnd() * 0.4;
         this.spawn(i);
       }
       this.writeState(i);

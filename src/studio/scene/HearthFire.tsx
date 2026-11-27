@@ -50,6 +50,19 @@
 //   `__gsFire.pause()` 冻结火的全部时间（粒子、噪声、烟、炭火、灯都读同一个仿真时间），
 //   `__gsFire.step(0.2)` 按 1/60 s 定步长推进 —— 同一机位隔 200 ms / 3 s 截两帧比像素差即可。
 //   冻结的是"火的仿真"，不是 r3f 的渲染循环；渲染照常跑，画面才截得到。
+//
+// ★★ 第 9 版（2026-11-27，`feat/gs-fire-visibility`，真机验收剩下的三条观感里的两条）：
+//   ① **根部蓝从"独立面片"并进火焰 shader**：上一版为了让蓝光压在柴面上，另挂了一片
+//      0.34×0.16、`depthTest=false` 的加色面片。近景 0.4 m 时那片读得出矩形边（验收截图里
+//      就是柴面上的一块蓝灰方块）。这一版把蓝光并回 `FLAME_FRAG` 的 vUv.y<0.22 那一带
+//      （峰位抬到 0.05、横向加中心衰减），面片删掉 —— 火焰块 draw call **15 → 14**。
+//   ② **粒子/炭火的屏上尺寸与亮度**：上一版 `7.0 * uDpr`（2.0% 屏高）的硬上限 + 16 块炭
+//      每块都烧到白 —— 0.4 m 近景读成"一排同样亮的散景光斑"。这一版：
+//      · 单颗粒子 / 单块炭的上限 = **画面高度的 1.6%**（`uMaxPx = 0.016 × 画布物理高`）；
+//      · 单颗 alpha 压一档、颗粒色温上限 1940 K → 1520 K；
+//      · 每颗余烬亮度随机 0.6~1.0（`fireSim` 的 gain），每块炭也按 aSeed 取 0.6~1.0 —— 不再一排同样亮。
+//      量法/读数见 docs/gs-table-light-log.md §17.5（过曝白像素占比 2.65% → 0.02%，
+//      最大白色团块 68 px → 6 px；画布高 1271 px 的截图口径）。
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
@@ -100,10 +113,12 @@ export const FIRE_FX = {
   smoke: SMOKE_COUNT,
   flameW: FLAME_W,
   flameH: FLAME_H,
-  /** 火焰这一块的总 draw call（与文件头那张账同一个口径；第 6 版 16） */
-  drawCalls: 15,
+  /** 火焰这一块的总 draw call（与文件头那张账同一个口径；第 6 版 16、第 8 版 15） */
+  drawCalls: 14,
   /** 粒子层的 draw call（火焰 + 余烬共用 1 次） */
   particleDraws: 1,
+  /** 单颗粒子的屏上尺寸上限（占画面高度的比例）—— 着色器里的 uMaxPx 就是它乘画布高 */
+  particleMaxPctH: 1.6,
   /** 火焰片每像素的 3D 体素采样次数（3 层 × 2 次 + curl 4 次） */
   noiseTaps: 10,
 } as const;
@@ -227,8 +242,15 @@ const FLAME_FRAG = /* glsl */ `
     // ③ 底部淡出：面片下沿压在柴堆里（整组下沉 15 mm），不淡就是一条硬直线
     col *= smoothstep(0.0, 0.04, vUv.y);
     // ④ 根部蓝焰：燃料面附近那一圈化学发光（不在黑体曲线上）
-    float blue = smoothstep(0.22, 0.02, vUv.y) * smoothstep(0.02, 0.16, total);
-    col += vec3(0.10, 0.20, 0.44) * blue * 0.45;
+    // ★★ 2026-11-27（feat/gs-fire-visibility）：这一层原来**另挂一片 0.34×0.16 的加色面片**
+    //   （depthTest=false，为了压在柴面上）。近景 0.4 m 时那片的面片边被读成一块矩形。
+    //   现在并进这里、面片删掉（火焰块 draw call 15 → 14），做法两处调整：
+    //    · 峰位从 vUv.y≈0.02 抬到 0.05：面片下沿埋在柴堆里（整组下沉 15 mm），蓝光压在柴下面
+    //      等于没有 —— 抬到柴顶以上那一条才看得见（离柴面 1~2 cm）；
+    //    · 横向加一道中心衰减：读起来是"柴缝里透出来的一团蓝"，不是一条横边。
+    float blueBand = smoothstep(0.22, 0.05, vUv.y) * smoothstep(0.02, 0.16, total);
+    float blueSide = pow(clamp(1.0 - abs(vUv.x - 0.5) / 0.40, 0.0, 1.0), 1.5);
+    col += vec3(0.10, 0.20, 0.44) * blueBand * blueSide * (0.75 + 0.25 * clamp(uEnergy, 0.0, 1.4));
     // ⑤ 能量联动：粒子总能量给整团火一个"旺/弱"的增益（不是正弦）
     float gain = 0.86 + 0.22 * clamp(uEnergy, 0.0, 1.4);
     gl_FragColor = vec4(col * uAlpha * gain, 1.0);
@@ -242,6 +264,7 @@ const PARTICLE_VERT = /* glsl */ `
   attribute float aKind;   // 0 = 火焰粒子、1 = 余烬
   uniform float uPxPerM;   // 视距 1 m 处 1 m 对应多少**物理**像素
   uniform float uDpr;
+  uniform float uMaxPx;    // 单颗上限（物理像素）= 画面高度的 1.6%（JS 每帧按画布现算）
   varying float vHeat;
   varying float vKind;
   varying float vFade;
@@ -250,8 +273,12 @@ const PARTICLE_VERT = /* glsl */ `
     gl_Position = projectionMatrix * mv;
     float dist = max(0.22, -mv.z);
     // 世界尺寸 → 屏幕点尺寸（gl_PointSize 的单位是物理像素，乘 dpr 才与 CSS 尺寸无关）
+    // ★★ 2026-11-27（feat/gs-fire-visibility）：上一版的硬上限是 7·uDpr（= 真机 14 物理像素，
+    //   画布高 702 的 2.0%）—— 0.4 m 近景里那颗就是 14 px 的圆盘，读成散景光斑。
+    //   现在按**画面高度的比例**限幅：uMaxPx = 0.016 × 画布物理高（真机 702 → 11.2 px）。
+    //   为什么用比例而不是再写一个 uDpr 倍数：屏高随设备变，比例才是"单颗不超过 1.6%"这句话本身。
     float px = aState.z * uPxPerM / dist;
-    gl_PointSize = clamp(px, 1.0 * uDpr, 7.0 * uDpr);
+    gl_PointSize = clamp(px, 1.0 * uDpr, uMaxPx);
     vHeat = aState.y;
     vKind = aKind;
     vFade = smoothstep(0.0, 0.06, aState.x) * smoothstep(1.0, 0.62, aState.x);
@@ -274,16 +301,19 @@ const PARTICLE_FRAG = /* glsl */ `
     float a;
     if (vKind < 0.5) {
       // 火焰粒子：白黄 → 橙 → 暗红 → 烟（温度从 1 降到 0）
+      // ★ 色温上限 1940 K → 1520 K（与火焰片同一档）：上一版 h→1 时颗粒中心是纯白，
+      //   加色叠在一起就是一颗颗过曝光斑；收到 1520 K 之后最亮也还是黄白，不再是白点。
       float h = clamp(vHeat, 0.0, 1.0);
-      vec3 fire = blackbody(820.0 + 1120.0 * pow(h, 0.8));
+      vec3 fire = blackbody(820.0 + 700.0 * pow(h, 0.9));
       vec3 smoke = vec3(0.14, 0.135, 0.145);
       col = mix(smoke, fire, smoothstep(0.12, 0.40, h));
-      a = soft * vFade * (0.04 + 0.16 * h);
+      // ★ 单颗 alpha 压一档（0.04+0.16h → 0.030+0.11h）：过曝是**累加**出来的，单颗就得先降
+      a = soft * vFade * (0.030 + 0.11 * h);
     } else {
-      // 余烬：更红、更小、亮度按寿命衰减（每颗自己的闪烁频率见 fireSim）
+      // 余烬：更红、更小、亮度按寿命衰减（每颗自己的闪烁频率与亮度见 fireSim）
       float h = clamp(vHeat, 0.0, 1.0);
-      col = blackbody(820.0 + 1120.0 * pow(h, 1.15));
-      a = soft * vFade * (0.16 + 0.36 * h);
+      col = blackbody(820.0 + 700.0 * pow(h, 1.15));
+      a = soft * vFade * (0.10 + 0.22 * h);
     }
     gl_FragColor = vec4(col, a);
   }
@@ -363,6 +393,7 @@ const COAL_VERT = /* glsl */ `
   uniform float uTime;
   uniform float uPxPerM;
   uniform float uDpr;
+  uniform float uMaxPx;     // 单块上限（物理像素）= 画面高度的 1.6%（与粒子同一条规矩）
   varying vec2 vUv;
   varying float vI;
   void main() {
@@ -375,12 +406,20 @@ const COAL_VERT = /* glsl */ `
     // 世界尺寸 3~6 cm；屏上不足 6 CSS px 时按 6 px 抬到最小（否则默认机位又变回"看不见的点"）
     float world = (0.034 + 0.028 * fract(aSeed * 3.3)) * (0.62 + 0.38 * flick);
     float minWorld = (6.0 * uDpr * dist) / max(1.0, uPxPerM);
-    world = max(world, minWorld);
+    // ★★ 2026-11-27（feat/gs-fire-visibility）：**上限** = 画面高度的 1.6%（与粒子同一条）。
+    //   近景 0.4 m 时一块 5 cm 的炭按世界尺寸算出来是 ~50 CSS px 的白团 —— 一排 16 块
+    //   在真机近景里就是"一排同样亮的大光斑"（验收图里看得出来）。默认机位（3.5 m）算出来
+    //   远小于上限，尺寸不变；只有近景被收住。
+    float maxWorld = (uMaxPx * dist) / max(1.0, uPxPerM);
+    world = min(max(world, minWorld), maxWorld);
     // view 空间的 xy 就是"相机右/上"：面片永远正对相机（不跟着 billboard group 绕 y 转歪）
     mv.xy += aCorner * world;
     gl_Position = projectionMatrix * mv;
     vUv = aCorner * 2.0;      // -1 ~ 1
-    vI = flick;
+    // ★ 每块的亮度 0.6~1.0（由 aSeed 定，稳定不闪）：上一版 16 块只差闪烁相位、峰值一样，
+    //   近景读成"一排同样亮"。乘进 alpha（加色混合下就是压暗）。
+    float bright = 0.6 + 0.4 * fract(aSeed * 7.13);
+    vI = flick * bright;
   }
 `;
 // i18n-ignore-next-line: GLSL 源码（注释在着色器里，不上界面）
@@ -573,7 +612,6 @@ export default function HearthFire({
   const fill = useRef<THREE.PointLight>(null);
   const billboard = useRef<THREE.Group>(null);
   const glowMat = useRef<THREE.MeshBasicMaterial>(null);
-  const blueMat = useRef<THREE.MeshBasicMaterial>(null);
   /** 只在验收时读（和 uniforms 是不是同一份、材质里 uTime 到底是多少） */
   const flameMat = useRef<THREE.ShaderMaterial>(null);
   const particleMat = useRef<THREE.ShaderMaterial>(null);
@@ -638,7 +676,7 @@ export default function HearthFire({
     }),
     [uniforms, noiseTex, alphaScale]
   );
-  const particleUniforms = useMemo(() => ({ uPxPerM: { value: 800 }, uDpr: { value: 2 } }), []);
+  const particleUniforms = useMemo(() => ({ uPxPerM: { value: 800 }, uDpr: { value: 2 }, uMaxPx: { value: 11 } }), []);
 
   /** 柴木的 uniform（三根共用一个时间位） */
   const logUniforms = useMemo(
@@ -691,6 +729,7 @@ export default function HearthFire({
       uTime: uniforms.uTime,
       uPxPerM: { value: 800 },
       uDpr: { value: 2 },
+      uMaxPx: { value: 11 },
     }),
     [uniforms]
   );
@@ -698,10 +737,6 @@ export default function HearthFire({
   /** 炭火床的加色光晕（轻微 bloom 感）：16 块炭一起把柴面烘出一层暖光，1 次 draw call。 */
   const coalGlowTex = useMemo(() => glowTexture("rgba(255,176,96,0.55)", "rgba(255,112,32,0.16)"), []);
   useEffect(() => () => coalGlowTex.dispose(), [coalGlowTex]);
-  /** 根部蓝焰的"可见那一层"：火焰面片 v<0.22 那一段被柴挡住，单独加一片青蓝光晕压在柴面上。 */
-  const blueTex = useMemo(() => glowTexture("rgba(70,150,255,0.95)", "rgba(20,60,200,0.35)"), []);
-  useEffect(() => () => blueTex.dispose(), [blueTex]);
-
   /** 烟：2 片，各自一个相位（uSeed）/寿命/UV 滚动速度；位置/尺度固定，运动全在 shader 里 */
   const smokeMats = useMemo(
     () =>
@@ -837,8 +872,6 @@ export default function HearthFire({
     // 炉膛内补光（很弱）：位置在火**后面**、略高，照柴木的背光面与桌沿
     if (fill.current) fill.current.intensity = 0.32 + 0.4 * e;
     if (glowMat.current) glowMat.current.opacity = 0.13 + 0.13 * e;
-    // 根部蓝焰跟着火一起呼吸（幅度小：化学发光比火舌稳）
-    if (blueMat.current) blueMat.current.opacity = 0.26 + 0.14 * e;
 
     // 炭火：屏幕最小尺寸要按"每米多少物理像素"算
     const pcam = camera as THREE.PerspectiveCamera;
@@ -847,6 +880,12 @@ export default function HearthFire({
     coalUniforms.uDpr.value = gl.getPixelRatio();
     particleUniforms.uPxPerM.value = pxPerM;
     particleUniforms.uDpr.value = gl.getPixelRatio();
+    // ★ 单颗粒子上限 = **画面高度的 1.6%**（物理像素）：真机画布 702 → 11.23 px。
+    //   0.4 m 近景下世界尺寸换算出来的 px 能到 16.6，上一版靠 7·uDpr 兜到 14（2.0%）——
+    //   那正是"散景光斑"的尺寸来源。现在按画布现算，换设备/转屏都还是 1.6%。
+    particleUniforms.uMaxPx.value = gl.domElement.height * 0.016;
+    // 炭火同一套：单块也不许超过画面高度的 1.6%（近景那排大白团主要就是它）
+    coalUniforms.uMaxPx.value = gl.domElement.height * 0.016;
     // 火焰片绕 y 轴面向相机（只转 y：转 x 会让火焰"躺下"，看着像烧到桌面上）
     if (billboard.current) billboard.current.rotation.y = Math.atan2(camera.position.x - px, camera.position.z - pz);
   });
@@ -901,7 +940,10 @@ export default function HearthFire({
           />
         </mesh>
         {/* ③b 火焰粒子 + 余烬：仿真在 fireSim.ts，一次 draw call（420 + 32 颗）
-            ★ 点精灵没有纹理；温度/尺寸/寿命全在 attribute 里（aState）。 */}
+            ★ 点精灵没有纹理；温度/尺寸/寿命全在 attribute 里（aState）。
+            ★★ 2026-11-27（feat/gs-fire-visibility）：单颗尺寸按**画面高度的 1.6%** 限幅
+            （uMaxPx = 0.016 × 画布物理高，见 PARTICLE_VERT 的 ★），单颗 alpha 压一档、
+           色温上限收到 1520 K —— 0.4 m 近景里不再是一排同样亮的散景光斑。 */}
         <points geometry={particleGeo} renderOrder={21} frustumCulled={false}>
           <shaderMaterial
             ref={particleMat}
@@ -933,20 +975,6 @@ export default function HearthFire({
             transparent
             opacity={0.38}
             depthWrite={false}
-            blending={THREE.AdditiveBlending}
-            side={THREE.DoubleSide}
-          />
-        </mesh>
-        {/* 根部蓝焰（贴着柴面的青蓝；depthTest=false 才不会被柴吃掉，见 blueTex 的 ★） */}
-        <mesh renderOrder={21} position={[0, 0.02, 0.02]}>
-          <planeGeometry args={[0.34, 0.16]} />
-          <meshBasicMaterial
-            ref={blueMat}
-            map={blueTex}
-            transparent
-            opacity={0.6}
-            depthWrite={false}
-            depthTest={false}
             blending={THREE.AdditiveBlending}
             side={THREE.DoubleSide}
           />
