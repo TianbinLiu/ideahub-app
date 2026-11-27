@@ -66,6 +66,8 @@ import {
 } from "./cameraOrbit";
 // 米制档的小幅环视（±6°/±3° + 松手回中）：状态与手势原子在 gsLook 一处
 import { GS_LOOK, applyGsLook, gsLookDeg, gsLookDown, gsLookDrag, gsLookMoving, gsLookRelease, gsLookReset, gsLookTick } from "./gsLook";
+// 匹配页 / 穿窗转场（2026-11-27，feat/gs-moon-window）：镜头位姿的唯一出处在这里，CameraRig 每帧问一次
+import { consumeMatchSnap, matchCamAvailable, matchCamMoving, stepMatchCam } from "./matchCam";
 
 // 委托定制模型 Milltina（默认铸卡师，**自有版权**）的配置
 // （模块级常量：内联对象会让 TripoNpc 的 memo 每帧重建）
@@ -503,7 +505,7 @@ function CameraRig() {
       camera as THREE.PerspectiveCamera,
       size.width,
       size.height,
-      gsSceneMetric() && !gsAcceptCamOn() && st.camera.kind === "default" && !st.orbit && !orbit.active,
+      gsSceneMetric() && !gsAcceptCamOn() && st.camera.kind === "default" && !st.orbit && !orbit.active && !matchCamMoving(),
       frameShift,
     );
     // 节点卡卡面的首尾帧轮播（渐变期才真重绘，停留期内部直接返回）
@@ -537,6 +539,28 @@ function CameraRig() {
       camera.lookAt(RIG_LOOK);
       if (intro.ended && center) syncOrbitFromCamera(camera.position, center);
       return;
+    }
+    // ── 匹配页 / 穿窗转场（2026-11-27，feat/gs-moon-window）───────────────────
+    // ★ 位置在开场运镜之后、所有轨道分支之前：这一层在管相机的时候（匹配页 / 飞行 / 窗外），
+    //   用户轨道、卡组滑梯、默认机位缓动全让位 —— 与 introCam 那条早退同一个做法。
+    // ★ `consumeMatchSnap()`：取消 / 匹配结束这类"复位"不走缓动，下一帧直接按到设计机位
+    //   （主人要求"按返回立即复位"；缓动过去会先飘 ~1 s 才回到桌子）。
+    if (matchCamAvailable()) {
+      if (consumeMatchSnap()) {
+        const c = defaultCamFor((camera as THREE.PerspectiveCamera).aspect);
+        camera.position.set(c.pos[0], c.pos[1], c.pos[2]);
+        RIG_LOOK.set(c.look[0], c.look[1], c.look[2]);
+        camera.lookAt(RIG_LOOK);
+        if (center) syncOrbitFromCamera(camera.position, center);
+        return;
+      }
+      const mp = stepMatchCam(dt);
+      if (mp) {
+        camera.position.set(mp.pos[0], mp.pos[1], mp.pos[2]);
+        RIG_LOOK.set(mp.look[0], mp.look[1], mp.look[2]);
+        camera.lookAt(RIG_LOOK);
+        return;
+      }
     }
     // ── 用户已接管：纯球面轨道驱动，脚本运镜让位 ──
     if (orbit.active && center) {
@@ -1673,6 +1697,9 @@ function TableCatcher() {
     //   否则拖动会攒 eyeLook 却什么都不动（看着像坏了）。轨道拖拽/缩放照 ORBIT_LIMITS 走。
     const mode = () => {
       const st = useStudio.getState();
+      // ★ 匹配页 / 穿窗转场期间相机归 scene/matchCam，手势一律不接：
+      //   否则拖拽会攒 gsLook / 轨道状态，取消回到设计机位时视线是歪的（看不到、也不好查）。
+      if (matchCamMoving()) return null;
       if (st.orbit) return "orbit" as const;
       // 米制档的默认机位：只有它接小幅环视（老场景的落点机位不接，逐字节不变）
       if (gsSceneMetric() && st.camera.kind === "default") return "gsLook" as const;

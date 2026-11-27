@@ -3961,6 +3961,10 @@ msgstr "✕ Close"
 msgid "✕ 关闭"
 msgstr "✕ Close"
 
+#: src/studio/game/ui/Lobby.tsx
+msgid "✕ 取消"
+msgstr "✕ Cancel"
+
 #: src/studio/StudioPage.tsx
 msgid "✕ 结束对局"
 msgstr "✕ End game"
