@@ -11,11 +11,11 @@
 // 为什么"splat 那一半"必须懒加载：`@sparkjsdev/spark` 打进来是 16 MB 的解包体积，而这一档默认关。
 // 用 `lazy(() => import("./GsStep0Room"))` 之后它只是主包旁边一个**永远不会被请求**的 chunk ——
 // 正式体验的加载体积一个字节都不变（构建里能看到单独的 GsStep0Room-*.js）。
-import { Component, Suspense, lazy, useLayoutEffect, useRef, type ReactNode } from "react";
-import * as THREE from "three";
+import { Component, Suspense, lazy, useLayoutEffect, type ReactNode } from "react";
 import MagicStudy from "./MagicStudy";
 import { GS_DAY, GS_FIRE, GS_FIRE_LIGHT, gsFillOn, gsMarkEntered, gsStep0On, setGsPhase, useGsPhase } from "./gsStep0";
 import HearthFire from "./HearthFire";
+import MoonWindow from "./MoonWindow";
 import { skipIntroCam } from "./introCam";
 
 const GsStep0Room = lazy(() => import("./GsStep0Room"));
@@ -39,14 +39,6 @@ function LegacyRoom() {
 // ★ 只照到 mesh：SparkRenderer 的是 ShaderMaterial，three 只给"要灯"的材质上传灯光 uniform（plan §3.3-2）。
 //   所以桌面、卡牌、NPC 的亮度要**对着 splat 校**，不要靠加灯（加灯只会让网格更亮、splat 不动）。
 function DayLights() {
-  const rect = useRef<THREE.RectAreaLight>(null);
-  useLayoutEffect(() => {
-    // ★ RectAreaLight 在 WebGL 下不 init 就是黑的（plan §4.4）；不 init 也会静默不亮，最难查
-    void import("three/examples/jsm/lights/RectAreaLightUniformsLib.js").then((m) => {
-      m.RectAreaLightUniformsLib.init();
-      rect.current?.lookAt(0, 0, 0);
-    });
-  }, []);
   return (
     <>
       <directionalLight
@@ -67,14 +59,12 @@ function DayLights() {
         shadow-camera-near={0.1}
         shadow-camera-far={12}
       />
-      <rectAreaLight
-        ref={rect}
-        position={GS_DAY.window.position}
-        width={GS_DAY.window.width}
-        height={GS_DAY.window.height}
-        intensity={GS_DAY.window.intensity}
-        color="#eaf2ff"
-      />
+      {/* ★★ 2026-11-27（feat/gs-moon-window）：这里原来是一盏 **RectAreaLight 窗面泛光**
+          （毛玻璃那一版"一块磨砂发光面"的灯）。现在窗洞是通透的夜空 + 一轮月亮，那块漫射面没了：
+          · 月光的方向与阴影仍然由上面这盏 DirectionalLight 给（"从窗那侧 -z 斜上方打进来"不变）；
+          · 月亮自身的冷光在 `MoonWindow` 里用一盏**只照 mesh** 的点光补（窗内 0.36 m），
+            是比 RectAreaLight 更硬一点的光池（主人第 1 条"改成更硬一点的光斑"）。
+          删掉 RectAreaLight 同时省掉 `RectAreaLightUniformsLib.init()` 那条容易忘的初始化。 */}
       {/* ★ NPC 补光：从相机这一侧（+z）略高处往桌子对面打，参数与依据见 gsStep0.GS_DAY.fill。
           无阴影（不写 castShadow）= 不会多出一条影子；强度 0.9 与主光同档，
           窗光仍然是唯一"有方向"的主光。dev 的 ?gs=1&nofill=1 不挂它（A/B 对照）。 */}
@@ -142,6 +132,9 @@ export function GsStep0Environment() {
       <color attach="background" args={[GS_DAY.bg]} />
       <fog attach="fog" args={[GS_DAY.bg, GS_DAY.fog[0], GS_DAY.fog[1]]} />
       <DayLights />
+      {/* 明月窗：夜空球 + 月亮 + 补的窗框/窗棂（2026-11-27）。几何与机位在 ./moonWindow，
+          只在这一档（米制 splat 场景）里挂 —— 老书房的窗是 MagicStudy 自己那套，逐字节不动。 */}
+      <MoonWindow />
       <GsBoundary>
         <Suspense fallback={null}>
           <GsStep0Room />

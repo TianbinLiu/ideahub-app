@@ -42,6 +42,16 @@ import { readLatestLocalGame } from "../localHistory";
 import { localGameOwner } from "../localHistoryOwner";
 import { subscribeHistoryCache } from "../historyCache";
 import { useHistory } from "../historyStore";
+import { useBackLayer } from "../../../hooks/useBackLayer";
+import {
+  beginFlyThrough,
+  cancelMatchCine,
+  enterMatchPage,
+  leaveMatchPage,
+  useMatchCam,
+} from "../../scene/matchCam";
+import { useGsPhase } from "../../scene/gsStep0";
+import { setGsHudHidden } from "../../scene/gsHud";
 import GameBtn from "./GameBtn";
 import RoomScreen from "./RoomScreen";
 import PublicRooms from "./PublicRooms";
@@ -105,6 +115,44 @@ export default function Lobby() {
   const [pick, setPick] = useState<LobbyPick>("match4");
   useEffect(() => {
     if (!open) setPick("match4");
+  }, [open]);
+
+  // ── 明月窗 / 穿窗转场（2026-11-27，feat/gs-moon-window）────────────────────
+  /**
+   * 镜头与黑幕的真相在 `scene/matchCam`（CameraRig 每帧读它，DOM 黑幕挂在页面层）。
+   * 这里只订阅三样：阶段、黑幕、要不要瞬间切换（DEV 截图钩子）。
+   * ★ 匹配逻辑（队列 / findMatch / AI 补位）一行没改：转场只是"点主键之后先飞 1.5 s"。
+   * ★ 老场景（高斯档关着 / splat 加载失败）没有明月窗可看：`cinematic` 为假，大厅原样不透明。
+   */
+  const camStage = useMatchCam((s) => s.stage);
+  const veil = useMatchCam((s) => s.veil);
+  const veilInstant = useMatchCam((s) => s.instant);
+  /** 高斯米制场景开着没有（与 StudioPage / TableScene 同一个判据）。关着 / 失败 = 没有明月窗可看，
+   *  大厅保持原样（不透明底、不做转场）；判据订阅而不是读一次：splat 超时失败那一拍要能翻过来。 */
+  const gsPhase = useGsPhase();
+  const cinematic = gsPhase === "loading" || gsPhase === "ready";
+  /** 正在穿窗：把大厅首屏 UI 收掉，画面只剩窗与月亮（穿出去之后黑幕已经盖上了） */
+  const flying = camStage === "fly";
+  /** 匹配页：首屏 + 镜头在窗正前方（只在这时让 3D 透出来，其余屏仍是原来的不透明底） */
+  const matchPage = cinematic && screen === "home" && (camStage === "page" || camStage === "fly");
+  /**
+   * 大厅一开就把镜头搬到窗正前方（匹配页背景）；关掉时复位。
+   * ★ 只在 open 的**跳变**那一刻做：中途重渲 / 取消匹配回到首屏都不该再把镜头搬回去
+   *   （取消的语义是"回设计机位"，见 matchCam.cancelMatchCine）。
+   */
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (open && !wasOpen.current && !inGame) enterMatchPage();
+    if (!open && wasOpen.current) leaveMatchPage();
+    wasOpen.current = open;
+  }, [open, inGame]);
+  /** 安卓返回键：穿窗途中按返回 = 立刻取消并复位（不是退出大厅、也不是退出工坊）。 */
+  useBackLayer(flying, cancelMatchCine, "match-cine");
+  /** 高斯角标（fps / splat 数）是 z-9999 的开发者读数：大厅开着时藏起来，别压住"凭码加入"。
+   *  关掉大厅就放回来（读数照旧每秒刷新）。 */
+  useEffect(() => {
+    setGsHudHidden(open);
+    return () => setGsHudHidden(false);
   }, [open]);
 
   /**
@@ -204,11 +252,31 @@ export default function Lobby() {
     setPick("room");
   };
 
-  /** 主键那一下：把"选中"变成"走"（点卡片不会走到这里）。 */
+  /** 主键那一下：把"选中"变成"走"（点卡片不会走到这里）。
+   *  ★ 4/8 人匹配走**穿窗转场**（2026-11-27）：镜头先朝窗户飞 1.5 s、穿过窗洞、黑屏，然后才真的
+   *    进匹配队列（`beginFlyThrough()` 的 promise 里再调 `chooseMatch`）。中途取消时它回
+   *    "cancelled" —— 这里直接 return，队列一发都不会发（取消 = 没进过匹配）。
+   *  ★ 自定义房间不演戏：那一屏是建房 / 邀请朋友，没有"匹配中"这一段。
+   *  ★ 老场景（没开高斯档）也不演戏：cinematic 为假，直接走原来的 chooseMatch。
+   */
   const startPicked = () => {
-    if (busy) return;
-    if (pick === "room") useLobby.getState().chooseRoom();
-    else useLobby.getState().chooseMatch(pick === "match8" ? 8 : 4);
+    if (busy || flying) return;
+    if (pick === "room") {
+      useLobby.getState().chooseRoom();
+      return;
+    }
+    const size = pick === "match8" ? 8 : 4;
+    if (!cinematic) {
+      useLobby.getState().chooseMatch(size);
+      return;
+    }
+    void (async () => {
+      const out = await beginFlyThrough();
+      if (out === "cancelled") return;
+      // 飞行途中用户可能把大厅关了（返回键先把转场取消掉，这里只是再兜一道）
+      if (!useLobby.getState().open) return;
+      useLobby.getState().chooseMatch(size);
+    })();
   };
 
   // 键盘 / 遥控的 Enter 触发主键。★ 用 ref 而不是把 startPicked 放进依赖：
@@ -236,10 +304,93 @@ export default function Lobby() {
     return () => window.removeEventListener("keydown", onKey);
   }, [onHome]);
 
+  /**
+   * 凭码加入（2026-11-27）：首屏居中、匹配页右下角，两处共用同一份实现。
+   * ★ 联机没接通时也摆着：点了会在底栏说"没连上房间服务"，比藏起来更诚实
+   *   （藏起来的话，拿到码的人会以为 App 没有这个功能）。
+   */
+  const joinForm = (center: boolean) => (
+    <form
+      data-guide="lobby-join"
+      className={`flex w-full items-center gap-1.5 ${center ? "justify-center" : "justify-end"}`}
+      onSubmit={(e) => {
+        e.preventDefault();
+        join();
+      }}
+    >
+      <input
+        value={joinCode}
+        onChange={(e) => useLobby.getState().setJoinCode(e.target.value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase().slice(0, 6))}
+        placeholder={t`输入 6 位房间码`}
+        aria-label={t`房间码`}
+        inputMode="text"
+        autoCapitalize="characters"
+        autoComplete="off"
+        spellCheck={false}
+        maxLength={6}
+        className={`h-8 rounded-lg bg-white/[0.06] px-2 text-center font-mono text-[13px] tracking-[0.2em] text-slate-100 ring-1 ring-white/10 placeholder:font-sans placeholder:tracking-normal placeholder:text-slate-500 ${center ? "w-32" : "min-w-0 flex-1"}`}
+      />
+      <GameBtn onClick={join} disabled={busy || !normalizeServerCode(joinCode)}>
+        <Trans>加入房间</Trans>
+      </GameBtn>
+    </form>
+  );
+
+  /**
+   * 底部主键：唯一能真的进队 / 建房的那一下（首屏底部、匹配页左下角共用）。
+   * ★ data-guide="lobby-start"：新手引导「匹配 / 建房」那一步的高亮目标。
+   */
+  const primaryBlock = (match: boolean) => (
+    <div className={match ? "flex w-full flex-none flex-col items-stretch gap-1" : "flex w-full flex-none flex-col items-center gap-1 pb-1"}>
+      <button
+        type="button"
+        data-guide="lobby-start"
+        onClick={startPicked}
+        disabled={busy || flying}
+        aria-keyshortcuts="Enter"
+        className={`rounded-xl bg-brand font-black text-ink shadow-[0_6px_20px_rgb(56_189_248_/_0.28)] transition-transform duration-75 active:scale-[0.97] disabled:opacity-50 motion-reduce:transition-none motion-reduce:transform-none ${
+          match
+            ? "h-10 w-full text-[13px]"
+            : "h-[clamp(2.25rem,6.2vh,2.75rem)] w-[clamp(12rem,32vw,20rem)] text-[clamp(12px,1.6vw,14px)]"
+        }`}
+      >
+        {busy ? <Trans>正在连接房间服务…</Trans> : primaryLabel}
+      </button>
+      <p className={`leading-tight ${match ? "text-[9px] text-slate-400" : "text-[9px] text-slate-500"}`}>
+        <Trans>点卡片只选中，不会直接开局；键盘上按 Enter 也能开始。</Trans>
+      </p>
+    </div>
+  );
+
   if (!open || inGame) return null;
 
   return (
-    <div className="absolute inset-0 z-40 flex flex-col bg-ink text-slate-100">
+    <div className="absolute inset-0 z-40 flex flex-col text-slate-100">
+      {/*
+        ── 三层底（2026-11-27，feat/gs-moon-window）──
+        ① 不透明底板：除"匹配页"之外的每一屏都还是原来那张实底（bg-ink）；
+           匹配页把它淡出，露出后面 3D 里的明月窗/月亮。
+        ② 黑幕：点「匹配」穿窗那一拍淡入（0.4 s），匹配中 / 房间那几屏都盖在它上面。
+           z 序 = 底板 → 黑幕 → 内容；3D 画布在更下面（Canvas 是这一层的兄弟节点）。
+           页面层还有一张同款的 `ui/MatchCurtain`（z-35）：那是给"匹配成功、大厅整个卸掉"
+           之后用的 —— 黑幕得留在大厅外面才能淡出，否则会看见黑屏"啪"地跳回桌子。
+        ③ 内容：穿窗那 1.5 s 整体收掉（只留画面），取消键单独摆在右上。
+      */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-ink transition-opacity duration-500"
+        style={{ opacity: matchPage ? 0 : 1 }}
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-black"
+        style={{ opacity: veil, transition: veilInstant ? "none" : "opacity 400ms ease-out" }}
+      />
+      <div
+        className={`relative flex min-h-0 flex-1 flex-col transition-opacity duration-300 ${
+          flying ? "pointer-events-none opacity-0" : "opacity-100"
+        }`}
+      >
       {/* ── 顶栏：标题 + 一句这是什么 + 货币条 + 回工坊 ── */}
       <header className="flex items-start justify-between gap-2 px-3 pt-2">
         <div className="min-w-0">
@@ -303,15 +454,26 @@ export default function Lobby() {
       {/* ── 三屏之一（首屏 / 等匹配 / 房间） ── */}
       <div className="flex min-h-0 flex-1 items-center justify-center px-3">
         {screen === "home" && (
-          // ★ 首屏自成一个上下两段：上半（模式卡 + 凭码加入）在剩余空间里垂直居中，主键固定在**底部**
-          //   （docs/game-lobby-ui-benchmark.md §1.5：主键 y 86–96%）。不这样的话大屏（1384×797）
-          //   上主键会飘在屏幕中间，而"底部一颗实心主键"是这一批的验收形状。
-          <div className="flex w-full flex-col items-center self-stretch">
-            <div className="flex min-h-0 w-full flex-1 flex-col items-center justify-center gap-2">
+          // ★ 首屏两套摆法（2026-11-27，feat/gs-moon-window）：
+          //   · matchPage = 明月窗背景：左列模式卡 + 主键、右列凭码加入，**中间整块留给窗与月亮**
+          //     （852×348 的画幅上窗洞占画面高 20%~80%、x 居中约 210 px 宽；左右两列都在它之外）。
+          //   · 否则（老场景 / 取消匹配回到首屏）：还是原来那套"上下两段"布局——
+          //     上半居中、主键固定在底部（docs/game-lobby-ui-benchmark.md §1.5 的验收形状）。
+          <div className={`flex w-full self-stretch ${matchPage ? "flex-row items-end justify-between gap-3 pb-1" : "flex-col items-center"}`}>
+            <div
+              className={
+                matchPage
+                  ? "flex w-[min(17rem,32vw)] flex-none flex-col gap-1.5"
+                  : "flex min-h-0 w-full flex-1 flex-col items-center justify-center gap-2"
+              }
+            >
               {/* 三张模式卡：点一下只选中
                   ★ data-guide="lobby-modes"：新手引导「选模式」那一步的高亮目标（components/guide/tours.tsx 的 lobby）。
                     挂在这一行而不是某一张卡上 —— 三张都是同一件事（选一种），挂到第一张上等于教人点 4 人局。 */}
-              <div data-guide="lobby-modes" className="flex w-full flex-wrap items-stretch justify-center gap-2.5">
+              <div
+                data-guide="lobby-modes"
+                className={matchPage ? "flex w-full flex-col gap-1.5" : "flex w-full flex-wrap items-stretch justify-center gap-2.5"}
+              >
                 <ModeCard
                   glyph="4"
                   title={t`4 人匹配`}
@@ -319,6 +481,7 @@ export default function Lobby() {
                   badge={t`AI 补位`}
                   selected={pick === "match4"}
                   onSelect={() => setPick("match4")}
+                  compact={matchPage}
                 />
                 <ModeCard
                   glyph="8"
@@ -327,6 +490,7 @@ export default function Lobby() {
                   badge={t`AI 补位`}
                   selected={pick === "match8"}
                   onSelect={() => setPick("match8")}
+                  compact={matchPage}
                 />
                 <ModeCard
                   glyph="#"
@@ -335,12 +499,13 @@ export default function Lobby() {
                   badge={t`房主开局`}
                   selected={pick === "room"}
                   onSelect={() => setPick("room")}
+                  compact={matchPage}
                 />
                 {/* 第四张卡「🏠 公开房」（2026-11-24）：它不是"选中"、是**直接开一屏**（列表在下一屏）。
                     ★ 能力位为假 / 读不到（老服务端）时一格都不摆：点了只有 404。
                     ★ 比三张模式卡窄一档：4 张按原宽在 800×363 上会折行、把主键挤出屏幕；
                       这张卡只有"进列表"一件事，不需要三行说明。 */}
-                {publicRoomsCap && <OpenRoomsCard onClick={() => useLobby.getState().openPublicRooms()} />}
+                {publicRoomsCap && <OpenRoomsCard onClick={() => useLobby.getState().openPublicRooms()} compact={matchPage} />}
               </div>
 
               {/* 「公开这间房」开关（建房时用，缺省关）：只在选中「自定义房间」且服务端有公开房列表时摆。
@@ -357,51 +522,18 @@ export default function Lobby() {
                   <Trans>公开这间房（别人能搜到）</Trans>
                 </label>
               )}
-              {/* ── 凭房间码加入（联机接通之后才有意义：本机房间的码只在本机） ──
-                  ★ 联机没接通时也摆着：点了会在底栏说"没连上房间服务"，比藏起来更诚实
-                    （藏起来的话，拿到码的人会以为 App 没有这个功能）。 */}
-              <form
-                data-guide="lobby-join"
-                className="flex w-full items-center justify-center gap-1.5"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  join();
-                }}
-              >
-                <input
-                  value={joinCode}
-                  onChange={(e) => useLobby.getState().setJoinCode(e.target.value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase().slice(0, 6))}
-                  placeholder={t`输入 6 位房间码`}
-                  aria-label={t`房间码`}
-                  inputMode="text"
-                  autoCapitalize="characters"
-                  autoComplete="off"
-                  spellCheck={false}
-                  maxLength={6}
-                  className="h-8 w-32 rounded-lg bg-white/[0.06] px-2 text-center font-mono text-[13px] tracking-[0.2em] text-slate-100 ring-1 ring-white/10 placeholder:font-sans placeholder:tracking-normal placeholder:text-slate-500"
-                />
-                <GameBtn onClick={join} disabled={busy || !normalizeServerCode(joinCode)}>
-                  <Trans>加入房间</Trans>
-                </GameBtn>
-              </form>
+              {/* 匹配页：主键在左列底部；首屏：主键在下面那一段（两处同一份 primaryBlock） */}
+              {matchPage && primaryBlock(true)}
+              {!matchPage && joinForm(true)}
             </div>
-            {/* 底部主键：唯一能真的进队 / 建房的那一下
-                ★ data-guide="lobby-start"：新手引导「匹配 / 建房」那一步的高亮目标 */}
-            <div className="flex w-full flex-none flex-col items-center gap-1 pb-1">
-              <button
-                type="button"
-                data-guide="lobby-start"
-                onClick={startPicked}
-                disabled={busy}
-                aria-keyshortcuts="Enter"
-                className="h-[clamp(2.25rem,6.2vh,2.75rem)] w-[clamp(12rem,32vw,20rem)] rounded-xl bg-brand text-[clamp(12px,1.6vw,14px)] font-black text-ink shadow-[0_6px_20px_rgb(56_189_248_/_0.28)] transition-transform duration-75 active:scale-[0.97] disabled:opacity-50 motion-reduce:transition-none motion-reduce:transform-none"
-              >
-                {busy ? <Trans>正在连接房间服务…</Trans> : primaryLabel}
-              </button>
-              <p className="text-[9px] leading-tight text-slate-500">
-                <Trans>点卡片只选中，不会直接开局；键盘上按 Enter 也能开始。</Trans>
-              </p>
-            </div>
+            {matchPage ? (
+              // 右列是"凭码加入"：墙是亮的，输入框与灰键单摆着读不清 —— 垫一层薄底
+              <div className="flex w-[min(15rem,28vw)] flex-none flex-col items-stretch gap-1.5 rounded-xl bg-ink/45 p-2 ring-1 ring-white/10 backdrop-blur-sm">
+                {joinForm(false)}
+              </div>
+            ) : (
+              primaryBlock(false)
+            )}
           </div>
         )}
 
@@ -482,6 +614,17 @@ export default function Lobby() {
           </p>
         )}
       </footer>
+      </div>
+      {/* 穿窗途中唯一能点的一颗键：取消 = 立刻复位（安卓返回键走 ui/backButton 的层栈，同一个 handler） */}
+      {flying && (
+        <button
+          type="button"
+          onClick={cancelMatchCine}
+          className="absolute right-3 top-3 z-10 h-9 rounded-full bg-panel/85 px-3 text-xs font-semibold text-slate-200 backdrop-blur ring-1 ring-white/15"
+        >
+          <Trans>✕ 取消</Trans>
+        </button>
+      )}
     </div>
   );
 }
@@ -491,7 +634,27 @@ export default function Lobby() {
  * 点一下直接开列表那一屏（`aria-pressed` 在这里没有意义，所以不写）。
  * ★ 比模式卡窄一档（`6rem~9rem`）：4 张按原宽在 800×363 上会折行，把底栏主键挤出屏幕。
  */
-function OpenRoomsCard({ onClick }: { onClick: () => void }) {
+function OpenRoomsCard({ onClick, compact = false }: { onClick: () => void; compact?: boolean }) {
+  if (compact) {
+    // 匹配页（明月窗背景）用的紧凑版：一行、只有图标 + 标题 + 箭头（高度 ≈ 34 px）
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex w-full items-center gap-2 rounded-lg bg-panel/70 px-2 py-1 text-left ring-1 ring-white/10 active:bg-raised"
+      >
+        <span aria-hidden className="flex h-6 w-6 flex-none items-center justify-center rounded-full bg-brand/20 text-[12px] font-black text-brand-200">
+          🏠
+        </span>
+        <span className="text-[11px] font-bold leading-tight text-slate-100">
+          <Trans>公开房</Trans>
+        </span>
+        <span className="ml-auto text-[9px] leading-tight text-slate-400">
+          <Trans>看列表 ›</Trans>
+        </span>
+      </button>
+    );
+  }
   return (
     <button
       type="button"
@@ -525,6 +688,7 @@ function ModeCard({
   badge,
   selected,
   onSelect,
+  compact = false,
 }: {
   glyph: string;
   title: string;
@@ -532,7 +696,35 @@ function ModeCard({
   badge: string;
   selected: boolean;
   onSelect: () => void;
+  /** 匹配页（明月窗背景）用的一行紧凑版：只留图标 + 标题 + 选中标（不高过 34 px）。 */
+  compact?: boolean;
 }) {
+  if (compact) {
+    return (
+      <button
+        type="button"
+        onClick={onSelect}
+        aria-pressed={selected}
+        aria-label={`${title}（${line}）`}
+        className={`flex w-full items-center gap-2 rounded-lg px-2 py-1 text-left ring-1 transition-transform duration-75 ${
+          selected
+            ? "bg-brand/[0.14] ring-2 ring-brand/70 motion-reduce:translate-y-0"
+            : "bg-panel/70 ring-white/10 active:bg-raised"
+        }`}
+      >
+        <span
+          aria-hidden
+          className={`flex h-6 w-6 flex-none items-center justify-center rounded-full text-[12px] font-black ${
+            selected ? "bg-brand/25 text-brand-100" : "bg-brand/20 text-brand-200"
+          }`}
+        >
+          {glyph}
+        </span>
+        <span className="truncate text-[11px] font-bold leading-tight text-slate-100">{title}</span>
+        <span className="ml-auto text-[9px] leading-tight text-slate-400">{selected ? "✓" : badge}</span>
+      </button>
+    );
+  }
   return (
     <button
       type="button"

@@ -23,6 +23,9 @@ import GameLayer from "./game/ui/GameLayer";
 // 对局大厅（2026-11-23）：进对局之前先选开局方式（4 人匹配 / 8 人匹配 / 自定义房间）。
 // 它与 GameLayer 是**前后两屏**：大厅在"还没有 state"的那一拍，对局 UI 在有了 state 之后。
 import Lobby from "./game/ui/Lobby";
+// 穿窗转场的页面层黑幕（2026-11-27，feat/gs-moon-window）：z-35，盖在 3D 与对局 UI 之上、
+// 大厅（z-40）之下。挂在大厅**外面**是为了匹配成功、大厅卸载之后黑幕还能淡出（见该文件头）。
+import MatchCurtain from "./game/ui/MatchCurtain";
 import SpectateScreen from "./game/ui/SpectateScreen";
 // 对局内设置（2026-11-24）：顶栏 ⚙ 打开，整屏盖住对局 UI（音量 / 画质 / 语言 / 操作提示 / 退出游戏）。
 // 它挂在**页面**这一层而不是 GameLayer 里：选风格那一屏 GameLayer 是早退的（只画 StylePick），
@@ -392,9 +395,11 @@ export default function StudioPage() {
    *   空流水线也照开（FlowCanvas 自带空态 + 「对画布说话」输入条，见 EmptyPipelineHint）。
    *   以前 0 段时这颗键只吐一句"先点虚线卡位"，而那条虚线卡位现在不存在了。
    * ★ 大厅也算"盖着"（2026-11-23）：不进对局的那几屏不挂 3D —— 大厅铺满舞台、纯 2D 入口卡。
+   *   ★★ 2026-11-27（feat/gs-moon-window）：**明月窗这一档例外** —— 大厅首屏的背景就是窗景 +
+   *   穿窗转场的 1.5 s 运镜，画布必须活着（`lobbyOpen && !gsScene` 才停帧：老场景逐字节不变）。
    * ★ 对局设置页也算（2026-11-24）：它同样是整屏实底，盖着的时候桌面还在每帧画 NPC（看不见、电照烧）。
    */
-  const canvasCovered = canvasOpen || lobbyOpen || settingsOpen || historyOpen || spectateOpen;
+  const canvasCovered = canvasOpen || (lobbyOpen && !gsScene) || settingsOpen || historyOpen || spectateOpen;
   /**
    * 横屏宽布局（G1 施工单 docs/g1-scene-plan.md §2 A）：左右各一条常驻条，3D 桌面留在中间。
    * ★ 判据只有一份（hooks/useIsLandscape）：`(orientation: landscape)`，也就是画布宽 > 高。
@@ -495,6 +500,9 @@ export default function StudioPage() {
             所以只在横屏摆；竖屏原样（开局入口本来就不在竖屏）。
           ⚠ safe-top 写在 @tailwind utilities 之后，同特异性下会**覆盖** p-3 的
           padding-top——所以竖排间距靠 pt-* 单独给，别指望 p-3 */}
+      {/* ★ 2026-11-27（feat/gs-moon-window）：大厅盖着时整条撤掉 —— 匹配页的背景是窗景，
+          这条会从大厅的透明底下面透出来（截图里"▶ 开局"正好压在"✕ 返回工坊"上）。 */}
+      {!lobbyOpen && (
       <div className="safe-top pointer-events-none absolute inset-x-0 top-0 flex items-start justify-end px-4 pb-3 pt-3">
         <div className="pointer-events-auto flex min-w-0 items-center gap-2 pt-1.5">
           {isLand && (
@@ -569,13 +577,14 @@ export default function StudioPage() {
           )}
         </div>
       </div>
+      )}
 
 
       {/* 提示条（NPC 气泡栏上方）。横屏：屏幕矮（462 CSS px）、这句话在窄舞台里折成两行，
           bottom-16 会正好压在摊开排那三张卡上（真机 3C15CJ00C8V00000 实测）—— 落到贴底 8px。
           ★ 开了一局时撤掉：对局态的底部是背包条与商店（GameLayer），这句话会被压在底下面。
           没开局时逐字不动（竖屏也一样）。 */}
-      {!inGame && (
+      {!inGame && !(lobbyOpen && isLand) && (
         <div className={`pointer-events-none absolute inset-x-0 flex justify-center ${isLand ? "bottom-2 px-3" : "bottom-16 px-4"}`}>
           <div
             data-guide="studio-hint"
@@ -633,6 +642,9 @@ export default function StudioPage() {
       {/* 对局覆盖层（G2 第二块）：只在横屏挂 —— 竖屏时它一个像素都不出现（施工单要求）。
           没有开局时组件自己 return null，所以这里不需要再判一次对局状态。 */}
       {isLand && <GameLayer />}
+      {/* 穿窗黑幕（2026-11-27）：z-35，3D 之上、大厅之下；匹配成功大厅卸载之后靠它把黑屏淡出。
+          只挂在横屏（大厅本来也只在横屏），竖屏那一屏逐字节不变。 */}
+      {isLand && <MatchCurtain />}
       {/* 大厅（2026-11-23）：横屏才挂（与对局一致；竖屏一个像素都不出现）。
           它自己判 lobbyStore.open 与"有没有开着局"（对局中不出现），所以这里不重复判。
           层级 z-40：盖住顶栏那颗「▶ 开局」（大厅里有自己的「✕ 返回工坊」）。 */}

@@ -26,6 +26,8 @@ export const GS_STATS = {
 
 let el: HTMLDivElement | null = null;
 let painted = "";
+/** 大厅盖着时藏起来（见 setGsHudHidden）：mountGsHud 建好节点时也要套用一次 */
+let hidden = false;
 
 function num(n: number): string {
   if (n >= 1e6) return `${(n / 1e6).toFixed(2)}M`;
@@ -56,6 +58,13 @@ export function updateGsHud(): void {
   el.textContent = next;
 }
 
+/** 大厅盖着时把角标藏起来（2026-11-27，feat/gs-moon-window）：它是 z-index 9999 的开发者读数，
+ *  会压住匹配页右下的"凭码加入"输入框。大厅关掉就放回来，读数照旧。 */
+export function setGsHudHidden(next: boolean): void {
+  hidden = next;
+  if (el) el.style.display = next ? "none" : "";
+}
+
 /** 挂上角标，返回摘掉它的函数（GsStep0Room 的 useLayoutEffect 用） */
 export function mountGsHud(): () => void {
   // 同一个人重复挂（StrictMode 的挂→卸→挂、或路由快速来回）时先摘掉上一份，
@@ -63,6 +72,8 @@ export function mountGsHud(): () => void {
   el?.remove();
   const node = document.createElement("div");
   node.setAttribute("data-gs-hud", "1");
+  // 大厅开着时建出来的角标也照样藏（StrictMode 挂→卸→挂 / 场景重挂会重新走这里）。
+  // ★ 这一行必须在下面 cssText 之后：cssText 会把整个 inline style 覆写掉（第一版放前面，display 被抹平）。
   // 右下角：不压顶栏的键、也不压底部提示条（StudioPage 底栏在中间）。
   // 11px 是手机屏上"能读、又不占半屏"的量（真机 dpr 3 ⇒ 物理 33px）。
   node.style.cssText = [
@@ -80,6 +91,7 @@ export function mountGsHud(): () => void {
     "border-radius:7px",
     "box-shadow:0 1px 6px rgba(0,0,0,0.35)",
   ].join(";");
+  node.style.display = hidden ? "none" : "";
   document.body.appendChild(node);
   el = node;
   painted = readout();
@@ -89,4 +101,9 @@ export function mountGsHud(): () => void {
     if (el === node) el = null;
     painted = "";
   };
+}
+
+// DEV 钩子：验收脚本要在大厅打开的那几屏把角标藏掉（正式包里不存在）
+if (import.meta.env.DEV) {
+  (window as unknown as Record<string, unknown>).__gsHudHide = setGsHudHidden;
 }
