@@ -1,122 +1,81 @@
-// ★★ 壁炉真火 · 第 6 版（2026-11-26，`feat/gs-perf-fire`；主人真机验收的三条观感 + 性能）
+// ★★ 壁炉真火 · 第 7 版（2026-11-27，`feat/gs-fire-sim`）：**动态仿真**，不是贴图/序列帧。
 //
-// 这一版相对第 5 版只动了四件事（形态/图集/色温公式都没改）：
-//   ① **烟改成软边**：每片 alpha = 噪声（2~3 个八度）× 径向衰减，面片边缘恒为 0（不再出现
-//      "灰纸"那种几何直边）；每片自己的 UV 滚动 + 随机相位。片数 4 → **2**（性能项），
-//      但每片里画两团（见 SMOKE_FRAG），观感上仍是 4 团。
-//   ② **炭火从"点"改成"白热炭块"**：16 块贴柴堆**上表面**的 billboard 面片，屏上 ≥6 CSS px，
-//      中心 #fff3d0 / 边缘 #ff7a2f，2~7 Hz 各自闪烁，外加一片加色光晕（轻微 bloom 感）。
-//      上一版是 points 且埋在两根柴的缝里（y≈-0.038）—— 真机近景里整排被柴挡住，
-//      这才是"16 点看不见"的真正原因，不是尺寸一个因素。
-//   ③ **根部蓝焰**：混蓝量 0.75 → 1.10，阈值区从 `vUv.y<0.14` 扩到 `<0.22`；另加一片**贴着柴面**
-//      的青蓝加色光晕（depthTest=false）—— 火焰面片 v<0.22 那一段本来就被柴挡住，只改 shader 看不出来。
-//   ④ **火焰采样 6 → 4 次**：外焰（第 1 层）相邻两帧交叉淡化（2 次），两层内焰各采 1 帧。
-//      `gsFireTaps=6` 是验收口子，可回到"每层 2 帧"对照，只用来量，生产不写这个键。
+// 主人验收第 6 版的观感原话是"现在看着像静态火"。病根不在参数，在**驱动方式**：整团火的形态
+// 来自一张离线烘的 64 帧图集（5.2 s 一个循环），运行时只是在相邻两帧之间插值 —— 于是
+//   ① 每一次循环都回到上一轮那一帧（周期 5.2 s，看得出"重播"）；
+//   ② 火焰的卷边、撕口、火舌摆动全是烘死的，粒子/光照不参与形态，读起来就是"会动的贴图"。
+// 这一版换掉驱动方式，五件事（对应主人给的 5 条）：
 //
-// ★ 性能账（真机中端机的估算，验收报告里给的是同一份数）：
-//   · 调用：柴木 3 + 火焰 3 + 炭火 1 + 炭火光晕 1 + 根部蓝焰 1 + 火星 1 + 烟 2 + 热雾 1
-//     + 炉口柔光 1 + 炉拱补光 1 + 地面光池 1 = **16 次**（与第 5 版持平：烟 -2、两片光晕 +2）；
-//     三角面 < 450；
-//   · 纹理：图集文件 4096²，**运行时降到 2048²** 再上 GPU（见 useFireAtlas）；
-//   · 片元：每像素 4 次图集采样（第 5 版 6 次），火焰片在最近机位也只有 ~120×170 px。
-
-// 上一版（第 3 版 `feat/gs-polish2`）是**程序化**的三层 fbm 火焰：形态靠三条解析火舌取并集，
-// 纹理靠每帧现算的噪声。验收时主人点名"观感仍像贴片"。这一版换了做法，六件事：
+//   ① **实时程序化火焰形态**（`FLAME_FRAG`）：不再有图集。运行时生成 32³ 的**可平铺噪声体素**
+//      （`fireSim.makeNoiseVolume`：R = 流函数 ψ、G = 主体纹理、B = 细节），着色器里：
+//        · **3D curl/涡度**：ψ 的旋度（体素 R 通道，z 轴走时间）当横向涡流，把轮廓与细节一起拧；
+//        · **上升速度场**：噪声按 `q.y - uTime*speed` 取样 ⇒ 纹理往上走；中心快、两侧慢；
+//        · **时间演化**：所有时间项都是 `+uTime`，没有 `fract`/取模，相位只增不减；
+//        · **3 个频率层**：外焰 / 中焰 / 内焰，各自的缩放、频率、上卷速度、相位（互质），
+//          叠在一张面片上（= 上一版 3 张面片的加色叠加，draw call 从 3 降到 1）。
+//      图集整个删掉：21 MB 显存 + 一次 0.28 MB 的 fetch 换来的只是"会重播的细节"。
 //
-//   ① **火焰形态 = 离线烘的 64 帧图集**（`design/gen-fire-atlas.mjs` →
-//      `public/models/study/tex/fire-atlas.webp`，64 帧 × 512² 拼成 8×8 = 4096²，WebP 0.28 MB）：
-//      curl noise 推着温度场往上走，火的卷边、撕口、火舌尖端都在离线那一步做出来。
-//      运行时按时间采样 **3 层**（不同缩放 / 速度 / 相位），每层在相邻两帧之间交叉淡化，
-//      叠加成会翻卷的火舌 —— 而不是一块静态 teardrop。
-//      ★ 为什么不再现算：火的"怎么卷"是**时间演化**，现算噪声只能近似成"会动的噪点"；
-//        而且每帧 3 个八度 + 3 条火舌的循环在片元上是笔真开销。烘成图集之后运行时只剩采样。
-//      ★ 图集只存**温度**（单通道灰度），颜色现算 —— 同一张图才能同时表达外焰 900 K 的暗红
-//        与内焰 1900 K 的黄白。细节取舍见生成脚本的文件头。
+//   ② **火焰粒子仿真**（`fireSim.FireParticles`，420 颗）：真物理积分 —— 向上速度随温度衰减、
+//      3D curl 涡流、空气阻力、尺寸随时间增大、温度 1→0（颜色白黄→橙→暗红→烟）、寿命 0.6~1.6 s。
+//      用 `Points` + 自定义着色器（加色混合）渲染，负责"跳动感"与火苗边缘的碎块。
 //
-//   ② **黑体色温**：颜色不再手调三段 RGB，而是"温度 → 颜色"的映射（`blackbody()`）：
-//      外焰 ~900 K 暗红 → 中焰 ~1400 K 橙 → 内焰 ~1900 K 黄白；亮度按 `heat^1.5` 走，
-//      所以火舌尖端自然暗下去，不需要额外的透明度渐变。
+//   ③ **余烬/火星带物理**（32 颗，与火焰粒子共用一次 draw call）：向上初速 + 侧向涡流 +
+//      空气阻力 + 亮度按寿命衰减（每颗还有自己的闪烁相位）。原来的 32 颗是解析正弦漂移，
+//      轨迹是闭合的、永远同一批位置。
 //
-//   ③ **蓝焰根部**：真实柴火在燃料面附近有一层蓝的化学发光（不在黑体曲线上），
-//      单独混一点点蓝（只出现在"有火但温度还不高"的根部像素上）。
+//   ④ **光照联动**：点光强度由**火焰总能量**驱动 —— 每帧把 420 颗粒子的温度求均值
+//      （`FireParticles.energy`），不再用三频正弦。火旺的时候灯更亮、色温更白，火弱的瞬间暗下去；
+//      淡入/淡出按 8 Hz 指数平滑（防止整团火像 strobe）。
 //
-//   ④ **柴木与余烬**：柴木接触处保留第 3 版那条沿长度的 emissive 渐变（接触火焰的中段最亮、
-//      朝上的面压一档、两端炭化），另加 **16 颗炭火发光点**（`COALS`，贴在柴堆上表面的
-//      随机极坐标点，各自随机闪烁 —— 不是往上飘的火星，这一版两者分开）。
+//   ⑤ **性能**：火焰从 3 个 draw call 降到 1；粒子层（火焰 + 余烬）1 个；合计 **-1** 次
+//      （上一版 16 → 这一版 15）。片元：火焰每像素 10 次 3D 体素采样（3 层 × 2 + curl 4），
+//      粒子屏上只有几像素、且是点精灵（无纹理）。详见 `FIRE_FX` 与 docs/gs-table-light-log.md §16。
 //
-//   ⑤ **烟**：4 片半透明面片从火舌顶端往上飘、边升边散、到顶渐隐（`SMOKE_COUNT`）。
+// ★★ 光照边界（第 3 版写下的，仍然成立）：高斯泼溅用的是 ShaderMaterial，three 只给"要灯"的
+//   材质上传灯光 uniform ⇒ 壁炉点光**只照 mesh**（桌子 / NPC / 卡牌 / 法阵 / 柴木）。splat 的墙、
+//   窗、地板一个像素都不会变亮；"炉膛被火照亮"靠炉口柔光 / 炉拱补光 / 地面光池那几片加色面片。
 //
-//   ⑥ **热扰动**：炉口上方一层"抖动的热雾"面片近似屏幕空间扭曲（`HAZE`）。
-//      ★ 真要**扭曲背景**必须先把场景渲进 render target 再采样（postprocessing 那条路），
-//        主人点名不要引那个依赖；这一层的做法是"用 UV 偏移的噪声热雾"近似 —— 观感是
-//        炉口上方的空气在抖，但它不会真的把后面的 splat 墙拧弯（这条写在风险里）。
+// ★★ 绘制顺序：SparkRenderer 是透明材质、renderOrder=10；火焰/烟/热雾都是透明，必须 ≥20。
+//   粒子（Points）是加色透明，同样 ≥20（与火焰同组、renderOrder 21）。
 //
-// ★★ 光照边界（第 3 版就写在这里，仍然成立）：高斯泼溅用的是 ShaderMaterial，three 只给
-//   "要灯"的材质上传灯光 uniform ⇒ 壁炉点光**只照 mesh**（桌子 / NPC / 卡牌 / 法阵 / 柴木）。
-//   splat 的墙、窗、地板一个像素都不会变亮。所以"炉膛被火照亮"这件事从来不是灯干的：
-//   炉口柔光 + 炉拱补光（`arch`）这两片加色面片才是。这一版新增的"炉膛内补光"点光
-//   （`fill`）照的仍是 mesh（柴木与桌沿），别指望它把 splat 的炉拱打亮。
+// ★★ 这一版还挖出一个**更早就在害人的根因**（"火看着像静态火"的真正原因，不是图集不好看）：
+//   R3F 9.3 起 `<shaderMaterial uniforms={obj}>` **不再把 obj 原样挂到材质上**，而是把值
+//   `Object.assign` 进材质自己的 uniforms 对象（"ShaderMaterial uniforms must keep a stable
+//   target reference"）。而这一份（以及上一版）的动画全靠 `uniforms.uTime.value = t` 推 —— GPU 上
+//   那个 uTime 恒为 0：**火焰/烟/柴木/热雾的所有噪声都停在第一帧**，只有 JS 里算的灯光闪烁还在动，
+//   于是看起来就是"一张会呼吸的静态贴图"。修法见下面的 useLayoutEffect（把材质的 uniforms 换回我们
+//   自己的对象）；验收时看 `__gsFire.matTime === __gsFire.uTime`。
 //
-// ★★ 绘制顺序：SparkRenderer 是透明材质、renderOrder=10；火焰/烟/热雾都是透明，必须
-//   ≥20，否则会先画、再被 splat 整片糊上来（第 3 版验收第一版"看不见火"就是这个原因）。
-//   炭火/火星是 points（也是加色透明），同样 ≥20。
-//
-// ★ 性能账（真机中端机的估算，验收报告里给的是同一份数）：
-//   · 调用：柴木 3 + 火焰 3 + 炭火 1 + 火星 1 + 烟 4 + 热雾 1 + 炉口柔光 1 + 炉拱补光 1
-//     + 地面光池 1 = **16 次**（上一版 9 次，净增 7 次）；三角面 < 400（都是两三角面片 +
-//     12 段圆柱），对 draw call 敏感的中端机可以忽略；
-//   · 纹理：图集文件 4096²（0.28 MB WebP），**运行时降到 2048²** 再上 GPU（见 useFireAtlas）：
-//     RGBA8 16 MB + mip ≈ 5.3 MB = **21.3 MB**；不降采样直接铺 4096² 是 67 MB + mip 89 MB，
-//     那是旗舰机的预算，不是中端机的；
-//   · 片元：每像素 6 次图集采样（3 层 × 2 帧交叉），火焰片在最近机位也只有 ~120×170 px，
-//     总采样量远小于一次全屏后处理。
-import { useEffect, useMemo, useRef, useState } from "react";
+// ★ 验收"真的在动"（`gsAcceptDebug=1` 时挂 `window.__gsFire`，生产里不存在）：
+//   `__gsFire.pause()` 冻结火的全部时间（粒子、噪声、烟、炭火、灯都读同一个仿真时间），
+//   `__gsFire.step(0.2)` 按 1/60 s 定步长推进 —— 同一机位隔 200 ms / 3 s 截两帧比像素差即可。
+//   冻结的是"火的仿真"，不是 r3f 的渲染循环；渲染照常跑，画面才截得到。
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
+import { FLAME_PARTICLES, EMBER_PARTICLES, FireParticles, makeNoiseVolume } from "./fireSim";
 
 /** 外焰片的高度/宽度（m）。★ 数值的来由见第 3 版（0.30 × 0.42 是炉口内净高的 42%）。 */
 const FLAME_W = 0.3;
 const FLAME_H = 0.42;
 
-/** 相对锚点的层级偏移（m）：三层错开一点点深度，避免同深度加色混合时的 z-fighting 亮斑 */
-const LAYER_Z = [0.012, 0.004, -0.004];
+/** 噪声体素边长（32³ = 32768 个体素，约 2.1M 次散列，挂载时一次 ~40 ms） */
+const NOISE_SIZE = 32;
 
-/** 图集：文件与实际采样（形状与生成脚本一一对应，改生成脚本要同步这里） */
-const ATLAS_URL = "/models/study/tex/fire-atlas.webp";
-/** 8×8 = 64 帧 */
-const TILES = 8;
-const TILE_FRAMES = TILES * TILES;
-/** 一整个 64 帧循环的秒数（5.2 s ⇒ 约 12.3 fps 的画面更新，火舌的"卷"读起来是慢的） */
-const LOOP_SEC = 5.2;
+/** 三层火的参数（一张面片里算三层，加色叠加；数值沿用上一版三张面片的宽高比与 alpha）：
+ *  w/h = 相对外焰的宽/高，freqX/freqY = 噪声采样频率，speed = 上卷速度（1/s），seed = 相位。 */
+const FLAME_LAYERS = [
+  { w: 1.0, h: 1.0, freqX: 6.0, freqY: 2.0, speed: 0.55, alpha: 0.7, seed: 0.0 },
+  { w: 0.86, h: 0.9, freqX: 8.0, freqY: 2.8, speed: 0.8, alpha: 0.62, seed: 1.7 },
+  { w: 0.6, h: 0.74, freqX: 11.0, freqY: 3.8, speed: 1.1, alpha: 0.5, seed: 3.9 },
+] as const;
 
-interface FlameLayer {
-  /** 相对外焰的宽/高（0~1） */
-  w: number;
-  h: number;
-  /** 图集播放速度（1 = 一个 LOOP_SEC 走完 64 帧） */
-  speed: number;
-  /** 相位偏移（0~1 个循环） */
-  phase: number;
-  /** 取样缩放：>1 = 把图集放大（细节变大），<1 = 缩小（更多细节进画面） */
-  scale: number;
-  /** 色温偏移（K）：让三层不完全同色 */
-  tint: number;
-  alpha: number;
-}
+/** 烟片数：第 6 版 4 → 2（性能项；每片里画两团，见 SMOKE_FRAG） */
+const SMOKE_COUNT = acceptInt("gsSmokeN", 2, 1, 6);
+/** 炭火炭块数（**贴在柴上**的白热炭块，不是飘的火星）：主人给的 10~20，取 16。 */
+const COALS = 16;
 
-/** 三层火：外焰最宽最慢、内焰最窄最快。
- *  ★ 顺序 = 绘制顺序（都是加色，顺序只影响观感浓淡）：外焰先、内焰最后压在最上面。
- *  ★ alpha 是量出来的：三层相加 ≈ 2.35，经 `1 - exp(-Σ·0.85)` 的软饱和之后中心到 0.95 左右
- *    （刚好"过曝边缘"的黄白），外圈仍留橙红。再亮就只剩白团。
- *  ★ scale 取 0.90~1.12：只在 ±12% 内缩放，超出会采到相邻帧那一格（图集是 8×8 拼的）。 */
-const FLAME_LAYERS: FlameLayer[] = [
-  { w: 1.0, h: 1.0, speed: 1.0, phase: 0.0, scale: 1.0, tint: -60, alpha: 0.7 },
-  { w: 0.86, h: 0.9, speed: 1.45, phase: 0.31, scale: 0.9, tint: 30, alpha: 0.6 },
-  { w: 0.6, h: 0.74, speed: 2.05, phase: 0.67, scale: 1.12, tint: 120, alpha: 0.5 },
-];
-
-/** 验收口子（生产里不写这些键 = 下面的缺省值）：换档要重新进工坊（材质/几何在挂载时建）。
- *  ★ 与 `gsFireAlpha` 同一种做法（见组件里那个 alphaScale）：只给 A/B 量数据用，不上面。 */
+/** 验收口子（生产里不写这些键 = 下面的缺省值）；只给 A/B 量数据用，不是产品开关。 */
 function acceptInt(key: string, fallback: number, min: number, max: number): number {
   try {
     const v = Number(localStorage.getItem(key));
@@ -126,35 +85,27 @@ function acceptInt(key: string, fallback: number, min: number, max: number): num
   }
 }
 
-/** 火星（往上飘的余烬）颗数：第 3 版的 32 颗保持不变 */
-const EMBER_COUNT = 32;
-/** 炭火炭块数（**贴在柴上**的白热炭块，不是飘的火星）：主人给的 10~20，取 16。
- *  ★ 第 6 版从 points 改成 billboard 面片：点精灵在近景只有 2~4 CSS px，而且上一版埋进柴缝里。 */
-const COALS = 16;
-/** 烟片数：第 5 版 4 → 第 6 版 **2**（性能项；每片里画两团，见 SMOKE_FRAG）。
- *  ★ `gsSmokeN=4` 是验收口子，回到第 5 版的 4 片只用来量 draw call / fps 的差。 */
-const SMOKE_COUNT = acceptInt("gsSmokeN", 2, 1, 6);
-
-/** 每层火焰取几帧（2 = 相邻两帧交叉淡化，1 = 单帧）。
- *  ★ 默认 4 次采样：外焰 2 次（它最显眼，必须平滑），两层内焰各 1 次（12~25 Hz 的换帧
- *    读起来就是火苗自己闪，反而更像火）；`gsFireTaps=6` 回到第 5 版"每层 2 帧"做对照。 */
-const LAYER_TAPS: number[] =
-  acceptInt("gsFireTaps", 4, 4, 6) >= 6 ? FLAME_LAYERS.map(() => 2) : FLAME_LAYERS.map((_, i) => (i === 0 ? 2 : 1));
-
 /** 验收要报的那几个数（`TableScene.AcceptProbe` 的 `fire` 一栏读它）：
- *  层数 / 图集帧数 / 取样次数 / 火星 / 炭火 / 烟 —— 全部只从这里出，别在验收脚本里再抄一遍。 */
+ *  层数 / 噪声频率层 / 粒子 / 余烬 / 炭火 / 烟 / 大小 —— 全部只从这里出，别在验收脚本里再抄一遍。 */
 export const FIRE_FX = {
+  /** 火焰视觉层数（一张面片里的外/中/内三层） */
   layers: FLAME_LAYERS.length,
-  atlasFrames: TILE_FRAMES,
-  /** 每像素的图集采样次数：各层 2 / 1 帧之和（第 5 版是层数 × 2 = 6） */
-  atlasTaps: LAYER_TAPS.reduce((a, b) => a + b, 0),
-  embers: EMBER_COUNT,
+  /** 实时 3D 噪声驱动的频率层数（= layers；相位永不复位） */
+  noiseLayers: FLAME_LAYERS.length,
+  /** 火焰粒子（仿真；不是图集帧） */
+  particles: FLAME_PARTICLES,
+  /** 带物理的余烬 */
+  embers: EMBER_PARTICLES,
   coals: COALS,
   smoke: SMOKE_COUNT,
   flameW: FLAME_W,
   flameH: FLAME_H,
-  /** 火焰这一块的总 draw call（与文件头那张账同一个口径；第 5 版 16） */
-  drawCalls: 16,
+  /** 火焰这一块的总 draw call（与文件头那张账同一个口径；第 6 版 16） */
+  drawCalls: 15,
+  /** 粒子层的 draw call（火焰 + 余烬共用 1 次） */
+  particleDraws: 1,
+  /** 火焰片每像素的 3D 体素采样次数（3 层 × 2 次 + curl 4 次） */
+  noiseTaps: 10,
 } as const;
 
 // ── 着色器 ──────────────────────────────────────────────────────────────────
@@ -181,65 +132,160 @@ const BLACKBODY = /* glsl */ `
   }
 `;
 
-// 火焰片：从图集取温度场 → 黑体上色 → 根部掺一点蓝。
-// 关键五行：
-//   framePos —— 时间 × 速度 + 相位，落在 64 帧上；
-//   heatAt   —— 按帧号取 8×8 图集里的一格（行号要按 flipY 翻过来，见 useFireAtlas）；
-//   mix      —— 相邻两帧交叉淡化，64 帧/5.2 s 才不会被读成"逐帧跳"；
-//   blackbody—— 温度 → 颜色（heat 开 1.2 次方：中段更偏橙，不至于一整片黄）；
-//   blue     —— 根部蓝焰（只出现在"有火但还不热"的那一圈）。
+// 火焰片（一张面片算三层）：
+//   curl2   —— 3D 涡度：流函数 = 体素 R 通道，z 轴走时间（涡旋自己也在演化）；
+//   tongue  —— 一条火舌：中心/半宽/高度 + **两频正弦摆动**（频率互质，相位永不回到原位）；
+//   layer   —— 一层火：三条火舌取并集 + 火床 + 向上平流的两层体素噪声 + 高度衰减 + 阈值成形。
+// 颜色仍是黑体（温度 → 颜色），亮度按 heat^1.5；根部掺一点蓝（化学发光不在黑体曲线上）。
 // i18n-ignore-next-line: GLSL 源码（注释在着色器里，不上界面）
 const FLAME_FRAG = /* glsl */ `
-  uniform sampler2D uAtlas;
+  uniform sampler3D uNoise;
   uniform float uTime;
-  uniform float uSpeed;
-  uniform float uPhase;
-  uniform float uScale;
-  uniform float uTint;
+  uniform float uEnergy;
   uniform float uAlpha;
-  uniform float uLoop;
-  uniform float uTiles;
-  uniform float uFrames;
-  /** 2 = 相邻两帧交叉淡化；1 = 单帧（内焰层，省一次图集采样） */
-  uniform float uTap;
   varying vec2 vUv;
   ${BLACKBODY}
 
-  float heatAt(vec2 uv, float frame) {
-    float f = mod(frame, uFrames);
-    float col = mod(f, uTiles);
-    float row = floor(f / uTiles);
-    // CanvasTexture（flipY=true）⇒ 纹理 v=0 是图片**底行**，所以行号要翻过来
-    vec2 org = vec2(col, uTiles - 1.0 - row) / uTiles;
-    // 夹在格内：不夹的话双线性会采到隔壁那一帧
-    vec2 local = clamp(uv, 0.0015, 0.9985) / uTiles;
-    return texture2D(uAtlas, org + local).r;
+  float nR(vec3 p) { return texture(uNoise, p).r; }
+  float nG(vec3 p) { return texture(uNoise, p).g; }
+  float nB(vec3 p) { return texture(uNoise, p).b; }
+
+  /** 3D 涡度（2D curl：ψ 在 x/y 上的旋度；z = 时间）。体素可平铺 ⇒ 采样坐标怎么卷都接得上。 */
+  vec2 curl2(vec3 p) {
+    float e = 0.022;
+    float dx = nR(p + vec3(e, 0.0, 0.0)) - nR(p - vec3(e, 0.0, 0.0));
+    float dy = nR(p + vec3(0.0, e, 0.0)) - nR(p - vec3(0.0, e, 0.0));
+    return vec2(dy, -dx) / (2.0 * e);
+  }
+
+  /** 一条火舌。★ 两频摆动 = 二层时间演化；两个频率（0.83 / 1.71 Hz 量级）与别的火舌互质，
+   *  所以整团火的相位**永不复位**（不是 5.2 s 一循环）。 */
+  float tongue(vec2 q, float c0, float w, float hh, float ph) {
+    float yy = clamp(q.y / hh, 0.0, 1.0);
+    float sway = 0.030 * sin(uTime * (0.83 + ph * 0.7) + ph * 6.28)
+               + 0.016 * sin(uTime * (1.71 + ph * 0.5) + ph * 3.10);
+    float c = c0 + sway * yy;
+    float hw = w * (1.0 - pow(yy, 1.30));
+    float band = smoothstep(hw, hw * 0.12 + 0.002, abs(q.x - c));
+    float tall = smoothstep(1.02, hh > 0.8 ? 0.86 : 0.72, yy);
+    return band * tall;
+  }
+
+  /** 一层火：q 是该层自己的归一坐标（0~1 = 这一层的包围盒）。
+   *  ★ 形态 = 三条火舌取并集 + 底部火床；温度 = 形态 × 向上平流的噪声 × 高度衰减，再阈值成形
+   *    （阈值窗越窄，火舌之间的缝越深 —— 这是"撕口"的来源）。 */
+  float layerHeat(vec2 q, float freqX, float freqY, float speed, float seed) {
+    float shape = 0.0;
+    shape = max(shape, tongue(q, 0.36, 0.20, 0.66, seed));
+    shape = max(shape, tongue(q, 0.50, 0.24, 0.92, seed + 0.37));
+    shape = max(shape, tongue(q, 0.64, 0.19, 0.58, seed + 0.71));
+    float bed = smoothstep(0.44, 0.16, abs(q.x - 0.5)) * smoothstep(0.34, 0.02, q.y);
+    shape = max(shape, bed);
+    // 上升速度场 + 时间演化：纹理按 q.y - t*speed 向上平流（中心列更快，见下面的 sy）
+    float center = (q.x - 0.5) / 0.30;
+    float sy = 1.0 + 0.6 * exp(-center * center);
+    vec3 tp = vec3(q.x * freqX + seed * 3.7, q.y * freqY * sy - uTime * speed + seed * 1.9, uTime * 0.045 + seed);
+    float n = 0.62 * nG(tp) + 0.28 * nB(tp * vec3(1.73, 1.91, 1.0) + 4.1) + 0.10 * nG(tp * 3.3 + 7.7);
+    float fall = pow(clamp(1.0 - q.y, 0.0, 1.0), 1.8);
+    float heat = shape * (0.38 + 0.72 * n) * (0.50 + 0.55 * fall);
+    heat = smoothstep(0.30, 0.74, heat);
+    // 根部白热（柴缝里那一线，温度最高）；★ 收窄：第 1 版把整个底部烧成一团白，柴都看不见了
+    float root = smoothstep(0.14, 0.0, q.y) * pow(clamp(1.0 - abs(q.x - 0.5) / 0.38, 0.0, 1.0), 1.1);
+    heat = max(heat, root * (0.20 + 0.24 * n));
+    // 芯部：下三分之一、中心一带总有一团连续的火（噪声只负责撕边，不负责把火撕没）
+    float core = smoothstep(0.34, 0.02, q.y) * smoothstep(0.18, 0.04, abs(q.x - 0.5)) * 0.22;
+    heat = max(heat, core);
+    float inside = step(0.0, q.x) * step(q.x, 1.0) * step(0.0, q.y) * step(q.y, 1.0);
+    return heat * inside;
   }
 
   void main() {
-    vec2 uv = (vUv - 0.5) * uScale + 0.5;
-    float fpos = fract(uTime / uLoop * uSpeed + uPhase) * uFrames;
-    float f0 = floor(fpos);
-    float w = fpos - f0;
-    float heat = heatAt(uv, f0);
-    // ★ 第 6 版：只有外焰在相邻两帧之间插值（2 次采样）；内焰层单帧（1 次采样）。
-    //   总采样 4 次（第 5 版 6 次）。uniform 分支不会发散，驱动的代价就是"少两次纹理取样"。
-    if (uTap > 1.5) heat = mix(heat, heatAt(uv, f0 + 1.0), w);
-    // ① 黑体色温：900 ~ 1900 K（uTint 让三层不完全同色）
-    float K = 900.0 + (1000.0 + uTint) * pow(heat, 1.2);
-    vec3 col = blackbody(K);
-    // ② 亮度：芯白、边红、尖暗 —— 亮度和色度分开走（见 blackbody 的 ★）
-    float bright = (0.06 + 0.94 * pow(heat, 1.5)) * smoothstep(0.02, 0.26, heat);
-    // ③ 底边淡出：火焰片下沿压在柴面里，但采样仍会取到 v=0 那一行 —— 不淡就是一条硬直线
-    bright *= smoothstep(0.0, 0.04, vUv.y);
-    // ④ 蓝焰根部：燃料面附近那一圈化学发光（不在黑体曲线上）。
-    // ★ 第 6 版：阈值区 0.14 → **0.22**、混蓝量 0.75 → **1.10**。真机近景里第 5 版那条蓝只贴在
-    //   最底一拃、又被柴影/黑体橙盖掉，"炉膛底部有青蓝"根本读不出来；这两下是照着近景截色调的。
-    // ★ 第 5 版还有一道 smoothstep(0.8, 0.3, heat) 的上限门 —— 图集底床是连续高温（heat≈1），
-    //   那道门会把底部整圈蓝全压成 0，等于白加。这一版只保留下限（有火才蓝），不再按"热度低"筛。
-    float blue = smoothstep(0.22, 0.02, vUv.y) * smoothstep(0.02, 0.16, heat);
-    col = mix(col, vec3(0.26, 0.52, 1.00), blue * 1.1);
-    gl_FragColor = vec4(col * bright * uAlpha, 1.0);
+    // ① 3D 涡度：一次算好、三层共用（同一条涡流推三层；各层只在自己的坐标里缩放）
+    vec2 flow = curl2(vec3(vUv.x * 2.3, vUv.y * 1.7, uTime * 0.06));
+
+    // ② 三层（外/中/内）：各自的包围盒（横向居中、底部对齐，与上一版三张面片一致）、
+    //    频率、上卷速度与相位 —— 这就是"至少 3 个频率层"。
+    vec3 col = vec3(0.0);
+    float total = 0.0;
+    for (int i = 0; i < 3; i++) {
+      // ★ GLSL ES 3.0：常量数组；三层参数与 JS 的 FLAME_LAYERS 一一对应（改一处要两边一起）
+      float w = i == 0 ? 1.0 : (i == 1 ? 0.86 : 0.6);
+      float h = i == 0 ? 1.0 : (i == 1 ? 0.9 : 0.74);
+      float fx = i == 0 ? 2.6 : (i == 1 ? 3.4 : 4.6);
+      float fy = i == 0 ? 1.15 : (i == 1 ? 1.5 : 2.0);
+      float sp = i == 0 ? 0.55 : (i == 1 ? 0.8 : 1.1);
+      float sd = i == 0 ? 0.0 : (i == 1 ? 1.7 : 3.9);
+      float al = i == 0 ? 0.62 : (i == 1 ? 0.55 : 0.46);
+      vec2 q = vec2((vUv.x - 0.5) / w + 0.5, vUv.y / h) + flow * (0.012 + 0.006 * float(i));
+      float heat = layerHeat(q, fx, fy, sp, sd);
+      total = max(total, heat);
+      float K = 850.0 + 650.0 * pow(heat, 1.1);
+      float bright = (0.05 + 0.95 * pow(heat, 1.25)) * smoothstep(0.02, 0.26, heat);
+      col += blackbody(K) * bright * al;
+    }
+
+    // ③ 底部淡出：面片下沿压在柴堆里（整组下沉 15 mm），不淡就是一条硬直线
+    col *= smoothstep(0.0, 0.04, vUv.y);
+    // ④ 根部蓝焰：燃料面附近那一圈化学发光（不在黑体曲线上）
+    float blue = smoothstep(0.22, 0.02, vUv.y) * smoothstep(0.02, 0.16, total);
+    col += vec3(0.10, 0.20, 0.44) * blue * 0.45;
+    // ⑤ 能量联动：粒子总能量给整团火一个"旺/弱"的增益（不是正弦）
+    float gain = 0.86 + 0.22 * clamp(uEnergy, 0.0, 1.4);
+    gl_FragColor = vec4(col * uAlpha * gain, 1.0);
+  }
+`;
+
+// ── 火焰粒子 + 余烬（一次 draw call；坐标/温度/尺寸全在 fireSim 里积分好）────────
+// i18n-ignore-next-line: GLSL 源码（注释在着色器里，不上界面）
+const PARTICLE_VERT = /* glsl */ `
+  attribute vec3 aState;   // x = 年龄 0~1、y = 温度 0~1、z = 世界尺寸（m）
+  attribute float aKind;   // 0 = 火焰粒子、1 = 余烬
+  uniform float uPxPerM;   // 视距 1 m 处 1 m 对应多少**物理**像素
+  uniform float uDpr;
+  varying float vHeat;
+  varying float vKind;
+  varying float vFade;
+  void main() {
+    vec4 mv = modelViewMatrix * vec4(position, 1.0);
+    gl_Position = projectionMatrix * mv;
+    float dist = max(0.22, -mv.z);
+    // 世界尺寸 → 屏幕点尺寸（gl_PointSize 的单位是物理像素，乘 dpr 才与 CSS 尺寸无关）
+    float px = aState.z * uPxPerM / dist;
+    gl_PointSize = clamp(px, 1.0 * uDpr, 7.0 * uDpr);
+    vHeat = aState.y;
+    vKind = aKind;
+    vFade = smoothstep(0.0, 0.06, aState.x) * smoothstep(1.0, 0.62, aState.x);
+    // 火焰粒子不许飘出火舌太多：过了 0.45 m 就淡掉（炉膛净高 0.42+，再高就不是"火"了）
+    if (aKind < 0.5) vFade *= smoothstep(0.62, 0.40, position.y);
+  }
+`;
+// i18n-ignore-next-line: GLSL 源码（注释在着色器里，不上界面）
+const PARTICLE_FRAG = /* glsl */ `
+  varying float vHeat;
+  varying float vKind;
+  varying float vFade;
+  ${BLACKBODY}
+  void main() {
+    vec2 d = gl_PointCoord - 0.5;
+    float r = length(d) * 2.0;
+    if (r > 1.0) discard;
+    float soft = smoothstep(1.0, 0.05, r);
+    vec3 col;
+    float a;
+    if (vKind < 0.5) {
+      // 火焰粒子：白黄 → 橙 → 暗红 → 烟（温度从 1 降到 0）
+      float h = clamp(vHeat, 0.0, 1.0);
+      vec3 fire = blackbody(820.0 + 1120.0 * pow(h, 0.8));
+      vec3 smoke = vec3(0.14, 0.135, 0.145);
+      col = mix(smoke, fire, smoothstep(0.12, 0.40, h));
+      a = soft * vFade * (0.04 + 0.16 * h);
+    } else {
+      // 余烬：更红、更小、亮度按寿命衰减（每颗自己的闪烁频率见 fireSim）
+      float h = clamp(vHeat, 0.0, 1.0);
+      col = blackbody(820.0 + 1120.0 * pow(h, 1.15));
+      a = soft * vFade * (0.16 + 0.36 * h);
+    }
+    gl_FragColor = vec4(col, a);
   }
 `;
 
@@ -304,61 +350,19 @@ const LOG_FRAG = /* glsl */ `
   }
 `;
 
-// ── 火星/余烬（往上飘）：第 3 版那份，颗粒数不变 ───────────────────────────────
-// i18n-ignore-next-line: GLSL 源码（注释在着色器里，不上界面）
-const EMBER_VERT = /* glsl */ `
-  attribute float aSeed;
-  uniform float uTime;
-  uniform float uSize;
-  varying float vA;
-  varying float vSeed;
-  void main() {
-    // 每颗一个随机寿命（1.2~3.1 s），相位各自错开 ⇒ 不会整批同时亮灭
-    float life = 1.2 + fract(aSeed * 7.13) * 1.9;
-    float t = fract((uTime + aSeed * 13.7) / life);
-    float rise = mix(0.035, 0.34, t) * (0.62 + 0.6 * fract(aSeed * 3.71));
-    vec3 p = position;
-    p.y += rise;
-    p.x += sin(t * 9.0 + aSeed * 6.28) * 0.02 * (0.3 + t);
-    p.z += cos(t * 7.0 + aSeed * 12.5) * 0.022 * (0.3 + t);
-    vec4 mv = modelViewMatrix * vec4(p, 1.0);
-    gl_Position = projectionMatrix * mv;
-    // ★ uSize = "视距 1 m 处的物理像素直径"：除以视距之后才是本颗的尺寸
-    gl_PointSize = (1.0 + 1.7 * fract(aSeed * 5.7)) * uSize / max(0.5, -mv.z);
-    vA = smoothstep(0.0, 0.12, t) * smoothstep(1.0, 0.55, t);
-    vSeed = aSeed;
-  }
-`;
-// i18n-ignore-next-line: GLSL 源码（注释在着色器里，不上界面）
-const EMBER_FRAG = /* glsl */ `
-  varying float vA;
-  varying float vSeed;
-  void main() {
-    vec2 d = gl_PointCoord - 0.5;
-    float r = length(d) * 2.0;
-    if (r > 1.0) discard;
-    vec3 hot = vec3(1.0, 0.92, 0.72);
-    vec3 cool = vec3(1.0, 0.42, 0.10);
-    vec3 col = mix(hot, cool, smoothstep(0.15, 0.85, r) * 0.85);
-    col = mix(col, cool * 0.7, fract(vSeed * 3.3) * 0.35);
-    gl_FragColor = vec4(col, smoothstep(1.0, 0.25, r) * vA);
-  }
-`;
-
 // ── 炭火：白热炭块（贴在柴堆上表面、各自闪烁；不飘）──────────────────────────
 // ★ 与"火星"分开：火星是**离开柴往上飘的**灰烬，炭火是**柴自己烧红的那几点**。
 // ★★ 第 6 版为什么从 points 改成面片：真机近景里 16 个点整排看不见。两个原因叠在一起 ——
 //   ① 上一版把点埋在两根柴的缝里（y≈-0.038，柴顶在 -0.004），从相机看被柴挡住；
 //   ② gl_PointSize 是**物理像素**，默认机位（火距相机 ~3.7 m）算下来只有 2~4 CSS px。
-//   现在每块炭是一个 billboard 面片：世界尺寸 3~6 cm，并在 shader 里按视距抬到"≥6 CSS px"，
-//   中心 #fff3d0 / 边缘 #ff7a2f、2~7 Hz 各自闪烁，外圈自带加色光晕（轻微 bloom 感）。
+//   现在每块炭是一个 billboard 面片：世界尺寸 3~6 cm，并在 shader 里按视距抬到"≥6 CSS px"。
 // i18n-ignore-next-line: GLSL 源码（注释在着色器里，不上界面）
 const COAL_VERT = /* glsl */ `
   attribute vec2 aCorner;   // 面片角点（-0.5~0.5）
   attribute float aSeed;
   uniform float uTime;
-  uniform float uPxPerM;    // 视距 1 m 处 1 m 对应多少**物理**像素
-  uniform float uDpr;       // devicePixelRatio（canvas 物理像素 / CSS 像素）
+  uniform float uPxPerM;
+  uniform float uDpr;
   varying vec2 vUv;
   varying float vI;
   void main() {
@@ -399,11 +403,8 @@ const COAL_FRAG = /* glsl */ `
 `;
 
 // ── 烟：2 片半透明面片（每片里两团），边升边散、到顶渐隐 ─────────────────────
-// ★★ 第 6 版修"烟有硬边（像灰纸）"：上一版的 alpha 是"一团径向体块 × 噪声阈值"，而径向体块
-//   在**面片的上下边**还没衰减到 0（length((uv-0.5)*vec2(1.9,1.0)) 在上边只有 0.5），
-//   于是烟柱的上、下沿各是一条几何直边 —— 近景看就是一张灰纸。
-//   现在：① 噪声用 3 个八度、alpha = 噪声 × 径向衰减；② 再加一道 `edge` 径向遮罩，
-//   让面片四条边上的 alpha **恒等于 0**；③ 每片自己的 UV 滚动（uScroll）+ 随机相位（uSeed）。
+// ★★ 第 6 版修"烟有硬边（像灰纸）"：alpha = fbm（3 个八度）× 径向衰减，再加一道 edge 径向遮罩，
+//   让面片四条边上的 alpha 恒等于 0；每片自己的 UV 滚动 + 随机相位。
 // i18n-ignore-next-line: GLSL 源码（注释在着色器里，不上界面）
 const SMOKE_FRAG = /* glsl */ `
   uniform float uTime;
@@ -512,60 +513,6 @@ function glowTexture(inner: string, outer: string): THREE.CanvasTexture {
   return tex;
 }
 
-/**
- * 图集加载（**渲染分辨率与文件分辨率分开**）。
- * 文件是 4096²（64 帧 × 512²）：那是"烘的时候"的分辨率，为的是细节一次做到位；
- * 真机上火焰片在最近机位也只有 ~120×170 px，采样 2048² 完全够用，而 VRAM 从
- * 67 MB（+ mip 89 MB）降到 16 MB（+ mip 21 MB）—— 中端机的预算才是底线。
- * ★ 降采样在**解码之后**一步做（drawImage 到 2048 的 canvas），不留 4096 的临时纹理。
- * ★ 用 CanvasTexture 而不是直接 `new THREE.Texture(bitmap)`：ImageBitmap 在 three 里
- *   忽略 `flipY`（已知行为），而火焰片的 v=0 必须是柴面 —— 走 canvas 这一条路径
- *   flipY 才是可靠的（shader 里的行号翻转按这个前提写，见 heatAt）。
- */
-function useFireAtlas(): THREE.Texture | null {
-  const [tex, setTex] = useState<THREE.Texture | null>(null);
-  useEffect(() => {
-    let alive = true;
-    let made: THREE.Texture | null = null;
-    void (async () => {
-      const res = await fetch(ATLAS_URL, { cache: "force-cache" });
-      // 控制台诊断，不是界面文案：用英文，免得进 i18n 基线（构建里 check-i18n 会拦中文裸字面量）
-      if (!res.ok) throw new Error(`fire atlas HTTP ${res.status}`);
-      const blob = await res.blob();
-      const bmp = await createImageBitmap(blob);
-      const S = 2048;
-      const cv = document.createElement("canvas");
-      cv.width = cv.height = S;
-      const g = cv.getContext("2d")!;
-      g.imageSmoothingEnabled = true;
-      g.imageSmoothingQuality = "high";
-      g.drawImage(bmp, 0, 0, S, S);
-      (bmp as ImageBitmap & { close?: () => void }).close?.();
-      if (!alive) return;
-      made = new THREE.CanvasTexture(cv);
-      made.flipY = true;
-      // ★ 温度场不是颜色：任何 sRGB 解码都会把 0.18 的中间调搬走，色温映射会整体偏亮
-      made.colorSpace = THREE.NoColorSpace;
-      made.wrapS = THREE.ClampToEdgeWrapping;
-      made.wrapT = THREE.ClampToEdgeWrapping;
-      made.minFilter = THREE.LinearMipmapLinearFilter;
-      made.magFilter = THREE.LinearFilter;
-      made.generateMipmaps = true;
-      made.needsUpdate = true;
-      setTex(made);
-    })().catch((err) => {
-      // 图集没了也要留个"暖的炉子"：光晕/火星/柴木的发光都在，只是没有火舌
-      // （控制台诊断用英文，同上面那条）
-      console.warn("[fire] fire atlas failed to load; drawing glow + sparks only", err);
-    });
-    return () => {
-      alive = false;
-      made?.dispose();
-    };
-  }, []);
-  return tex;
-}
-
 /** 一根柴：圆柱躺在炉膛里（默认圆柱沿 y，绕 x 转 90° 就顺着 z；再由外层 group 绕 y 摆角度） */
 interface LogSpec {
   /** 相对锚点的偏移（m） */
@@ -589,6 +536,30 @@ const LOGS: LogSpec[] = [
 const COLOR_BRIGHT = new THREE.Color("#ffb066");
 const COLOR_DIM = new THREE.Color("#ff7a2f");
 
+/** 验收冻结/步进的控制器（只在 `gsAcceptDebug=1` 时暴露） */
+interface FireDebugApi {
+  /** 是否冻结（默认 false；`step()` 会自动冻结） */
+  paused: boolean;
+  /** 仿真时间（秒，只增） */
+  readonly time: number;
+  /** 粒子总能量 0~1.4（点光强度读它） */
+  readonly energy: number;
+  /** 火焰着色器这一帧的 uTime（验尸用：确认 step 真的推进到 GPU 了） */
+  readonly uTime: number;
+  /** 材质上那份 uTime（与 uTime 不同 = 材质拿的不是同一个 uniform 对象） */
+  readonly matTime: number;
+  /** 材质 uniforms 与 useFrame 写的那份是不是同一个对象 */
+  readonly sameUniforms: boolean;
+  /** 第 0 颗粒子的位置（验收冻结/步进时看物理有没有走） */
+  readonly p0: number[];
+  /** 冻结/解冻火的全部时间 */
+  pause: (on?: boolean) => void;
+  /** 按 1/60 s 定步长推进 N 秒（自动冻结；下次 rAF 渲染出新的一帧） */
+  step: (seconds: number) => void;
+  /** 重新撒一遍（复位） */
+  reset: () => void;
+}
+
 export default function HearthFire({
   position,
   color = "#ff9a4a",
@@ -603,12 +574,50 @@ export default function HearthFire({
   const billboard = useRef<THREE.Group>(null);
   const glowMat = useRef<THREE.MeshBasicMaterial>(null);
   const blueMat = useRef<THREE.MeshBasicMaterial>(null);
-  const atlas = useFireAtlas();
-  const uniforms = useMemo(() => ({ uTime: { value: 0 } }), []);
+  /** 只在验收时读（和 uniforms 是不是同一份、材质里 uTime 到底是多少） */
+  const flameMat = useRef<THREE.ShaderMaterial>(null);
+  const particleMat = useRef<THREE.ShaderMaterial>(null);
+  const coalMat = useRef<THREE.ShaderMaterial>(null);
+  const hazeMat = useRef<THREE.ShaderMaterial>(null);
+  const logMats = useRef<Array<THREE.ShaderMaterial | null>>([]);
+  const smokeMatRefs = useRef<Array<THREE.ShaderMaterial | null>>([]);
   const [px, py, pz] = position;
-  /** 验收调参口：`localStorage.gsFireAlpha` 乘在每层 alpha 上（默认 1 = 代码里那份）。
-   *  ★ 火的亮度只能对着模拟器/真机的实际画面调；有了它就能"写 localStorage → 刷新"当场调，
-   *    调完把数抄回 FLAME_LAYERS。生产里没人写这个键 = 完全不存在。 */
+
+  /** ★★ 运行时生成的噪声体素（R = 流函数、G = 主体、B = 细节）：
+   *  这是"不做一次性烘焙"的另一半 —— 形态的**每一种变化**都从这份实时场里长出来，
+   *  没有一帧是离线烘好的。固定种子 ⇒ 每次进工坊同一个性格，但相位（时间）不同。 */
+  const noiseData = useMemo(() => makeNoiseVolume(NOISE_SIZE), []);
+  const noiseTex = useMemo(() => {
+    const t = new THREE.Data3DTexture(noiseData, NOISE_SIZE, NOISE_SIZE, NOISE_SIZE);
+    t.format = THREE.RGBAFormat;
+    t.type = THREE.UnsignedByteType;
+    t.minFilter = THREE.LinearFilter;
+    t.magFilter = THREE.LinearFilter;
+    t.wrapS = THREE.RepeatWrapping;
+    t.wrapT = THREE.RepeatWrapping;
+    t.wrapR = THREE.RepeatWrapping;
+    t.unpackAlignment = 1;
+    t.needsUpdate = true;
+    return t;
+  }, [noiseData]);
+  useEffect(() => () => noiseTex.dispose(), [noiseTex]);
+
+  /** 粒子仿真（火焰 420 + 余烬 32）：物理在 fireSim 里，渲染这边只上传属性。 */
+  const fire = useMemo(() => new FireParticles(), []);
+  /** 粒子 + 余烬共用的几何（一次 draw call）。属性数组是 fireSim 的同一份 Float32Array。 */
+  const particleGeo = useMemo(() => {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.BufferAttribute(fire.positions, 3).setUsage(THREE.DynamicDrawUsage));
+    g.setAttribute("aState", new THREE.BufferAttribute(fire.states, 3).setUsage(THREE.DynamicDrawUsage));
+    g.setAttribute("aKind", new THREE.BufferAttribute(fire.kinds, 1));
+    // 粒子会飘出初始包围盒：别让视锥剔除把整层摘掉（自算一个够大的球）
+    g.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0.5, 0), 1.6);
+    return g;
+  }, [fire]);
+  useEffect(() => () => particleGeo.dispose(), [particleGeo]);
+
+  /** 验收调参口：`localStorage.gsFireAlpha` 乘在火焰 alpha 上（默认 1 = 代码里那份）。
+   *  ★ 火的亮度只能对着模拟器/真机的实际画面调；有了它就能"写 localStorage → 刷新"当场调。 */
   const alphaScale = useMemo(() => {
     try {
       const v = Number(localStorage.getItem("gsFireAlpha"));
@@ -618,26 +627,18 @@ export default function HearthFire({
     }
   }, []);
 
-  /** 每层一份 uniform（时间共享同一个对象，见 useFrame：只写一次）。
-   *  ★ atlas 进依赖：纹理到位之前 uAtlas 是 null，材质得重建一份 uniform 才能拿到 sampler。 */
-  const layerMats = useMemo(
-    () =>
-      FLAME_LAYERS.map((L, i) => ({
-        uAtlas: { value: atlas },
-        uTime: uniforms.uTime,
-        uSpeed: { value: L.speed },
-        uPhase: { value: L.phase },
-        uScale: { value: L.scale },
-        uTint: { value: L.tint },
-        uAlpha: { value: L.alpha * alphaScale },
-        uLoop: { value: LOOP_SEC },
-        uTiles: { value: TILES },
-        uFrames: { value: TILE_FRAMES },
-        // 2 / 1：见 LAYER_TAPS（默认 4 次采样；gsFireTaps=6 时每层都是 2）
-        uTap: { value: LAYER_TAPS[i] },
-      })),
-    [uniforms, alphaScale, atlas]
+  /** 时间与能量：火焰着色器 / 烟 / 炭火 / 柴木 / 灯**共用同一个仿真时间**（冻结时一起停）。 */
+  const uniforms = useMemo(() => ({ uTime: { value: 0 }, uEnergy: { value: 0 } }), []);
+  const flameUniforms = useMemo(
+    () => ({
+      uNoise: { value: noiseTex },
+      uTime: uniforms.uTime,
+      uEnergy: uniforms.uEnergy,
+      uAlpha: { value: alphaScale },
+    }),
+    [uniforms, noiseTex, alphaScale]
   );
+  const particleUniforms = useMemo(() => ({ uPxPerM: { value: 800 }, uDpr: { value: 2 } }), []);
 
   /** 柴木的 uniform（三根共用一个时间位） */
   const logUniforms = useMemo(
@@ -650,35 +651,9 @@ export default function HearthFire({
     [uniforms]
   );
 
-  /** 火星：位置随机撒在柴堆上表面那一圈（x/z 都以锚点为原点，y=0 = 柴面） */
-  const emberGeo = useMemo(() => {
-    const g = new THREE.BufferGeometry();
-    const pos = new Float32Array(EMBER_COUNT * 3);
-    const seed = new Float32Array(EMBER_COUNT);
-    for (let i = 0; i < EMBER_COUNT; i++) {
-      // 极坐标撒点（sqrt 让分布均匀而不是聚在圆心）
-      const a = Math.random() * Math.PI * 2;
-      const r = Math.sqrt(Math.random()) * 0.1;
-      pos[i * 3] = Math.cos(a) * r;
-      pos[i * 3 + 1] = 0;
-      pos[i * 3 + 2] = Math.sin(a) * r * 1.15;
-      seed[i] = Math.random() * 10;
-    }
-    g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-    g.setAttribute("aSeed", new THREE.BufferAttribute(seed, 1));
-    return g;
-  }, []);
-  // ★ 5.5 是量出来的：7 的时候近距离机位一颗火星有 ~20 px，读成"飘着的光斑"而不是灰烬
-  const emberUniforms = useMemo(() => ({ uTime: uniforms.uTime, uSize: { value: 5.5 } }), [uniforms]);
-  useEffect(() => () => emberGeo.dispose(), [emberGeo]);
-
-  /** 炭火：16 块**白热炭块**（billboard 面片），贴在柴堆**上表面**（y ≥ 柴顶 -0.004 m）。
-   *  ★ 为什么不再用 points / 不再埋在柴缝里：见 COAL_VERT 头上的 ★★（真机验收"16 点看不见"）。
-   *  沿柴长方向撒 ±0.11 m、横向 ±0.05 m；上表面以上的几毫米是故意留的（下半截被柴挡住，
-   *  露出来的上半截才读作"嵌在柴面上的炭"）。 */
+  /** 炭火：16 块**白热炭块**（billboard 面片），贴在柴堆**上表面**（y ≥ 柴顶 -0.004 m）。 */
   const coalGeo = useMemo(() => {
     const g = new THREE.BufferGeometry();
-    // 每块 2 个三角 = 6 个顶点（不用 index，16 块一共 96 顶点，可以忽略）
     const verts = COALS * 6;
     const pos = new Float32Array(verts * 3);
     const corner = new Float32Array(verts * 2);
@@ -692,12 +667,8 @@ export default function HearthFire({
       [-0.5, 0.5],
     ];
     for (let i = 0; i < COALS; i++) {
-      // ★ 分布照着"顶柴 + 两根底柴之间的炭床"来：顶柴横在 x 方向（长 0.26），所以炭块在 x 上铺得宽
-      //   （±0.13）、在 z 上只占顶柴的厚度（±0.06）；这样从相机（+x/+z 一侧）看，火焰两侧都露得出炭。
       const across = (Math.random() - 0.5) * 0.26; // 顶柴长度方向（x）
       const along = (Math.random() - 0.5) * 0.12; // 顶柴厚度方向（z）
-      // 柴堆上表面 ≈ 锚点 y=0（顶柴中心 -0.042 + 半径 0.038 = -0.004）；
-      // 只放到 -0.005~+0.010，保证从相机这一侧能看到上半截。
       const up = -0.005 + Math.random() * 0.015;
       const s = Math.random() * 10;
       for (let v = 0; v < 6; v++) {
@@ -727,15 +698,11 @@ export default function HearthFire({
   /** 炭火床的加色光晕（轻微 bloom 感）：16 块炭一起把柴面烘出一层暖光，1 次 draw call。 */
   const coalGlowTex = useMemo(() => glowTexture("rgba(255,176,96,0.55)", "rgba(255,112,32,0.16)"), []);
   useEffect(() => () => coalGlowTex.dispose(), [coalGlowTex]);
-  /** ★ 根部蓝焰的"可见那一层"（2026-11-26 真机验收）：化学发光的蓝本应在火焰面片 v<0.22 那一段，
-   *  但那一段正好被柴挡住（火焰面片 depthTest 开着、下沿埋在柴堆里），近景里一条青蓝都看不到。
-   *  所以单独加一片青蓝加色光晕压在柴面上（depthTest=false，才会盖在柴前面）—— 与 shader 里
-   *  加浓的蓝焰是同一件事的两层：shader 管"露在柴上面的那截"，这一片管"贴着柴面的那一圈"。 */
+  /** 根部蓝焰的"可见那一层"：火焰面片 v<0.22 那一段被柴挡住，单独加一片青蓝光晕压在柴面上。 */
   const blueTex = useMemo(() => glowTexture("rgba(70,150,255,0.95)", "rgba(20,60,200,0.35)"), []);
   useEffect(() => () => blueTex.dispose(), [blueTex]);
 
-  /** 烟：2 片（第 6 版；gsSmokeN=4 是第 5 版对照），各自一个相位（uSeed）/寿命/UV 滚动速度；
-   *  位置/尺度固定，运动全在 shader 里 */
+  /** 烟：2 片，各自一个相位（uSeed）/寿命/UV 滚动速度；位置/尺度固定，运动全在 shader 里 */
   const smokeMats = useMemo(
     () =>
       Array.from({ length: SMOKE_COUNT }, (_, i) => ({
@@ -748,8 +715,7 @@ export default function HearthFire({
   );
 
   // 炉口柔光（竖直片，贴在火焰后面）+ 地面光池（贴地）+ 炉拱补光（更大更淡，盖住炉口）
-  const glowTex = useMemo(() => glowTexture("rgba(255,138,52,0.85)", "rgba(255,74,14,0.3)"), []);
-  const poolTex = useMemo(() => glowTexture("rgba(255,140,60,0.55)", "rgba(255,80,16,0.18)"), []);
+  const glowTex = useMemo(() => glowTexture("rgba(255,138,52,0.85)", "rgba(255,74,14,0.3)"), []);  const poolTex = useMemo(() => glowTexture("rgba(255,140,60,0.55)", "rgba(255,80,16,0.18)"), []);
   const archTex = useMemo(() => glowTexture("rgba(255,150,70,0.55)", "rgba(255,96,30,0.12)"), []);
   useEffect(
     () => () => {
@@ -760,42 +726,136 @@ export default function HearthFire({
     [glowTex, poolTex, archTex]
   );
 
-  useFrame(({ clock }) => {
-    const t = clock.elapsedTime;
-    // 多频正弦：7.3 Hz 的火舌主频 + 2.1 Hz 的"呼吸" + 23.7 Hz 的细碎抖动。
-    // 幅度 22%：再大就是警灯，再小看不出"活"（真机 60fps 下量过）。
-    const wave = 0.62 * Math.sin(t * 7.3) + 0.26 * Math.sin(t * 2.1 + 1.7) + 0.12 * Math.sin(t * 23.7 + 0.3);
-    const flick01 = 0.5 + 0.5 * wave; // 0 = 最暗、1 = 最亮
+  // ★★ 2026-11-27 真机/模拟器验收挖出来的**根因**（"火看着像静态火"）：
+  //   R3F 9.3 起，`<shaderMaterial uniforms={obj}>` **不再把 obj 原样挂上去**，而是把
+  //   `Object.assign` 进材质自己的 uniforms 对象里（@react-three/fiber 的
+  //   events-*.esm.js: "ShaderMaterial uniforms must keep a stable target reference"）。
+  //   于是 useFrame 里写的 `uniforms.uTime.value` 永远没人读 —— GPU 上的 uTime 恒为 0：
+  //   火焰/烟/柴木的噪声停在第一帧，只有 JS 算的"灯光闪烁"还在动（这就是"会呼吸的静态贴图"）。
+  //   ★ 修法：挂载后把这几个材质的 uniforms **换回我们自己的对象**；之后就都按引用读了。
+  //   验收读数：`__gsFire.matTime` 必须等于 `__gsFire.uTime`（不等 = 又退了）。
+  useLayoutEffect(() => {
+    const put = (mat: THREE.ShaderMaterial | null, u: Record<string, { value: unknown }>) => {
+      if (mat) mat.uniforms = u as unknown as THREE.ShaderMaterial["uniforms"];
+    };
+    put(flameMat.current, flameUniforms);
+    put(particleMat.current, particleUniforms);
+    put(coalMat.current, coalUniforms);
+    put(hazeMat.current, uniforms);
+    logMats.current.forEach((m) => put(m, logUniforms));
+    smokeMatRefs.current.forEach((m, i) => put(m, smokeMats[i]));
+  }, [flameUniforms, particleUniforms, coalUniforms, logUniforms, smokeMats, uniforms]);
+
+  /** 冻结 / 步进（验收用；`gsAcceptDebug` 没写时这个对象不存在） */
+  const debugOn = useMemo(() => {
+    try {
+      return localStorage.getItem("gsAcceptDebug") === "1";
+    } catch {
+      return false;
+    }
+  }, []);
+  const ctrl = useRef({ paused: false, pending: 0 });
+  useEffect(() => {
+    if (!debugOn) return;
+    const api: FireDebugApi = {
+      get paused() {
+        return ctrl.current.paused;
+      },
+      get time() {
+        return Math.round(fire.time * 1000) / 1000;
+      },
+      get energy() {
+        return Math.round(fire.energy * 1000) / 1000;
+      },
+      get uTime() {
+        return Math.round(uniforms.uTime.value * 1000) / 1000;
+      },
+      get matTime() {
+        return Math.round((flameMat.current?.uniforms.uTime.value ?? -1) * 1000) / 1000;
+      },
+      get sameUniforms() {
+        return flameMat.current?.uniforms === flameUniforms;
+      },
+      get p0() {
+        return [fire.positions[0], fire.positions[1], fire.positions[2]].map((n) => Math.round(n * 10000) / 10000);
+      },
+      pause: (on = true) => {
+        ctrl.current.paused = on;
+      },
+      step: (seconds: number) => {
+        ctrl.current.paused = true;
+        ctrl.current.pending += Math.max(0, Math.min(seconds, 10));
+      },
+      reset: () => {
+        fire.reset();
+        ctrl.current.pending = 0;
+      },
+    };
+    (window as unknown as Record<string, unknown>).__gsFire = api;
+    return () => {
+      delete (window as unknown as Record<string, unknown>).__gsFire;
+    };
+  }, [debugOn, fire]);
+
+  useFrame((_state, delta) => {
+    // ── 仿真推进：正常帧按 delta；验收冻结时只吃 step() 挂起的秒数 ──────────────
+    const dt = Math.min(delta, 0.05);
+    const c = ctrl.current;
+    if (c.pending > 0) {
+      // ★ 分块推进：`advance()` 单次上限 0.3 s（正常帧不会超），验收 step(3.0) 必须整段走完
+      let remain = c.pending;
+      while (remain > 1e-6) {
+        const chunk = Math.min(remain, 0.25);
+        fire.advance(chunk);
+        remain -= chunk;
+      }
+      c.pending = 0;
+    } else if (!c.paused) {
+      fire.advance(dt);
+    }
+    // 帧计数器只在真的有变化时重传（冻结时省掉每帧 10 KB 的 attribute 上传）
+    const dirtied = c.paused === false || fire.time !== uniforms.uTime.value;
+    uniforms.uTime.value = fire.time;
+    uniforms.uEnergy.value = fire.energy;
+    if (dirtied) {
+      (particleGeo.getAttribute("position") as THREE.BufferAttribute).needsUpdate = true;
+      (particleGeo.getAttribute("aState") as THREE.BufferAttribute).needsUpdate = true;
+    }
+
+    // ── 光照：强度由**火焰总能量**驱动（粒子温度均值），不是纯正弦 ────────────
+    // energy ≈ 1 是"正常的火"：0.72 + 0.42 → 1.14 × base；火弱的时候压到 0.72 × base。
+    const e = Math.min(1.4, fire.energy);
     if (light.current) {
-      light.current.intensity = baseIntensity * (0.78 + 0.22 * flick01);
-      // ★ 颜色随强度在 #ffb066（亮）↔ #ff7a2f（暗）之间走：真实火焰暗下来时色温同时下降
-      light.current.color.lerpColors(COLOR_DIM, COLOR_BRIGHT, flick01);
+      light.current.intensity = baseIntensity * (0.72 + 0.42 * e);
+      // 颜色随能量在 #ffb066（亮）↔ #ff7a2f（暗）之间走：真实火焰暗下来时色温同时下降
+      light.current.color.lerpColors(COLOR_DIM, COLOR_BRIGHT, Math.min(1, e));
       // 炉心轻微跳动（±2.5 cm）：只动灯，火焰片不动 —— 两者一起动会像整团火在平移。
+      // ★ 这里的位置摆动仍用低频正弦，但**亮度**已经换成能量驱动（主人要的是后者）。
+      const t = fire.time;
       light.current.position.set(px + Math.sin(t * 3.1) * 0.025, py + 0.12 + Math.sin(t * 5.7) * 0.02, pz + Math.cos(t * 4.3) * 0.025);
     }
-    // 炉膛内补光（很弱）：位置在火**后面**（往墙里 0.1 m）、略高，照柴木的背光面与桌沿
-    if (fill.current) {
-      fill.current.intensity = 0.55 + 0.25 * flick01;
-    }
-    uniforms.uTime.value = t;
-    // 炭火：屏幕最小尺寸要按"每米多少物理像素"算。hPx 是 canvas 的 drawingBuffer 高度
-    //（随转屏/dpr 变），fov 取当前透视相机 —— 与 shader 里 `6 CSS px` 那道下限配套。
-    const pcam = camera as THREE.PerspectiveCamera;
-    coalUniforms.uPxPerM.value = gl.domElement.height / (2 * Math.tan((pcam.fov * Math.PI) / 360));
-    coalUniforms.uDpr.value = gl.getPixelRatio();
-    // 火焰片绕 y 轴面向相机（只转 y：转 x 会让火焰"躺下"，看着像烧到桌面上）
-    if (billboard.current) {
-      billboard.current.rotation.y = Math.atan2(camera.position.x - px, camera.position.z - pz);
-    }
-    if (glowMat.current) glowMat.current.opacity = 0.17 + 0.1 * flick01;
+    // 炉膛内补光（很弱）：位置在火**后面**、略高，照柴木的背光面与桌沿
+    if (fill.current) fill.current.intensity = 0.32 + 0.4 * e;
+    if (glowMat.current) glowMat.current.opacity = 0.13 + 0.13 * e;
     // 根部蓝焰跟着火一起呼吸（幅度小：化学发光比火舌稳）
-    if (blueMat.current) blueMat.current.opacity = 0.42 + 0.16 * flick01;
+    if (blueMat.current) blueMat.current.opacity = 0.26 + 0.14 * e;
+
+    // 炭火：屏幕最小尺寸要按"每米多少物理像素"算
+    const pcam = camera as THREE.PerspectiveCamera;
+    const pxPerM = gl.domElement.height / (2 * Math.tan((pcam.fov * Math.PI) / 360));
+    coalUniforms.uPxPerM.value = pxPerM;
+    coalUniforms.uDpr.value = gl.getPixelRatio();
+    particleUniforms.uPxPerM.value = pxPerM;
+    particleUniforms.uDpr.value = gl.getPixelRatio();
+    // 火焰片绕 y 轴面向相机（只转 y：转 x 会让火焰"躺下"，看着像烧到桌面上）
+    if (billboard.current) billboard.current.rotation.y = Math.atan2(camera.position.x - px, camera.position.z - pz);
   });
 
   return (
     <group>
       {/* ① 主点光：只照 mesh（见文件头 ★★）。castShadow 不开：炉膛在画面左侧边缘，
-          阴影贴图那点预算对桌面几乎不可见，却要给每个 mesh 材质多上传一遍 shadow map。 */}
+          阴影贴图那点预算对桌面几乎不可见，却要给每个 mesh 材质多上传一遍 shadow map。
+          ★ 强度由 fireSim 的粒子总能量驱动（见 useFrame），不是正弦。 */}
       <pointLight
         ref={light}
         position={[px, py + 0.12, pz]}
@@ -812,33 +872,51 @@ export default function HearthFire({
         <group key={i} position={[px + L.at[0], py + L.at[1], pz + L.at[2]]} rotation={[0, L.yaw, 0]}>
           <mesh rotation={[Math.PI / 2, 0, 0]} castShadow={false}>
             <cylinderGeometry args={[L.rad, L.rad * 1.05, L.len, 12, 1]} />
-            <shaderMaterial uniforms={logUniforms} vertexShader={LOG_VERT} fragmentShader={LOG_FRAG} />
+            <shaderMaterial
+              ref={(m: THREE.ShaderMaterial | null) => {
+                logMats.current[i] = m;
+              }}
+              uniforms={logUniforms}
+              vertexShader={LOG_VERT}
+              fragmentShader={LOG_FRAG}
+            />
           </mesh>
         </group>
       ))}
-      {/* ③ 三层火焰（全部面向相机的一组 billboard；原点 = 火焰底边 = 柴堆上表面）
+      {/* ③ 火焰（**一张面片算三层**：外/中/内由 FLAME_FRAG 里的循环合成 —— 上一版是 3 张面片）
           ★ 绕 y 转的是这一组自己；把锚点坐标写进子节点再绕原点转，火焰会绕着世界原点甩出去。
-          ★ 整组下沉 15 mm：火焰片的下沿埋进柴堆里，屏幕上就看不到"面片的底边"这条直线。
-          ★ 图集没 load 完时**不画火舌**（只留光晕/火星）：绝不拿一张未初始化的纹理去采样。 */}
+          ★ 整组下沉 15 mm：火焰片的下沿埋进柴堆里，屏幕上就看不到"面片的底边"这条直线。 */}
       <group ref={billboard} position={[px, py - 0.015, pz]}>
-        {atlas &&
-          FLAME_LAYERS.map((L, i) => (
-            <mesh key={i} renderOrder={20} position={[0, (FLAME_H * L.h) / 2, LAYER_Z[i]]}>
-              <planeGeometry args={[FLAME_W * L.w, FLAME_H * L.h]} />
-              <shaderMaterial
-                uniforms={layerMats[i]}
-                vertexShader={VERT}
-                fragmentShader={FLAME_FRAG}
-                transparent
-                depthWrite={false}
-                blending={THREE.AdditiveBlending}
-                side={THREE.DoubleSide}
-              />
-            </mesh>
-          ))}
-        {/* 炭火：16 块白热炭块（billboard 面片，贴在柴堆上表面；第 6 版替换上一版的 points） */}
+        <mesh renderOrder={20} position={[0, FLAME_H / 2, 0]}>
+          <planeGeometry args={[FLAME_W, FLAME_H]} />
+          <shaderMaterial
+            ref={flameMat}
+            uniforms={flameUniforms}
+            vertexShader={VERT}
+            fragmentShader={FLAME_FRAG}
+            transparent
+            depthWrite={false}
+            blending={THREE.AdditiveBlending}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+        {/* ③b 火焰粒子 + 余烬：仿真在 fireSim.ts，一次 draw call（420 + 32 颗）
+            ★ 点精灵没有纹理；温度/尺寸/寿命全在 attribute 里（aState）。 */}
+        <points geometry={particleGeo} renderOrder={21} frustumCulled={false}>
+          <shaderMaterial
+            ref={particleMat}
+            uniforms={particleUniforms}
+            vertexShader={PARTICLE_VERT}
+            fragmentShader={PARTICLE_FRAG}
+            transparent
+            depthWrite={false}
+            blending={THREE.AdditiveBlending}
+          />
+        </points>
+        {/* 炭火：16 块白热炭块（billboard 面片，贴在柴堆上表面） */}
         <mesh geometry={coalGeo} renderOrder={21}>
           <shaderMaterial
+            ref={coalMat}
             uniforms={coalUniforms}
             vertexShader={COAL_VERT}
             fragmentShader={COAL_FRAG}
@@ -873,17 +951,6 @@ export default function HearthFire({
             side={THREE.DoubleSide}
           />
         </mesh>
-        {/* 火星（往上飘的余烬） */}
-        <points geometry={emberGeo} renderOrder={21}>
-          <shaderMaterial
-            uniforms={emberUniforms}
-            vertexShader={EMBER_VERT}
-            fragmentShader={EMBER_FRAG}
-            transparent
-            depthWrite={false}
-            blending={THREE.AdditiveBlending}
-          />
-        </points>
         {/* 炉口柔光：比火焰大一圈的暖光晕（splat 的炉膛是烘死的暗色，这一层让它"亮起来"） */}
         <mesh renderOrder={20} position={[0, (FLAME_H * 1.2) / 2 - 0.03, -0.012]} scale={[1.4, 1.2, 1]}>
           <planeGeometry args={[FLAME_W, FLAME_H]} />
@@ -903,8 +970,7 @@ export default function HearthFire({
           <planeGeometry args={[0.62, 0.5]} />
           <meshBasicMaterial map={archTex} transparent opacity={0.3} depthWrite={false} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} />
         </mesh>
-        {/* 烟：2 片半透明面片（普通混合，不是加色：烟是**挡住**后面的东西）。
-            每片里画上下两团（见 SMOKE_FRAG），观感仍是 4 团、draw call 少 2 次。 */}
+        {/* 烟：2 片半透明面片（普通混合，不是加色：烟是**挡住**后面的东西）。 */}
         {smokeMats.map((u, i) => (
           <mesh
             key={`s${i}`}
@@ -913,6 +979,9 @@ export default function HearthFire({
           >
             <planeGeometry args={[0.30 + 0.05 * i, 0.60 + 0.08 * i]} />
             <shaderMaterial
+              ref={(m: THREE.ShaderMaterial | null) => {
+                smokeMatRefs.current[i] = m;
+              }}
               uniforms={u}
               vertexShader={VERT}
               fragmentShader={SMOKE_FRAG}
@@ -922,10 +991,11 @@ export default function HearthFire({
             />
           </mesh>
         ))}
-        {/* 热扰动：炉口上方一层"抖动的热雾"（近似，见文件头 ⑥ 与 HAZE_FRAG 的 ★） */}
+        {/* 热扰动：炉口上方一层"抖动的热雾"（近似，见文件头与 HAZE_FRAG 的 ★） */}
         <mesh renderOrder={23} position={[0, FLAME_H * 0.86, -0.02]}>
           <planeGeometry args={[FLAME_W * 1.15, FLAME_H * 0.7]} />
           <shaderMaterial
+            ref={hazeMat}
             uniforms={uniforms}
             vertexShader={VERT}
             fragmentShader={HAZE_FRAG}

@@ -172,8 +172,17 @@ export const GS_STEP0_ASSETS = {
 //   ★ 四个文件都**不进仓库**（.gitignore 的 `public/models/study/gs/`），换机器要重跑脚本。
 export type GsSplatTier = "full" | "1.6" | "1.4" | "1.2";
 
-/** ★ 默认档。生产默认 full（2M）；真机 A/B 用设置页四档（写 localStorage，换档后重进工坊生效）。 */
-export const GS_SPLAT_TIER: GsSplatTier = "full";
+/**
+ * ★★ 默认档 = **1.6M**（2026-11-27 主人拍板，`feat/gs-fire-sim`）。理由是 §15 真机同一场里量的：
+ *   · 同场 fps **34.7 → 42.1（+21%）**、tris 4.25M → 3.45M（−19%）、首进 load **3.08 s → 1.79 s（−42%）**；
+ *   · 观感**近无损**：与 full 逐像素差 **1.20/255**、差值 >25 级的像素只有 0.2~0.3% 且明暗对称；
+ *     左墙 std/p5 不动（16.2/17 → 16.3/17），原分辨率下与 full 分不出（§15.6）。
+ *   · 1.4M / 1.2M 更快（47.9 / 54.6）但 1.2M 已经"看得见的变软"，所以默认停在 1.6M 这一档。
+ * ★ 四档仍可覆盖：设置 → 这台设备 → 高斯档位（写 localStorage `gsStep0SplatTier`），
+ *   覆盖顺序 dev `?tier=` > localStorage > 这个常量；换档后**重进工坊**才生效（SplatMesh 只建一次）。
+ * ★ 真机/模拟器验收读角标第二行的 `tier 1.6` —— 它读的是**实际加载的那份文件**，不是设置里的愿望值。
+ */
+export const GS_SPLAT_TIER: GsSplatTier = "1.6";
 
 const TIER_KEY = "gsStep0SplatTier";
 /** 四档的固定顺序（设置页芯片与本地存储都按它认，写错的值一律当没设） */
@@ -384,7 +393,10 @@ export function gsYawProbe(): number {
  *    所以墙不会因为"火了"就变暖，地面变暖靠 HearthFire 的假光池，桌面变暖靠光毯。
  *  ★ 数值是米制的（点光 1/d² 衰减）：intensity 7 / distance 5.5 / decay 2 ⇒
  *    桌沿 ≈ 5 lux、NPC 左肩 ≈ 1.2 lux，与窗光（白色 1.5 方向光）亮度差一档，火只当"第二光源"。
- *    验收时按"火开 / 火关"各截一张看真实增益（读数在 docs/gs-table-light-log.md §4）。 */
+ *    验收时按"火开 / 火关"各截一张看真实增益（读数在 docs/gs-table-light-log.md §4）。
+ *  ★ 2026-11-27（`feat/gs-fire-sim`）：这个 intensity 现在是**峰值/基准值** —— HearthFire 里
+ *    实际每帧的强度由**火焰粒子总能量**驱动（`FireParticles.energy`，约 0.72~1.14 × 这个数），
+ *    不再是三频正弦。改这里仍然改"火有多亮"的总量，别在别处再乘一份。 */
 export const GS_FIRE = true;
 const fireWorld = toWorld(toSplat(ANCHOR.fire.s, ANCHOR.fire.d, ANCHOR.fire.y));
 /** 火那盏点光的参数（位置是算出来的，别手抄） */
