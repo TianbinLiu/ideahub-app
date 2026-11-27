@@ -391,8 +391,13 @@ export default function Lobby() {
           flying ? "pointer-events-none opacity-0" : "opacity-100"
         }`}
       >
-      {/* ── 顶栏：标题 + 一句这是什么 + 货币条 + 回工坊 ── */}
-      <header className="flex items-start justify-between gap-2 px-3 pt-2">
+      {/* ── 顶栏：标题 + 一句这是什么 + 货币条 + 回工坊 ──
+          ★ 2026-11-27（`feat/gs-ui-moon-polish`）：安全区偏移写在**这一行**（`--safe-float-top`，
+          见 index.css）。真机横屏 `env(safe-area-inset-top)=41px`，原来 `pt-2` 只给 8px ⇒
+          这一排键（含「✕ 返回工坊」）整体压在系统状态栏底下，只有最下 5px 能点。
+          偏移写在 header 上而不是单颗键上：这一排的 🎟 / ⚡ / 📼 / ? / ✕ 是一起被状态栏压住的，
+          只挪一颗会变成一排高矮不齐的键。 */}
+      <header className="flex items-start justify-between gap-2 px-3" style={{ paddingTop: "var(--safe-float-top)" }}>
         <div className="min-w-0">
           <h1 className="text-[14px] font-bold tracking-wide text-slate-100">
             <Trans>对局大厅</Trans>
@@ -444,7 +449,9 @@ export default function Lobby() {
           <button
             type="button"
             onClick={() => useLobby.getState().closeLobby()}
-            className="h-8 flex-none rounded-full bg-panel/85 px-3 text-[11px] font-semibold text-slate-200 backdrop-blur"
+            // ★ 2026-11-27（第 1 条）：命中区 44×44 CSS px（原来是 h-8 = 32）。文字键靠 `h-11` 撑高，
+            //   左右留 12px 内边距 ⇒ 真实热区 ≥44；行内的其它小键（🎟/⚡/?）保持原高、随这一行一起下移。
+            className="h-11 flex-none rounded-full bg-panel/85 px-3 text-[11px] font-semibold text-slate-200 backdrop-blur"
           >
             <Trans>✕ 返回工坊</Trans>
           </button>
@@ -615,12 +622,15 @@ export default function Lobby() {
         )}
       </footer>
       </div>
-      {/* 穿窗途中唯一能点的一颗键：取消 = 立刻复位（安卓返回键走 ui/backButton 的层栈，同一个 handler） */}
+      {/* 穿窗途中唯一能点的一颗键：取消 = 立刻复位（安卓返回键走 ui/backButton 的层栈，同一个 handler）
+          ★ 2026-11-27（第 1 条）：`top-3`（12px）在真机横屏整颗都被状态栏压住（inset-top=41），
+          改成统一的安全区偏移；命中区 h-11 = 44×44 CSS px 起（文字键再宽一点）。 */}
       {flying && (
         <button
           type="button"
           onClick={cancelMatchCine}
-          className="absolute right-3 top-3 z-10 h-9 rounded-full bg-panel/85 px-3 text-xs font-semibold text-slate-200 backdrop-blur ring-1 ring-white/15"
+          style={{ top: "var(--safe-float-top)" }}
+          className="absolute right-3 z-10 flex h-11 min-w-[2.75rem] items-center justify-center rounded-full bg-panel/85 px-3 text-xs font-semibold text-slate-200 backdrop-blur ring-1 ring-white/15"
         >
           <Trans>✕ 取消</Trans>
         </button>
