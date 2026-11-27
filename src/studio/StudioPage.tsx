@@ -48,9 +48,10 @@ import { useIsLandscape } from "../hooks/useIsLandscape";
 // 工作流画布现在是工坊里的一层全屏浮层（2026-08-30 合并：创作入口不再有「工作流模式」）
 import FlowCanvas from "../components/flow/FlowCanvas";
 import { castEditorState } from "../pages/FlowPage";
-// ★ 2026-11-26（`feat/gs-framing-orbit-panel`，主人第 3 条）：GS 档的工作流是**小窗浮层**
-//   （66%×68%、居中偏右、波浪 clip-path 开关），3D 与 HUD 不卸载。壳在这个文件里，画布本身
-//   用 `embedded` 不再自己 portal 一层全屏壳（老场景/老路径那边一个字都没改）。
+// ★ 2026-11-26（`feat/gs-fullscreen-fire`，主人第 1 条）：GS 档的工作流是**全屏面板**
+//   （四边内边距 18 px、半透明磨砂底、波浪从屏幕角落铺满全场），3D 与 HUD 不卸载。
+//   它的前身是 66%×68% 的居中浮层（`feat/gs-framing-orbit-panel`）。
+//   壳在这个文件里，画布本身用 `embedded` 不再自己 portal 一层全屏壳（老场景/老路径那边一个字都没改）。
 import WorkflowWindow from "./ui/WorkflowWindow";
 import { useGsPhase } from "./scene/gsStep0";
 import { autoQualityOnFirstVisit, qualityLabel, type Quality } from "./quality";
@@ -654,9 +655,9 @@ export default function StudioPage() {
       )}
       <StudioLoader />
       {/* ── 工作流画布：同一条流水线的另一个面 ──
-          ★ 2026-11-26（`feat/gs-framing-orbit-panel`，主人第 3 条）：**GS 档走小窗**
-            （ui/WorkflowWindow：66%×68% 居中偏右、圆角、遮罩模糊暗化、圆形 clip-path 波浪开关），
-            3D 与 HUD 不卸载（canvasCovered 仍让它停帧，见 Canvas 那行的 ★）。
+          ★ 2026-11-26（`feat/gs-fullscreen-fire`，主人第 1 条）：**GS 档走全屏面板**
+            （ui/WorkflowWindow：四边 18 px 内边距、半透明磨砂底、圆形 clip-path 波浪从**屏幕角落**
+            铺满全场，默认右下角），3D 与 HUD 不卸载（canvasCovered 仍让它停帧，见 Canvas 那行的 ★）。
           ★ 老场景/老路径仍是原来那张 z-40 全屏 portal，一个 class 都没动。
           ★ 那三件页级活儿（存草稿 / 组稿 / 挂卡）只有一份实现：flowCanvas(true/false) 同一份 props。
           ★ 判据是 **canvasOpen**（不是 canvasCovered）：后者 2026-11-23 起也含大厅
