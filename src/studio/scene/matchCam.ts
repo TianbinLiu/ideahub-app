@@ -223,10 +223,15 @@ export function stepMatchCam(dt: number): CamPose | null {
   return flyPose(ease(t), POSE);
 }
 
-// ── DEV 验收钩子（正式包里整段不存在）──────────────────────────────────────
+// ── DEV 验收钩子（正式包默认没有）──────────────────────────────────────────
 // 穿窗只有 1.5 s，模拟器截图（adb screencap）追不上那一刻 —— 用 freeze(t) 把时间轴
 // 定在指定进度（黑幕同步瞬间切换），拍完 resume()。与 __introCam / __gsFire 同一种做法。
-if (import.meta.env.DEV) {
+// ★ 写 localStorage `gsAcceptDebug=1`（与 __gsAccept 探针同一把开关）时正式包也挂出来：
+//   production APK 的模拟器验收要冻帧截"穿窗那一拍"，不必为验收单独编一个 DEV 包。
+const acceptHooksOn =
+  import.meta.env.DEV ||
+  (typeof localStorage !== "undefined" && localStorage.getItem("gsAcceptDebug") === "1");
+if (acceptHooksOn) {
   (window as unknown as Record<string, unknown>).__matchCam = {
     get stage() {
       return useMatchCam.getState().stage;

@@ -133,33 +133,50 @@ idle ──openLobby()──▶ page ──点「匹配 N 人局」──▶ fly
   x≈315~537 px —— **月亮主体一个像素都不被 UI 压住**（截图 01/02 可核）。
 - 老场景（GS 关着 / splat 失败）`cinematic=false`：大厅照旧不透明、点主键直接走原流程，一个字节都不变。
 
-## 5. 验收（模拟器 `emulator-5554` + 浏览器）
+## 5. 验收（浏览器六张主证据 + 模拟器补充）
 
-> 设备：`sdk_gphone64_x86_64`（1272×2800、density 560），debug 包，锁横屏；舞台 **852×348 CSS**（aspect 2.448）。
-> GS 实验档打开（`gsStep0Experiment=1`）。截图 `adb exec-out screencap -p`（CDP 截图拿不到 WebGL 层）。
-> 六张图都在 `.tmp-moon/device/`（**不进仓库**），目录里有同名 `.json` 记录当帧的相机位姿/读数。
+### 5.1 浏览器（六张主证据）
+
+> headless Chromium **852×348 CSS / dpr2**（与真机横屏画布同口径），`npm run dev` :5183 + `?gs=1`；
+> GS 实验档开着（1.60M / tier 1.6）。截图与读数在 `.tmp-moon/browser/`（**不进仓库**）。
+> "推进中/穿窗那一拍"用 `__matchCam.freeze(t)` 冻帧（1.5 s 的转场，`adb screencap` 追不上）。
 
 | # | 画面 | 图 | 读数 |
 |---|---|---|---|
-| 1 | **窗景 + 月亮**（UI 收起） | `01-moon-window.png` | 窗心/月心屏幕投影同点 (426,174)；月亮占窗 **90.3% 几何 / 85.9% 像素** |
-| 2 | **匹配页背景（UI 在）** | `02-match-page.png` | 页相机 (-0.047,0.839,-2.03)；模式卡/主键在左、凭码加入在右 |
+| 1 | **窗景 + 月亮**（UI 收起） | `02-window-moon.png` | 窗心/月心屏幕投影同点 (426,174)；月亮占窗 **90.3% 几何 / 85.9% 像素（去窗棂）/ 81.8%（含窗棂）** |
+| 2 | **匹配页背景（UI 在）** | `01-match-page.png` | 页相机 (-0.047,0.839,-2.03)；模式卡/主键在左、凭码加入在右，窗与月亮居中不被压 |
 | 3 | **推进中**（窗框变大） | `03-fly-mid.png` | t=0.5（e=0.125）pos (-0.047,0.75,-2.825)，距窗 0.8 m |
 | 4 | **穿窗瞬间**（画面在窗外） | `04-through-window.png` | t=0.66（e=0.287）pos (-0.047,0.633,-3.858) —— 已在窗外 0.23 m，满天星 + 月亮 |
-| 5 | **黑屏加载中** | `05-matching-black.png` | outside (-0.047,0.124,-8.39)、veil=1；匹配中 UI 在黑色上 |
-| 6 | **回到桌面前机位** | `06-back-to-table.png` | 取消/返回后 pos (1.6,1.06,0.06) = `GS_CAM`；3D 桌面恢复（大厅关掉那一张） |
+| 5 | **黑屏加载中** | `07-matching-ui.png` | outside (-0.047,0.124,-8.39)、veil=1；匹配中 UI 在黑色上（`05-black.png` 是无 UI 的纯黑帧） |
+| 6 | **回到桌面前机位** | `06-design-camera.png`（取消后首屏） | 取消/返回后 pos (1.6,1.06,0.06) = `GS_CAM`；关掉大厅那张桌面见 `08b-game-table.png` |
 
 - 另有一张 `08b-game-table.png`（联机失败 → 用 AI 开局 → 选风格 → 锁定后的对局桌面）：
   匹配成功这条路走完，**转场结束时相机也是 (1.6,1.06,0.06)**（`afterAi` 读数），随后才是对局自己的
   商店机位（-0.834,0.763,2.92，那是 `enterShopCam` 的事，不归转场管）。
 - 帧率（浏览器 headless Chromium，852×348 CSS / dpr2）：匹配页 **143.7 fps**、推进中 86.9、
   穿窗 112.9、黑屏 135.9、对局桌面 143.8；3 s 平均 **144.2 fps**（splat 1.60M、tris 3.46M、calls 56）。
-  模拟器读数见 §5.1。
 - 取消：飞行 t=0.32 时点「✕ 取消」→ stage=idle、veil=0、pos 立刻回 (1.60,1.06,0.06)、
   首屏 UI 回来、**没进匹配队列**（截图 `10-cancel-flight.png`）。
 
-### 5.1 模拟器读数
+### 5.2 模拟器（补充证据，受环境限制）
 
-<!--DEVICE-->
+- 5554 当时被**别的任务**占着（前台是另一个 App），同一台模拟器两边抢屏没法当证据；另起一台独立 AVD
+  `moon_window`（Pixel 8 / android-36 / **swiftshader 纯软件渲染**，端口 5556）。
+- 本地验收包把 `.env.production` 的 `VITE_API_BASE` 临时留空（**不提交**）——正式包指向
+  `https://api.ideahubs.org`，没有服务端就进不了本机账号；不改代码，只改验收包的构建环境。
+  写 `gsAcceptDebug=1` 后正式包也会挂出 `__matchCam`（与 `__gsAccept` 同一把开关）。
+- 拿到了 4 张可用图（`.tmp-moon/device/`）：
+  - `cur5556g.png` / `01-moon-window.png`：**匹配页**（UI 在）——窗/月亮居中、左列模式卡、右列凭码加入，
+    与浏览器版一致；
+  - `03-fly-0..3.png`：**穿窗那一段**——镜头已贴到窗面、窗框在画面里放大（其中一张已经在窗洞外）；
+  - `05-matching-black.png`：**黑屏 + 匹配中**——真实匹配队列那一屏就是黑底 + 座位 / AI 补位 / Play with AI。
+- **为什么没补齐 6 张**：这台 AVD 是纯软件光栅化，1.6M 高斯在 2400×1080 上约 **0.1 fps**（HUD 读到
+  `GS 0.0 fps`），1.5 s 的转场要跑几十秒、`Runtime.evaluate` 经常排在长帧后面，最后 App **ANR**
+  （`06-back-to-table.png` 是 ANR 对话框压着桌面）。六张的**相机读数与观感证据以浏览器那组为准**；
+  模拟器这组只证明"同一份代码在安卓 WebView 上跑得起来、画面与浏览器一致"。
+- 有 GPU 的模拟器 / 真机上按 §6 的命令重跑 `.tmp-moon/device.mjs` 即可补齐（一次性脚本，不进仓库）。
+- fps：这台软件渲染的模拟器读数没有参考价值（ANR 前是 `GS 0.0 fps`）；除浏览器 144 fps 外，
+  **真机 fps 仍是没量到的那一项**（见 §7-9）。
 
 ## 6. 复现
 
@@ -178,7 +195,7 @@ adb -s emulator-5554 shell am start -n com.ideahub.branchvideo.debug/com.ideahub
 #   → Runtime.evaluate 写 localStorage（gsStep0Experiment=1 / gsAcceptDebug=1）后刷新
 ```
 
-DEV 钩子（正式包不存在，只有 `import.meta.env.DEV`）：
+DEV 钩子（正式包默认没有；写 `gsAcceptDebug=1` 时**才会**挂出来，见 matchCam.ts 文件尾）：
 
 | 钩子 | 作用 |
 |---|---|
@@ -206,7 +223,17 @@ DEV 钩子（正式包不存在，只有 `import.meta.env.DEV`）：
 6. **超时只复位相机、不撤匹配中那一屏**：黑幕留着（`coverDesign`），用户点「用 AI 开局」或取消之后才淡出。
 7. 窗框是补的 mesh（0.45~0.58 m 环 + 十字棂），splat 原窗框只剩外圈一点点；换 splat 资产要重核窗径 0.90。
 8. 转场 1.5 s + 淡黑 0.4 s 是**按手感**调的（任务给的 1.2~1.6 s 里取中），没做多档 A/B。
+9. **真机 fps 没量到**：浏览器（headless Chromium）这组 144 fps 是宿主机 GPU 的数；本次拿到的模拟器是
+   swiftshader 纯软件渲染，1.6M 高斯下约 0.1 fps、会 ANR，读数没有参考价值。真机要按设置里的
+   "高斯档位"（1.6 / 1.4 / 1.2）各量一次，重点看**穿窗那 1.5 s 有没有掉帧**（镜头前进时 splat 的
+   填充率会上升，这是本次唯一没有实测数据的地方）。
+10. **模拟器六张截图只补齐了一部分**（匹配页 / 穿窗 / 黑屏三张；推进中与回桌前机位只在浏览器那组有），
+    原因与环境见 §5.2。有 GPU 的模拟器上重跑 `.tmp-moon/device.mjs` 可以补齐。
 
 ## 8. 构建 / CI / PR
 
-<!--BUILD-->
+- 本地 `npm run build`：**通过**（tsc + lingui extract + 41 项构建期检查 + vite build）；
+  `npm run apk`（debug sideload）本机可编、可装。
+- PR：**#553** `feat(gs): 明月窗 + 匹配页穿窗转场` → https://github.com/TianbinLiu/ideahub-app/pull/553
+- CI：`build` 与 `android` 两个 job 在 `a3b63ee9` 上**全绿**（1m28s / 2m03s）。
+- 分支 `feat/gs-moon-window` 从 `main 7004d746` 切出；分支里不动 `versionCode`（落回 main 时以 main 为准）。
