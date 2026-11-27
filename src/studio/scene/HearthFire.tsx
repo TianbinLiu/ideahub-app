@@ -1,5 +1,25 @@
-// ★★ 壁炉真火 · 第 5 版（2026-11-26，`feat/gs-fullscreen-fire`；主人第 2 条「火做到二游/3A 水准」）
+// ★★ 壁炉真火 · 第 6 版（2026-11-26，`feat/gs-perf-fire`；主人真机验收的三条观感 + 性能）
 //
+// 这一版相对第 5 版只动了四件事（形态/图集/色温公式都没改）：
+//   ① **烟改成软边**：每片 alpha = 噪声（2~3 个八度）× 径向衰减，面片边缘恒为 0（不再出现
+//      "灰纸"那种几何直边）；每片自己的 UV 滚动 + 随机相位。片数 4 → **2**（性能项），
+//      但每片里画两团（见 SMOKE_FRAG），观感上仍是 4 团。
+//   ② **炭火从"点"改成"白热炭块"**：16 块贴柴堆**上表面**的 billboard 面片，屏上 ≥6 CSS px，
+//      中心 #fff3d0 / 边缘 #ff7a2f，2~7 Hz 各自闪烁，外加一片加色光晕（轻微 bloom 感）。
+//      上一版是 points 且埋在两根柴的缝里（y≈-0.038）—— 真机近景里整排被柴挡住，
+//      这才是"16 点看不见"的真正原因，不是尺寸一个因素。
+//   ③ **根部蓝焰**：混蓝量 0.75 → 1.10，阈值区从 `vUv.y<0.14` 扩到 `<0.22`；另加一片**贴着柴面**
+//      的青蓝加色光晕（depthTest=false）—— 火焰面片 v<0.22 那一段本来就被柴挡住，只改 shader 看不出来。
+//   ④ **火焰采样 6 → 4 次**：外焰（第 1 层）相邻两帧交叉淡化（2 次），两层内焰各采 1 帧。
+//      `gsFireTaps=6` 是验收口子，可回到"每层 2 帧"对照，只用来量，生产不写这个键。
+//
+// ★ 性能账（真机中端机的估算，验收报告里给的是同一份数）：
+//   · 调用：柴木 3 + 火焰 3 + 炭火 1 + 炭火光晕 1 + 根部蓝焰 1 + 火星 1 + 烟 2 + 热雾 1
+//     + 炉口柔光 1 + 炉拱补光 1 + 地面光池 1 = **16 次**（与第 5 版持平：烟 -2、两片光晕 +2）；
+//     三角面 < 450；
+//   · 纹理：图集文件 4096²，**运行时降到 2048²** 再上 GPU（见 useFireAtlas）；
+//   · 片元：每像素 4 次图集采样（第 5 版 6 次），火焰片在最近机位也只有 ~120×170 px。
+
 // 上一版（第 3 版 `feat/gs-polish2`）是**程序化**的三层 fbm 火焰：形态靠三条解析火舌取并集，
 // 纹理靠每帧现算的噪声。验收时主人点名"观感仍像贴片"。这一版换了做法，六件事：
 //
@@ -95,25 +115,45 @@ const FLAME_LAYERS: FlameLayer[] = [
   { w: 0.6, h: 0.74, speed: 2.05, phase: 0.67, scale: 1.12, tint: 120, alpha: 0.5 },
 ];
 
+/** 验收口子（生产里不写这些键 = 下面的缺省值）：换档要重新进工坊（材质/几何在挂载时建）。
+ *  ★ 与 `gsFireAlpha` 同一种做法（见组件里那个 alphaScale）：只给 A/B 量数据用，不上面。 */
+function acceptInt(key: string, fallback: number, min: number, max: number): number {
+  try {
+    const v = Number(localStorage.getItem(key));
+    return Number.isFinite(v) && v >= min && v <= max ? Math.round(v) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 /** 火星（往上飘的余烬）颗数：第 3 版的 32 颗保持不变 */
 const EMBER_COUNT = 32;
-/** 炭火发光点（**贴在柴上**的亮点，不是飘的火星）：主人给的 10~20，取 16 */
+/** 炭火炭块数（**贴在柴上**的白热炭块，不是飘的火星）：主人给的 10~20，取 16。
+ *  ★ 第 6 版从 points 改成 billboard 面片：点精灵在近景只有 2~4 CSS px，而且上一版埋进柴缝里。 */
 const COALS = 16;
-/** 烟片数：主人给的 3~5，取 4 */
-const SMOKE_COUNT = 4;
+/** 烟片数：第 5 版 4 → 第 6 版 **2**（性能项；每片里画两团，见 SMOKE_FRAG）。
+ *  ★ `gsSmokeN=4` 是验收口子，回到第 5 版的 4 片只用来量 draw call / fps 的差。 */
+const SMOKE_COUNT = acceptInt("gsSmokeN", 2, 1, 6);
+
+/** 每层火焰取几帧（2 = 相邻两帧交叉淡化，1 = 单帧）。
+ *  ★ 默认 4 次采样：外焰 2 次（它最显眼，必须平滑），两层内焰各 1 次（12~25 Hz 的换帧
+ *    读起来就是火苗自己闪，反而更像火）；`gsFireTaps=6` 回到第 5 版"每层 2 帧"做对照。 */
+const LAYER_TAPS: number[] =
+  acceptInt("gsFireTaps", 4, 4, 6) >= 6 ? FLAME_LAYERS.map(() => 2) : FLAME_LAYERS.map((_, i) => (i === 0 ? 2 : 1));
 
 /** 验收要报的那几个数（`TableScene.AcceptProbe` 的 `fire` 一栏读它）：
  *  层数 / 图集帧数 / 取样次数 / 火星 / 炭火 / 烟 —— 全部只从这里出，别在验收脚本里再抄一遍。 */
 export const FIRE_FX = {
   layers: FLAME_LAYERS.length,
   atlasFrames: TILE_FRAMES,
-  /** 每像素的图集采样次数：层数 × 每层 2 帧交叉 */
-  atlasTaps: FLAME_LAYERS.length * 2,
+  /** 每像素的图集采样次数：各层 2 / 1 帧之和（第 5 版是层数 × 2 = 6） */
+  atlasTaps: LAYER_TAPS.reduce((a, b) => a + b, 0),
   embers: EMBER_COUNT,
   coals: COALS,
   smoke: SMOKE_COUNT,
   flameW: FLAME_W,
   flameH: FLAME_H,
+  /** 火焰这一块的总 draw call（与文件头那张账同一个口径；第 5 版 16） */
   drawCalls: 16,
 } as const;
 
@@ -160,6 +200,8 @@ const FLAME_FRAG = /* glsl */ `
   uniform float uLoop;
   uniform float uTiles;
   uniform float uFrames;
+  /** 2 = 相邻两帧交叉淡化；1 = 单帧（内焰层，省一次图集采样） */
+  uniform float uTap;
   varying vec2 vUv;
   ${BLACKBODY}
 
@@ -179,7 +221,10 @@ const FLAME_FRAG = /* glsl */ `
     float fpos = fract(uTime / uLoop * uSpeed + uPhase) * uFrames;
     float f0 = floor(fpos);
     float w = fpos - f0;
-    float heat = mix(heatAt(uv, f0), heatAt(uv, f0 + 1.0), w);
+    float heat = heatAt(uv, f0);
+    // ★ 第 6 版：只有外焰在相邻两帧之间插值（2 次采样）；内焰层单帧（1 次采样）。
+    //   总采样 4 次（第 5 版 6 次）。uniform 分支不会发散，驱动的代价就是"少两次纹理取样"。
+    if (uTap > 1.5) heat = mix(heat, heatAt(uv, f0 + 1.0), w);
     // ① 黑体色温：900 ~ 1900 K（uTint 让三层不完全同色）
     float K = 900.0 + (1000.0 + uTint) * pow(heat, 1.2);
     vec3 col = blackbody(K);
@@ -187,9 +232,13 @@ const FLAME_FRAG = /* glsl */ `
     float bright = (0.06 + 0.94 * pow(heat, 1.5)) * smoothstep(0.02, 0.26, heat);
     // ③ 底边淡出：火焰片下沿压在柴面里，但采样仍会取到 v=0 那一行 —— 不淡就是一条硬直线
     bright *= smoothstep(0.0, 0.04, vUv.y);
-    // ④ 蓝焰根部：燃料面附近那一圈化学发光（不在黑体曲线上）
-    float blue = smoothstep(0.14, 0.01, vUv.y) * smoothstep(0.02, 0.16, heat) * smoothstep(0.8, 0.3, heat);
-    col = mix(col, vec3(0.30, 0.55, 1.00), blue * 0.75);
+    // ④ 蓝焰根部：燃料面附近那一圈化学发光（不在黑体曲线上）。
+    // ★ 第 6 版：阈值区 0.14 → **0.22**、混蓝量 0.75 → **1.10**。真机近景里第 5 版那条蓝只贴在
+    //   最底一拃、又被柴影/黑体橙盖掉，"炉膛底部有青蓝"根本读不出来；这两下是照着近景截色调的。
+    // ★ 第 5 版还有一道 smoothstep(0.8, 0.3, heat) 的上限门 —— 图集底床是连续高温（heat≈1），
+    //   那道门会把底部整圈蓝全压成 0，等于白加。这一版只保留下限（有火才蓝），不再按"热度低"筛。
+    float blue = smoothstep(0.22, 0.02, vUv.y) * smoothstep(0.02, 0.16, heat);
+    col = mix(col, vec3(0.26, 0.52, 1.00), blue * 1.1);
     gl_FragColor = vec4(col * bright * uAlpha, 1.0);
   }
 `;
@@ -296,50 +345,71 @@ const EMBER_FRAG = /* glsl */ `
   }
 `;
 
-// ── 炭火发光点（贴在柴上、各自闪烁；不飘）────────────────────────────────────
+// ── 炭火：白热炭块（贴在柴堆上表面、各自闪烁；不飘）──────────────────────────
 // ★ 与"火星"分开：火星是**离开柴往上飘的**灰烬，炭火是**柴自己烧红的那几点**。
-//   同一套 points 画两遍最省，但观感完全不同 —— 火星要有寿命与位移，炭火只会闪。
+// ★★ 第 6 版为什么从 points 改成面片：真机近景里 16 个点整排看不见。两个原因叠在一起 ——
+//   ① 上一版把点埋在两根柴的缝里（y≈-0.038，柴顶在 -0.004），从相机看被柴挡住；
+//   ② gl_PointSize 是**物理像素**，默认机位（火距相机 ~3.7 m）算下来只有 2~4 CSS px。
+//   现在每块炭是一个 billboard 面片：世界尺寸 3~6 cm，并在 shader 里按视距抬到"≥6 CSS px"，
+//   中心 #fff3d0 / 边缘 #ff7a2f、2~7 Hz 各自闪烁，外圈自带加色光晕（轻微 bloom 感）。
 // i18n-ignore-next-line: GLSL 源码（注释在着色器里，不上界面）
 const COAL_VERT = /* glsl */ `
+  attribute vec2 aCorner;   // 面片角点（-0.5~0.5）
   attribute float aSeed;
   uniform float uTime;
-  uniform float uSize;
+  uniform float uPxPerM;    // 视距 1 m 处 1 m 对应多少**物理**像素
+  uniform float uDpr;       // devicePixelRatio（canvas 物理像素 / CSS 像素）
+  varying vec2 vUv;
   varying float vI;
-  varying float vSeed;
   void main() {
     vec4 mv = modelViewMatrix * vec4(position, 1.0);
-    gl_Position = projectionMatrix * mv;
-    // 每点的闪烁频率/相位由 aSeed 决定（2.1~6.7 Hz：比火光那盏 7.3 Hz 慢一档，
-    // 否则整片一起闪，像 strobe）
-    float hz = 2.1 + fract(aSeed * 4.7) * 4.6;
+    // 每一块的闪烁频率/相位由 aSeed 定（2~7 Hz：比火光那盏 7.3 Hz 慢一档，否则整片一起闪像 strobe）
+    float hz = 2.0 + fract(aSeed * 4.7) * 5.0;
     float pulse = 0.5 + 0.5 * sin(uTime * hz + aSeed * 6.28);
-    vI = pow(pulse, 2.2) * (0.45 + 0.55 * fract(aSeed * 9.1)); // 有的点常亮、有的点偶尔亮
-    gl_PointSize = (1.4 + 2.2 * fract(aSeed * 3.3)) * uSize / max(0.35, -mv.z);
-    vSeed = aSeed;
+    float flick = 0.45 + 0.55 * pow(pulse, 1.8); // 有的块常亮、有的偶尔亮
+    float dist = max(0.25, -mv.z);
+    // 世界尺寸 3~6 cm；屏上不足 6 CSS px 时按 6 px 抬到最小（否则默认机位又变回"看不见的点"）
+    float world = (0.034 + 0.028 * fract(aSeed * 3.3)) * (0.62 + 0.38 * flick);
+    float minWorld = (6.0 * uDpr * dist) / max(1.0, uPxPerM);
+    world = max(world, minWorld);
+    // view 空间的 xy 就是"相机右/上"：面片永远正对相机（不跟着 billboard group 绕 y 转歪）
+    mv.xy += aCorner * world;
+    gl_Position = projectionMatrix * mv;
+    vUv = aCorner * 2.0;      // -1 ~ 1
+    vI = flick;
   }
 `;
 // i18n-ignore-next-line: GLSL 源码（注释在着色器里，不上界面）
 const COAL_FRAG = /* glsl */ `
+  varying vec2 vUv;
   varying float vI;
-  varying float vSeed;
   void main() {
-    vec2 d = gl_PointCoord - 0.5;
-    float r = length(d) * 2.0;
+    float r = length(vUv);
     if (r > 1.0) discard;
-    // 炭火比火星红：中心橙黄、边缘暗红，且整体更暗（它躺在柴上，不逆光）
-    vec3 core = vec3(1.0, 0.58, 0.16);
-    vec3 edge = vec3(0.55, 0.10, 0.02);
-    vec3 col = mix(core, edge, smoothstep(0.2, 0.95, r));
-    gl_FragColor = vec4(col, smoothstep(1.0, 0.1, r) * vI);
+    // 白热亮芯（#fff3d0）→ 边缘 #ff7a2f；外圈再淡下去当加色光晕（加色混合下就是轻微 bloom）
+    vec3 core = vec3(1.000, 0.953, 0.816);
+    vec3 edge = vec3(1.000, 0.478, 0.184);
+    vec3 col = mix(vec3(1.0, 0.985, 0.92), edge, smoothstep(0.12, 0.72, r));
+    col = mix(core, col, smoothstep(0.0, 0.45, r)); // 中心压到 #fff3d0 附近
+    col += vec3(1.0, 0.96, 0.86) * smoothstep(0.30, 0.0, r) * 0.35; // 芯部再压一点白
+    float alpha = smoothstep(1.0, 0.10, r) * vI;
+    float halo = smoothstep(1.0, 0.0, r) * 0.28 * vI;
+    gl_FragColor = vec4(col, clamp(alpha + halo, 0.0, 1.0));
   }
 `;
 
-// ── 烟：4 片半透明面片，边升边散、到顶渐隐 ───────────────────────────────────
+// ── 烟：2 片半透明面片（每片里两团），边升边散、到顶渐隐 ─────────────────────
+// ★★ 第 6 版修"烟有硬边（像灰纸）"：上一版的 alpha 是"一团径向体块 × 噪声阈值"，而径向体块
+//   在**面片的上下边**还没衰减到 0（length((uv-0.5)*vec2(1.9,1.0)) 在上边只有 0.5），
+//   于是烟柱的上、下沿各是一条几何直边 —— 近景看就是一张灰纸。
+//   现在：① 噪声用 3 个八度、alpha = 噪声 × 径向衰减；② 再加一道 `edge` 径向遮罩，
+//   让面片四条边上的 alpha **恒等于 0**；③ 每片自己的 UV 滚动（uScroll）+ 随机相位（uSeed）。
 // i18n-ignore-next-line: GLSL 源码（注释在着色器里，不上界面）
 const SMOKE_FRAG = /* glsl */ `
   uniform float uTime;
   uniform float uSeed;
   uniform float uLife;
+  uniform float uScroll;
   varying vec2 vUv;
 
   float hash(vec2 p) {
@@ -359,23 +429,24 @@ const SMOKE_FRAG = /* glsl */ `
   }
 
   void main() {
-    // 每片自己的相位（uSeed 定），整段上升 + 横向漂移都在 shader 里算（CPU 每帧只写 uTime）
+    // ① 每片自己的相位与 UV 滚动（uSeed / uScroll 由 JSX 按片给）：两片不会同节奏地"呼吸"
     float t = fract(uTime / uLife + uSeed);
-    vec2 uv = vUv;
-    // 越往上越散（横向拉开）+ 低频扰动
-    float spread = mix(0.55, 1.35, t);
-    vec2 p = (uv - 0.5) * vec2(spread, 1.0) + vec2(uSeed * 7.3, -t * 3.2);
-    float n = fbm(p * 2.6);
-    // 主体：一团竖直拉长的软团块（烟柱），边缘被噪声啃掉
-    float body = smoothstep(0.62, 0.10, length((uv - 0.5) * vec2(1.9, 1.0)));
-    float a = body * smoothstep(0.30, 0.78, n);
-    // 头尾淡入淡出（t=0 在火舌里、t=1 已经散尽）
-    a *= smoothstep(0.0, 0.22, t) * smoothstep(1.0, 0.55, t);
+    vec2 p = vUv * vec2(2.8, 1.9) + vec2(uSeed * 5.7, -uTime * uScroll) + vec2(0.0, -t * 1.3);
+    float n1 = fbm(p);
+    float n2 = fbm(p * 1.7 + vec2(3.1, 1.7) + vec2(0.0, uTime * uScroll * 0.6));
+    // ② 两团软烟（4 片 → 2 片的合并：每片里上下两团，观感仍是 4 团、draw call 少 2 次）
+    vec2 c1 = (vUv - vec2(0.5, 0.40)) * vec2(1.00, 0.78) * 2.0;
+    vec2 c2 = (vUv - vec2(0.5, 0.62)) * vec2(1.10, 0.92) * 2.0;
+    float body = smoothstep(1.0, 0.08, length(c1)) * n1 + smoothstep(1.0, 0.08, length(c2)) * n2 * 0.75;
+    // ③ 径向遮罩：面片四条边上的 alpha 恒为 0（修的就是"几何硬边"）
+    vec2 q = (vUv - 0.5) * 2.0;
+    float edge = smoothstep(1.0, 0.35, length(q));
+    float a = body * edge * smoothstep(0.0, 0.20, t) * smoothstep(1.0, 0.55, t);
     // 颜色：根部带一点火的暖，越高越冷（灰蓝）
-    vec3 warm = vec3(0.55, 0.34, 0.20);
-    vec3 cool = vec3(0.30, 0.33, 0.40);
+    vec3 warm = vec3(0.55, 0.36, 0.24);
+    vec3 cool = vec3(0.31, 0.34, 0.40);
     vec3 col = mix(warm, cool, smoothstep(0.0, 0.65, t));
-    gl_FragColor = vec4(col, a * 0.22);
+    gl_FragColor = vec4(col, clamp(a, 0.0, 1.0) * 0.28);
   }
 `;
 
@@ -526,11 +597,12 @@ export default function HearthFire({
   decay = 2,
   floorY = -0.775,
 }: HearthFireProps) {
-  const { camera } = useThree();
+  const { camera, gl } = useThree();
   const light = useRef<THREE.PointLight>(null);
   const fill = useRef<THREE.PointLight>(null);
   const billboard = useRef<THREE.Group>(null);
   const glowMat = useRef<THREE.MeshBasicMaterial>(null);
+  const blueMat = useRef<THREE.MeshBasicMaterial>(null);
   const atlas = useFireAtlas();
   const uniforms = useMemo(() => ({ uTime: { value: 0 } }), []);
   const [px, py, pz] = position;
@@ -550,7 +622,7 @@ export default function HearthFire({
    *  ★ atlas 进依赖：纹理到位之前 uAtlas 是 null，材质得重建一份 uniform 才能拿到 sampler。 */
   const layerMats = useMemo(
     () =>
-      FLAME_LAYERS.map((L) => ({
+      FLAME_LAYERS.map((L, i) => ({
         uAtlas: { value: atlas },
         uTime: uniforms.uTime,
         uSpeed: { value: L.speed },
@@ -561,6 +633,8 @@ export default function HearthFire({
         uLoop: { value: LOOP_SEC },
         uTiles: { value: TILES },
         uFrames: { value: TILE_FRAMES },
+        // 2 / 1：见 LAYER_TAPS（默认 4 次采样；gsFireTaps=6 时每层都是 2）
+        uTap: { value: LAYER_TAPS[i] },
       })),
     [uniforms, alphaScale, atlas]
   );
@@ -598,35 +672,77 @@ export default function HearthFire({
   const emberUniforms = useMemo(() => ({ uTime: uniforms.uTime, uSize: { value: 5.5 } }), [uniforms]);
   useEffect(() => () => emberGeo.dispose(), [emberGeo]);
 
-  /** 炭火：贴在柴堆的**上表面**（y 比柴顶略低 1~4 mm，落在两根横柴的缝里），
-   *  沿柴长方向撒 ±0.1 m。这是"柴自己烧红的那几点"，不参与上升运动。 */
+  /** 炭火：16 块**白热炭块**（billboard 面片），贴在柴堆**上表面**（y ≥ 柴顶 -0.004 m）。
+   *  ★ 为什么不再用 points / 不再埋在柴缝里：见 COAL_VERT 头上的 ★★（真机验收"16 点看不见"）。
+   *  沿柴长方向撒 ±0.11 m、横向 ±0.05 m；上表面以上的几毫米是故意留的（下半截被柴挡住，
+   *  露出来的上半截才读作"嵌在柴面上的炭"）。 */
   const coalGeo = useMemo(() => {
     const g = new THREE.BufferGeometry();
-    const pos = new Float32Array(COALS * 3);
-    const seed = new Float32Array(COALS);
+    // 每块 2 个三角 = 6 个顶点（不用 index，16 块一共 96 顶点，可以忽略）
+    const verts = COALS * 6;
+    const pos = new Float32Array(verts * 3);
+    const corner = new Float32Array(verts * 2);
+    const seed = new Float32Array(verts);
+    const CORNERS: [number, number][] = [
+      [-0.5, -0.5],
+      [0.5, -0.5],
+      [0.5, 0.5],
+      [-0.5, -0.5],
+      [0.5, 0.5],
+      [-0.5, 0.5],
+    ];
     for (let i = 0; i < COALS; i++) {
-      const along = (Math.random() - 0.5) * 0.2; // 沿柴长（z）
-      const across = (Math.random() - 0.5) * 0.09; // 柴的横向（x）
-      // 两根横柴的顶面分别 ≈ 锚点下方 0.04 / 0.037 m；取 -0.038 当"柴缝"那一层
-      pos[i * 3] = across;
-      pos[i * 3 + 1] = -0.038 + Math.random() * 0.012;
-      pos[i * 3 + 2] = along;
-      seed[i] = Math.random() * 10;
+      // ★ 分布照着"顶柴 + 两根底柴之间的炭床"来：顶柴横在 x 方向（长 0.26），所以炭块在 x 上铺得宽
+      //   （±0.13）、在 z 上只占顶柴的厚度（±0.06）；这样从相机（+x/+z 一侧）看，火焰两侧都露得出炭。
+      const across = (Math.random() - 0.5) * 0.26; // 顶柴长度方向（x）
+      const along = (Math.random() - 0.5) * 0.12; // 顶柴厚度方向（z）
+      // 柴堆上表面 ≈ 锚点 y=0（顶柴中心 -0.042 + 半径 0.038 = -0.004）；
+      // 只放到 -0.005~+0.010，保证从相机这一侧能看到上半截。
+      const up = -0.005 + Math.random() * 0.015;
+      const s = Math.random() * 10;
+      for (let v = 0; v < 6; v++) {
+        const o = i * 6 + v;
+        pos[o * 3] = across;
+        pos[o * 3 + 1] = up;
+        pos[o * 3 + 2] = along;
+        corner[o * 2] = CORNERS[v][0];
+        corner[o * 2 + 1] = CORNERS[v][1];
+        seed[o] = s;
+      }
     }
     g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    g.setAttribute("aCorner", new THREE.BufferAttribute(corner, 2));
     g.setAttribute("aSeed", new THREE.BufferAttribute(seed, 1));
     return g;
   }, []);
-  const coalUniforms = useMemo(() => ({ uTime: uniforms.uTime, uSize: { value: 5 } }), [uniforms]);
+  const coalUniforms = useMemo(
+    () => ({
+      uTime: uniforms.uTime,
+      uPxPerM: { value: 800 },
+      uDpr: { value: 2 },
+    }),
+    [uniforms]
+  );
   useEffect(() => () => coalGeo.dispose(), [coalGeo]);
+  /** 炭火床的加色光晕（轻微 bloom 感）：16 块炭一起把柴面烘出一层暖光，1 次 draw call。 */
+  const coalGlowTex = useMemo(() => glowTexture("rgba(255,176,96,0.55)", "rgba(255,112,32,0.16)"), []);
+  useEffect(() => () => coalGlowTex.dispose(), [coalGlowTex]);
+  /** ★ 根部蓝焰的"可见那一层"（2026-11-26 真机验收）：化学发光的蓝本应在火焰面片 v<0.22 那一段，
+   *  但那一段正好被柴挡住（火焰面片 depthTest 开着、下沿埋在柴堆里），近景里一条青蓝都看不到。
+   *  所以单独加一片青蓝加色光晕压在柴面上（depthTest=false，才会盖在柴前面）—— 与 shader 里
+   *  加浓的蓝焰是同一件事的两层：shader 管"露在柴上面的那截"，这一片管"贴着柴面的那一圈"。 */
+  const blueTex = useMemo(() => glowTexture("rgba(70,150,255,0.95)", "rgba(20,60,200,0.35)"), []);
+  useEffect(() => () => blueTex.dispose(), [blueTex]);
 
-  /** 烟：4 片，各自一个相位（uSeed）与寿命；位置/尺度固定，运动全在 shader 里 */
+  /** 烟：2 片（第 6 版；gsSmokeN=4 是第 5 版对照），各自一个相位（uSeed）/寿命/UV 滚动速度；
+   *  位置/尺度固定，运动全在 shader 里 */
   const smokeMats = useMemo(
     () =>
       Array.from({ length: SMOKE_COUNT }, (_, i) => ({
         uTime: uniforms.uTime,
         uSeed: { value: i / SMOKE_COUNT + 0.13 },
-        uLife: { value: 2.4 + (i % 3) * 0.55 },
+        uLife: { value: 2.6 + (i % 3) * 0.6 },
+        uScroll: { value: 0.30 + 0.22 * i },
       })),
     [uniforms]
   );
@@ -662,11 +778,18 @@ export default function HearthFire({
       fill.current.intensity = 0.55 + 0.25 * flick01;
     }
     uniforms.uTime.value = t;
+    // 炭火：屏幕最小尺寸要按"每米多少物理像素"算。hPx 是 canvas 的 drawingBuffer 高度
+    //（随转屏/dpr 变），fov 取当前透视相机 —— 与 shader 里 `6 CSS px` 那道下限配套。
+    const pcam = camera as THREE.PerspectiveCamera;
+    coalUniforms.uPxPerM.value = gl.domElement.height / (2 * Math.tan((pcam.fov * Math.PI) / 360));
+    coalUniforms.uDpr.value = gl.getPixelRatio();
     // 火焰片绕 y 轴面向相机（只转 y：转 x 会让火焰"躺下"，看着像烧到桌面上）
     if (billboard.current) {
       billboard.current.rotation.y = Math.atan2(camera.position.x - px, camera.position.z - pz);
     }
     if (glowMat.current) glowMat.current.opacity = 0.17 + 0.1 * flick01;
+    // 根部蓝焰跟着火一起呼吸（幅度小：化学发光比火舌稳）
+    if (blueMat.current) blueMat.current.opacity = 0.42 + 0.16 * flick01;
   });
 
   return (
@@ -713,8 +836,8 @@ export default function HearthFire({
               />
             </mesh>
           ))}
-        {/* 炭火（贴在柴上，跟着这组一起面向相机） */}
-        <points geometry={coalGeo} renderOrder={21}>
+        {/* 炭火：16 块白热炭块（billboard 面片，贴在柴堆上表面；第 6 版替换上一版的 points） */}
+        <mesh geometry={coalGeo} renderOrder={21}>
           <shaderMaterial
             uniforms={coalUniforms}
             vertexShader={COAL_VERT}
@@ -723,7 +846,33 @@ export default function HearthFire({
             depthWrite={false}
             blending={THREE.AdditiveBlending}
           />
-        </points>
+        </mesh>
+        {/* 炭火床的加色光晕片（轻微 bloom 感）：压在炭块后面，1 次 draw call */}
+        <mesh renderOrder={19} position={[0, -0.012, -0.02]}>
+          <planeGeometry args={[0.42, 0.22]} />
+          <meshBasicMaterial
+            map={coalGlowTex}
+            transparent
+            opacity={0.38}
+            depthWrite={false}
+            blending={THREE.AdditiveBlending}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+        {/* 根部蓝焰（贴着柴面的青蓝；depthTest=false 才不会被柴吃掉，见 blueTex 的 ★） */}
+        <mesh renderOrder={21} position={[0, 0.02, 0.02]}>
+          <planeGeometry args={[0.34, 0.16]} />
+          <meshBasicMaterial
+            ref={blueMat}
+            map={blueTex}
+            transparent
+            opacity={0.6}
+            depthWrite={false}
+            depthTest={false}
+            blending={THREE.AdditiveBlending}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
         {/* 火星（往上飘的余烬） */}
         <points geometry={emberGeo} renderOrder={21}>
           <shaderMaterial
@@ -754,10 +903,15 @@ export default function HearthFire({
           <planeGeometry args={[0.62, 0.5]} />
           <meshBasicMaterial map={archTex} transparent opacity={0.3} depthWrite={false} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} />
         </mesh>
-        {/* 烟：4 片半透明面片（普通混合，不是加色：烟是**挡住**后面的东西） */}
+        {/* 烟：2 片半透明面片（普通混合，不是加色：烟是**挡住**后面的东西）。
+            每片里画上下两团（见 SMOKE_FRAG），观感仍是 4 团、draw call 少 2 次。 */}
         {smokeMats.map((u, i) => (
-          <mesh key={`s${i}`} renderOrder={22} position={[0.012 * (i - 1.5), FLAME_H * 0.62 + 0.05 * i, -0.01]}>
-            <planeGeometry args={[0.16 + 0.05 * i, 0.42]} />
+          <mesh
+            key={`s${i}`}
+            renderOrder={22}
+            position={[0.035 * (i - (SMOKE_COUNT - 1) / 2), FLAME_H * 0.55 + 0.12 * i, -0.01]}
+          >
+            <planeGeometry args={[0.30 + 0.05 * i, 0.60 + 0.08 * i]} />
             <shaderMaterial
               uniforms={u}
               vertexShader={VERT}

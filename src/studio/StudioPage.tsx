@@ -465,6 +465,10 @@ export default function StudioPage() {
           full：这一屏整个就是这块画布，fallback 居中摆、多给一颗回首页；顶栏是 absolute 的兄弟节点，照旧能按返回。 */}
       <ErrorBoundary label={t`3D 桌面`} full>
         <Canvas
+          /* ★★ pixel ratio 上限 = 2.0（2026-11-26 性能验收）：真机 window.devicePixelRatio 是 3.5，
+             真按 3.5 渲 = 2.0 那档的 3 倍多像素。R3F 的 `[min, max]` 就是把 devicePixelRatio
+             夹在 [1, 2]（实测：模拟器 dpr 2.625 → canvas.width/clientWidth = 2.0）。
+             想再量一档可以改系统 density（见 docs/gs-table-light-log.md §14），别在代码里按机型调。 */
           dpr={[1, 2]}
           /* ★ preserveDrawingBuffer 只在 DEV 开（2026-10-15 教材人格评审）：正式包里没有谁读这块画布的像素 —— 全仓 gl.domElement.toDataURL
              只有 DEV 的 __r3fCapture（TableScene :1686 `import.meta.env.DEV && <CaptureHook/>`），导演台截图用的是它自己的 Canvas，
