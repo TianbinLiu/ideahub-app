@@ -272,6 +272,7 @@ import CardMesh from "./CardMesh";
 // ★ 2026-11-26（feat/gs-table-fire）：PBR 盖板删了，桌面统一走 WorkshopTable（旧场景那张长桌）；
 //   米制档（高斯场景）只是把尺寸/机位/卡位换成 1 单位 = 1 米那套，见 layout 的 GS_* 常量。
 import { GsStep0Environment } from "./GsStep0Environment";
+import type { GsSceneKind } from "./sceneSplit";
 import { GS_FIRE_LIGHT, GS_STEP0_TRANSFORM, gsAcceptProbeOn, useGsPhase } from "./gsStep0";
 import { FIRE_FX } from "./HearthFire";
 import WorkshopTable from "./WorkshopTable";
@@ -2080,7 +2081,13 @@ function AcceptProbe() {
   return null;
 }
 
-export default function TableScene() {
+/**
+ * @param sceneKind 这一帧挂哪一套场景（`lobby` = 大厅/匹配页只挂窗景；`room` = 房间 + 平贴图窗洞）。
+ *   ★ 2026-11-27（`feat/gs-scene-split`）：判据在页面层（StudioPage 同时认识 lobbyStore 与 game store），
+ *   这一层只画、不数 —— 不在 scene 里 import 两个 store（那会把 data/account 的初始化顺序搅进 3D 模块，
+ *   design/ 的离线抓图页会拿到半初始化的模块）。
+ */
+export default function TableScene({ sceneKind }: { sceneKind?: GsSceneKind } = {}) {
   // ★ GS 第 0 步实验档（2026-11-25）：`gsPhase` 在开关关着时恒为 "off"，下面那棵树与今天逐字节相同。
   //   开着且没失败时，**整个桌面布局换成米制那套**（1 世界单位 = 1 米：layout.GS_*），房间与灯组
   //   整块交给 GsStep0Environment（splat 房间 + 月光 + 壁炉真火）。失败/超时它会自己翻回 "failed"
@@ -2092,7 +2099,7 @@ export default function TableScene() {
   return (
     <>
       {/* 房间 + 灯组：默认走今天的书房；GS 实验档开着时换成 splat 房间（见 GsStep0Environment） */}
-      <GsStep0Environment />
+      <GsStep0Environment sceneKind={sceneKind} />
       <CameraRig />
       {/* ★ 桌面统一这一处：旧场景那张长桌（WorkshopTable）。尺寸/朝向由 layout.sceneLayout 决定
           （高斯米制档 2.50×1.17 + 光毯；其余两套逐字节不变）。原来这里的 PBR 盖板已删除。 */}

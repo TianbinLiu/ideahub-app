@@ -51,6 +51,7 @@ import {
   useMatchCam,
 } from "../../scene/matchCam";
 import { useGsPhase } from "../../scene/gsStep0";
+import { markLobbyOpened } from "../../scene/sceneSplit";
 import { setGsHudHidden } from "../../scene/gsHud";
 import GameBtn from "./GameBtn";
 import RoomScreen from "./RoomScreen";
@@ -142,7 +143,11 @@ export default function Lobby() {
    */
   const wasOpen = useRef(false);
   useEffect(() => {
-    if (open && !wasOpen.current && !inGame) enterMatchPage();
+    if (open && !wasOpen.current && !inGame) {
+      // 冷启动 `?lobby=1` 的 boot 标记到这里交棒：从这以后场景挂哪一档只认 lobbyStore.open
+      markLobbyOpened();
+      enterMatchPage();
+    }
     if (!open && wasOpen.current) leaveMatchPage();
     wasOpen.current = open;
   }, [open, inGame]);

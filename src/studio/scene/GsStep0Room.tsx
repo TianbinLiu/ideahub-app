@@ -1,6 +1,10 @@
-// ★ 高斯泼溅第 0 步的"重"那一半：SparkRenderer + SplatMesh（懒加载）。
-//   TableScene 只在 `GsStep0Environment` 判定为"开着且没失败"时才 import 到这里，
-//   默认关的正式体验连这个 chunk 都不会下载（构建产物里是 GsStep0Room-*.js）。
+// ★ 高斯泼溅第 0 步的"重"那一半：房间那一份 SplatMesh（懒加载）。
+//   TableScene 只在 `GsStep0Environment` 判定为"开着且没失败、且这一帧是 room 那一套"时才 import 到这里，
+//   大厅/匹配页那一档连这个 chunk 都不会下载（构建产物里是 GsStep0Room-*.js）。
+//
+// ★★ 2026-11-27（`feat/gs-scene-split`）：**SparkRenderer 不在这里了** —— 它挪去了 `GsSparkStage`
+//   （大厅/房间两套场景共用一台，切场景只换 SplatMesh；见那个文件的 ★）。这里只剩：
+//   房间 SplatMesh + 环境贴图（DayEnvironment）+ 椅子/毛玻璃裁剪（GsSplatCull）。
 //
 // 三条不能忘的坑（docs/gs-step0-plan.md §3.3）：
 //   ① splat 默认 transparent、depthWrite=false —— 它挡不住之后画的透明物，谁先谁后只看 renderOrder。
@@ -10,7 +14,7 @@
 import { useLayoutEffect, useMemo, useState } from "react";
 import * as THREE from "three";
 import { useFrame, useThree } from "@react-three/fiber";
-import { SparkRenderer, SplatMesh } from "@sparkjsdev/spark";
+import { SplatMesh } from "@sparkjsdev/spark";
 import {
   GS_DAY,
   GS_STEP0_BUDGET,
@@ -21,12 +25,21 @@ import {
   gsLoadMs,
   gsMarkReady,
   gsMaxSplats,
+  gsPhaseNow,
   gsQuality,
   gsSplatTier,
   setGsPhase,
 } from "./gsStep0";
 import { GS_STATS, mountGsHud, updateGsHud } from "./gsHud";
 import GsSplatCull from "./GsSplatCull";
+import {
+  markRoomDisposed,
+  markRoomFailed,
+  markRoomMounted,
+  markRoomReady,
+  noteRoomSplatCreated,
+  noteRoomSplatDisposed,
+} from "./sceneSplit";
 
 /** 白天的"环境光"：真 HDR 还没进仓（plan §4.4 要的是 Poly Haven 1k CC0 ≈1 MB），
  *  先程序化画一张等距柱状图（天顶蓝 → 地平线暖白 → 地面褐 + -x 窗墙那一块高亮）再过 PMREM。
@@ -127,15 +140,16 @@ function GsStats({ splat }: { splat: SplatMesh }) {
   return null;
 }
 
-function SplatLayer({ gl }: { gl: THREE.WebGLRenderer }) {
+function SplatLayer() {
   // ★ 为什么是"在 effect 里建、放 state 里"而不是 useMemo：整棵树在 React.StrictMode 下会
   //   挂载 → 卸载 → 再挂载（本仓 main.tsx 就是 StrictMode）。useMemo 造的资源在第一次卸载时被
   //   cleanup 释放掉，第二次挂载拿到的还是那对**已经 dispose 过**的对象 —— 开发期表现为"splat 永远不出现"。
   //   建/释放成对放在同一个 effect 里，就能让第二份资源干净地从零开始。
-  const [objs, setObjs] = useState<{ spark: SparkRenderer; splat: SplatMesh } | null>(null);
+  // ★ 2026-11-27（`feat/gs-scene-split`）：SparkRenderer 挪去 `GsSparkStage`（两套场景共用一台，
+  //   切场景不重建）；这里只建房间这一份 SplatMesh，卸载时 dispose 它就是"释放"。
+  const [splat, setSplat] = useState<SplatMesh | null>(null);
   useLayoutEffect(() => {
-    const spark = new SparkRenderer({ renderer: gl });
-    const splat = new SplatMesh({
+    const mesh = new SplatMesh({
       // ★ URL 按「画质档（refined 2M / draft 524k）」×「三档 LOD（full / 1.6 / 1.4 / 1.2）」现读，
       //   在 gsStep0.gsAssetUrl() 里（每次建 mesh 读一次 ⇒ 换档之后重新进工坊生效）。
       url: gsAssetUrl(),
@@ -144,27 +158,38 @@ function SplatLayer({ gl }: { gl: THREE.WebGLRenderer }) {
       maxSplats: gsMaxSplats(),
       raycastable: false, // 点选只对 mesh 开 raycaster：splat 的 depthWrite=false 不会替你挡（plan §4.5）
     });
+    // 验收标记（`__gsSplit.snapshot()` 的 `splatMeshes` 靠它数；Vite 会压缩类名）
+    mesh.userData.gsSplat = "room";
+    noteRoomSplatCreated();
+    // 房间这一轮挂载的起点（sceneSplit 用来算加载耗时；真机验收的 load= 读数从此处起算）
+    markRoomMounted();
     // 角标读数里这几个数不随帧变：在建模这一拍定下来（省得每帧重新解析地址栏）
     GS_STATS.cap = gsMaxSplats();
     GS_STATS.quality = gsQuality();
     GS_STATS.tier = gsSplatTier();
     GS_STATS.fill = gsFillOn();
     GS_STATS.splats = 0;
-    setObjs({ spark, splat });
+    setSplat(mesh);
     return () => {
-      setObjs(null);
-      splat.dispose();
-      spark.dispose();
+      setSplat(null);
+      mesh.dispose();
+      noteRoomSplatDisposed();
+      markRoomDisposed();
+      // ★ 交接的另一半：房间卸掉（开大厅 / 离开工坊）→ 这一档回到 loading。
+      //   ① 下一次挂载要重新计时（MatchCurtain 不会拿上一轮的 ready 当"这一次已经好了"）；
+      //   ② 失败回退（failed）**不许**打回 loading —— 否则 GsStep0Environment 会再挂一次房间，
+      //      形成"失败 → 重试 → 再失败"的循环。
+      if (gsPhaseNow() === "ready") setGsPhase("loading");
     };
-  }, [gl]);
+  }, []);
 
   useLayoutEffect(() => {
-    if (!objs) return;
-    const { splat } = objs;
+    if (!splat) return;
     let alive = true;
     const timer = window.setTimeout(() => {
       if (!alive) return;
       console.warn(`[gs] ${GS_STEP0_BUDGET.timeoutMs} ms 内没就绪 → 回退今天的程序化书房`);
+      markRoomFailed();
       setGsPhase("failed");
     }, GS_STEP0_BUDGET.timeoutMs);
     splat.initialized
@@ -184,6 +209,8 @@ function SplatLayer({ gl }: { gl: THREE.WebGLRenderer }) {
           console.log(`[gs] 高斯截断：${loaded} → ${cap}（成本对照档，房间会缺一块）`);
         }
         gsMarkReady(); // 真机验收要的"到 splat 出现"那一拍（与进入工坊的 mark 相减 = 首进耗时）
+        // 两套场景的读数：房间这一轮真的就绪了（MatchCurtain 靠它撤黑幕）
+        markRoomReady();
         console.log(`[gs] splat 就绪：${splat.packedSplats?.numSplats ?? 0} 个高斯`);
         if (import.meta.env.DEV) {
           // 落位对不对，先看这两个包围盒：原始那份应该在 Atlas 相机附近；过了 group 变换之后应该把桌面套进去
@@ -204,22 +231,22 @@ function SplatLayer({ gl }: { gl: THREE.WebGLRenderer }) {
         if (!alive) return;
         window.clearTimeout(timer);
         console.warn("[gs] splat 加载失败 → 回退今天的程序化书房", err);
+        markRoomFailed();
         setGsPhase("failed");
       });
     return () => {
       alive = false;
       window.clearTimeout(timer);
     };
-  }, [objs]);
+  }, [splat]);
 
-  if (!objs) return null;
+  if (!splat) return null;
   const tf = GS_STEP0_TRANSFORM;
   return (
     <>
-      <primitive object={objs.spark} />
       {/* renderOrder 10：网格 0 / splat 10 / 玻璃与光效 20（plan §3.3-1、§4.5） */}
-      <primitive object={objs.splat} position={tf.position} rotation={tf.rotation} scale={tf.scale} renderOrder={10} />
-      <GsStats splat={objs.splat} />
+      <primitive object={splat} position={tf.position} rotation={tf.rotation} scale={tf.scale} renderOrder={10} />
+      <GsStats splat={splat} />
     </>
   );
 }
@@ -233,13 +260,14 @@ export default function GsStep0Room() {
   useLayoutEffect(() => {
     if (support.ok) return;
     console.warn(`[gs] WebGL 能力不够（缺 ${support.missing.join(" / ")}）→ 回退今天的程序化书房`);
+    markRoomFailed();
     setGsPhase("failed");
   }, [support]);
   if (!support.ok) return null;
   return (
     <>
       <DayEnvironment />
-      <SplatLayer gl={gl} />
+      <SplatLayer />
       {/* ★ splat 里烘死的两把椅子在这里被剪掉（SplatEdit 盒状 SDF，见该文件头） */}
       <GsSplatCull />
     </>

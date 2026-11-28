@@ -68,6 +68,18 @@ async function boot(): Promise<void> {
     console.error("[boot] App 加载失败:", e);
     return bootError();
   }
+  /**
+   * ★ 冷启动直接落在大厅（`/studio?lobby=1`，CreatePage 的「开始做完整作品」）：**在 render 之前**
+   *   给场景层打一个 boot 标记 —— 第一帧就按"大厅"挂（只载窗景 splat），别让房间那份 24.8 MB
+   *   在 StudioPage 的 openLobby effect 之前抢跑（chunk 有缓存时它比 effect 快，这是拆场景要消掉的等待）。
+   *   动态 import（不静态引业务模块）：App 已经把它拉起来了，这里只是同一份模块的第二次引用。
+   */
+  try {
+    const { markBootLobbyIntent } = await import("./studio/scene/sceneSplit");
+    if (/[?&]lobby=1(?:&|$)/.test(window.location.hash)) markBootLobbyIntent();
+  } catch {
+    /* 标记失败不影响任何功能：大厅照开，只是第一帧可能先挂房间（退回拆分前的行为） */
+  }
   ReactDOM.createRoot(document.getElementById("root")!).render(
     <React.StrictMode>
       <I18nProvider i18n={i18n}>

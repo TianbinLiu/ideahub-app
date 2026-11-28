@@ -13,10 +13,19 @@
 //   · 大厅关掉（✕ 返回工坊 / 路由卸载）
 //   · 队列超时（note = queue-timeout）：镜头复位，但**匹配中那一屏还在** → 黑幕留着（coverDesign）
 // ★ 这些判断一条都不改匹配逻辑本身：`lobbyStore.findMatch` / 队列 / AI 补位照旧。
+//
+// ★★ 2026-11-27（`feat/gs-scene-split`）：**房间那份 1.6M spz 不在大厅里加载了**（见 sceneSplit），
+//   所以"匹配成功 → 进房间"这一次多了一段房间加载。黑幕的撤法随之改成**等房间就绪**：
+//     · 开了一局：black 留着，等 `roomPhase` ready / failed 才 `leaveMatchPage()`（0.4 s 淡出）；
+//     · 关大厅回工坊：房间也要重新挂，先把相机按回设计机位、黑幕拉到 1（`coverDesign`），
+//       房间就绪再淡出 —— 不然会看见"桌子 / NPC 浮在没有墙的背景上"（空洞）。
+//   没有高斯档（老书房）时 roomPhase 永远是 idle、`gsOn` 为假 → 走原来的立刻复位，逐字节不变。
 import { useEffect, useRef } from "react";
 import { useLobby } from "../lobbyStore";
 import { useGame } from "../store";
-import { coverDesign, leaveMatchPage, useMatchCam } from "../../scene/matchCam";
+import { coverDesign, leaveMatchPage, matchCamFrozen, useMatchCam } from "../../scene/matchCam";
+import { useRoomPhase } from "../../scene/sceneSplit";
+import { useGsPhase } from "../../scene/gsStep0";
 
 export default function MatchCurtain() {
   const veil = useMatchCam((s) => s.veil);
@@ -26,16 +35,31 @@ export default function MatchCurtain() {
   const lobbyOpen = useLobby((s) => s.open);
   const screen = useLobby((s) => s.screen);
   const noteKind = useLobby((s) => s.note?.kind ?? null);
+  /** 房间 spz 这一轮挂上了没有（ready / failed 都算"可以撤黑幕"；idle / loading 不许撤） */
+  const roomPhase = useRoomPhase();
+  const roomSettled = roomPhase === "ready" || roomPhase === "failed";
+  /** 高斯档开着没有（loading/ready）：false 时没有房间可等，按老路径立刻收口 */
+  const gsPhase = useGsPhase();
+  const gsOn = gsPhase === "loading" || gsPhase === "ready";
 
-  // 开了一局：镜头复位 + 黑幕淡出（大厅这一刻已经卸了，只剩这一层）
+  // 开了一局：镜头复位 + 黑幕淡出 —— ★ 但要等房间 spz 就绪（否则淡出的是"空洞"）
   useEffect(() => {
-    if (inGame) leaveMatchPage();
-  }, [inGame]);
+    if (!inGame || matchCamFrozen()) return;
+    if (roomSettled || !gsOn) leaveMatchPage();
+  }, [inGame, roomSettled, gsOn]);
 
-  // 大厅关了（✕ 返回工坊、离开工坊路由、结束对局后回大厅又关掉）：一律回设计机位
+  // 大厅关了（✕ 返回工坊、离开工坊路由、结束对局后回大厅又关掉）：一律回设计机位。
+  // ★ 房间还没就绪时先把黑幕拉起来（coverDesign：相机按回设计机位 + veil=1），房间成了再淡出。
   useEffect(() => {
-    if (!lobbyOpen) leaveMatchPage();
-  }, [lobbyOpen]);
+    if (lobbyOpen || inGame || matchCamFrozen()) return;
+    if (roomSettled || !gsOn) {
+      leaveMatchPage();
+      return;
+    }
+    // 只在"相机正被匹配页那一层管着"时才需要盖（idle 时本来就什么都没发生 —— 第一次进工坊，
+    // 房间在加载中露出的背景与今天逐字节相同，别给首屏加一层黑）。
+    if (stage === "page" || stage === "fly" || stage === "outside") coverDesign();
+  }, [lobbyOpen, inGame, roomSettled, gsOn, stage]);
 
   // 从"匹配中"那一屏离开：取消（→首屏）/ 匹配成功（→房间屏）/ 公开房那一屏
   const prevScreen = useRef(screen);

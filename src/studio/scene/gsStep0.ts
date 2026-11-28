@@ -156,7 +156,9 @@ export function gsAcceptProbeOn(): boolean {
   return lsRead("gsAcceptDebug") === "1";
 }
 
-/** splat 资产：**不进仓库**（见 .gitignore 的 `public/models/study/gs/`）。开启前把导出的 spz 放到这里。 */
+/** 房间 splat 资产（1.6M 那份）：**不进仓库**（见 .gitignore 的 `public/models/study/gs/*`）。
+ *  ★ 2026-11-27（`feat/gs-scene-split`）：同一目录里两个**窗景** spz（`window-moon/sea.spz`，
+ *  各 12 万点 / ~1.25 MB）是例外 —— 它们进仓库、进 APK，只在大厅那一档挂。开启前把房间那份放到这里。 */
 export const GS_STEP0_ASSET = "/models/study/gs/workshop-step0.spz";
 
 // ── 画质档（2026-11-26 第 2 版资产）：refined 2M / draft 524k ──────────────────
@@ -190,7 +192,8 @@ export const GS_STEP0_ASSETS = {
 //     full = 2.0M（现有 workshop-step0.spz）/ 1.6M / 1.4M / 1.2M
 //   点数与体积、抽稀算法与种子见 docs/gs-table-light-log.md §15。
 //   ★ 抽样后回排顺序是有意的：Spark 按数组顺序做批处理/缓存，打乱顺序的 spz 在真机上更慢。
-//   ★ 四个文件都**不进仓库**（.gitignore 的 `public/models/study/gs/`），换机器要重跑脚本。
+//   ★ 四个房间文件都**不进仓库**（.gitignore 的 `public/models/study/gs/*` 只放行两个窗景 spz），
+//     换机器要重跑脚本。
 export type GsSplatTier = "full" | "1.6" | "1.4" | "1.2";
 
 /**
@@ -528,6 +531,11 @@ function subscribe(fn: () => void): () => void {
 export function useGsPhase(): GsPhase {
   // 本仓 React 19，没有 SSR；subscribe/getSnapshot 都指向这一份模块级状态
   return useSyncExternalStore(subscribe, () => phase);
+}
+
+/** 不订阅、现读一次（清理函数 / 事件回调里用；见 GsStep0Room 卸载时把 ready 打回 loading） */
+export function gsPhaseNow(): GsPhase {
+  return phase;
 }
 
 /** WebGL 能力：splat 的累加缓冲是浮点纹理；缺这个的话 Spark 起不来（不如提前判、回退干净） */

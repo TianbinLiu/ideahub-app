@@ -52,6 +52,12 @@ public/__e2e_*
 
 # GS 第 0 步（2026-11-25）：Atlas 出的 splat 草稿资产不进仓库（几十 MB，且版权按出图时的账号状态算）
 # 台账与启用方法见 docs/gs-step0-splat-log.md；开关在 src/studio/scene/gsStep0.ts（默认关）
-public/models/study/gs/
+# ★ 2026-11-27（feat/gs-scene-split）：房间那份 1.6M spz（24.8 MB）仍然不进仓库；
+#   **两个窗景 splat 例外**（各 12 万点 / ~1.25 MB）—— 大厅/匹配页那一档直接用它们，
+#   体积预算见 docs/gs-window-daynight-log.md §6。别把 `public/models/study/gs/` 整个排除：
+#   排除目录后 `!` 例外是无效的（git 要求先不排除目录本身）。
+public/models/study/gs/*
+!public/models/study/gs/window-moon.spz
+!public/models/study/gs/window-sea.spz
 # 这一步的临时目录（下载的 spz / 截图 / 一次性分析脚本），用完即可删
 .tmp-gs-*/
