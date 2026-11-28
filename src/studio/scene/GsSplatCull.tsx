@@ -26,6 +26,7 @@
 import { useLayoutEffect, useMemo, useState } from "react";
 import * as THREE from "three";
 import { SplatEdit, SplatEditRgbaBlendMode, SplatEditSdf, SplatEditSdfType } from "@sparkjsdev/spark";
+import { WINDOW } from "./moonGeometry";
 
 /** 一个待裁掉的盒子：中心 `c` + 半尺寸 `h`（都是世界坐标，米） */
 export interface CullBox {
@@ -52,6 +53,18 @@ export const CHAIR_CULL: CullBox[] = [
 
 const KEY_BOXES = "gsCullBoxes";
 const KEY_DEBUG = "gsCullDebug";
+
+/** ★★ 窗洞里那块**烘死的毛玻璃**（2026-11-27，`feat/gs-window-daynight`）：
+ *  窗景 splat 要"真的 3D"，就得能看见它 —— 但 Spark 把所有 `SplatMesh` 收进**同一个
+ *  accumulate pass** 按深度混，那份窗玻璃比窗面更靠里（实测在窗心前 0.6 m 以上），
+ *  于是它永远盖在新贴上去的窗景 splat 上面：截图里窗洞是一片黑（只看得见夜空着色器的暗环）。
+ *  三个 `SplatMesh.renderOrder` 都试过（11 / 17），没用 —— 排序在 pass 内部，不看 renderOrder。
+ *  唯一干净的做法：把玻璃那层**裁掉**（同椅子那套 `SplatEdit`）。
+ *  ★ 用**球**不用盒：球在墙面（一个平面）上切出来的正好是**圆** = 窗洞本体；
+ *    盒会多切掉窗洞四个角外面的墙（0.58~0.65 m 那一圈），从正面看是四个缺口。
+ *  ★ 半径取 0.46（窗洞 0.45 + 1 cm 软边），比窗框内径小 —— 窗框/窗棂是 mesh，不受影响。
+ *  ★ 半径别大于 0.5：再大就开始吃窗景 splat 自己（它摆在窗面前 0.3 m，离球心有 0.3 m 余量）。 */
+export const WINDOW_GLASS_CULL = { center: WINDOW.center, radius: 0.46 } as const;
 
 /** 读 localStorage 里的覆盖值；形状不对就当没写（绝不把 NaN 送进 SDF） */
 function readBoxes(): CullBox[] {
@@ -95,6 +108,17 @@ export default function GsSplatCull() {
       sdf.updateMatrixWorld(true);
       e.addSdf(sdf);
     }
+    // 窗洞里那块毛玻璃（见 WINDOW_GLASS_CULL 的注释）：球心 = 窗心、半径 0.46 m
+    const glass = new SplatEditSdf({
+      type: SplatEditSdfType.SPHERE,
+      opacity: 0,
+      color: new THREE.Color(1, 1, 1),
+      radius: 0.01,
+    });
+    glass.position.set(...WINDOW_GLASS_CULL.center);
+    glass.scale.setScalar(WINDOW_GLASS_CULL.radius);
+    glass.updateMatrixWorld(true);
+    e.addSdf(glass);
     setEdit(e);
     return () => setEdit(null);
   }, [boxes]);
