@@ -11,51 +11,37 @@
 // ★ 一个 Canvas 只能有一个 SparkRenderer（GsStep0Room 文件头 ③）：这里**绝不**新建 SparkRenderer，
 //   只建 SplatMesh 放进场景 —— 房间那份 `SparkRenderer`（renderOrder 10 的那个兄弟）会把它一起画。
 //
-// ★★ 摆法（这是整个文件唯一的"知识"）：
+// ★★ 摆法（这是整个文件唯一的"知识"，2026-11-27 搬到了 `moonGeometry.WINDOW_VIEW`）：
 //   ml-sharp 出的是 **OpenCV 相机坐标**（x 右 / y 下 / z 前）、**米制**、0 阶 SH；
 //   `.ply` 在 `design/ply2spz.mjs` 之前还过了一道 `.tmp-gs-win/clean_ply.py` 的
 //   **投影不变的对数深度压缩**（把单图那种"相对深度"压进 [1.63, 1.98] m 的一个盒子，
 //   方向 (x/z, y/z) 一点没改）。所以摆的时候只需要三件事：
-//     ① 原点放在**窗洞内容的拍摄机位**上（`WINDOW_VIEW.position`：窗正前方、与窗心等高、1.6 m
-//        —— `design/gs-window-shot.tsx` 的默认机位，678² 裁图就是按它裁的）；
+//     ① 原点放在**窗洞内容的拍摄机位**上（`WINDOW_VIEW`：窗正前方、与窗心等高、1.6 m）；
 //     ② 绕 X 轴转 π：y_cv(下) → −y 世界(下)、z_cv(前) → −z 世界(窗外)；
-//     ③ 缩放 **1**（坐标已经是米，不要再按包围盒拟合 —— 拟合会把深度盒一起缩掉，
-//        视差跟着变小，而且近处的高斯会跑进屋里）。
+//     ③ 缩放 **1**（坐标已经是米，不要再按包围盒拟合）。
 //   ⇒ 从那台机位看，splat 的投影与平贴图**逐像素对齐**；换机位才露出视差。
-//   ★ 为什么不做"按视场比"的另一种摆法：让原点落在**当前**相机上、按视场反解缩放，只有那一台
-//     相机看得对，走一步就错，墙是会露出来的。
-import { useLayoutEffect, useState } from "react";
-import { SplatMesh } from "@sparkjsdev/spark";
-import { WINDOW } from "./moonGeometry";
+//
+// ★★ 2026-11-27（`feat/gs-flythrough-dissolve`）：**每点 stagger 的点子在这里**。
+//   主人要"贴图散成点、每颗 splat 有 0~0.6 s 随机延迟 + 尺寸 0.2 长到 1.0"。做法：
+//   `SplatMesh.objectModifier`（Spark 的 dyno 修饰器，逐 splat 在 shader 里算，**不 CPU 遍历**）：
+//     · 每点随机数 = `hashFloat(center)`（点自己的局部坐标 → 稳定、无需额外 attribute）；
+//     · `FLY_U.dissolve`（0..1，同一拍由 matchCam 的时间轴写）推到 1 时，所有点都出来；
+//     · 不飞的时候 `FLY_U.active = 0` ⇒ 修饰器输出 = 原值，大厅/房间里逐像素不变。
+//   ★ 随机延迟给到 0.72 的进度（≈0.43 s），出现过程 0.28（≈0.17 s）——总和正好 0.6 s。
+//     改用 CPU 每帧遍历 12 万点会掉帧，而且 Spark 的 program 每帧都会重新读 uniform。
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useFrame } from "@react-three/fiber";
+import { SplatMesh, dyno } from "@sparkjsdev/spark";
+import { WINDOW_VIEW, windowViewOrigin } from "./moonGeometry";
+import { FLY_U } from "./flyTimeline";
+import { noteCorridorSkin, type CorridorSkin } from "./flyCorridor";
 import { markLobbyWindowReady, noteWindowSplatCreated, noteWindowSplatDisposed } from "./sceneSplit";
-
-/** 窗洞内容的拍摄机位（moonGeometry.WINDOW 现算，别手抄坐标）。 */
-export const WINDOW_VIEW = {
-  /** 相机到窗面的距离（m）：与 `design/gs-window-shot.tsx` 的缺省 cz 一致 = 1.6 */
-  dist: 1.6,
-  /** ★ 整份 splat 往室内挪多少（m）。为什么不是 0：
-   *  房间点云里有那扇**毛玻璃**（见 `GsSplatCull.WINDOW_GLASS_CULL`），它被裁掉了，
-   *  但裁的是一个球（半径 0.46）—— splat 的近端离窗心只有 0.29 m，落在球里会被一起裁掉。
-   *  挪 0.3 m 之后近端离线心 0.59 m > 0.46，安全；同时远端 0.3+0.22 = 0.52 m，
-   *  在 6° 视角下最多溢出窗洞 5.5 cm（窗框外侧还有 13 cm 的余量，藏在框后面）。
-   *  ★ 再往前挪没有好处：视差只由 splat 自己的深度盒（0.22 m）给，与它整体摆在哪儿无关。 */
-  forward: 0,
-  /** 摆法：OpenCV(y 下 / z 前) → three(y 上 / z 朝向室内)。窗面朝室内是 +z，
-   *  窗外是 −z ⇒ splat 的"前"必须对上世界 −z，于是绕 X 转 π。 */
-  rotation: [Math.PI, 0, 0] as [number, number, number],
-} as const;
-
-/** 原点（世界坐标）：窗心 + 法线 × dist，与窗心等高 */
-export function windowViewOrigin(): [number, number, number] {
-  const [cx, cy, cz] = WINDOW.center;
-  const [nx, , nz] = WINDOW.normal;
-  const d = WINDOW_VIEW.dist + WINDOW_VIEW.forward;
-  return [cx + nx * d, cy, cz + nz * d];
-}
 
 interface Props {
   /** spz 地址（`/models/study/gs/window-*.spz`） */
   url: string;
+  /** 这一份是夜（月）还是昼（海天）—— 点云廊要按同一档加载"只含窗洞内容"的旧 spz（见 flyCorridor）。 */
+  skin: CorridorSkin;
   /** 0..1 全局不透明度（交叉淡入用它，`SplatMesh.opacity` 是真·全局 alpha 乘数） */
   opacity: number;
   /** 加载完（或失败）回调：失败时上层就只留平贴图 */
@@ -64,16 +50,91 @@ interface Props {
   renderOrder?: number;
 }
 
-export default function WindowSplat({ url, opacity, onState, renderOrder = 17 }: Props) {
+/** 0..1 的平滑过渡（与 flyTimeline 里那条同一条曲线；这里只给"穿窗淡出"用） */
+function smoothstep(edge0: number, edge1: number, x: number): number {
+  const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+}
+
+/** 每点 stagger 的修饰器（dyno；构造一次，uniform 每帧由 `FLY_U` 喂）。
+ *  ★ 输出必须"不飞时逐像素等于原值"：`active=0` 时 opacity 乘 1、scales 乘 1。 */
+function makeDissolveModifier(progress: ReturnType<typeof dyno.dynoFloat>, active: ReturnType<typeof dyno.dynoFloat>) {
+  return dyno.dynoBlock({ gsplat: dyno.Gsplat }, { gsplat: dyno.Gsplat }, ({ gsplat }) => {
+    if (!gsplat) throw new Error("no gsplat input");
+    const g = dyno.splitGsplat(gsplat).outputs;
+    // 每点随机延迟（0..1）
+    const rnd = dyno.hashFloat(g.center);
+    // local = clamp((progress - rnd*0.72) / 0.28, 0, 1)，再做成 smoothstep
+    const local = dyno.clamp(
+      dyno.div(dyno.sub(progress, dyno.mul(rnd, dyno.dynoConst("float", 0.72))), dyno.dynoConst("float", 0.28)),
+      dyno.dynoConst("float", 0),
+      dyno.dynoConst("float", 1),
+    );
+    const eased = dyno.mul(dyno.mul(local, local), dyno.sub(dyno.dynoConst("float", 3), dyno.mul(local, dyno.dynoConst("float", 2))));
+    // ★★ 2026-11-27（整图底表之后）：**只让窗洞那一圈化点**。
+    //   现在挂的是 `window-*-full.spz`（墙 + 窗框 + 窗外整张图），若整份都跟着散，
+    //   墙会化成点、背景露出来 —— 正是主人嫌弃的"背景透明"。判据用**局部坐标的径向距离**：
+    //   拍摄机位在原点、窗洞在画面正中，窗洞半径 0.45 m ⇒ 取 0.52 m 内那一圈（含框内侧一点）。
+    const c = dyno.split(g.center).outputs;
+    const rad2 = dyno.add(dyno.mul(c.x, c.x), dyno.mul(c.y, c.y));
+    const inWindow = dyno.lessThan(rad2, dyno.dynoConst("float", 0.52 * 0.52));
+    const gate = dyno.select(inWindow, dyno.dynoConst("float", 1), dyno.dynoConst("float", 0));
+    const localActive = dyno.mul(active, gate);
+    const appear = dyno.mix(dyno.dynoConst("float", 1), eased, localActive);
+    // 尺寸从 0.2 长到 1.0（主人给的数）
+    const grow = dyno.add(dyno.dynoConst("float", 0.2), dyno.mul(eased, dyno.dynoConst("float", 0.8)));
+    const scale = dyno.mix(dyno.dynoConst("float", 1), grow, localActive);
+    gsplat = dyno.combineGsplat({
+      gsplat,
+      opacity: dyno.mul(g.opacity, appear),
+      scales: dyno.mul(g.scales, scale),
+    });
+    return { gsplat };
+  });
+}
+
+export default function WindowSplat({ url, skin, opacity, onState, renderOrder = 17 }: Props) {
   // ★ 同 `GsStep0Room.SplatLayer`：StrictMode 下会挂→卸→再挂，建与释放必须成对放在同一个
   //   effect 里，否则第二次挂载拿到的是已经 dispose 过的那一对（开发期表现为"splat 永远不出现"）。
   //   用 state 而不是 ref：建好之后要触发一次渲染把它挂到场景里。
   const [splat, setSplat] = useState<SplatMesh | null>(null);
+  /** 装扮交叉淡入那一份基础不透明度（useFrame 里还要乘"穿窗淡出"系数） */
+  const baseOpacity = useRef(1);
+
+  // 每点 stagger 的两个 uniform（dyno 对象，shader 每帧取 .value；组件卸载由 GC 收）
+  const progress = useMemo(() => dyno.dynoFloat(0), []);
+  const active = useMemo(() => dyno.dynoFloat(0), []);
+  const modifier = useMemo(() => makeDissolveModifier(progress, active), [progress, active]);
+  useFrame(() => {
+    progress.value = FLY_U.dissolve.value;
+    active.value = FLY_U.active.value;
+    // 相机过了窗面（穿行 38% ≈ 窗外 0.7 m）之后，这一份就在身后了：摘掉，省 26 万点的 overdraw
+    //（从这一刻起点云廊接管画面。★ 不摘的话 Spark 每帧仍要 accumulate 它一次）
+    if (splat) {
+      // ★★ 2026-11-27 真机：整图底表的窗洞区域点很密 —— 相机一动，那份稠密点云在近处会重新
+      //   读成"一张图"（夜档是撞一屏白，昼档是远端海天糊满屏）。主人要的是 0.6~2.0 s
+      //   "四周全是高斯点"，所以两种皮肤都在穿行**开头**把底表淡掉、交给点云廊：
+      //     夜 0.04~0.18（0.66~0.85 s 淡完，整图深度只到 1.8 m，之后本来也没有点）
+      //     昼 0.04~0.22（0.66~0.91 s 淡完；昼档底表有真实纵深，但它的近场密点同样糊屏 ——
+      //        纵深的价值在化点阶段与穿行开头那 0.3 s，之后由 6 层点云廊接管）
+      const fadeK =
+        skin === "night"
+          ? 1 - smoothstep(0.04, 0.18, FLY_U.travel.value)
+          : 1 - smoothstep(0.04, 0.22, FLY_U.travel.value);
+      const op = baseOpacity.current * fadeK;
+      if (Math.abs(splat.opacity - op) > 0.001) splat.opacity = op;
+      const behind = fadeK <= 0.001 || (FLY_U.travel.value > 0.38 && FLY_U.corridor.value > 0.2);
+      if (splat.visible !== !behind) splat.visible = !behind;
+    }
+  });
 
   useLayoutEffect(() => {
     const mesh = new SplatMesh({ url, raycastable: false });
     // 验收标记：`__gsSplit.snapshot()` 里 `splatMeshes` 数的是窗景这一份（另一个是房间那份）
     mesh.userData.gsSplat = "window";
+    // ★ 每点 stagger：在建好之后、挂进场景之前装上（第一次编译就带着它，转场开始那一下不用重编译）
+    mesh.objectModifier = modifier;
+    mesh.updateGenerator();
     noteWindowSplatCreated();
     let alive = true;
     mesh.initialized
@@ -86,6 +147,9 @@ export default function WindowSplat({ url, opacity, onState, renderOrder = 17 }:
             `局部 bbox ${size.toArray().map((n) => n.toFixed(2)).join("×")} m（应为 1.63~1.98 m 深）`,
         );
         setSplat(mesh);
+        // 点云廊要"只含窗洞内容"的那份点（整图版含墙，复制出来是墙的隧道）：
+        // 告诉 flyCorridor 这一轮哪一档，由它自己加载旧 spz 复制层（见那儿的 ★★）
+        noteCorridorSkin(skin);
         // 大厅那一档的"可交互"读数：窗景真的就绪了（`sceneSplit` 里只在 lobby 档记）
         markLobbyWindowReady();
         onState?.("ok");
@@ -108,7 +172,8 @@ export default function WindowSplat({ url, opacity, onState, renderOrder = 17 }:
 
   // 不透明度每次变都要写回：Spark 每帧读这一位（交叉淡入就是靠它推进的）
   useLayoutEffect(() => {
-    if (splat) splat.opacity = Math.min(1, Math.max(0, opacity));
+    baseOpacity.current = Math.min(1, Math.max(0, opacity));
+    if (splat) splat.opacity = baseOpacity.current;
   }, [splat, opacity]);
 
   // ★ DEV 读数：窗景 splat 有没有真的进场景、Spark 有没有画它（控制台抓不到时的唯一证据口）

@@ -66,6 +66,10 @@ export const MATCH_PAGE = {
 export interface CamPose {
   pos: [number, number, number];
   look: [number, number, number];
+  /** 横滚（弧度；`TableScene` 在 lookAt 之后绕视线轴转这一位）。缺省 0 = 不滚。
+   *  ★ 2026-11-27（`feat/gs-flythrough-dissolve`）：穿点云廊时轻微横滚 / 抖动用它 ——
+   *    lookAt 只能给方向，滚转必须**之后**再绕视线轴转，所以必须单独带一位。 */
+  roll?: number;
 }
 
 const [cx, cy, cz] = WINDOW.center;
@@ -100,8 +104,54 @@ export function skyDome(): { center: [number, number, number]; radius: number } 
 }
 
 /** 穿窗转场要飞的**总距离**（m）：从匹配页机位往前，穿过窗洞再走 ~4.8 m。
- *  ★ 别飞进月亮盘：月亮在 7 m 外、半径 2.29 m —— 飞 6.4 m 时离月面还有 2.2 m。 */
+ *  ★ 别飞进月亮盘：月亮在 7 m 外、半径 2.19 m —— 飞 6.4 m 时离月面还有 2.2 m。 */
 export const FLY_TRAVEL = 6.4;
+
+// ── 窗景 splat 的摆法（原来在 `WindowSplat.tsx`；2026-11-27 搬到这里）──────────
+// ★ 为什么搬：`flyCloud.ts` 要按**同一个摆法**把它的点复制成点云廊（与窗景 splat 逐点对齐），
+//   而 WindowSplat 是懒加载的那一半。摆法留在几何模块里，两边都读这一份，不会各抄一份摆错。
+// ml-sharp 出的是 **OpenCV 相机坐标**（x 右 / y 下 / z 前）、**米制**、0 阶 SH；
+// `.ply` 在 `design/ply2spz.mjs` 之前还过了一道 `.tmp-gs-win/clean_ply.py` 的
+// **投影不变的对数深度压缩**（把单图那种"相对深度"压进 [1.63, 1.98] m 的一个盒子，
+// 方向 (x/z, y/z) 一点没改）。所以摆的时候只需要三件事：
+//   ① 原点放在**窗洞内容的拍摄机位**上（窗正前方、与窗心等高、1.6 m）；
+//   ② 绕 X 轴转 π：y_cv(下) → −y 世界(下)、z_cv(前) → −z 世界(窗外)；
+//   ③ 缩放 **1**（坐标已经是米，不要按包围盒拟合 —— 拟合会把深度盒一起缩掉）。
+export const WINDOW_VIEW = {
+  /** 相机到窗面的距离（m）：与 `design/gs-window-shot.tsx` 的缺省 cz 一致 = 1.6 */
+  dist: 1.6,
+  /** 整份 splat 往室内挪多少（m）。为什么不是 0：
+   *  房间点云里有那扇**毛玻璃**（见 `GsSplatCull.WINDOW_GLASS_CULL`），它被裁掉了，
+   *  但裁的是一个球（半径 0.46）—— splat 的近端离窗心只有 0.29 m，落在球里会被一起裁掉。
+   *  挪 0.3 m 之后近端离线心 0.59 m > 0.46，安全；同时远端 0.3+0.22 = 0.52 m，
+   *  在 6° 视角下最多溢出窗洞 5.5 cm（窗框外侧还有 13 cm 的余量，藏在框后面）。
+   *  ★ 再往前挪没有好处：视差只由 splat 自己的深度盒（0.22 m）给，与它整体摆在哪儿无关。 */
+  forward: 0,
+  /** 摆法：OpenCV(y 下 / z 前) → three(y 上 / z 朝向室内)。窗面朝室内是 +z，
+   *  窗外是 −z ⇒ splat 的"前"必须对上世界 −z，于是绕 X 转 π。 */
+  rotation: [Math.PI, 0, 0] as [number, number, number],
+} as const;
+
+/** 原点（世界坐标）：窗心 + 法线 × dist，与窗心等高 */
+export function windowViewOrigin(): [number, number, number] {
+  const [cx, cy, cz] = WINDOW.center;
+  const [nx, , nz] = WINDOW.normal;
+  const d = WINDOW_VIEW.dist + WINDOW_VIEW.forward;
+  return [cx + nx * d, cy, cz + nz * d];
+}
+
+/** 窗景 splat 的局部坐标 → 世界坐标（OpenCV → three 的绕 X π 旋转再平移）。
+ *  ★ 点云廊按它把同一份点复制成"沿窗外铺开"的几层；窗景 splat 自己也在同一套坐标里画。 */
+export function windowSplatToWorld(x: number, y: number, z: number): [number, number, number] {
+  const [ox, oy, oz] = windowViewOrigin();
+  return [ox + x, oy - y, oz - z];
+}
+
+/** 渐黑那 0.4 s 里继续往前多飞的距离（m）。
+ *  ★ 2026-11-27（`feat/gs-flythrough-dissolve`）：主人要"点飞过镜头"的近景加速感 —— 黑幕上来
+ *    的同时镜头还在走，最后一点路把点云廊甩到相机两侧。它**不在** `FLY_TRAVEL` 里：
+ *    穿行那一段（0.6~2.0 s）走的就是 6.4 m，渐黑只是收尾，两者分开好调。 */
+export const FLY_FADE_TRAVEL = 0.9;
 
 /** 飞行方向：从匹配页机位指向窗心（也就是月亮）——一条直线，穿窗那一拍不拐弯。
  *  ★ 它同时是匹配页的视线方向：`pagePose` 的 look 就是窗心 ⇒ 转场第 0 帧朝向不跳。 */
@@ -112,22 +162,67 @@ export function flyDir(): [number, number, number] {
   return [d[0] / len, d[1] / len, d[2] / len];
 }
 
+/** 缓动：两端慢、中间快（穿窗那一段最快）。progress 是线性时间，距离按这条曲线走。 */
+function smooth(t: number): number {
+  return t * t * (3 - 2 * t);
+}
+
+/** 相机右 / 上两个方向（抖动沿这两个轴加；穿窗方向是 `flyDir`）。 */
+function flyBasis(): { right: [number, number, number]; up: [number, number, number] } {
+  const d = flyDir();
+  // right = dir × worldUp（dir ≈ (0,-0.11,-0.99)，worldUp = +y）
+  const r: [number, number, number] = [d[1] * 0 - d[2] * 1, d[2] * 0 - d[0] * 0, d[0] * 1 - d[1] * 0];
+  const rl = Math.hypot(...r) || 1;
+  const right: [number, number, number] = [r[0] / rl, r[1] / rl, r[2] / rl];
+  // up = right × dir
+  const up: [number, number, number] = [
+    right[1] * d[2] - right[2] * d[1],
+    right[2] * d[0] - right[0] * d[2],
+    right[0] * d[1] - right[1] * d[0],
+  ];
+  return { right, up };
+}
+
 /**
- * 飞行途中第 e 帧（e 已缓动，0..1）的位姿。
- * `look` 取"当前位置 + 方向 × 30 m"：一路盯着窗外，穿出去之后也是这样 —— 不会在穿窗那一拍
- * 甩一下视线（甩了就会露馅："原来窗外没有东西"）。
+ * 穿行 + 渐黑这一段的位姿（2026-11-27，`feat/gs-flythrough-dissolve`）。
+ *
+ * `travel` = 穿行进度 0..1（0.6~2.0 s），`fade` = 渐黑进度 0..1（2.0~2.4 s），
+ * `shake` = 抖动强度（0..1，时间轴给）。返回的是**世界坐标**位姿，`look` 一路盯着飞行方向：
+ * 穿出去之后不会在穿窗那一拍甩视线（甩了就会露馅：原来窗外没有东西）。
+ *
+ * ★ 为什么要抖动 / 横滚：主人第 2 条点名"相机沿途轻微横滚/抖动，读起来是穿过一片会被撞散的点云"。
+ *   幅度都在下面两个常数里（**这是审美旋钮，改只改这里**）：横滚 ≤ 2.6°、位移 ≤ 8 mm，
+ *   再多就会读成"手抖"而不是"穿过点云"。
  */
-export function flyPose(e: number, out: CamPose): CamPose {
+export function flyTravelPose(travel: number, fade: number, shake: number, out: CamPose): CamPose {
   const a = pagePose();
   const d = flyDir();
-  const s = FLY_TRAVEL * e;
+  const { right, up } = flyBasis();
+  // 距离：穿行走 smooth（两端慢中间快）；渐黑接着再走 FLY_FADE_TRAVEL（收尾加速感）
+  const s = FLY_TRAVEL * smooth(Math.max(0, Math.min(1, travel))) + FLY_FADE_TRAVEL * smooth(Math.max(0, Math.min(1, fade)));
+  // 抖动相位按"秒"给：0.6 s 起算，穿行 1.4 s + 渐黑 0.4 s
+  const p = travel * 1.4 + fade * 0.4;
+  const amp = Math.max(0, Math.min(1.2, shake));
+  const jx = (Math.sin(p * 13.7) + 0.6 * Math.sin(p * 29.3)) * 0.008 * amp;
+  const jy = (Math.cos(p * 11.3) + 0.5 * Math.sin(p * 23.7)) * 0.007 * amp;
   for (let i = 0; i < 3; i++) {
-    out.pos[i] = a.pos[i] + d[i] * s;
+    out.pos[i] = a.pos[i] + d[i] * s + right[i] * jx + up[i] * jy;
     out.look[i] = out.pos[i] + d[i] * 30;
   }
+  out.roll = (Math.sin(p * 9.1) * 0.6 + Math.sin(p * 17.3) * 0.4) * 0.045 * amp;
   return out;
 }
 
-/** 穿过窗面时的缓动进度（s 为 0..1 的线性进度 → 相机走过的距离比例）。
- *  距离比 = dist / FLY_TRAVEL = 0.25；在 easeInCubic 下 t³ = 0.25 ⇒ t = 0.63。 */
-export const CROSS_T = Math.cbrt(MATCH_PAGE.dist / FLY_TRAVEL);
+/** 飞行终点（`outside` 那一帧）：渐黑走完 100% 的位姿。 */
+export function flyEndPose(out: CamPose): CamPose {
+  return flyTravelPose(1, 1, 0, out);
+}
+
+/**
+ * 飞行途中第 e 帧（e 已缓动，0..1）的位姿。**保留给老调用方 / 老验收脚本**（`__matchCam.freeze`
+ * 的旧口径）；新代码走 `flyTravelPose`（多了渐黑续飞与抖动）。
+ * `look` 取"当前位置 + 方向 × 30 m"。
+ */
+export function flyPose(e: number, out: CamPose): CamPose {
+  return flyTravelPose(e, 0, 0, out);
+}

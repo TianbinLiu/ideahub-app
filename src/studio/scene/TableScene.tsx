@@ -560,6 +560,9 @@ function CameraRig() {
         camera.position.set(mp.pos[0], mp.pos[1], mp.pos[2]);
         RIG_LOOK.set(mp.look[0], mp.look[1], mp.look[2]);
         camera.lookAt(RIG_LOOK);
+        // ★ 2026-11-27（`feat/gs-flythrough-dissolve`）：穿点云廊的**横滚**。lookAt 只能给方向，
+        //   滚转必须在它之后绕视线轴转一次；每帧 lookAt 都会重置朝向，所以不会累积。
+        if (mp.roll) camera.rotateZ(mp.roll);
         return;
       }
     }
