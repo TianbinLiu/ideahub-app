@@ -12,11 +12,13 @@
 // 用 `lazy(() => import("./GsStep0Room"))` 之后它只是主包旁边一个**永远不会被请求**的 chunk ——
 // 正式体验的加载体积一个字节都不变（构建里能看到单独的 GsStep0Room-*.js）。
 import { Component, Suspense, lazy, useLayoutEffect, type ReactNode } from "react";
+import * as THREE from "three";
 import MagicStudy from "./MagicStudy";
 import { GS_DAY, GS_FIRE, GS_FIRE_LIGHT, gsFillOn, gsMarkEntered, gsStep0On, setGsPhase, useGsPhase } from "./gsStep0";
 import HearthFire from "./HearthFire";
 import MoonWindow from "./MoonWindow";
 import { skipIntroCam } from "./introCam";
+import { skinWeight, useSkinFade, useWindowSkin, WINSKIN_SUN } from "./windowSkin";
 
 const GsStep0Room = lazy(() => import("./GsStep0Room"));
 
@@ -39,12 +41,20 @@ function LegacyRoom() {
 // ★ 只照到 mesh：SparkRenderer 的是 ShaderMaterial，three 只给"要灯"的材质上传灯光 uniform（plan §3.3-2）。
 //   所以桌面、卡牌、NPC 的亮度要**对着 splat 校**，不要靠加灯（加灯只会让网格更亮、splat 不动）。
 function DayLights() {
+  // ★ 2026-11-27（`feat/gs-window-daynight`）：窗有两套装扮，屋里那盏"窗光"要跟着换。
+  //   夜里的值就是 GS_DAY.sun（月光，一个数没动）；白天更暖更亮（`WINSKIN_SUN.day`）。
+  //   ★ 只有 mesh（桌子 / NPC / 卡牌）会变亮 —— 墙壁是 splat，受光烘死在点云里，灯照不动它。
+  //     墙上的"变亮"只能靠 WindowSkin 里那块加色亮晕，两件事分工不同，别指望这盏灯。
+  const weight = skinWeight(useSkinFade(useWindowSkin()));
+  const sunColor = new THREE.Color(GS_DAY.sun.color).lerp(new THREE.Color(WINSKIN_SUN.day.color), weight);
+  const sunIntensity =
+    GS_DAY.sun.intensity * (1 + (WINSKIN_SUN.day.intensityScale - 1) * weight);
   return (
     <>
       <directionalLight
         position={GS_DAY.sun.position}
-        intensity={GS_DAY.sun.intensity}
-        color={GS_DAY.sun.color}
+        intensity={sunIntensity}
+        color={sunColor}
         castShadow
         // 阴影框只框"窗 + 桌面"那一块：框整间房 = 把有限的阴影像素摊薄，窗棂的影就没了（plan §4.4）
         // ★ 米制之后桌面 + NPC 只占 ±2 m 左右，阴影框从 ±13.5/±9.5 收到 ±2.4/±1.8 ——
