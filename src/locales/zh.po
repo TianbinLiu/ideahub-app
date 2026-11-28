@@ -324,14 +324,14 @@ msgstr "· {roleCount} 角色 / {0} 场景 / {itemCount} 道具"
 
 #. placeholder {0}: opponent.hp
 #: src/studio/game/ui/OpponentStrip.tsx
-msgid "· ❤ {0}"
-msgstr "· ❤ {0}"
+#~ msgid "· ❤ {0}"
+#~ msgstr "· ❤ {0}"
 
 #. placeholder {0}: opponent.hp
 #. placeholder {1}: opponent.cards
 #: src/studio/game/ui/OpponentStrip.tsx
-msgid "· ❤ {0} · {1} 卡"
-msgstr "· ❤ {0} · {1} 卡"
+#~ msgid "· ❤ {0} · {1} 卡"
+#~ msgstr "· ❤ {0} · {1} 卡"
 
 #: src/studio/ui/projection.tsx
 #~ msgid "· 🔒 前面的段炼完才解锁"
@@ -367,8 +367,8 @@ msgid "· 共 {total} 步"
 msgstr "· 共 {total} 步"
 
 #: src/studio/game/ui/OpponentStrip.tsx
-msgid "· 出局"
-msgstr "· 出局"
+#~ msgid "· 出局"
+#~ msgstr "· 出局"
 
 #: src/pages/CardDetailPage.tsx
 #~ msgid "· 出片时会喂给 AI（同一段挂的卡多时可能让位）"
@@ -1875,8 +1875,8 @@ msgid "{prefix} · 已等 {sec} 秒"
 msgstr "{prefix} · 已等 {sec} 秒"
 
 #: src/studio/game/ui/ShopPanel.tsx
-msgid "{price} 金"
-msgstr "{price} 金"
+#~ msgid "{price} 金"
+#~ msgstr "{price} 金"
 
 #. 往一串带引号的卡名后面再接一个：中文直接相连（「甲」「乙」），英文用逗号加空格隔开（“A”, “B”）
 #: src/ai/real.ts
@@ -1943,6 +1943,10 @@ msgstr "{segN} 段一共约 {totalPrice}。只先出第 1 段：后面几段在�
 #: src/studio/studioStore.ts
 msgid "{sentence}（{notes}）"
 msgstr "{sentence}（{notes}）"
+
+#: src/studio/game/ui/ShopPanel.tsx
+msgid "{SHOP_REFRESH_COST} 金"
+msgstr "{SHOP_REFRESH_COST} 金"
 
 #: src/components/flow/LeadShotsWizard.tsx
 msgid "{shotN} 个镜头 · 台词 {lineN} 句 · {castN} 个人的图直接给视频模型，不画帧"
@@ -3475,8 +3479,8 @@ msgid "▼ 展开"
 msgstr "▼ 展开"
 
 #: src/studio/game/ui/ShopPanel.tsx
-msgid "▾ 收起商店"
-msgstr "▾ 收起商店"
+#~ msgid "▾ 收起商店"
+#~ msgstr "▾ 收起商店"
 
 #: src/studio/game/ui/OnlineScreeningPanel.tsx
 #: src/studio/game/ui/ScreeningPanel.tsx
@@ -4613,12 +4617,12 @@ msgid "🔄 三个一起重画（最多 {anglesPrice}，会换掉现在这几张
 msgstr "🔄 三个一起重画（最多 {anglesPrice}，会换掉现在这几张）"
 
 #: src/studio/game/ui/ShopPanel.tsx
-msgid "🔄 刷新（{SHOP_REFRESH_COST} 金）"
-msgstr "🔄 刷新（{SHOP_REFRESH_COST} 金）"
+#~ msgid "🔄 刷新（{SHOP_REFRESH_COST} 金）"
+#~ msgstr "🔄 刷新（{SHOP_REFRESH_COST} 金）"
 
 #: src/studio/game/ui/ShopPanel.tsx
-msgid "🔄 刷新（免费券 ×{freeRefreshes}）"
-msgstr "🔄 刷新（免费券 ×{freeRefreshes}）"
+#~ msgid "🔄 刷新（免费券 ×{freeRefreshes}）"
+#~ msgstr "🔄 刷新（免费券 ×{freeRefreshes}）"
 
 #: src/components/flow/GridShotsWizard.tsx
 msgid "🔄 整组重出（{shotN} 格，最多 {groupPrice}，会换掉现在这几格）"
@@ -4744,12 +4748,12 @@ msgid "🔊 配音"
 msgstr "🔊 配音"
 
 #: src/studio/game/ui/ShopPanel.tsx
-msgid "🔒 锁定（免费）"
-msgstr "🔒 锁定（免费）"
+#~ msgid "🔒 锁定（免费）"
+#~ msgstr "🔒 锁定（免费）"
 
 #: src/studio/game/ui/ShopPanel.tsx
-msgid "🔓 解锁商店"
-msgstr "🔓 解锁商店"
+#~ msgid "🔓 解锁商店"
+#~ msgstr "🔓 解锁商店"
 
 #: src/components/PortraitAuthPanel.tsx
 #~ msgid "🔗 发起肖像授权（本人扫码 / 本机打开）"
@@ -9053,6 +9057,7 @@ msgid "光线改成黄昏"
 msgstr "光线改成黄昏"
 
 #: src/studio/game/ui/EventCard.tsx
+#: src/studio/game/ui/ShopPanel.tsx
 msgid "免费"
 msgstr "免费"
 
@@ -9064,6 +9069,10 @@ msgstr "免费 · 会重新合成点名句（覆盖你改过的字）"
 #: src/studio/game/labels.ts
 msgid "免费刷新券 ×{0}"
 msgstr "免费刷新券 ×{0}"
+
+#: src/studio/game/ui/ShopPanel.tsx
+msgid "免费券 ×{freeRefreshes}"
+msgstr "免费券 ×{freeRefreshes}"
 
 #: src/data/economy.ts
 #: src/pages/ProfilePage.tsx
@@ -10008,6 +10017,7 @@ msgstr "出场：{leadName}（主角）"
 msgid "出场：{leadName}（主角）、{others}"
 msgstr "出场：{leadName}（主角）、{others}"
 
+#: src/studio/game/ui/OpponentStrip.tsx
 #: src/studio/game/ui/PlayerPanel.tsx
 #: src/studio/game/ui/RoundResultPanel.tsx
 #: src/studio/game/ui/SpectateScreen.tsx
@@ -10756,6 +10766,17 @@ msgstr "删除这条弹幕"
 msgid "删除这部作品"
 msgstr "删除这部作品"
 
+#. placeholder {0}: view.hud.income.interest
+#: src/studio/game/ui/PhaseBar.tsx
+msgid "利息 +{0}"
+msgstr "利息 +{0}"
+
+#. placeholder {0}: income.interest
+#. placeholder {1}: income.total
+#: src/studio/game/ui/GameHud.tsx
+msgid "利息 +{0} · 下回合 +{1}"
+msgstr "利息 +{0} · 下回合 +{1}"
+
 #: src/pages/EditPage.tsx
 #: src/pages/PublishPage.tsx
 msgid "别人会看到这些"
@@ -10846,6 +10867,7 @@ msgstr "制作过程存在服务端，这台设备当前是离线模式；接上
 #: src/components/support/AdminTicketsView.tsx
 #: src/pages/AdminPage.tsx
 #: src/studio/game/ui/PublicRooms.tsx
+#: src/studio/game/ui/ShopPanel.tsx
 msgid "刷新"
 msgstr "刷新"
 
@@ -13309,12 +13331,13 @@ msgid "唱的那一段铺好了——人物图直接给视频模型，歌词由�
 msgstr "唱的那一段铺好了——人物图直接给视频模型，歌词由它唱出来。"
 
 #: src/studio/game/labels.ts
-#: src/studio/game/ui/BagBar.tsx
+#: src/studio/game/ui/PhaseBar.tsx
+#: src/studio/game/ui/ShopPanel.tsx
 msgid "商店"
 msgstr "商店"
 
 #. placeholder {0}: view.hud.income.interest
-#: src/studio/game/ui/BagBar.tsx
+#: src/studio/game/ui/PhaseBar.tsx
 msgid "商店 · 本回合利息 +{0}"
 msgstr "商店 · 本回合利息 +{0}"
 
@@ -13426,6 +13449,10 @@ msgstr "回去看原因 ›"
 #: src/components/GenerationPill.tsx
 msgid "回去看看 ›"
 msgstr "回去看看 ›"
+
+#: src/studio/game/ui/GameHud.tsx
+msgid "回合"
+msgstr "回合"
 
 #: src/studio/game/roundsReasons.ts
 msgid "回合服务回了没见过的错误：{code}"
@@ -16409,8 +16436,8 @@ msgid "当前未连接服务器，暂时无法订阅，请联网后重试"
 msgstr "当前未连接服务器，暂时无法订阅，请联网后重试"
 
 #: src/studio/game/ui/GameHud.tsx
-msgid "当前生命值"
-msgstr "当前生命值"
+#~ msgid "当前生命值"
+#~ msgstr "当前生命值"
 
 #: src/components/DanmakuInput.tsx
 msgid "当前离线，这条弹幕只存在这台设备上"
@@ -17247,6 +17274,10 @@ msgstr "手机存储空间不够，这台手机上的本地数据库打不开"
 msgid "手机空间不够，这一段没写完。腾点空间再点一次。"
 msgstr "手机空间不够，这一段没写完。腾点空间再点一次。"
 
+#: src/studio/game/ui/BagBar.tsx
+msgid "手牌"
+msgstr "手牌"
+
 #. placeholder {0}: e instanceof Error ? e.message : String(e)
 #: src/components/VolcCompatToggle.tsx
 msgid "打不开系统浏览器（{0}）"
@@ -17811,6 +17842,10 @@ msgstr "拖到这里交给她"
 #: src/components/AvatarPicker.tsx
 msgid "拖动移动位置，双指或滑杆缩放"
 msgstr "拖动移动位置，双指或滑杆缩放"
+
+#: src/studio/game/ui/BagBar.tsx
+msgid "拖卡到桌面空位"
+msgstr "拖卡到桌面空位"
 
 #: src/studio/StudioPage.tsx
 #~ msgid "拖卡片到虚线卡位做一段 · 单点看详情"
@@ -21137,6 +21172,10 @@ msgstr "松手：放到这一格"
 msgid "松手：放到这一类卡的空位上"
 msgstr "松手：放到这一类卡的空位上"
 
+#: src/studio/scene/TableScene.tsx
+msgid "松手放下"
+msgstr "松手放下"
+
 #. placeholder {0}: elapsed.toFixed(1)
 #: src/components/VoiceRecorder.tsx
 msgid "松手结束 · {0}s"
@@ -23976,6 +24015,10 @@ msgstr "点一张卡看详情"
 msgid "点一张图，把它写进句子（@名字）。"
 msgstr "点一张图，把它写进句子（@名字）。"
 
+#: src/studio/game/ui/ShopPanel.tsx
+msgid "点一张就买下"
+msgstr "点一张就买下"
+
 #: src/components/guide/tours.tsx
 msgid "点一条就试听"
 msgstr "点一条就试听"
@@ -24143,6 +24186,10 @@ msgstr "点开重试"
 #: src/pages/ProfilePage.tsx
 msgid "点按复制"
 msgstr "点按复制"
+
+#: src/studio/game/ui/ShopPanel.tsx
+msgid "点栏外也能收起"
+msgstr "点栏外也能收起"
 
 #: src/studio/ui/NpcDialog.tsx
 msgid "点桌上的卡放大查看 · 喜欢就收进卡组"
@@ -24723,6 +24770,15 @@ msgstr "现在铺不了这几段，稍后再试。"
 #: src/pages/EditPage.tsx
 msgid "现在铺不进工坊，稍后再试"
 msgstr "现在铺不进工坊，稍后再试"
+
+#: src/studio/game/ui/GameHud.tsx
+msgid "生命"
+msgstr "生命"
+
+#. placeholder {0}: hud.hp
+#: src/studio/game/ui/GameHud.tsx
+msgid "生命值 {0}"
+msgstr "生命值 {0}"
 
 #: src/pages/tutor/TutorNewPage.tsx
 #: src/studio/personaWizardStore.ts
@@ -26559,6 +26615,10 @@ msgstr "票投出去了"
 msgid "禁止"
 msgstr "禁止"
 
+#: src/studio/game/ui/ShopPanel.tsx
+msgid "离开"
+msgstr "离开"
+
 #: src/studio/game/ui/RoomScreen.tsx
 msgid "离开房间"
 msgstr "离开房间"
@@ -26692,6 +26752,7 @@ msgstr "空 = 用真人卡的照片起拍"
 #: src/studio/game/ui/CreatePanel.tsx
 #: src/studio/game/ui/RoomScreen.tsx
 #: src/studio/game/ui/SpectateScreen.tsx
+#: src/studio/scene/TableScene.tsx
 msgid "空位"
 msgstr "空位"
 
@@ -26883,6 +26944,7 @@ msgstr "第 {0} 味音色"
 #: src/studio/game/ui/EventPanel.tsx
 #: src/studio/game/ui/MatchHistory.tsx
 #: src/studio/game/ui/OnlineEventPanel.tsx
+#: src/studio/game/ui/ShopPanel.tsx
 #: src/studio/game/ui/SpectateScreen.tsx
 #: src/studio/game/ui/WrapupSheet.tsx
 msgid "第 {0} 回合"
@@ -28755,8 +28817,8 @@ msgstr "肖像同意的确认（勾了「真人」就必须勾它）"
 
 #. placeholder {0}: usage.total
 #: src/studio/game/ui/BagBar.tsx
-msgid "背包 {0} 张"
-msgstr "背包 {0} 张"
+#~ msgid "背包 {0} 张"
+#~ msgstr "背包 {0} 张"
 
 #. placeholder {0}: usage.total
 #. placeholder {1}: usage.cap
@@ -29433,8 +29495,8 @@ msgid "角色"
 msgstr "角色"
 
 #: src/studio/game/ui/BagBar.tsx
-msgid "角色 / 场景卡拖到桌面空位；道具在右侧栏"
-msgstr "角色 / 场景卡拖到桌面空位；道具在右侧栏"
+#~ msgid "角色 / 场景卡拖到桌面空位；道具在右侧栏"
+#~ msgstr "角色 / 场景卡拖到桌面空位；道具在右侧栏"
 
 #. placeholder {0}: index + 1
 #. placeholder {1}: gameCardName(card)
@@ -29475,6 +29537,10 @@ msgstr "解封"
 msgid "解码失败"
 msgstr "解码失败"
 
+#: src/studio/game/ui/ShopPanel.tsx
+msgid "解锁"
+msgstr "解锁"
+
 #: src/pages/VideoPage.tsx
 msgid "解锁后永久可看"
 msgstr "解锁后永久可看"
@@ -29502,6 +29568,10 @@ msgstr "触摸区"
 #: src/pages/SupportModelNewPage.tsx
 msgid "触摸那几项只试播了它对上的动作；命中区对没对上量不到 —— 试跑跑完之后，自己在上面的预览里摸一下（会写「刚点到：…」）。"
 msgstr "触摸那几项只试播了它对上的动作；命中区对没对上量不到 —— 试跑跑完之后，自己在上面的预览里摸一下（会写「刚点到：…」）。"
+
+#: src/studio/game/ui/GameHud.tsx
+msgid "计时"
+msgstr "计时"
 
 #: src/pages/AdminPage.tsx
 msgid "订单"
@@ -35005,6 +35075,7 @@ msgid "造型师"
 msgstr "造型师"
 
 #: src/studio/game/labels.ts
+#: src/studio/game/ui/ItemRail.tsx
 #: src/types.ts
 msgid "道具"
 msgstr "道具"
@@ -35490,6 +35561,7 @@ msgid "量第 {segNo} 段的时长…"
 msgstr "量第 {segNo} 段的时长…"
 
 #: src/studio/game/labels.ts
+#: src/studio/game/ui/ShopPanel.tsx
 msgid "金"
 msgstr "金"
 
@@ -35502,9 +35574,18 @@ msgstr "金"
 msgid "金像摄影指导"
 msgstr "金像摄影指导"
 
+#: src/studio/game/ui/GameHud.tsx
+msgid "金币"
+msgstr "金币"
+
+#. placeholder {0}: view.hud.income.interest
+#: src/studio/game/ui/ShopPanel.tsx
+msgid "金币 · 利息 +{0}"
+msgstr "金币 · 利息 +{0}"
+
 #: src/studio/game/ui/BagBar.tsx
-msgid "金币：买卡与刷新都要花它"
-msgstr "金币：买卡与刷新都要花它"
+#~ msgid "金币：买卡与刷新都要花它"
+#~ msgstr "金币：买卡与刷新都要花它"
 
 #. placeholder {0}: failure.need ?? 0
 #. placeholder {1}: failure.have ?? 0
@@ -35664,6 +35745,7 @@ msgid "锁住{0}。"
 msgstr "锁住{0}。"
 
 #: src/studio/game/ui/DealingB.tsx
+#: src/studio/game/ui/ShopPanel.tsx
 msgid "锁定"
 msgstr "锁定"
 

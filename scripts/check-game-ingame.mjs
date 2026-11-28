@@ -291,12 +291,17 @@ console.log("5) 源码断言（接线）");
   ok("能力位 gameReports 在健康端点解析处", caps.includes("gameReports: j.gameReports === true"));
   ok("能力位 gameReports 有独立读法（force 探测：dev + 本地服务端要能问到）", caps.includes("export function serverGameReports("));
 
-  const phase = read("src/studio/game/ui/PhaseBar.tsx");
-  ok("阶段条挂本地计时", phase.includes("<PhaseClock"));
+  // ★ 2026-11-28（feat/ui-game-hud-a）：本地计时从底部阶段条搬到**顶栏**（A 案「计时」那一格），
+  //   商店栏抬头也摆同一份（商店开着时顶栏让位）—— 一屏一处时钟，阶段条那一行不再摆它。
+  const hud = read("src/studio/game/ui/GameHud.tsx");
+  ok("顶栏挂本地计时（A 案「计时」那一格）", hud.includes("<PhaseClock"));
+  ok("商店栏抬头挂同一份计时（商店开着时顶栏让位）", read("src/studio/game/ui/ShopPanel.tsx").includes("<PhaseClock"));
+  ok("底部阶段条不再摆第二个时钟（一屏一处）", !read("src/studio/game/ui/PhaseBar.tsx").includes("<PhaseClock"));
 
   const clock = read("src/studio/game/ui/PhaseClock.tsx");
   ok("阶段 / 回合一变就归零", clock.includes("clockKeyOf("));
   ok("计时器在卸载时收掉", clock.includes("clearInterval("));
+  ok("顶栏那一格只画时间（标签由外层给）", clock.includes("timeOnly"));
 
   // ★ 动效纪律（docs/game-lobby-ui-benchmark.md §1.4 第 16 条）：新加的动效必须在
   //   index.css 末尾那段 prefers-reduced-motion 里逐条登记，否则"减少动态效果"的用户照样在看转圈。
@@ -308,8 +313,13 @@ console.log("5) 源码断言（接线）");
   // ── 局内贴纸（2026-11-24，P1「贴卡 / 表情」）──
   ok("对局层挂贴纸键（面板）", layer.includes("<StickerPanel"));
   ok("对局层挂贴纸气泡", layer.includes("<StickerBubbles"));
-  // ★ 贴纸键不进流：进流会把整条底部栏推左 ~25px，左下角的气泡栈就压在背包条上了（800×363 实测）
-  ok("贴纸键挂在背包条右侧但**不进流**（absolute left-full）", /absolute bottom-0 left-full ml-1\.5/.test(layer));
+  // ★ 2026-11-28（feat/ui-game-hud-a）：底带并成一行后，贴纸键不再用 `absolute left-full` 挂在
+  //   背包条右边（那会正好压在底带右组上），改成**进流**摆进 PhaseBar 的 `extra` 槽：
+  //   底带右组 = 提示 → 贴纸 → 利息商店键 → 实心主键（设计稿 A 案 `.a-actions` 那一串）。
+  //   它仍是 44×44 的铜线小键（`.game-chip h-11`），与大半个拇指的命中区一致。
+  ok("贴纸键进底带右组（PhaseBar 的 extra 槽）", /extra=\{[^}]*<StickerPanel/.test(layer));
+  ok("PhaseBar 留了 extra 这个槽（顺序：提示 → extra → 商店键 → 主键）", /extra\?: React\.ReactNode/.test(read("src/studio/game/ui/PhaseBar.tsx")));
+  ok("贴纸键是 44 高的铜线小键（命中区没缩）", /game-chip h-11/.test(read("src/studio/game/ui/StickerPanel.tsx")));
 
   const stickerPanel = read("src/studio/game/ui/StickerPanel.tsx");
   ok("面板的节流倒计时读的是纯模块判据（不自己算 2000）", stickerPanel.includes("stickerWaitMs("));
@@ -527,26 +537,29 @@ console.log("7) 局内贴纸（stickers.ts）");
   ok("扫 200 个回合：没有一回合超过 2 条", worst <= S.AI_STICKER_MAX_PER_ROUND);
   ok("扫 200 个回合：1 条与 2 条都出现过（不是节拍器）", sizes.has(1) && sizes.has(2));
 
-  // ── ⑤ 800×363 不遮挡关键元素（坐标全部是 dev 实测，见 docs/game-lobby.md §7.15）──
+  // ── ⑤ 800×363 不遮挡关键元素（坐标全部是 dev 实测，见 docs/game-hud-a.md）──
   // 量的是**舞台里一层**（StudioPage 的 p-1.5 让 GameLayer 从 (6, 6) 起、高 351，所以它的底边是 y 357）：
-  //   阶段条 y 321.3~351.1；背包条盒 x 148.5 起；HUD 底 y 96；创作面板 y 135.8~242.1；
-  //   3D 桌面场景位 x 189 起、角色排 x 263~537。
+  // ★ 2026-11-28（feat/ui-game-hud-a）：底部两条（背包条 / 阶段条）并成一条**底带**，所以判据从
+  //   "让开阶段条"换成"让开底带上沿"：
+  //   · 底带：高 ~100（手牌那一列 91 + 上沿 9）→ 800×363 上顶边 y ≈ **257**；
+  //   · 气泡栈底 = 357 − 112 = **245** → 比底带上沿高 12px，一条都不叠；
+  //   · HUD 不再是"居中 30rem 的药丸"，而是从 --game-hud-left（800 上 162.8）起的一条读数带，
+  //     气泡栈右沿 146 < 162.8 → 换成**横向**不碰 HUD；
+  //   · 3D 桌面场景位 x 189 起、角色排 x 263~537 —— 与旧版同一条。
   const LAYER_LEFT = 6;
   const LAYER_BOTTOM = 357;
-  const PHASE_BAR_TOP = 321.3;
-  const BAG_LEFT = 148.5;
-  const HUD_BOTTOM = 96;
+  const BAND_TOP = 257;
+  const HUD_LEFT = 162.8;
   const TABLE_SCENE_LEFT = 189;
   // 5 条单行气泡：头像 15 + 上下各 1px 内边距 = 17px，间距 2px（ui/StickerBubbles 的类名）
   const FIVE_BUBBLES = 5 * 17 + 4 * 2;
-  ok("气泡栈的底在阶段条上沿之上（315.4 < 321.3）", LAYER_BOTTOM - S.STICKER_STACK_BOTTOM_PX < PHASE_BAR_TOP);
-  ok("底边的 CSS 与那个像素数是同一个数（2.6rem = 41.6px）", S.STICKER_STACK_BOTTOM.includes("2.6rem"));
-  eq("2.6rem 就是 41.6px（16px 根字号）", S.STICKER_STACK_BOTTOM_PX, 41.6);
-  ok("右沿不压背包条（6 + 140 = 146 < 148.5）", LAYER_LEFT + S.STICKER_STACK_WIDTH_PX < BAG_LEFT);
+  ok("气泡栈的底在底带上沿之上（245 < 257）", LAYER_BOTTOM - S.STICKER_STACK_BOTTOM_PX < BAND_TOP);
+  ok("底边的 CSS 与那个像素数是同一个数（7rem = 112px）", S.STICKER_STACK_BOTTOM.includes("7rem"));
+  eq("7rem 就是 112px（16px 根字号）", S.STICKER_STACK_BOTTOM_PX, 112);
   ok("宽度 CSS 与像素数一致（17.5vw @ 800 = 140px）", S.STICKER_STACK_WIDTH.includes("17.5vw"));
+  ok("右沿不碰 HUD 左沿（6 + 140 = 146 < 162.8）", LAYER_LEFT + S.STICKER_STACK_WIDTH_PX < HUD_LEFT);
   ok("右沿更不碰桌面卡位（146 < 189）", LAYER_LEFT + S.STICKER_STACK_WIDTH_PX < TABLE_SCENE_LEFT);
   ok("5 条单行气泡装得进最高（93 ≤ 101.6，28vh @ 363）", FIVE_BUBBLES <= 101.6);
-  ok("栈顶不会顶到 HUD（315.4 - 101.6 = 213.8 > 96）", LAYER_BOTTOM - S.STICKER_STACK_BOTTOM_PX - 101.6 > HUD_BOTTOM);
   ok("最高的 CSS 是 28vh", S.STICKER_STACK_MAX_HEIGHT.includes("28vh"));
 }
 
@@ -674,7 +687,9 @@ console.log("8) 新手引导：大厅（lobby）+ 对局（ingame）");
 
   // ── ⑤ 重看入口：大厅顶栏一颗、对局顶栏一颗（都走 HelpButton 那一份实现）──
   ok("大厅的「? 玩法说明」", /HelpButton\s+tour="lobby"/.test(lobbySrc));
-  ok("对局的「? 玩法说明」（StudioPage 顶栏，只在开局时）", /isLand && inGame && <HelpButton tour="ingame"/.test(read("src/studio/StudioPage.tsx")));
+  // ★ 2026-11-28（feat/ui-game-hud-a）：局内顶栏那几颗改成 A 案铜线小键（44×44），
+  //   条件写成多行（isLand && inGame 里面再摆 HelpButton）—— 判据不变：只在开局时摆。
+  ok("对局的「? 玩法说明」（StudioPage 顶栏，只在开局时）", /isLand && inGame && \(\s*<HelpButton\s+tour="ingame"/.test(read("src/studio/StudioPage.tsx")));
 
   // ── ⑥ 跳过与全部跳过 ──
   ok("大厅那份可跳过", /id: "lobby"[\s\S]{0,400}?skippable: true/.test(toursSrc));
@@ -749,13 +764,15 @@ console.log("8) 新手引导：大厅（lobby）+ 对局（ingame）");
     { name: "lobby-modes", top: 134.6, bottom: 274.6 },
     { name: "lobby-start", top: 280.6, bottom: 328.6 },
     { name: "lobby-join", top: 176.6, bottom: 349 },
-    // 对局：商店 / 背包 / 创作 / 展映控制条 / 投票卡排 / 结算面板
-    { name: "game-shop", top: 14, bottom: 93.3 },
-    { name: "game-bag", top: 275.3, bottom: 315.3 },
-    { name: "game-create", top: 148.2, bottom: 242.1 },
-    { name: "game-like", top: 214.3, bottom: 236.1 },
-    { name: "game-vote", top: 140.8, bottom: 244.1 },
-    { name: "game-result", top: 160.6, bottom: 242.1 },
+    // 对局（2026-11-28 feat/ui-game-hud-a 重测：底带并成一条之后五个锚点都往下挪了；
+    // 量法 = CDP `Emulation.setDeviceMetricsOverride(800×363)` + `getBoundingClientRect`，
+    // 手牌买满 4 张（底带最高那一档）时才量 —— 详情见 docs/game-hud-a.md §7）
+    { name: "game-shop", top: 6, bottom: 136.8 }, // 商店栏 = 满宽横带（6 是舞台内边距）
+    { name: "game-bag", top: 263.8, bottom: 351 }, // 手牌 4 张（含「卖 +1」那一行）
+    { name: "game-create", top: 154.9, bottom: 248.8 },
+    { name: "game-like", top: 221, bottom: 242.8 },
+    { name: "game-vote", top: 139.5, bottom: 242.8 },
+    { name: "game-result", top: 167.3, bottom: 248.8 },
   ];
   const cardBox = (a) => {
     const gapAbove = a.top - HOLE_PAD - GAP - EDGE;

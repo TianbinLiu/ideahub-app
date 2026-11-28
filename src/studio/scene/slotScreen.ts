@@ -48,3 +48,20 @@ export function sameTableSlot(a: TableSlot | null, b: TableSlot | null): boolean
   if (a.kind === "scene") return true;
   return b.kind === "role" && a.index === b.index;
 }
+
+/**
+ * 验收口子（与 `__game` / `__gameCam` / `__gsAccept` 同一条约定：DEV，或 localStorage 写了
+ * `gsAcceptDebug=1` 的包才挂）。模拟器验收要"把一张手牌拖到某一格上"——落点判定就是这一份
+ * 屏占比，脚本按它算手指坐标，不靠肉眼量（`2026-11-28 feat/ui-game-hud-a` 的拖拽悬停截图）。
+ * ★ 只读：拿到的是每帧重写的同一个数组（别在脚本里改它）。
+ */
+const acceptHooksOn =
+  import.meta.env?.DEV === true ||
+  (typeof localStorage !== "undefined" && localStorage.getItem("gsAcceptDebug") === "1");
+if (acceptHooksOn && typeof window !== "undefined") {
+  (window as unknown as Record<string, unknown>).__gameSlots = {
+    get rects() {
+      return SLOT_SCREEN.rects;
+    },
+  };
+}

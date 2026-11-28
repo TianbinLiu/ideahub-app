@@ -17,7 +17,21 @@ import { useEffect, useRef, useState } from "react";
 import { useLingui } from "@lingui/react/macro";
 import { clockKeyOf, elapsedMsOf, formatElapsed } from "../phaseClock";
 
-export default function PhaseClock({ round, phase }: { round: number; phase: string }) {
+/**
+ * @param timeOnly 只画那个时间（顶栏 A 案的「计时」那一格：标签由外层给，这里只放数字）。
+ *   ★ 2026-11-28（feat/ui-game-hud-a）：计时从底部阶段条搬到顶栏，阶段条那一行不再摆它 ——
+ *     一屏里只有一处时钟（两处各摆一个就会有两种"本阶段从哪算起"的猜法）。
+ *   ★ 读屏那两句（title / aria）两条路都保留：数字本身不说明"这是已进行多久"。
+ */
+export default function PhaseClock({
+  round,
+  phase,
+  timeOnly = false,
+}: {
+  round: number;
+  phase: string;
+  timeOnly?: boolean;
+}) {
   const { t } = useLingui();
   const key = clockKeyOf(round, phase);
   /**
@@ -42,9 +56,9 @@ export default function PhaseClock({ round, phase }: { round: number; phase: str
       data-game-clock="1"
       // 读屏读全：屏幕上那三个字（本回合）在计时口径上是"这一阶段"，说明写在 title 里
       title={t`本地计时：从进入这个阶段算起，阶段一换就归零。服务器没给截止时间，所以这不是倒计时。`}
-      className="flex-none rounded px-1 text-[10px] leading-none text-slate-400 tabular-nums"
+      className={`flex-none tabular-nums ${timeOnly ? "text-[12px] leading-none text-[#cbbfa8]" : "rounded px-1 text-[10px] leading-none text-slate-400"}`}
     >
-      {t`本回合 ${elapsed}`}
+      {timeOnly ? elapsed : t`本回合 ${elapsed}`}
     </span>
   );
 }

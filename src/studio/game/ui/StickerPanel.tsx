@@ -88,14 +88,14 @@ export default function StickerPanel({ view }: { view: GameView }) {
         aria-controls="ingame-stickers"
         aria-label={t`贴纸：贴一个表情或者贴一张我的卡`}
         title={t`贴纸：贴一个表情或者贴一张我的卡`}
-        className={`flex h-[clamp(4.1rem,8.4vw,5.9rem)] w-[clamp(2.7rem,5.6vw,3.9rem)] flex-none flex-col items-center justify-center gap-1 rounded-xl bg-panel/90 ring-1 backdrop-blur ${
-          open ? "ring-brand/60" : "ring-white/10"
+        className={`pointer-events-auto game-chip h-11 w-[3.15rem] flex-none flex-col gap-1 ${
+          open ? "border-[#f7e3ae]/70" : ""
         }`}
       >
         <span aria-hidden className="text-[15px] leading-none">
           😀
         </span>
-        <span className="text-[9px] font-semibold leading-none text-slate-200">
+        <span className="text-[8px] font-semibold leading-none text-[#e9dcc2]">
           <Trans>贴纸</Trans>
         </span>
       </button>

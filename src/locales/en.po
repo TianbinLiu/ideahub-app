@@ -324,14 +324,14 @@ msgstr "· {roleCount} characters / {0} scene / {itemCount} items"
 
 #. placeholder {0}: opponent.hp
 #: src/studio/game/ui/OpponentStrip.tsx
-msgid "· ❤ {0}"
-msgstr " · ❤ {0}"
+#~ msgid "· ❤ {0}"
+#~ msgstr " · ❤ {0}"
 
 #. placeholder {0}: opponent.hp
 #. placeholder {1}: opponent.cards
 #: src/studio/game/ui/OpponentStrip.tsx
-msgid "· ❤ {0} · {1} 卡"
-msgstr "· ❤ {0} · {1} cards"
+#~ msgid "· ❤ {0} · {1} 卡"
+#~ msgstr "· ❤ {0} · {1} cards"
 
 #: src/studio/ui/projection.tsx
 #~ msgid "· 🔒 前面的段炼完才解锁"
@@ -367,8 +367,8 @@ msgid "· 共 {total} 步"
 msgstr "· {total, plural, one {# step} other {# steps}}"
 
 #: src/studio/game/ui/OpponentStrip.tsx
-msgid "· 出局"
-msgstr "· out"
+#~ msgid "· 出局"
+#~ msgstr "· out"
 
 #: src/pages/CardDetailPage.tsx
 #~ msgid "· 出片时会喂给 AI（同一段挂的卡多时可能让位）"
@@ -1875,8 +1875,8 @@ msgid "{prefix} · 已等 {sec} 秒"
 msgstr "{prefix} · waited {sec}s"
 
 #: src/studio/game/ui/ShopPanel.tsx
-msgid "{price} 金"
-msgstr "{price} gold"
+#~ msgid "{price} 金"
+#~ msgstr "{price} gold"
 
 #. 往一串带引号的卡名后面再接一个：中文直接相连（「甲」「乙」），英文用逗号加空格隔开（“A”, “B”）
 #: src/ai/real.ts
@@ -1943,6 +1943,10 @@ msgstr "{segN} segments cost about {totalPrice} in total. Only segment 1 renders
 #: src/studio/studioStore.ts
 msgid "{sentence}（{notes}）"
 msgstr "{sentence} ({notes})"
+
+#: src/studio/game/ui/ShopPanel.tsx
+msgid "{SHOP_REFRESH_COST} 金"
+msgstr "{SHOP_REFRESH_COST} gold"
 
 #: src/components/flow/LeadShotsWizard.tsx
 msgid "{shotN} 个镜头 · 台词 {lineN} 句 · {castN} 个人的图直接给视频模型，不画帧"
@@ -3475,8 +3479,8 @@ msgid "▼ 展开"
 msgstr "▼ Expand"
 
 #: src/studio/game/ui/ShopPanel.tsx
-msgid "▾ 收起商店"
-msgstr "▾ Hide shop"
+#~ msgid "▾ 收起商店"
+#~ msgstr "▾ Hide shop"
 
 #: src/studio/game/ui/OnlineScreeningPanel.tsx
 #: src/studio/game/ui/ScreeningPanel.tsx
@@ -4613,12 +4617,12 @@ msgid "🔄 三个一起重画（最多 {anglesPrice}，会换掉现在这几张
 msgstr "🔄 Redraw all three (up to {anglesPrice}, replaces the current ones)"
 
 #: src/studio/game/ui/ShopPanel.tsx
-msgid "🔄 刷新（{SHOP_REFRESH_COST} 金）"
-msgstr "🔄 Refresh ({SHOP_REFRESH_COST} gold)"
+#~ msgid "🔄 刷新（{SHOP_REFRESH_COST} 金）"
+#~ msgstr "🔄 Refresh ({SHOP_REFRESH_COST} gold)"
 
 #: src/studio/game/ui/ShopPanel.tsx
-msgid "🔄 刷新（免费券 ×{freeRefreshes}）"
-msgstr "🔄 Refresh (free passes ×{freeRefreshes})"
+#~ msgid "🔄 刷新（免费券 ×{freeRefreshes}）"
+#~ msgstr "🔄 Refresh (free passes ×{freeRefreshes})"
 
 #: src/components/flow/GridShotsWizard.tsx
 msgid "🔄 整组重出（{shotN} 格，最多 {groupPrice}，会换掉现在这几格）"
@@ -4744,12 +4748,12 @@ msgid "🔊 配音"
 msgstr "🔊 Voiceover"
 
 #: src/studio/game/ui/ShopPanel.tsx
-msgid "🔒 锁定（免费）"
-msgstr "🔒 Lock (free)"
+#~ msgid "🔒 锁定（免费）"
+#~ msgstr "🔒 Lock (free)"
 
 #: src/studio/game/ui/ShopPanel.tsx
-msgid "🔓 解锁商店"
-msgstr "🔓 Unlock shop"
+#~ msgid "🔓 解锁商店"
+#~ msgstr "🔓 Unlock shop"
 
 #: src/components/PortraitAuthPanel.tsx
 #~ msgid "🔗 发起肖像授权（本人扫码 / 本机打开）"
@@ -9049,6 +9053,7 @@ msgid "光线改成黄昏"
 msgstr "Make the light dusk"
 
 #: src/studio/game/ui/EventCard.tsx
+#: src/studio/game/ui/ShopPanel.tsx
 msgid "免费"
 msgstr "Free"
 
@@ -9060,6 +9065,10 @@ msgstr "Free · re-composes the casting line (overwrites your edits)"
 #: src/studio/game/labels.ts
 msgid "免费刷新券 ×{0}"
 msgstr "Free refresh token ×{0}"
+
+#: src/studio/game/ui/ShopPanel.tsx
+msgid "免费券 ×{freeRefreshes}"
+msgstr "Free passes ×{freeRefreshes}"
 
 #: src/data/economy.ts
 #: src/pages/ProfilePage.tsx
@@ -10004,6 +10013,7 @@ msgstr "Cast: {leadName} (lead)"
 msgid "出场：{leadName}（主角）、{others}"
 msgstr "Cast: {leadName} (lead), {others}"
 
+#: src/studio/game/ui/OpponentStrip.tsx
 #: src/studio/game/ui/PlayerPanel.tsx
 #: src/studio/game/ui/RoundResultPanel.tsx
 #: src/studio/game/ui/SpectateScreen.tsx
@@ -10748,6 +10758,17 @@ msgstr "Delete this bullet comment"
 msgid "删除这部作品"
 msgstr "Delete this video"
 
+#. placeholder {0}: view.hud.income.interest
+#: src/studio/game/ui/PhaseBar.tsx
+msgid "利息 +{0}"
+msgstr "Interest +{0}"
+
+#. placeholder {0}: income.interest
+#. placeholder {1}: income.total
+#: src/studio/game/ui/GameHud.tsx
+msgid "利息 +{0} · 下回合 +{1}"
+msgstr "Interest +{0} · next round +{1}"
+
 #: src/pages/EditPage.tsx
 #: src/pages/PublishPage.tsx
 msgid "别人会看到这些"
@@ -10838,6 +10859,7 @@ msgstr "The making-of lives on the server and this device is offline right now; 
 #: src/components/support/AdminTicketsView.tsx
 #: src/pages/AdminPage.tsx
 #: src/studio/game/ui/PublicRooms.tsx
+#: src/studio/game/ui/ShopPanel.tsx
 msgid "刷新"
 msgstr "Refresh"
 
@@ -13301,12 +13323,13 @@ msgid "唱的那一段铺好了——人物图直接给视频模型，歌词由�
 msgstr "The sung segment is laid out — the character pictures go straight to the video model, which sings the lyrics."
 
 #: src/studio/game/labels.ts
-#: src/studio/game/ui/BagBar.tsx
+#: src/studio/game/ui/PhaseBar.tsx
+#: src/studio/game/ui/ShopPanel.tsx
 msgid "商店"
 msgstr "Shop"
 
 #. placeholder {0}: view.hud.income.interest
-#: src/studio/game/ui/BagBar.tsx
+#: src/studio/game/ui/PhaseBar.tsx
 msgid "商店 · 本回合利息 +{0}"
 msgstr "Shop · This round's interest +{0}"
 
@@ -13418,6 +13441,10 @@ msgstr "See why ›"
 #: src/components/GenerationPill.tsx
 msgid "回去看看 ›"
 msgstr "Take a look ›"
+
+#: src/studio/game/ui/GameHud.tsx
+msgid "回合"
+msgstr "Round"
 
 #: src/studio/game/roundsReasons.ts
 msgid "回合服务回了没见过的错误：{code}"
@@ -16401,8 +16428,8 @@ msgid "当前未连接服务器，暂时无法订阅，请联网后重试"
 msgstr "Not connected to the server, so you can't subscribe right now. Connect to the internet and try again"
 
 #: src/studio/game/ui/GameHud.tsx
-msgid "当前生命值"
-msgstr "Current HP"
+#~ msgid "当前生命值"
+#~ msgstr "Current HP"
 
 #: src/components/DanmakuInput.tsx
 msgid "当前离线，这条弹幕只存在这台设备上"
@@ -17239,6 +17266,10 @@ msgstr "The phone is out of storage, so the local database on this phone can't b
 msgid "手机空间不够，这一段没写完。腾点空间再点一次。"
 msgstr "Your phone is out of storage, so this segment wasn't fully written. Free up some space and tap again."
 
+#: src/studio/game/ui/BagBar.tsx
+msgid "手牌"
+msgstr "Hand"
+
 #. placeholder {0}: e instanceof Error ? e.message : String(e)
 #: src/components/VolcCompatToggle.tsx
 msgid "打不开系统浏览器（{0}）"
@@ -17803,6 +17834,10 @@ msgstr "Drag here to hand it to her"
 #: src/components/AvatarPicker.tsx
 msgid "拖动移动位置，双指或滑杆缩放"
 msgstr "Drag to move; pinch or use the slider to zoom"
+
+#: src/studio/game/ui/BagBar.tsx
+msgid "拖卡到桌面空位"
+msgstr "Drag a card onto an empty table slot"
 
 #: src/studio/StudioPage.tsx
 #~ msgid "拖卡片到虚线卡位做一段 · 单点看详情"
@@ -21129,6 +21164,10 @@ msgstr "Release: place it in this slot"
 msgid "松手：放到这一类卡的空位上"
 msgstr "Release: place it in the first free slot of this type"
 
+#: src/studio/scene/TableScene.tsx
+msgid "松手放下"
+msgstr "Release to place"
+
 #. placeholder {0}: elapsed.toFixed(1)
 #: src/components/VoiceRecorder.tsx
 msgid "松手结束 · {0}s"
@@ -23968,6 +24007,10 @@ msgstr "Tap a card to see its details"
 msgid "点一张图，把它写进句子（@名字）。"
 msgstr "Tap an image to mention it in the prompt (@name)."
 
+#: src/studio/game/ui/ShopPanel.tsx
+msgid "点一张就买下"
+msgstr "Tap a card to buy it"
+
 #: src/components/guide/tours.tsx
 msgid "点一条就试听"
 msgstr "Tap a voice to hear it"
@@ -24135,6 +24178,10 @@ msgstr "Tap to retry"
 #: src/pages/ProfilePage.tsx
 msgid "点按复制"
 msgstr "Tap to copy"
+
+#: src/studio/game/ui/ShopPanel.tsx
+msgid "点栏外也能收起"
+msgstr "Tap outside the bar to close"
 
 #: src/studio/ui/NpcDialog.tsx
 msgid "点桌上的卡放大查看 · 喜欢就收进卡组"
@@ -24715,6 +24762,15 @@ msgstr "Can’t add these segments right now. Try again later."
 #: src/pages/EditPage.tsx
 msgid "现在铺不进工坊，稍后再试"
 msgstr "Can't load it into the Studio right now. Try again later"
+
+#: src/studio/game/ui/GameHud.tsx
+msgid "生命"
+msgstr "HP"
+
+#. placeholder {0}: hud.hp
+#: src/studio/game/ui/GameHud.tsx
+msgid "生命值 {0}"
+msgstr "HP {0}"
 
 #: src/pages/tutor/TutorNewPage.tsx
 #: src/studio/personaWizardStore.ts
@@ -26551,6 +26607,10 @@ msgstr "Vote cast"
 msgid "禁止"
 msgstr "Forbidden"
 
+#: src/studio/game/ui/ShopPanel.tsx
+msgid "离开"
+msgstr "Leave"
+
 #: src/studio/game/ui/RoomScreen.tsx
 msgid "离开房间"
 msgstr "Leave room"
@@ -26684,6 +26744,7 @@ msgstr "Empty = starts from the real-person card's photo"
 #: src/studio/game/ui/CreatePanel.tsx
 #: src/studio/game/ui/RoomScreen.tsx
 #: src/studio/game/ui/SpectateScreen.tsx
+#: src/studio/scene/TableScene.tsx
 msgid "空位"
 msgstr "Empty"
 
@@ -26875,6 +26936,7 @@ msgstr "Voice {0}"
 #: src/studio/game/ui/EventPanel.tsx
 #: src/studio/game/ui/MatchHistory.tsx
 #: src/studio/game/ui/OnlineEventPanel.tsx
+#: src/studio/game/ui/ShopPanel.tsx
 #: src/studio/game/ui/SpectateScreen.tsx
 #: src/studio/game/ui/WrapupSheet.tsx
 msgid "第 {0} 回合"
@@ -28747,8 +28809,8 @@ msgstr "likeness consent confirmation (required when “real person” is checke
 
 #. placeholder {0}: usage.total
 #: src/studio/game/ui/BagBar.tsx
-msgid "背包 {0} 张"
-msgstr "Bag: {0} cards"
+#~ msgid "背包 {0} 张"
+#~ msgstr "Bag: {0} cards"
 
 #. placeholder {0}: usage.total
 #. placeholder {1}: usage.cap
@@ -29425,8 +29487,8 @@ msgid "角色"
 msgstr "Cast"
 
 #: src/studio/game/ui/BagBar.tsx
-msgid "角色 / 场景卡拖到桌面空位；道具在右侧栏"
-msgstr "Drag character / scene cards onto table slots; items are in the right rail"
+#~ msgid "角色 / 场景卡拖到桌面空位；道具在右侧栏"
+#~ msgstr "Drag character / scene cards onto table slots; items are in the right rail"
 
 #. placeholder {0}: index + 1
 #. placeholder {1}: gameCardName(card)
@@ -29467,6 +29529,10 @@ msgstr "Unban"
 msgid "解码失败"
 msgstr "Decode failed"
 
+#: src/studio/game/ui/ShopPanel.tsx
+msgid "解锁"
+msgstr "Unlock"
+
 #: src/pages/VideoPage.tsx
 msgid "解锁后永久可看"
 msgstr "Unlock once, watch forever"
@@ -29494,6 +29560,10 @@ msgstr "Touch areas"
 #: src/pages/SupportModelNewPage.tsx
 msgid "触摸那几项只试播了它对上的动作；命中区对没对上量不到 —— 试跑跑完之后，自己在上面的预览里摸一下（会写「刚点到：…」）。"
 msgstr "The touch items only play their mapped motion; whether the hit area is right can't be measured — once the test run is done, touch the preview above yourself (it shows \"Just touched: …\")."
+
+#: src/studio/game/ui/GameHud.tsx
+msgid "计时"
+msgstr "Time"
 
 #: src/pages/AdminPage.tsx
 msgid "订单"
@@ -34997,6 +35067,7 @@ msgid "造型师"
 msgstr "Costume Stylist"
 
 #: src/studio/game/labels.ts
+#: src/studio/game/ui/ItemRail.tsx
 #: src/types.ts
 msgid "道具"
 msgstr "Prop"
@@ -35482,6 +35553,7 @@ msgid "量第 {segNo} 段的时长…"
 msgstr "Measuring segment {segNo}…"
 
 #: src/studio/game/labels.ts
+#: src/studio/game/ui/ShopPanel.tsx
 msgid "金"
 msgstr "Gold"
 
@@ -35494,9 +35566,18 @@ msgstr "gold"
 msgid "金像摄影指导"
 msgstr "Award-Winning DP"
 
+#: src/studio/game/ui/GameHud.tsx
+msgid "金币"
+msgstr "Gold"
+
+#. placeholder {0}: view.hud.income.interest
+#: src/studio/game/ui/ShopPanel.tsx
+msgid "金币 · 利息 +{0}"
+msgstr "Gold · interest +{0}"
+
 #: src/studio/game/ui/BagBar.tsx
-msgid "金币：买卡与刷新都要花它"
-msgstr "Gold: spent on cards and refreshes"
+#~ msgid "金币：买卡与刷新都要花它"
+#~ msgstr "Gold: spent on cards and refreshes"
 
 #. placeholder {0}: failure.need ?? 0
 #. placeholder {1}: failure.have ?? 0
@@ -35656,6 +35737,7 @@ msgid "锁住{0}。"
 msgstr "Locks {0}."
 
 #: src/studio/game/ui/DealingB.tsx
+#: src/studio/game/ui/ShopPanel.tsx
 msgid "锁定"
 msgstr "Lock in"
 

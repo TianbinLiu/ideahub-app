@@ -277,6 +277,8 @@ import {
   cardFaceTexture,
   labelTexture,
   ringTexture,
+  slotHintTexture,
+  stitchedSlotTexture,
   tickCardFades,
 } from "./cardTexture";
 import CardMesh from "./CardMesh";
@@ -1436,6 +1438,7 @@ function SlotPlate({
   index,
   card,
   hot,
+  dragging,
   rotZ = 0,
 }: {
   x: number;
@@ -1447,40 +1450,58 @@ function SlotPlate({
   card: GameCard | null;
   /** 现在正拖着一张卡悬在这一格上 */
   hot: boolean;
+  /** 现在有没有卡正在被拖（空位据此整排亮起来 = "唯一能放下的地方"） */
+  dragging: boolean;
   /** 牌面在桌上的朝向（绕牌面法线转的角度）：米制档玩家那排 +90°（牌的"上边"朝 −x，
    *  玩家从 +x 那一侧读着正）、场景位 −90°（朝铸卡师那一侧） */
   rotZ?: number;
 }) {
+  const { t } = useLingui();
   const w = cardLayout().w * scale;
   const h = cardLayout().h * scale;
-  // 角色位青、场景位金；空位是同一档的暗色（空 ≠ 没有这一格，只是还没放）；正悬在上面时更亮一档
-  const ink = hot ? (kind === "role" ? "#a5f3fc" : "#f3d69a") : card ? (kind === "role" ? "#67e8f9" : "#d6b26a") : "#31465c";
+  /**
+   * ★ 2026-11-28（feat/ui-game-hud-a）C 案「缝线卡位」：框从"发光的实线圆角框"换成
+   *   **针脚虚线 + 四角十字结**（纹理在 cardTexture.stitchedSlotTexture，那一层没有 DOM）。
+   * ★ 亮度纪律（主人原话「空位仍是唯一亮着的可拖入目标」）：
+   *   · 空位常态 = 黄铜针脚（0.6），是桌上唯一"亮着边"的东西；
+   *   · 拖着一张卡时 = 所有空位一起亮到 0.85 —— 一眼看得出能放哪儿；
+   *   · 正悬在它上面 = 1 + 文字换成「松手放下」；
+   *   · 已经放了卡的位子 = 角色青 / 场景金，透明压到 0.45（它是"内容"，不是"空位"）。
+   */
+  const alpha = hot ? 1 : card ? 0.45 : dragging ? 0.85 : 0.6;
+  const ink = hot ? "#f7e3ae" : card ? (kind === "role" ? "#67e8f9" : "#d6b26a") : "#d8b26a";
   const frame = useMemo(
     () =>
       new THREE.MeshBasicMaterial({
-        map: ringTexture(ink),
+        map: stitchedSlotTexture(ink, alpha),
         transparent: true,
         side: THREE.DoubleSide,
         depthWrite: false,
       }),
-    [ink]
+    [ink, alpha]
   );
   useEffect(() => () => frame.dispose(), [frame]);
-  // 卡名用现有的文字纹理（512×128），铺一条扁横条压在牌框下部；空位写「+」（比牌框亮一档才看得见）
-  const name = card ? gameCardName(card) : "+";
-  const labelInk = card ? ink : "#5e8199";
-  const label = useMemo(() => labelTexture(name, labelInk), [name, labelInk]);
+  /**
+   * 卡名走 labelTexture（4:1 的扁条）；空位那两句话走 slotHintTexture（2:1，不会被拉高）：
+   * 常态「空位」、正拖着一张卡悬到它上面时「松手放下」（C 案的做法，主任务点名的那一句）。
+   */
+  const name = card ? gameCardName(card) : hot && dragging ? t`松手放下` : t`空位`;
+  const labelInk = card ? ink : hot ? "#f7e3ae" : "#c9ab73";
+  const label = useMemo(
+    () => (card ? labelTexture(name, labelInk) : slotHintTexture(name, labelInk)),
+    [card, name, labelInk]
+  );
   return (
     <group position={[x, cardLayout().lift, z]}>
       <mesh rotation={[-Math.PI / 2, 0, rotZ]}>
         <planeGeometry args={[w, h]} />
-        <meshBasicMaterial color="#0b1a2c" transparent opacity={0.5} depthWrite={false} />
+        <meshBasicMaterial color="#0b0f16" transparent opacity={0.42} depthWrite={false} />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, rotZ]} position={[0, 0.004, 0]} material={frame}>
         <planeGeometry args={[w * 1.12, h * 1.09]} />
       </mesh>
       <mesh rotation={[-Math.PI / 2, 0, rotZ]} position={[0, 0.008, card ? 0.3 * h : 0]}>
-        {/* 空位那个「+」比卡名放大一档（4:1 的文字纹理压进 2:1 的扁条）：不加大的话在横屏
+        {/* 空位那行字比卡名放大一档（2:1 的文字纹理压进 2.1:1 的扁条）：不加大的话在横屏
             真机（800×363）上只有 4~5 px，等于没画。 */}
         <planeGeometry args={[card ? w * 0.92 : w * 1.05, card ? w * 0.23 : w * 0.5]} />
         <meshBasicMaterial map={label} transparent depthWrite={false} />
@@ -1513,6 +1534,8 @@ function GameTableSlots() {
   const state = useGame((s) => s.state);
   const meId = useGame((s) => s.meId);
   const hover = useGame((s) => s.drag?.hover ?? null);
+  /** 正在拖一张卡（空位据此整排亮起来：拖拽时"能放哪儿"要一眼看得见） */
+  const dragging = useGame((s) => s.drag !== null);
   const camera = useThree((s) => s.camera);
   const metric = gsSceneMetric();
   const table = (state ? gameViewOf(state, meId)?.table : null) ?? EMPTY_TABLE;
@@ -1596,6 +1619,7 @@ function GameTableSlots() {
           index={plate.slot.kind === "role" ? plate.slot.index : undefined}
           card={plate.slot.kind === "scene" ? table.scene : (table.roles[plate.slot.index] ?? null)}
           hot={!!hover && sameTableSlot(hover, plate.slot)}
+          dragging={dragging}
         />
       ))}
     </group>

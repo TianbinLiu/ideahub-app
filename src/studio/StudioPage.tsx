@@ -522,10 +522,20 @@ export default function StudioPage() {
       {/* ★ 2026-11-27（feat/gs-moon-window）：大厅盖着时整条撤掉 —— 匹配页的背景是窗景，
           这条会从大厅的透明底下面透出来（截图里"▶ 开局"正好压在"✕ 返回工坊"上）。 */}
       {!lobbyOpen && (
-      <div className="safe-top pointer-events-none absolute inset-x-0 top-0 flex items-start justify-end px-4 pb-3 pt-3">
+      <div
+        data-studio-chrome
+        // ★ 2026-11-28（feat/ui-game-hud-a）：商店栏是**满宽**的顶部横带（对局层 z-30），
+        //   它会把这一排圆键压在下面 —— 而「✕ 结束对局」在这一屏也得点得到。所以商店那一格
+        //   把顶栏抬到 z-35（高于对局层、低于 StylePick 的整屏 z-40 / 设置 z-50 / 大厅 z-40）。
+        //   其它阶段保持 z-auto（与 G4 以来一致：StylePick 的 z-40 盖得住它）。
+        className={`safe-top pointer-events-none absolute inset-x-0 top-0 flex items-start justify-end px-4 pb-3 pt-3 ${
+          gameStage === "shop" ? "z-[35]" : ""
+        }`}
+      >
         <div className="pointer-events-auto flex min-w-0 items-center gap-2 pt-1.5">
           {isLand && (
             <button
+              data-studio-quit
               onClick={() => {
                 // 2026-11-23 起「▶ 开局」**先开大厅**（4 人 / 8 人匹配、自定义房间都在那一屏），
                 // 再由大厅里的开局把对局建起来（ui/startFromLobby）。这一颗键不再知道人数。
@@ -534,9 +544,14 @@ export default function StudioPage() {
                 if (inGame) quitGameToLobby();
                 else useLobby.getState().openLobby();
               }}
-              // 键面就是状态：没开局是实心主键，开局后变成"结束对局"的灰键（与删掉的那条右栏同一个动作）
-              className={`h-9 rounded-full px-3 text-xs font-bold backdrop-blur ${
-                inGame ? "bg-panel/85 text-slate-200" : "bg-brand text-ink"
+              // 键面就是状态：没开局是实心主键，开局后变成"结束对局"（与删掉的那条右栏同一个动作）。
+              // ★ 2026-11-28（feat/ui-game-hud-a）：局内那几颗圆键改成 A 案的铜线小键（无底色、
+              //   1px 铜线、44 高命中区）—— 顶栏 HUD 就落在它们下面一行，两排要用同一种"没有面板"的语气，
+              //   否则上面一排实心圆块、下面一条只有铜线的读数条会互相打架。
+              className={`h-11 rounded-[4px] border px-3 text-xs font-bold backdrop-blur ${
+                inGame
+                  ? "border-[#d8b26a]/40 bg-[#0b0906]/55 text-[#eadcc0] tracking-[0.06em]"
+                  : "border-transparent bg-brand text-ink"
               }`}
             >
               {inGame ? <Trans>✕ 结束对局</Trans> : <Trans>▶ 开局</Trans>}
@@ -546,7 +561,12 @@ export default function StudioPage() {
               ★ 只在开局时摆（`isLand && inGame`）：那一份讲的全是局内的面板，没开局时点开是一片
                 "这些面板长什么样"的空话；大厅自己那颗 ? 在大厅顶栏上（ui/Lobby）。
               ★ 摆在 ⚙ 旁边（都是"这一局"的键）；大厅盖着时这一层本来就被盖住，不会与大厅那颗同时出现。 */}
-          {isLand && inGame && <HelpButton tour="ingame" />}
+          {isLand && inGame && (
+            <HelpButton
+              tour="ingame"
+              circleClassName="rounded-[4px] border-[#d8b26a]/40 bg-[#0b0906]/55 text-[#eadcc0]"
+            />
+          )}
           {/* ⚙ 设置（2026-11-24）：**只在开着一局时**摆 —— 音量 / 退出游戏这些字段都是对局里的东西，
               没开局时它只会是一颗空页入口（画质与语言在「我的 → 设置」里也有，但那是另一套页面）。
               位置紧跟「✕ 结束对局」：两颗都是"这一局"的键，放一起才不会被当成工坊的设置。 */}
@@ -555,7 +575,7 @@ export default function StudioPage() {
               onClick={() => setSettingsOpen(true)}
               title={t`设置：音量 / 画质 / 语言 / 操作提示 / 退出游戏`}
               aria-label={t`设置`}
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-panel/85 text-slate-100 backdrop-blur"
+              className="flex h-11 w-11 items-center justify-center rounded-[4px] border border-[#d8b26a]/40 bg-[#0b0906]/55 text-[#eadcc0] backdrop-blur"
             >
               <Icon name="settings" size={18} />
             </button>
@@ -579,7 +599,12 @@ export default function StudioPage() {
             }}
             title={inGame ? t`工作流：本局每段的预览（只让看不让改）` : t`工作流画布：同一条流水线的另一面`}
             aria-label={inGame ? t`工作流预览` : t`工作流画布`}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-panel/85 text-slate-100 backdrop-blur"
+            data-studio-workflow
+            className={`flex h-11 w-11 items-center justify-center rounded-[4px] border ${
+              inGame
+                ? "border-[#d8b26a]/40 bg-[#0b0906]/55 text-[#eadcc0] backdrop-blur"
+                : "border-transparent bg-panel/85 text-slate-100 backdrop-blur"
+            }`}
           >
             <Icon name="branch" size={18} />
           </button>
