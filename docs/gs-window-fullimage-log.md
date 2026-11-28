@@ -18,7 +18,7 @@
 | 与旧「只裁窗洞」比 | 旧版深是**压出来的**（强制 0.22 m 盒）；新版是**量出来的**（昼真纵深、夜真只有 0.15 m）。窗洞内容点数 26 万→18.1 万（旧全在洞里），但比旧**线上那版 12 万点**多 51% |
 | 时间线（贴图→化点→穿行→渐黑→匹配中）还成立吗 | 成立；但**穿出窗面之后夜空球会盖住 splat**（既有渲染顺序），要靠 `uFlyFade` 把夜空 alpha 推下去才有"点云廊"可看 |
 | 体积 | 26 万：2.97 + 3.22 MB；12 万：1.36 + 1.51 MB；夜档深空副本 0.78 MB（旧两份合计 2.53 MB） |
-| `npm run build` | 绿（见 §9；分支上 .tsx 的改动归 `feat/gs-flythrough-dissolve` 那次提交） |
+| `npm run build` | `tsc` + 其余 40 项构建检查全过；**i18n 那一项被 `WindowLook.tsx` 新增 GLSL 注释里的中文拦下**（属于 `feat/gs-flythrough-dissolve` 的代码线，已上报，见 §9） |
 
 ## 1. 输入与耗时
 
@@ -203,6 +203,21 @@ Spark 把所有 SplatMesh 收进同一个 accumulate pass（renderOrder 0），�
 浏览器读数（1024²、dpr 1、大厅档、夜 26 万点，`__gsSplit.snapshot()`）：
 **fps 88 / drawCalls 5 / tris 522,594**（≈ 260k 高斯 ×2；旧版大厅一档是 fps 112~143、calls 17~18，
 但那几个数是**带房间**的 3.72M tris，不可直接比）。手机读数要等真机那轮。
+
+### 9.1 构建门禁（本提交这一侧的结论）
+
+`cmd /c npm run build` 跑到最后一步：`tsc` 零错、~40 项 check 全过；**只挂 i18n 一项**：
+
+```
+❌ i18n 检查没过：新增了 1 处中文界面字面量（基线之外）：
+   src/studio/scene/WindowLook.tsx:77  「#include <map_fragment> { // 两级网点：大块先掉（120 格）、碎点」
+```
+
+那一行是 `feat/gs-flythrough-dissolve` 新加的 **GLSL 模板串里的中文注释**（"化点"的网点 hash 说明），
+修法二选一：把注释改成英文，或按仓里既有约定在上一行加
+`// i18n-ignore-next-line: GLSL 源码（片元着色器注释，不是界面文案）`。**本文档提交的资产/文档不含
+任何 `.tsx` 改动**，这一项与整图 spz 无关（它在没有本提交的 main 上同样会挂）。
+
 
 ## 10. 剩余风险
 
