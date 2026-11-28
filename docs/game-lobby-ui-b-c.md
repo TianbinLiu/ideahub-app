@@ -256,10 +256,14 @@
 
 ---
 
-## 12. 分支、PR、CI
+## 12. 分支、PR、CI、main
 
 - 分支：`feat/ui-match-b-c`（从 main `131fccf9` 开）
-- PR：**#562** <https://github.com/TianbinLiu/ideahub-app/pull/562>（代码 + 本文；截图不进仓）
-- CI：见 PR 的 checks（`npm run build` 全套：tsc / lingui extract / 构建期检查 / vite build）
-- main commit：合并后见 PR 的 merge commit（本文件随 PR 落地，不在 main 上再改一次）
+- PR：**#562** <https://github.com/TianbinLiu/ideahub-app/pull/562>（代码 + 本文；截图不进仓）→ **已合并**
+- CI（GitHub Actions，run `46124508625`）：
+  - `build` ✅ 1m12s（tsc / lingui extract / 全部构建期检查 / vite build）
+  - `android` ✅ 1m56s（debug 变体编一遍，不设 required）
+- main：**`f0caac56`**（`Merge pull request #562 from TianbinLiu/feat/ui-match-b-c`）
+  - 代码提交 `95ef6130`；文档提交 `ad83f115`
+
 
