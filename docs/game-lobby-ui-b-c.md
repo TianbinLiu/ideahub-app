@@ -259,6 +259,7 @@
 ## 12. 分支、PR、CI
 
 - 分支：`feat/ui-match-b-c`（从 main `131fccf9` 开）
-- PR：待补（代码 + 本文；截图不进仓）
-- CI：待补
-- main commit：待补
+- PR：**#562** <https://github.com/TianbinLiu/ideahub-app/pull/562>（代码 + 本文；截图不进仓）
+- CI：见 PR 的 checks（`npm run build` 全套：tsc / lingui extract / 构建期检查 / vite build）
+- main commit：合并后见 PR 的 merge commit（本文件随 PR 落地，不在 main 上再改一次）
+
