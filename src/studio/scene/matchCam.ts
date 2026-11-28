@@ -64,6 +64,12 @@ export function matchCamMoving(): boolean {
   return s === "page" || s === "fly" || s === "outside";
 }
 
+/** 验收冻结中（DEV 的 `__matchCam.freeze`）：`ui/MatchCurtain` 的收口逻辑不许把镜头抢回去。
+ *  真机验收要拍"房间那一档的窗洞"——那台相机只在匹配页机位看得见窗，冻结之后才拍得到。 */
+export function matchCamFrozen(): boolean {
+  return frozen !== null;
+}
+
 /** 相机这一帧该不该直接按到设计机位（读取即清）。 */
 export function consumeMatchSnap(): boolean {
   if (!snap) return false;

@@ -23,7 +23,7 @@
 import { useEffect, useRef } from "react";
 import { useLobby } from "../lobbyStore";
 import { useGame } from "../store";
-import { coverDesign, leaveMatchPage, useMatchCam } from "../../scene/matchCam";
+import { coverDesign, leaveMatchPage, matchCamFrozen, useMatchCam } from "../../scene/matchCam";
 import { useRoomPhase } from "../../scene/sceneSplit";
 import { useGsPhase } from "../../scene/gsStep0";
 
@@ -44,14 +44,14 @@ export default function MatchCurtain() {
 
   // 开了一局：镜头复位 + 黑幕淡出 —— ★ 但要等房间 spz 就绪（否则淡出的是"空洞"）
   useEffect(() => {
-    if (!inGame) return;
+    if (!inGame || matchCamFrozen()) return;
     if (roomSettled || !gsOn) leaveMatchPage();
   }, [inGame, roomSettled, gsOn]);
 
   // 大厅关了（✕ 返回工坊、离开工坊路由、结束对局后回大厅又关掉）：一律回设计机位。
   // ★ 房间还没就绪时先把黑幕拉起来（coverDesign：相机按回设计机位 + veil=1），房间成了再淡出。
   useEffect(() => {
-    if (lobbyOpen || inGame) return;
+    if (lobbyOpen || inGame || matchCamFrozen()) return;
     if (roomSettled || !gsOn) {
       leaveMatchPage();
       return;
