@@ -55,6 +55,10 @@ export interface FlySample {
   corridor: number;
   /** 光尘不透明度（0..1） */
   dust: number;
+  /** 穿行尽头那张背景（窗外贴图：夜=月亮 / 昼=云海）的不透明度（0..1）。
+   *  ★ 2026-11-27（`feat/gs-tunnel-depth`）：它在**穿行中段**才淡进来（0.45~0.85 的 travel），
+   *    于是"走廊最后几层把背景透出来"是随时间连续发生的，不是硬切。 */
+  backdrop: number;
   /** 「那张画」还剩多少（平贴图 / 夜空 / 月盘 / 墙上的亮晕都乘它） */
   image: number;
   /** 抖动强度 0..1（相机横滚 / 漂移的幅度乘它） */
@@ -84,6 +88,8 @@ export const FLY_U: {
   corridor: FlyUniform;
   /** 0..1 光尘不透明度 */
   dust: FlyUniform;
+  /** 0..1 穿行尽头那张背景贴图（夜=月亮 / 昼=云海）的不透明度 */
+  backdrop: FlyUniform;
   /** 抖动强度（相机用；画面层不用） */
   shake: FlyUniform;
   /** 穿行进度（相机过窗之后窗口 splat 可以退场，省 26 万点的 overdraw） */
@@ -94,6 +100,7 @@ export const FLY_U: {
   image: { value: 1 },
   corridor: { value: 0 },
   dust: { value: 0 },
+  backdrop: { value: 0 },
   shake: { value: 0 },
   travel: { value: 0 },
 };
@@ -129,6 +136,9 @@ export function flySampleAt(elapsedMs: number, reduced = false): FlySample {
   const dust = reduced
     ? 0
     : smoothstep(Math.max(0, d * 0.95), d * 1.5, e) * (1 - smoothstep(d + tr + 0.05, d + tr + 0.35, e));
+  // 穿行尽头那张背景（窗外贴图）：穿行中段起淡进来（travel 0.45~0.85），之后一直亮着，
+  // 由黑幕收尾。放得比走廊远（见 flyBackdrop.BACKDROP.dist），所以走廊越飞越稀 ⇒ 背景自然透出来。
+  const backdrop = reduced ? 0 : smoothstep(0.45, 0.85, travel);
   // 「那张画」：化点一开始就同步退（到 0.6 s 归零）。减少动态时它 0.3 s 就退完 —— 点因此成为唯一的东西。
   const image = reduced ? 1 - smoothstep(0, d * 0.9, e) : 1 - dissolve;
   // 抖动：穿行中逐渐加大，渐黑时保持最大（"点飞过镜头"那一下的加速感）
@@ -143,6 +153,7 @@ export function flySampleAt(elapsedMs: number, reduced = false): FlySample {
     fade,
     corridor,
     dust,
+    backdrop,
     image,
     shake,
   };
@@ -223,6 +234,7 @@ function applyUniforms(s: FlySample): void {
   FLY_U.image.value = s.image;
   FLY_U.corridor.value = s.corridor;
   FLY_U.dust.value = s.dust;
+  FLY_U.backdrop.value = s.backdrop;
   FLY_U.shake.value = s.shake;
   FLY_U.travel.value = s.travel;
 }

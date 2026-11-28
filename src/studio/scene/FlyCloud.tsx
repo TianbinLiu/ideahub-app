@@ -17,6 +17,7 @@ import {
   driveFlyCloud,
   ensureFlyCloud,
   getFlyCloud,
+  setFlyCloudCamera,
   subscribeFlyCloud,
 } from "./flyCorridor";
 
@@ -39,8 +40,10 @@ export default function FlyCloud() {
   // 大厅卸载 → 释放（SplatMesh / Points / 纹理）
   useEffect(() => () => disposeFlyCloud(), []);
 
-  useFrame(() => {
+  useFrame((state) => {
     if (!cloud) return;
+    // 「离镜头太近的点淡掉」要相机位置（走廊的 packed 数据就是世界坐标，不用换算）
+    setFlyCloudCamera(state.camera.position.x, state.camera.position.y, state.camera.position.z);
     if (warm.current > 0) {
       warm.current -= 1;
       driveFlyCloud(true);

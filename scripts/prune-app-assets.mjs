@@ -75,11 +75,10 @@ const PRUNE = [
   "protected/gratia-rapier-opt.glbx",
   "protected/rin-preview.webp",
   "protected/gratia-preview.webp",
-  // ★ 2026-11-27（feat/gs-flythrough-dissolve）：夜间 24 m 深空副本（6.3 万点 / 0.78 MB）**没接线**。
-  //   穿窗转场的"点云廊"用的是旧的 `window-moon.spz`（12 万点、只含窗洞）复制 6 层；
-  //   深空副本与走廊**二选一**（叠着会亮一倍），本版用走廊，所以它不该进包。
-  //   以后真要接线再删掉这一行（资产仍留在仓库里，只是不出包）。
-  "study/gs/window-moon-deep.spz",
+  // ★ 2026-11-27（feat/gs-tunnel-depth）：夜间 24 m 深空副本（6.3 万点 / 0.78 MB）**接线了** ——
+  //   它不再被裁：点云廊在夜档把它压到"终点前 0.9~2.3 m"当远处的点云（见 flyCorridor.FLY_CLOUD.deep），
+  //   走廊最后几层越飞越稀，深空副本负责"终点前 1 m 内还有点"。
+  //   ⇒ 这一行删掉；资产与走廊**不再二选一**（同一个 PackedSplats 里两份数据，不存在叠加变亮）。
 ];
 
 let saved = 0;
