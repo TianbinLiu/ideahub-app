@@ -17,6 +17,7 @@ import { RigidBoneSim, createRigidBoneSim } from "./rigidBones";
 import { rigidBonesEnabled } from "../quality";
 import { npcCam } from "./layout";
 import { NPC_CENTER, NPC_HEAD, orbit } from "./cameraOrbit";
+import { gameCamActive, gameCamClickNpc } from "./gameCam";
 import { gazeDelta, type GazeLimits } from "./gazeDelta";
 
 /** NPC 注视限幅：偏航 17°、抬头 10°、低头 4.6°。低头限得最死——脸前端到刘海外表面
@@ -1137,6 +1138,13 @@ export default function TripoNpc({
         onClick={(e: ThreeEvent<MouseEvent>) => {
           e.stopPropagation();
           if (orbit.active) return;
+          // ★ 2026-11-28（对局相机）：对局里点她 = **商店拉近到 0.8 m**（只有商店那一格生效；
+          //   俯视桌面 / 摆卡 / 投票时这一下什么都不做 —— 绝不能弹工坊的对话框把镜头抢走）。
+          //   工坊日常（没开局）照旧进对话。
+          if (gameCamActive()) {
+            gameCamClickNpc();
+            return;
+          }
           useStudio.getState().openNpcDialog();
         }}
       />

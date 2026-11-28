@@ -18,10 +18,11 @@
 //     · **不消耗任何券 / token**：这一屏还在一局的最前面，一张片都没出（游戏券只在局内出片时扣，
 //       见 data/gameTicketRules），退出只是把这一局收掉；这一点在 docs/game-lobby-ui-b-c.md §10 有验收记录。
 //     · 安卓返回键同一条路（useBackLayer）：这一屏开着时先关它，而不是退回上一个页面。
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { useBackLayer } from "../../../hooks/useBackLayer";
 import { setGsHudHidden } from "../../scene/gsHud";
+import { playWaveReveal } from "../../ui/waveReveal";
 import { stylePreviewUrl } from "../art";
 import { styleLine, styleTechnique, styleTopic } from "../labels";
 import { useGame } from "../store";
@@ -33,8 +34,34 @@ export default function StylePick({ view }: { view: GameView }) {
   const { t } = useLingui();
   const [selected, setSelected] = useState<string | null>(null);
   const lockedStyle = view.style;
+  /** 波浪铺开的那一块（整屏浮层本体；圆心/时长在 ui/waveReveal，与工作流小窗同一份） */
+  const panelRef = useRef<HTMLDivElement | null>(null);
   /** 安卓返回键：这一屏开着 = 先退这一屏（与右上角那颗「✕ 返回大厅」同一条路）。 */
   useBackLayer(true, quitGameToLobby, "game-style");
+  /**
+   * 入场 = 工作流小窗那一套**波浪**（2026-11-28，主人点名"复用工作流那套：波浪/淡入"）。
+   * ★ 圆心固定右下角（`origin: null`）：这一屏是流程机在匹配完成那一拍自动进的，没有"点哪儿"。
+   * ★ 3D 由 StudioPage 停帧、**不卸载**（`canvasCovered` 含 stylePick）—— 波浪铺开时底下是
+   *   冻结的那一帧桌面，不是黑屏、也不是重新加载。
+   * ★ reduced-motion 时自动退成 180 ms 淡入（判据与两条时长都只在 ui/waveReveal）。
+   */
+  useLayoutEffect(() => {
+    const el = panelRef.current;
+    if (!el) return;
+    // 验收读数只在 DEV / 显式写 `gsAcceptDebug=1` 的包里挂（与 TableScene 的 __gsAccept 同一条约定）：
+    // 生产里没人写这个键 = 这个 window 全局完全不存在。
+    const debug =
+      import.meta.env?.DEV === true ||
+      (typeof localStorage !== "undefined" && localStorage.getItem("gsAcceptDebug") === "1");
+    const wave = playWaveReveal(el, {
+      opening: true,
+      origin: null,
+      debugName: debug ? "__stylePickWave" : undefined,
+    });
+    return () => wave.cancel();
+    // 锁定态（边界）与选择态是两块不同的整屏，换过去时重播一发波浪
+  }, [lockedStyle]);
+
   /**
    * 开发者读数角标这一屏**整个藏起来**（2026-11-28）：三张风格卡的样张铺满整屏，
    * 读数（哪怕已经在可点 UI 之下）也不该透出来。`key="stylepick"` 与大厅那一格互不覆盖（见 gsHud 的 ★）。
@@ -61,7 +88,10 @@ export default function StylePick({ view }: { view: GameView }) {
   // 正常路径看不到这一屏（store.pickStyle 会一口气把三步走完）。
   if (lockedStyle) {
     return (
-      <div className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-3 bg-ink/95 px-4 backdrop-blur">
+      <div
+        ref={panelRef}
+        className="absolute inset-0 z-40 flex flex-col items-center justify-center gap-3 bg-ink/95 px-4 backdrop-blur"
+      >
         {backToLobby}
         <p className="text-sm font-semibold text-slate-100">
           <Trans>风格已经锁定：{styleTechnique(lockedStyle)}</Trans>
@@ -79,7 +109,7 @@ export default function StylePick({ view }: { view: GameView }) {
   const choices = view.styleChoices;
 
   return (
-    <div className="absolute inset-0 z-40 flex flex-col bg-ink/95 px-4 py-3 backdrop-blur">
+    <div ref={panelRef} className="absolute inset-0 z-40 flex flex-col bg-ink/95 px-4 py-3 backdrop-blur">
       {backToLobby}
       <div className="text-center">
         <h2 className="text-sm font-semibold text-slate-100">

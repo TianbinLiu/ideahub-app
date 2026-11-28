@@ -68,6 +68,18 @@ import {
 import { GS_LOOK, applyGsLook, gsLookDeg, gsLookDown, gsLookDrag, gsLookMoving, gsLookRelease, gsLookReset, gsLookTick } from "./gsLook";
 // 匹配页 / 穿窗转场（2026-11-27，feat/gs-moon-window）：镜头位姿的唯一出处在这里，CameraRig 每帧问一次
 import { consumeMatchSnap, matchCamAvailable, matchCamMoving, stepMatchCam } from "./matchCam";
+// 对局三机位（2026-11-28）：tableTop / NPC 正前 / 自由环视，阶段由 game/store.match 喂（见 gameCam 文件头）
+import {
+  GAME_CAM,
+  freeLookEnabled,
+  gameCamActive,
+  gameCamLookDrag,
+  gameCamMode,
+  gameCamZoomBy,
+  stepGameCam,
+} from "./gameCam";
+// 3D 互动物件命中探针（2026-11-28）：对局 UI 靠它区分"点在 NPC 上 = 拉近"与"点在空白桌面 = 收起商店"
+import { setInteractiveHitProbe } from "./interactivePick";
 
 // 委托定制模型 Milltina（默认铸卡师，**自有版权**）的配置
 // （模块级常量：内联对象会让 TripoNpc 的 memo 每帧重建）
@@ -449,6 +461,9 @@ function CameraRig() {
   const ctr = useRef(new THREE.Vector3());
   const eyeP = useRef(new THREE.Vector3());
   const eyeL = useRef(new THREE.Vector3());
+  /** 对局相机每帧算出来的位姿（gameCam.stepGameCam 的出口，见 CameraRig 里那一支） */
+  const gamePos = useRef(new THREE.Vector3());
+  const gameLook = useRef(new THREE.Vector3());
   const deckAnim = useRef<{ p: number; start: THREE.Vector3 } | null>(null);
   const prevDeck = useRef(false);
   const lastCamObj = useRef<unknown>(null);
@@ -482,6 +497,33 @@ function CameraRig() {
     gsLookTick();
     // 离开米制档（splat 失败回退老书房 / 关实验档）时把角度归零：老场景那台相机不接受这一层。
     if (!gsSceneMetric() && gsLookMoving()) gsLookReset();
+    // ── 对局三机位（2026-11-28）：这一支压过下面的默认机位 / 轨道 / 卡组滑梯 ──
+    // ★ 位置在开场运镜与匹配页运镜**之前**：开了局之后镜头只归 gameCam（固定俯视 / NPC 正前），
+    //   任何"用户轨道""开场运镜"都不许把它抢回去 —— 与 matchCam 那条早退同一个做法。
+    // ★ 平滑过渡（≤0.6 s）、距离跟随、自由环视都在 stepGameCam 里；这一层只负责赋给相机。
+    {
+      const gp = gamePos.current;
+      const gl = gameLook.current;
+      if (stepGameCam(dt, (camera as THREE.PerspectiveCamera).aspect, camera.position, RIG_LOOK, gp, gl)) {
+        camera.position.copy(gp);
+        RIG_LOOK.copy(gl);
+        camera.lookAt(RIG_LOOK);
+        // ★ 取景右移（GS_FRAME_SHIFT）在这里也要同步（2026-11-28）：gameCam 接管时**下面的
+        //   syncGsFrameShift 轮不到**（这一支早退），只在桌上那条路同步的话，从桌面进商店时
+        //   桌面机位那 4% 的 viewOffset 会一直留在相机上 —— NPC 正前那一台被悄悄右移，
+        //   而它的构图是"正对她"（不该带桌面机位的移轴）。判据与下面同一条：只有桌面机位要。
+        syncGsFrameShift(
+          camera as THREE.PerspectiveCamera,
+          size.width,
+          size.height,
+          gsSceneMetric() && !gsAcceptCamOn() && gameCamMode() === "tableTop",
+          frameShift,
+        );
+        // 商店那一档不许残留工坊的升空/环视状态（它接管相机时没人替它清）
+        if (gsLookMoving()) gsLookReset();
+        return;
+      }
+    }
     /** 摘掉玩家模型后的默认机位（`SHOW_PLAYER_BODY=false` 时求值）。
      *
      *  ★ G1 施工单第 1 步（docs/g1-scene-plan.md §1）：人偶摘掉，第一人称眼位就没有骨骼可跟了
@@ -506,7 +548,14 @@ function CameraRig() {
       camera as THREE.PerspectiveCamera,
       size.width,
       size.height,
-      gsSceneMetric() && !gsAcceptCamOn() && st.camera.kind === "default" && !st.orbit && !orbit.active && !matchCamMoving(),
+      gsSceneMetric() &&
+        !gsAcceptCamOn() &&
+        st.camera.kind === "default" &&
+        !st.orbit &&
+        !orbit.active &&
+        !matchCamMoving() &&
+        // 取景右移是**桌面机位**的构图补偿（NPC 落在 58~62%）；NPC 正前那一台不跟着移
+        !(gameCamActive() && gameCamMode() === "npcFront"),
       frameShift,
     );
     // 节点卡卡面的首尾帧轮播（渐变期才真重绘，停留期内部直接返回）
@@ -1704,6 +1753,10 @@ function TableCatcher() {
       // ★ 匹配页 / 穿窗转场期间相机归 scene/matchCam，手势一律不接：
       //   否则拖拽会攒 gsLook / 轨道状态，取消回到设计机位时视线是歪的（看不到、也不好查）。
       if (matchCamMoving()) return null;
+      // ── 对局三机位（2026-11-28）：镜头只归 gameCam ──
+      // 只有**商店开着**这一格接手势（单指 ±6°/±3° 环视、双指捏合 0.8~1.6 m、点 NPC 拉近到 0.8 m）；
+      // 其余阶段（固定俯视 / 摆卡 / 生成 / 投票）一律不接 —— 主人点名的"不能自由转视角"就这一行。
+      if (gameCamActive()) return freeLookEnabled() ? ("gameLook" as const) : null;
       if (st.orbit) return "orbit" as const;
       // 米制档的默认机位：只有它接小幅环视（老场景的落点机位不接，逐字节不变）
       if (gsSceneMetric() && st.camera.kind === "default") return "gsLook" as const;
@@ -1719,10 +1772,10 @@ function TableCatcher() {
      *  ★ 只取**最前面那块**真正挡视线的东西：压在卡上的点不会被卡后面的桌子"放行"。 */
     const rc = new THREE.Raycaster();
     const ndc = new THREE.Vector2();
-    const hitInteractive = (e: PointerEvent): boolean => {
+    const hitAt = (clientX: number, clientY: number): boolean => {
       const r = el.getBoundingClientRect();
       if (!r.width || !r.height) return false;
-      ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -(((e.clientY - r.top) / r.height) * 2 - 1));
+      ndc.set(((clientX - r.left) / r.width) * 2 - 1, -(((clientY - r.top) / r.height) * 2 - 1));
       rc.setFromCamera(ndc, camera);
       const hits = rc.intersectObjects(scene.children, true);
       for (const h of hits) {
@@ -1746,6 +1799,51 @@ function TableCatcher() {
       }
       return false;
     };
+    const hitInteractive = (e: PointerEvent): boolean => hitAt(e.clientX, e.clientY);
+    /**
+     * 验收探针（2026-11-28，与 `__gsAccept` / `__game` / `__gameCam` 同一条约定：DEV 或显式写
+     * localStorage `gsAcceptDebug=1` 才有）。模拟器验收要直接回答"画布正中这一点打在什么上"——
+     * 对局 UI 的"点栏外收起商店"就靠这条射线区分「NPC = 拉近」与「空白 = 收起」，
+     * 没有它只能从"商店被收起了"反推，查不出是射线没打中还是别处关的（这一轮踩过这个坑）。
+     * `detail` 只回前 6 条命中的摘要（距离 / 类型 / 最近的 eventCount / noCam），够看第一块挡视线的是谁。
+     * 生产里没人写这个键 → 这段整块不存在（`import.meta.env.DEV` 为假 + 没人写键）。
+     */
+    const acceptHooks =
+      import.meta.env?.DEV === true ||
+      (() => {
+        try {
+          return localStorage.getItem("gsAcceptDebug") === "1";
+        } catch {
+          return false;
+        }
+      })();
+    if (acceptHooks) {
+      (window as unknown as Record<string, unknown>).__pickProbe = {
+        hit: hitAt,
+        detail: (x: number, y: number) => {
+          const r = el.getBoundingClientRect();
+          ndc.set(((x - r.left) / r.width) * 2 - 1, -(((y - r.top) / r.height) * 2 - 1));
+          rc.setFromCamera(ndc, camera);
+          return rc
+            .intersectObjects(scene.children, true)
+            .slice(0, 6)
+            .map((h) => {
+              let o: THREE.Object3D | null = h.object;
+              let ec = 0;
+              let noCam = false;
+              while (o) {
+                noCam = noCam || !!o.userData?.noCam;
+                ec = Math.max(ec, (o as unknown as { __r3f?: { eventCount?: number } }).__r3f?.eventCount ?? 0);
+                o = o.parent;
+              }
+              return { d: +h.distance.toFixed(3), type: h.object.type, ec, noCam };
+            });
+        },
+      };
+    }
+    // ★ 2026-11-28（对局相机）：把同一条射线交给对局 UI 那一层 —— 商店的"点栏外收起"要靠它
+    //   区分「点在 NPC 上 = 拉近到 0.8 m」与「点在空白桌面 = 收起商店」。卸载即清（见 interactivePick）。
+    setInteractiveHitProbe(hitAt);
     const onDown = (e: PointerEvent) => {
       const m = mode();
       if (!m || e.target !== el) return;
@@ -1754,6 +1852,8 @@ function TableCatcher() {
         if (hitInteractive(e)) return;
         gsLookDown();
       }
+      // 商店这一档：按在 NPC / 卡上不偷手势（NPC 的点击是"拉近"，见 TripoNpc 的 onClick）
+      if (m === "gameLook" && hitInteractive(e)) return;
       g.current.pointers.set(e.pointerId, [e.clientX, e.clientY]);
       g.current.lastPinch = null;
       g.current.moved = 0;
@@ -1772,6 +1872,20 @@ function TableCatcher() {
       const dy = e.clientY - prev[1];
       s.moved += Math.hypot(dx, dy);
       s.pointers.set(e.pointerId, [e.clientX, e.clientY]);
+      // 商店自由环视：单指转视线（±6°/±3° 硬停，松手**不回中** —— 这是临时的环视窗口，
+      // 离开商店时复位）；双指捏合改到 NPC 的距离（0.8~1.6 m，点 NPC 拉近到 0.8）。
+      if (m === "gameLook") {
+        if (s.pointers.size === 1) {
+          gameCamLookDrag(dx, dy);
+        } else if (s.pointers.size === 2) {
+          const pts = [...s.pointers.values()];
+          const d = Math.hypot(pts[0][0] - pts[1][0], pts[0][1] - pts[1][1]);
+          // 指距变大（两指张开）= 拉近（与工坊 orbit 的捏合同一个方向）
+          if (s.lastPinch != null) gameCamZoomBy(-(d - s.lastPinch) * GAME_CAM.zoomPerPx);
+          s.lastPinch = d;
+        }
+        return;
+      }
       if (m === "gsLook") {
         if (s.pointers.size === 1) gsLookDrag(dx, dy);
         return;
@@ -1831,6 +1945,13 @@ function TableCatcher() {
     };
     // 桌面调试便利：滚轮 = 轨道半径推拉；第一人称下 = 升空俯瞰（与双指捏合同源）
     const onWheel = (e: WheelEvent) => {
+      // 商店那一档：滚轮 = 改到 NPC 的距离（0.8~1.6 m），与双指捏合同源；其余阶段滚轮什么都不做
+      if (gameCamActive()) {
+        if (!freeLookEnabled()) return;
+        e.preventDefault();
+        gameCamZoomBy(e.deltaY * GAME_CAM.zoomPerPx);
+        return;
+      }
       const st = useStudio.getState();
       const o = st.orbit;
       if (!o) {
@@ -1861,6 +1982,8 @@ function TableCatcher() {
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointercancel", onUp);
       el.removeEventListener("wheel", onWheel);
+      // 探针归还：卸载之后（切路由 / splat 回退）不能再对着已经拆掉的射线问"点在什么上"
+      setInteractiveHitProbe(null);
       // 拖到一半就卸载（切路由 / splat 回退）：状态在 module 单例里，不归零会带进下一次
       gsLookReset();
     };

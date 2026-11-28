@@ -400,7 +400,17 @@ export default function StudioPage() {
    *   穿窗转场的 1.5 s 运镜，画布必须活着（`lobbyOpen && !gsScene` 才停帧：老场景逐字节不变）。
    * ★ 对局设置页也算（2026-11-24）：它同样是整屏实底，盖着的时候桌面还在每帧画 NPC（看不见、电照烧）。
    */
-  const canvasCovered = canvasOpen || (lobbyOpen && !gsScene) || settingsOpen || historyOpen || spectateOpen;
+  /**
+   * ★ 2026-11-28（选视频风格 = 全屏浮层）：那一屏与工作流面板同一套做法 —— **3D 不卸载，只停帧**，
+   *   入场动效也是工作流那套**圆扩散波浪**（`ui/waveReveal`，与 WorkflowWindow 同一份实现）。
+   *   风格卡铺满整屏、底下每一帧的 NPC/火/弹簧骨都看不见，照画就是白烧电（真机横屏 363 px 高）。
+   *   判据取流程机的 stylePick（含 rules.phase ready：我选完、AI 没选完时仍旧是这一屏）。
+   *   离开这一格（进桌面 / 商店）frameloop 自己回来，场景不重挂、镜头不重解。
+   */
+  const gameStage = useGame((s) => s.match.stage);
+  const stylePickCover = gameStage === "stylePick";
+  const canvasCovered =
+    canvasOpen || (lobbyOpen && !gsScene) || settingsOpen || historyOpen || spectateOpen || stylePickCover;
   /**
    * 横屏宽布局（G1 施工单 docs/g1-scene-plan.md §2 A）：左右各一条常驻条，3D 桌面留在中间。
    * ★ 判据只有一份（hooks/useIsLandscape）：`(orientation: landscape)`，也就是画布宽 > 高。

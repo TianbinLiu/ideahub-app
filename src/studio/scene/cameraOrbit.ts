@@ -169,7 +169,10 @@ export function addEyeLook(dYaw: number, dPitch: number) {
 }
 
 // DEV 调参/验收后门：控制台可直接读写轨道参数与头部锚点
-if (import.meta.env.DEV) {
+// ★ `import.meta.env?.DEV`（不是 `import.meta.env.DEV`）：scripts/check-game-matchflow.mjs 要在 Node 里
+//   直接 import 相机模块读三机位常量，而 Node 没有 Vite 注入的 import.meta.env —— 少一个 `?.`
+//   整条检查在加载期就抛（与 rules 那批零依赖模块同一个理由）。
+if (import.meta.env?.DEV) {
   (window as unknown as Record<string, unknown>).__camOrbit = {
     orbit,
     eyeLook,

@@ -25,46 +25,17 @@
 //   两者的半径都用视口对角线，四角都能一次铺满。
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
+// 波浪 / 圆扩散只有一份实现（2026-11-28 从这一份抽到 ui/waveReveal，选风格浮层共用同一份）。
+// ★ pickCorner 仍从这里转出去：docs/gs-table-light-log.md §13.2 按 `WorkflowWindow.pickCorner` 记的。
+import { playWaveReveal, type WaveRevealHandle } from "./waveReveal";
+export { pickCorner, WAVE_CLOSE_MS, WAVE_FADE_MS, WAVE_OPEN_MS } from "./waveReveal";
 
 /** 面板离视口的四边内边距（px）：主人给的 16~24 取中段，横屏 852~864 宽时左右各让出 18 */
 const PAD = 18;
 /** 圆角（px）：上一版 rounded-2xl = 16；全屏面板给大一点才读作"悬浮的卡片" */
 const RADIUS = 22;
-/** 波浪时长（ms）：主人给的 520 / 460 */
-const OPEN_MS = 520;
-const CLOSE_MS = 460;
-/** reduced-motion 的淡入淡出时长 */
-const FADE_MS = 180;
 /** 遮罩暗化（四周那一圈 3D 的压暗量）与面板底的模糊半径 */
 const VEIL = "bg-black/30";
-
-/** 面板角落的代号（验收/报告用它说"这一发从哪长出来"） */
-type Corner = "rb" | "lb" | "lt" | "rt";
-
-/**
- * 选角逻辑（主人第 1 条的原话：「默认取右下角；如果生成键在屏幕另一侧（左半边），
- * 圆心改用离它最近的角落」）。
- *
- * - 没有点击坐标 / 键在**右半边** → 一律 `rb`（右下角，这是"家"）。
- *   右半边不再按上下分：3D 生成键在桌面右下角，而顶栏 🧩 在右上角 —— 两者离右下角都近，
- *   从右下角铺满全场是这一屏的默认动效。
- * - 键在**左半边** → 取左边两个角里**竖直方向更近**的那个（`lt` / `lb`）：波浪从离手指最近的
- *   角落长出来，视线不用横跨半个屏幕去追。左半边一般就是顶栏左侧的键（`lt`）与桌面左下的卡组
- *   箭头那一侧（`lb`）。
- * ★ 返回的是**视口 CSS px**（不是比例）：半径与圆心要用同一把尺子（`hypot(W,H)` 也是 px）。
- */
-export function pickCorner(origin: [number, number] | null, w: number, h: number): [Corner, [number, number]] {
-  if (!origin || origin[0] >= w / 2) return ["rb", [w, h]];
-  return origin[1] < h / 2 ? ["lt", [0, 0]] : ["lb", [0, h]];
-}
-
-function prefersReducedMotion(): boolean {
-  try {
-    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  } catch {
-    return false;
-  }
-}
 
 export default function WorkflowWindow({
   open,
@@ -81,26 +52,18 @@ export default function WorkflowWindow({
   const [present, setPresent] = useState(open);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const veilRef = useRef<HTMLDivElement | null>(null);
-  const anims = useRef<Animation[]>([]);
+  const anims = useRef<WaveRevealHandle | null>(null);
   /** 最近一次点击位置：关闭动画与"关→再开"都要用它，而 `origin` 可能在关掉之后被清 */
   const originRef = useRef<[number, number] | null>(origin);
-  /** 每一发动画的代次：关掉时挂的 onDone 不能把后来重新打开的面板卸掉 */
-  const gen = useRef(0);
 
   useLayoutEffect(() => {
     if (origin) originRef.current = origin;
   }, [origin]);
 
-  /** 停掉正在播的（打开一半又关 / 关一半又开） */
+  /** 停掉正在播的（打开一半又关 / 关一半又开）—— 取消之后那一发的 onDone 不会再回调 */
   const stop = () => {
-    for (const a of anims.current) {
-      try {
-        a.cancel();
-      } catch {
-        /* 已经结束的动画 cancel 会抛（部分 WebView）：忽略 */
-      }
-    }
-    anims.current = [];
+    anims.current?.cancel();
+    anims.current = null;
   };
 
   const play = (opening: boolean, onDone?: () => void) => {
@@ -111,85 +74,14 @@ export default function WorkflowWindow({
       return;
     }
     stop();
-    const my = ++gen.current;
-    const dur = opening ? OPEN_MS : CLOSE_MS;
-    const list: Animation[] = [];
-    const w = window.innerWidth;
-    const h = window.innerHeight;
-
-    if (prefersReducedMotion()) {
-      // 尊重 prefers-reduced-motion：不播圆形扩散，只淡入淡出
-      list.push(
-        panel.animate([{ opacity: opening ? 0 : 1 }, { opacity: opening ? 1 : 0 }], {
-          duration: FADE_MS,
-          easing: "ease-out",
-          fill: "forwards",
-        }),
-        veil.animate([{ opacity: opening ? 0 : 1 }, { opacity: opening ? 1 : 0 }], {
-          duration: FADE_MS,
-          easing: "ease-out",
-          fill: "forwards",
-        }),
-      );
-    } else {
-      // 圆心 = 挑出来的**视口角落**，换算进面板本地坐标（面板 inset 了 PAD，所以右下角正好是
-      // 面板自己的右下角，左半边那两角在面板外 18 px —— 圆心在窗外也没关系，clip 只画圆内）
-      const rect = panel.getBoundingClientRect();
-      const [corner, pt] = pickCorner(originRef.current, w, h);
-      const ox = pt[0] - rect.left;
-      const oy = pt[1] - rect.top;
-      // ★ 半径 = 屏幕对角线（主人给的 `hypot(W,H)`）：从角落出发，铺满整屏（面板只是它的子集，
-      //   多出来那点半径落在内边距之外，看不见；这样四角不论哪一发都一定覆盖整块面板）
-      const r = Math.hypot(w, h);
-      // 验收/报告要的那几个数（生产里没人读；留着是为了"波浪参数"有据可查，别在文档里手抄）
-      panel.dataset.waveCorner = corner;
-      panel.dataset.waveCx = ox.toFixed(1);
-      panel.dataset.waveCy = oy.toFixed(1);
-      panel.dataset.waveR = r.toFixed(0);
-      (window as unknown as Record<string, unknown>).__workflowWave = {
-        corner,
-        cornerViewport: pt,
-        originInPanel: [+ox.toFixed(1), +oy.toFixed(1)],
-        radius: Math.round(r),
-        viewport: [w, h],
-        openMs: OPEN_MS,
-        closeMs: CLOSE_MS,
-        reduced: false,
-      };
-      const from = `circle(0px at ${ox}px ${oy}px)`;
-      const to = `circle(${r}px at ${ox}px ${oy}px)`;
-      list.push(
-        panel.animate([{ clipPath: opening ? from : to }, { clipPath: opening ? to : from }], {
-          duration: dur,
-          easing: "cubic-bezier(0.22, 1, 0.36, 1)", // ease-out：先快后慢
-          fill: "forwards",
-        }),
-        // 遮罩比圆形早一点到位（0.55×）：面板还在铺的时候四角的 3D 先暗下去，边缘不会"亮一下"
-        veil.animate([{ opacity: opening ? 0 : 1 }, { opacity: opening ? 1 : 0 }], {
-          duration: Math.round(dur * 0.55),
-          easing: "ease-out",
-          fill: "forwards",
-        }),
-      );
-    }
-    anims.current = list;
-    const all = Promise.all(list.map((a) => a.finished.catch(() => {})));
-    if (onDone) {
-      // 兜底计时器：个别 WebView 在动画被系统打断时 finished 可能不 settle，别把面板卡在屏上
-      const d = () => {
-        if (my !== gen.current) return;
-        onDone();
-      };
-      void all.then(d);
-      window.setTimeout(d, dur + 150);
-    } else if (opening) {
-      // 打开播完就把 clip 清掉：之后转屏/改尺寸不会被一个按旧尺寸算出来的圆裁掉
-      void all.then(() => {
-        if (my !== gen.current) return;
-        panel.style.clipPath = "";
-        anims.current = [];
-      });
-    }
+    anims.current = playWaveReveal(panel, {
+      opening,
+      origin: originRef.current,
+      veil,
+      // 验收读数：`window.__workflowWave`（docs/gs-table-light-log.md §13.2 记着它）
+      debugName: "__workflowWave",
+      onDone,
+    });
   };
 
   useLayoutEffect(() => {
