@@ -1,4 +1,4 @@
-﻿// ★★ 明月窗的 3D 那一半（2026-11-27，`feat/gs-moon-window`）—— **只留窗框那一套几何**。
+// ★★ 明月窗的 3D 那一半（2026-11-27，`feat/gs-moon-window`）—— **只留窗框那一套几何**。
 //
 // ★ 2026-11-27（`feat/gs-window-daynight`）这个文件被拆过一次：
 //   "窗里该放什么"（夜空球 / 月亮盘 / 两套贴图 / 两套 splat / 墙面亮晕 / 窗光）搬到了
@@ -26,7 +26,14 @@ import { skinWeight, useSkinFade, useWindowSkin } from "./windowSkin";
  *  淡入之后，不会在画面上出现"一根黑条闪一帧"。 */
 const BARS_INSET = 0.03;
 
-export default function MoonWindow() {
+interface Props {
+  /** 窗洞里放不放**窗景 splat**（12 万点的 `window-*.spz`）。
+   *  ★ 2026-11-27（`feat/gs-scene-split`）：只有**大厅/匹配页**那一套挂 splat（视差在那儿才看得到）；
+   *    进房间之后主人拍板"窗洞改用平贴图"—— 房间那一档传 `false`，连 spz 都不请求。 */
+  splat?: boolean;
+}
+
+export default function MoonWindow({ splat = true }: Props) {
   // 装扮（day / night）由设备本地时间决定，交叉淡入 0.8 s（判定与曲线都在 windowSkin.ts）
   const skin = useWindowSkin();
   const weight = skinWeight(useSkinFade(skin));
@@ -35,7 +42,7 @@ export default function MoonWindow() {
   return (
     <>
       {/* 窗里的两套装扮 + 窗光（2026-11-27 拆出去的，见文件头） */}
-      <WindowLook weight={weight} />
+      <WindowLook weight={weight} splat={splat} />
 
       {/* ── 窗框 / 窗棂：透明队列 + renderOrder 22/23，压在墙与窗景之上 ── */}
       <group position={[wx, wy, wz]}>

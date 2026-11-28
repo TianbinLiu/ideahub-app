@@ -31,8 +31,12 @@ export const WINDOW_TEX = {
   day: "/models/study/tex/window-sea.webp",
 } as const;
 
-/** 两套窗景的 3D 版（ml-sharp 产出，**不进仓库**：`.gitignore` 排除了 `public/models/study/gs/`）。
- *  文件不在时 `WindowSplat` 的 `initialized` 会被 404 拒 → 自动回退到上面那两张平贴图。 */
+/** 两套窗景的 3D 版（ml-sharp 产出，12 万点 / 单张 ~1.3 MB）。
+ *  ★ 2026-11-27（`feat/gs-scene-split`）：这两份 spz 与两张 webp 现在**都进仓库、都进 APK**
+ *    （`.gitignore` 只排除房间里那几份大 spz）；它们只在大厅/匹配页那一套里挂，
+ *    进房间后窗洞只用平贴图（`MoonWindow splat={false}`）。
+ *  ★ 文件仍然可能不在（老包 / 被裁过）：`initialized` 的 reject 由 `onState("failed")` 接住，
+ *    那一档自动回退到上面那两张平贴图，不抛错。 */
 export const WINDOW_SPZ = {
   night: "/models/study/gs/window-moon.spz",
   day: "/models/study/gs/window-sea.spz",
@@ -295,10 +299,14 @@ const HALO = 1.45;
 interface Props {
   /** 0 = 完全夜里、1 = 完全白天（已过 smoothstep，见 windowSkin.skinWeight） */
   weight: number;
+  /** 窗洞里放不放**窗景 splat**（12 万点 `window-*.spz`）。
+   *  ★ 2026-11-27（`feat/gs-scene-split`）：大厅/匹配页 = true（视差）；进房间 = false（只用平贴图，
+   *    主人拍板"窗洞改用平贴图"）—— `false` 时连 spz 都不请求，`uPaintSplat` 也保持 0（夜空球照画）。 */
+  splat?: boolean;
 }
 
 /** 窗洞里的全部内容 + 窗光（窗框/窗棂在 `MoonWindow.tsx`，不在这里） */
-export default function WindowSkin({ weight }: Props) {
+export default function WindowSkin({ weight, splat = true }: Props) {
   const moon = useMemo(() => moonDisc(), []);
   const dome = useMemo(() => skyDome(), []);
   const [wx, wy, wz] = WINDOW.center;
@@ -424,8 +432,9 @@ export default function WindowSkin({ weight }: Props) {
     moonMat.uniforms.uSkin.value = weight;
     // 窗洞里已经有那幅画（贴图到了）⇒ 室内不画程序化月亮（见 MOON_FRAG 里的 discard 注释）
     moonMat.uniforms.uPaint.value = texNight ? 1 : 0;
-    // 窗景 splat 在场时，室内不画夜空球（它会被 splat 盖住，见 SKY_FRAG 里的 discard 注释）
-    skyMat.uniforms.uPaintSplat.value = spzState.night === 'ok' || spzState.day === 'ok' ? 1 : 0;
+    // 窗景 splat 在场时，室内不画夜空球（它会被 splat 盖住，见 SKY_FRAG 里的 discard 注释）。
+    // ★ 房间那一档（splat=false）保持 0：窗洞只有平贴图，夜空球照旧画在它下面（穿窗转场还用得上）。
+    skyMat.uniforms.uPaintSplat.value = splat && (spzState.night === 'ok' || spzState.day === 'ok') ? 1 : 0;
     glowMat.uniforms.uIntensity.value = WINSKIN_GLOW.day.intensity * weight;
     surroundMat.uniforms.uFade.value = 1 - weight;
     const l = lightRef.current;
@@ -434,15 +443,16 @@ export default function WindowSkin({ weight }: Props) {
       l.intensity = WINSKIN_LIGHT.night.intensity + (WINSKIN_LIGHT.day.intensity - WINSKIN_LIGHT.night.intensity) * weight;
       l.distance = WINSKIN_LIGHT.night.distance + (WINSKIN_LIGHT.day.distance - WINSKIN_LIGHT.night.distance) * weight;
     }
-  }, [weight, skyMat, moonMat, glowMat, surroundMat, texNight, spzState]);
+  }, [weight, skyMat, moonMat, glowMat, surroundMat, texNight, spzState, splat]);
 
   const nightOn = weight < 0.999;
   const dayOn = weight > 0.001;
   // ★ "优先 splat、不可用才回退贴图"（任务书 B-2）：spz 加载成功就**不画**那张平贴图，
-  //   一格都不多占；404（`public/models/study/gs/` 被 gitignore 排除的那一版包）才用贴图。
+  //   一格都不多占；404（老包 / 文件被裁过的那一版）才用贴图。
   //   两档各自判：可能只跑通了其中一张（ml-sharp 那一轮就是先出月、后出海）。
-  const nightKind = spzState.night === "ok" ? "splat" : "tex";
-  const dayKind = spzState.day === "ok" ? "splat" : "tex";
+  //   ★ 房间那一档 `splat=false`：直接按 tex 走（`spzState` 一直是 "try"，永远等不到 ok）。
+  const nightKind = splat && spzState.night === "ok" ? "splat" : "tex";
+  const dayKind = splat && spzState.day === "ok" ? "splat" : "tex";
 
   return (
     <>
@@ -487,14 +497,14 @@ export default function WindowSkin({ weight }: Props) {
           两层叠着画：splat 是"更真的那一层"，平贴图留在下面补它边缘的窟窿。
           splat 自己的不透明度跟着同一个权重走，所以交叉淡入时它也一起淡。 */}
       <Suspense fallback={null}>
-        {nightOn && spzState.night !== "failed" && (
+        {splat && nightOn && spzState.night !== "failed" && (
           <WindowSplat
             url={WINDOW_SPZ.night}
             opacity={1 - weight}
             onState={(s) => setSpzState((p) => (p.night === s ? p : { ...p, night: s }))}
           />
         )}
-        {dayOn && spzState.day !== "failed" && (
+        {splat && dayOn && spzState.day !== "failed" && (
           <WindowSplat
             url={WINDOW_SPZ.day}
             opacity={weight}
@@ -575,13 +585,16 @@ function useWindowTextures(): [THREE.Texture | null, THREE.Texture | null] {
     };
   }, []);
   // 卸载时释放
+  // ★ 2026-11-27（`feat/gs-scene-split` 顺手修）：依赖必须是 `[tex]`。原来写 `[]`，cleanup 闭包
+  //   捕获的是**首帧**的 `[null, null]` —— 两张 webp 每挂一次就多两份 GPU 纹理、永不释放
+  //   （大厅↔房间来回切时 `renderer.info.memory.textures` 每次 +2）。`[tex]` 时旧 cleanup 里仍是
+  //   上一份（首帧的 null），新 effect 捕获的是真纹理，卸载那一下才放得掉。
   useEffect(
     () => () => {
       tex[0]?.dispose();
       tex[1]?.dispose();
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
+    [tex],
   );
   return tex;
 }

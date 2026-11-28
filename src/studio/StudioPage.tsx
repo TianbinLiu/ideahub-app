@@ -57,6 +57,7 @@ import { castEditorState } from "../pages/FlowPage";
 //   壳在这个文件里，画布本身用 `embedded` 不再自己 portal 一层全屏壳（老场景/老路径那边一个字都没改）。
 import WorkflowWindow from "./ui/WorkflowWindow";
 import { useGsPhase } from "./scene/gsStep0";
+import { effectiveSceneKind } from "./scene/sceneSplit";
 import { autoQualityOnFirstVisit, qualityLabel, type Quality } from "./quality";
 import Icon from "../components/Icon";
 
@@ -414,6 +415,14 @@ export default function StudioPage() {
    * 以及 GameLayer 挂不挂。对局状态本身在 game/store 里，切页 / 转屏都不会丢。
    */
   const inGame = useGame((s) => s.state !== null);
+  /**
+   * ★ 2026-11-27（`feat/gs-scene-split`）：这一帧挂哪一套 3D 场景。
+   *   `lobby` = 大厅/匹配页：只挂窗景 splat + 窗框 + 窗内点光（房间那份 24.8 MB 不加载）；
+   *   `room`  = 开着一局 / 正常工坊：房间 splat + 灯组 + 火，窗洞用平贴图。
+   *   判据只在这里一处（`sceneSplit.effectiveSceneKind`，含冷启动 `?lobby=1` 的 boot 标记）；
+   *   3D 那一层只接这个 prop，不 import 任何 store（理由见 TableScene 的入参注释）。
+   */
+  const gsSceneKind = effectiveSceneKind(lobbyOpen, inGame);
   // 这一局没了（结束对局 / 认输退出 / 服务端判结束）就把设置页一并收掉：它只在"有一局"时才成立，
   // 留着的话下一局开局会莫名其妙停在一张设置页上（而那一页上的"返回游戏"看着像能点）。
   useEffect(() => {
@@ -490,7 +499,7 @@ export default function StudioPage() {
           camera={{ fov: 50, position: initCam.pos, near: 0.1, far: 80 }}
         >
           <SceneClockKeeper />
-          <TableScene />
+          <TableScene sceneKind={gsSceneKind} />
         </Canvas>
       </ErrorBoundary>
 

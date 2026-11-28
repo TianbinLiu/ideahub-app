@@ -11,6 +11,11 @@
 // 为什么"splat 那一半"必须懒加载：`@sparkjsdev/spark` 打进来是 16 MB 的解包体积，而这一档默认关。
 // 用 `lazy(() => import("./GsStep0Room"))` 之后它只是主包旁边一个**永远不会被请求**的 chunk ——
 // 正式体验的加载体积一个字节都不变（构建里能看到单独的 GsStep0Room-*.js）。
+//
+// ★★ 2026-11-27（`feat/gs-scene-split`）：这一层现在按**两套场景**三态切换（判据在 sceneSplit）：
+//   · 大厅 / 匹配页（未开局）= `GsLobbyScene`：只有窗景 splat + 窗框 + 窗内点光，**不挂房间**；
+//   · 进房间（开局 / 正常工坊）= 房间 splat + 灯组 + 火 + 窗框，**窗洞用平贴图**（`MoonWindow splat={false}`）。
+//   两套互斥挂载 → 交接时那一套整体卸载，geometry/纹理跟着 dispose（计数在 sceneSplit 里）。
 import { Component, Suspense, lazy, useLayoutEffect, type ReactNode } from "react";
 import * as THREE from "three";
 import MagicStudy from "./MagicStudy";
@@ -19,8 +24,14 @@ import HearthFire from "./HearthFire";
 import MoonWindow from "./MoonWindow";
 import { skipIntroCam } from "./introCam";
 import { skinWeight, useSkinFade, useWindowSkin, WINSKIN_SUN } from "./windowSkin";
+import { markSceneKind, resolveSceneKind, type GsSceneKind } from "./sceneSplit";
+import SceneSplitProbe from "./SceneSplitProbe";
 
 const GsStep0Room = lazy(() => import("./GsStep0Room"));
+/** 大厅那一套（窗景 splat + 窗框 + 窗内点光；见 GsLobbyScene 文件头）—— lazy，进房间后不下载 */
+const GsLobbyScene = lazy(() => import("./GsLobbyScene"));
+/** 两套场景共用的那一台 SparkRenderer（切场景时不重建：只换 SplatMesh） */
+const GsSparkStage = lazy(() => import("./GsSparkStage"));
 
 /** 今天的房间 + 灯组（2026-11-25 之前 TableScene 顶部那六行，逐字搬过来，一个数没改） */
 function LegacyRoom() {
@@ -115,8 +126,19 @@ class GsBoundary extends Component<{ children: ReactNode }, { failed: boolean }>
 }
 
 /** 房间/灯/火这一块的三态入口（TableScene 只写这一行） */
-export function GsStep0Environment() {
+export function GsStep0Environment({ sceneKind }: { sceneKind?: GsSceneKind } = {}) {
   const phase = useGsPhase();
+  /**
+   * 两套场景的判据（★ 由页面层传进来，这里只画、不数）：
+   *   · `room` = 开着一局 / 正常工坊 → 房间 splat + 灯组 + 火 + 窗洞平贴图；
+   *   · `lobby` = 大厅/匹配页 → 只挂窗景 splat + 窗框 + 窗内点光，房间那份 24.8 MB 不加载。
+   *   `sceneKind` 为空时（design/ 的离线抓图页）退回上一帧 / 强制档（见 sceneSplit.resolveSceneKind）。
+   */
+  const kind = resolveSceneKind(sceneKind);
+  // 场景档写进 sceneSplit（切档那一刻记时间、清读数；渲染期不写模块状态）
+  useLayoutEffect(() => {
+    markSceneKind(kind);
+  }, [kind]);
   // 真机验收要的"从进入工坊到 splat 出现"：这一组件随 TableScene 挂载，从这里开始计时
   //（懒加载的 spark chunk、31/8 MiB 的 spz 下载都算在里面）。只在这一档开着时打。
   //
@@ -137,14 +159,43 @@ export function GsStep0Environment() {
     skipIntroCam();
   }, [phase]);
   if (!gsStep0On() || phase === "off" || phase === "failed") return <LegacyRoom />;
+  // 两套场景共用的每帧探针（fps / 内存 / "第一帧"读数），切场景时不重挂
+  const probe = <SceneSplitProbe />;
+  // ★ 两套场景共用**同一台** SparkRenderer：切场景只换 SplatMesh，渲染器不重建
+  //   （重建 = 每次进来重新初始化它那套 splat pass 的纹理/program；见 GsSparkStage 文件头）
+  const sparkStage = (
+    <GsBoundary>
+      <Suspense fallback={null}>
+        <GsSparkStage />
+      </Suspense>
+    </GsBoundary>
+  );
+  // ── 大厅 / 匹配页：窗景 splat + 窗框 + 窗内点光（背景色与月光在 GsLobbyScene 里）──
+  // ★ 这里**没有** `<color>` / `<fog>` / DayLights / GsStep0Room：房间那一套整棵不挂，
+  //   交接时它整体卸载、SplatMesh 在自己的 cleanup 里 dispose。
+  if (kind === "lobby") {
+    return (
+      <>
+        {probe}
+        {sparkStage}
+        <GsBoundary>
+          <Suspense fallback={null}>
+            <GsLobbyScene />
+          </Suspense>
+        </GsBoundary>
+      </>
+    );
+  }
   return (
     <>
+      {probe}
+      {sparkStage}
       <color attach="background" args={[GS_DAY.bg]} />
       <fog attach="fog" args={[GS_DAY.bg, GS_DAY.fog[0], GS_DAY.fog[1]]} />
       <DayLights />
-      {/* 明月窗：夜空球 + 月亮 + 补的窗框/窗棂（2026-11-27）。几何与机位在 ./moonWindow，
-          只在这一档（米制 splat 场景）里挂 —— 老书房的窗是 MagicStudy 自己那套，逐字节不动。 */}
-      <MoonWindow />
+      {/* 明月窗：夜空球 + 月亮 + 补的窗框/窗棂（2026-11-27）。几何与机位在 ./moonWindow。
+          ★ `splat={false}`：房间里窗洞只放平贴图（两套装扮的 webp）——窗景 splat 只在大厅那一套里出现。 */}
+      <MoonWindow splat={false} />
       <GsBoundary>
         <Suspense fallback={null}>
           <GsStep0Room />

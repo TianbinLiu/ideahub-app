@@ -27,6 +27,7 @@
 import { useLayoutEffect, useState } from "react";
 import { SplatMesh } from "@sparkjsdev/spark";
 import { WINDOW } from "./moonGeometry";
+import { markLobbyWindowReady, noteWindowSplatCreated, noteWindowSplatDisposed } from "./sceneSplit";
 
 /** 窗洞内容的拍摄机位（moonGeometry.WINDOW 现算，别手抄坐标）。 */
 export const WINDOW_VIEW = {
@@ -71,6 +72,9 @@ export default function WindowSplat({ url, opacity, onState, renderOrder = 17 }:
 
   useLayoutEffect(() => {
     const mesh = new SplatMesh({ url, raycastable: false });
+    // 验收标记：`__gsSplit.snapshot()` 里 `splatMeshes` 数的是窗景这一份（另一个是房间那份）
+    mesh.userData.gsSplat = "window";
+    noteWindowSplatCreated();
     let alive = true;
     mesh.initialized
       .then(() => {
@@ -82,11 +86,13 @@ export default function WindowSplat({ url, opacity, onState, renderOrder = 17 }:
             `局部 bbox ${size.toArray().map((n) => n.toFixed(2)).join("×")} m（应为 1.63~1.98 m 深）`,
         );
         setSplat(mesh);
+        // 大厅那一档的"可交互"读数：窗景真的就绪了（`sceneSplit` 里只在 lobby 档记）
+        markLobbyWindowReady();
         onState?.("ok");
       })
       .catch((err: unknown) => {
         if (!alive) return;
-        // 404 是正常路径（`public/models/study/gs/` 被 gitignore 排除：只留贴图的那一版包）
+        // 404 是正常路径（老包 / 文件被裁过：只留贴图的那一版）
         console.warn(`[gswin] ${url} 没加载成功 → 这一档只用平贴图`, err);
         onState?.("failed");
       });
@@ -94,6 +100,7 @@ export default function WindowSplat({ url, opacity, onState, renderOrder = 17 }:
       alive = false;
       setSplat(null);
       mesh.dispose();
+      noteWindowSplatDisposed();
     };
     // url 变（换装扮）才重建；onState 由调用方用 useCallback 固定
     // eslint-disable-next-line react-hooks/exhaustive-deps
