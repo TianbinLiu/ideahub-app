@@ -819,6 +819,11 @@ msgstr "{0} tokens"
 msgid "{0} token/月 · {1}"
 msgstr "{0} tokens/mo · {1}"
 
+#. placeholder {0}: size - 1
+#: src/studio/game/ui/SearchingC.tsx
+msgid "{0} 个 AI 座位"
+msgstr "{0} AI seats"
+
 #. placeholder {0}: results.length
 #: src/pages/DiscoverPage.tsx
 msgid "{0} 个作品"
@@ -1112,6 +1117,12 @@ msgstr "{0} · {label}"
 msgid "{0}·形象"
 msgstr "{0} · look"
 
+#. placeholder {0}: card.title
+#. placeholder {1}: card.line
+#: src/studio/game/ui/MatchLobbyB.tsx
+msgid "{0}（{1}）"
+msgstr "{0} ({1})"
+
 #. placeholder {0}: CARD_INFO_LABELS[type]
 #: src/pages/CustomCardPage.tsx
 msgid "{0}（AI 已按素材写好，可随意改）"
@@ -1281,6 +1292,14 @@ msgstr "{0} locks {1}"
 #: src/pages/SupportModelNewPage.tsx
 msgid "{actName} 用哪个动作组"
 msgstr "Motion group for {actName}"
+
+#: src/studio/game/ui/DealingB.tsx
+msgid "{aiSeats} 个空座 · 正在补"
+msgstr "{aiSeats} empty seats · filling"
+
+#: src/studio/game/ui/DealingB.tsx
+msgid "{aiSeats} 个空座已补齐"
+msgstr "{aiSeats} empty seats filled"
 
 #: src/utils/nativeLoginError.ts
 msgid "{app}授权失败（{detail}）。再点一次试试，或者用手机号、邮箱登录。"
@@ -5091,7 +5110,7 @@ msgstr "Lay out cards on the 3D table and explore directions"
 #~ msgstr "4- or 8-player matchmaking, or a custom room: each round you make a clip from your cards and a prompt, everyone watches, likes and votes, and the bottom places lose HP — 100 HP down to the last player standing."
 
 #: src/studio/game/lobbyReasons.ts
-#: src/studio/game/ui/Lobby.tsx
+#: src/studio/game/ui/MatchLobbyB.tsx
 msgid "4 人匹配"
 msgstr "4-player match"
 
@@ -5132,7 +5151,7 @@ msgid "768p · 可直接用素材卡的形象参考图出片（一段最多 {max
 msgstr "768p · can render straight from the cards' reference images (up to {max} images per segment) · videos always come with AI-generated ambient sound; voice samples on cards aren't used. No extending, preview drafts or blockout templates"
 
 #: src/studio/game/lobbyReasons.ts
-#: src/studio/game/ui/Lobby.tsx
+#: src/studio/game/ui/MatchLobbyB.tsx
 msgid "8 人匹配"
 msgstr "8-player match"
 
@@ -5249,6 +5268,10 @@ msgstr "The AI is replacing the people in the picture with identical plain white
 msgid "AI 正在推演三种走向…"
 msgstr "The AI is drafting three directions…"
 
+#: src/studio/game/ui/DealingB.tsx
+msgid "AI 正在补满座位并统一这一局的视觉风格；锁定后本局不可更改。"
+msgstr "The AI is filling the empty seats and settling this table's visual style; once locked it can't be changed."
+
 #: src/data/templates.ts
 msgid "AI 正在认画面里有哪些人…（要一到几分钟）"
 msgstr "The AI is identifying who's in the picture… (takes a minute or more)"
@@ -5312,10 +5335,16 @@ msgstr "AI draws the opening frame"
 msgid "AI 自拟首尾帧"
 msgstr "AI draws first and last frames"
 
-#: src/studio/game/ui/Lobby.tsx
+#: src/studio/game/ui/DealingB.tsx
+#: src/studio/game/ui/MatchLobbyB.tsx
 #: src/studio/game/ui/RoomScreen.tsx
+#: src/studio/game/ui/SearchingC.tsx
 msgid "AI 补位"
 msgstr "AI fill"
+
+#: src/studio/game/ui/SearchingC.tsx
+msgid "AI 补位 · {size} 人局"
+msgstr "AI fill · {size}-player table"
 
 #: src/studio/game/ui/PlayerPanel.tsx
 msgid "AI 补位：这一桌没有这么多真人，空位由 AI 顶上"
@@ -5324,6 +5353,10 @@ msgstr "AI fill-in: not enough humans at this table, so AI takes the empty seats
 #: src/components/ShareSheet.tsx
 msgid "AI 逐段生成的短片 · 来自启梦"
 msgstr "An AI short made segment by segment · from QiMeng"
+
+#: src/studio/game/ui/SearchingC.tsx
+msgid "AI 陪玩补位"
+msgstr "AI fill-in"
 
 #: src/mock/frames.ts
 msgid "AI 预览帧"
@@ -5378,6 +5411,10 @@ msgstr "ID: {id}"
 #: src/pages/ProfilePage.tsx
 msgid "IP 属地：{0}"
 msgstr "IP location: {0}"
+
+#: src/studio/game/ui/DealingB.tsx
+msgid "LOADING · 第 1 回合 · 开局准备"
+msgstr "LOADING · Round 1 · Setting the table"
 
 #: src/ai/minimaxVideo.ts
 msgid "MiniMax 出片 {minutes} 分钟没出结果——任务多半还在上游跑，不是失败。"
@@ -5500,6 +5537,10 @@ msgstr "Topics they won't discuss. The platform's safety baseline is added separ
 #: src/pages/ProfilePage.tsx
 msgid "TA 还没有发布作品"
 msgstr "They haven't published any videos yet"
+
+#: src/studio/game/ui/MatchLobbyB.tsx
+msgid "TICKET · 6 位"
+msgstr "TICKET · 6 characters"
 
 #: src/studio/game/ui/Lobby.tsx
 msgid "token 余额：出片 / 对话要花它；点开钱包"
@@ -7975,11 +8016,11 @@ msgstr "You could be the first"
 msgid "你同时在出的 MiniMax 视频已经有 {limit} 段了——等其中一段出来再点"
 msgstr "You already have {limit} MiniMax videos generating at once — wait for one to finish, then try again"
 
-#: src/studio/game/ui/Lobby.tsx
+#: src/studio/game/ui/MatchLobbyB.tsx
 msgid "你和 3 个对手，一桌人打得快"
 msgstr "You and 3 rivals — a fast table"
 
-#: src/studio/game/ui/Lobby.tsx
+#: src/studio/game/ui/MatchLobbyB.tsx
 msgid "你和 7 个对手，8 个座位的大桌"
 msgstr "You and 7 rivals — a full 8-seat table"
 
@@ -9193,7 +9234,7 @@ msgstr "Sharing the making-of isn't available yet."
 msgid "公开制作过程需要联网；这台设备当前是离线模式。"
 msgstr "Sharing the making-of needs a connection; this device is offline right now."
 
-#: src/studio/game/ui/Lobby.tsx
+#: src/studio/game/ui/MatchLobbyB.tsx
 #: src/studio/game/ui/PublicRooms.tsx
 #: src/studio/game/ui/SpectateScreen.tsx
 msgid "公开房"
@@ -9203,7 +9244,7 @@ msgstr "Public rooms"
 msgid "公开着的还是上一版的制作过程（这一版回炉后还没更新），别人现在看不到。"
 msgstr "The shared process is still the previous version (not updated since this revision); nobody can see it right now."
 
-#: src/studio/game/ui/Lobby.tsx
+#: src/studio/game/ui/MatchLobbyB.tsx
 msgid "公开这间房（别人能搜到）"
 msgstr "Make this room public (others can find it)"
 
@@ -9573,9 +9614,14 @@ msgstr "Up to {0, plural, one {# mannequin} other {# mannequins}}"
 msgid "最多消耗 {amount} token"
 msgstr "Up to {amount} tokens"
 
+#. placeholder {0}: Math.floor(QUEUE_TIMEOUT_MS / 60_000)
+#: src/studio/game/ui/SearchingC.tsx
+#~ msgid "最多等 {0} 分 00 秒"
+#~ msgstr "Wait up to {0} min 00 sec"
+
 #: src/studio/game/ui/Lobby.tsx
-msgid "最多等 60 秒，没等到真人就先用 AI 开局。"
-msgstr "We'll wait up to 60 seconds; if no real players show up, start with AI."
+#~ msgid "最多等 60 秒，没等到真人就先用 AI 开局。"
+#~ msgstr "We'll wait up to 60 seconds; if no real players show up, start with AI."
 
 #: src/components/blockout/RoleConfirmSheet.tsx
 msgid "最常见的一种：<0>有个人根本没被换成人偶</0>（还是原来的样子）， 尤其是画面正中央、看起来最像主角的那一个。这时清单里就多出一个画面上不存在的位子 ——<1>把它删掉就行，不用重做</1>。 ⚠ 但删完要顺手检查一遍：画面上少了一个人偶，<2>它右边那些人从左数 就都要往左挪一位</2>（这一条是按位置指认独有的，编号版没有）。"
@@ -9903,6 +9949,10 @@ msgstr "Videos in seconds"
 #: src/components/guide/tours.tsx
 msgid "凭房间码进去"
 msgstr "Join with a room code"
+
+#: src/studio/game/ui/MatchLobbyB.tsx
+msgid "凭码加入"
+msgstr "Join with a code"
 
 #: src/pages/AdminPage.tsx
 #: src/pages/ProfilePage.tsx
@@ -10462,8 +10512,8 @@ msgid "创建属于你的视频模板"
 msgstr "Create your own video template"
 
 #: src/studio/game/ui/Lobby.tsx
-msgid "创建房间"
-msgstr "Create room"
+#~ msgid "创建房间"
+#~ msgstr "Create room"
 
 #: src/components/guide/tours.tsx
 #: src/pages/WorkshopPage.tsx
@@ -10997,7 +11047,7 @@ msgstr "Join"
 msgid "加入我的卡组"
 msgstr "Add to my deck"
 
-#: src/studio/game/ui/Lobby.tsx
+#: src/studio/game/ui/MatchLobbyB.tsx
 msgid "加入房间"
 msgstr "Join room"
 
@@ -11134,12 +11184,16 @@ msgid "包里没有找到 *.model3.json。它是 Cubism 4（Version 3）导出�
 msgstr "No *.model3.json found in the package. It's the entry file that Cubism 4 (Version 3) exports; without it we don't know what to load."
 
 #: src/studio/game/ui/Lobby.tsx
-msgid "匹配 4 人局"
-msgstr "Match 4 players"
+#~ msgid "匹配 4 人局"
+#~ msgstr "Match 4 players"
 
 #: src/studio/game/ui/Lobby.tsx
-msgid "匹配 8 人局"
-msgstr "Match 8 players"
+#~ msgid "匹配 8 人局"
+#~ msgstr "Match 8 players"
+
+#: src/studio/game/ui/SearchingC.tsx
+msgid "匹配中 · {size} 人局"
+msgstr "Matching · {size}-player table"
 
 #: src/studio/game/labels.ts
 msgid "医疗补给"
@@ -12140,6 +12194,10 @@ msgstr "Send a friendly bullet comment"
 msgid "发条弹幕…"
 msgstr "Bullet comment…"
 
+#: src/studio/game/ui/DealingB.tsx
+msgid "发牌顺序"
+msgstr "Deal order"
+
 #: src/components/support/SafetyCard.tsx
 msgid "发短信 {sms}"
 msgstr "Text {sms}"
@@ -12333,7 +12391,7 @@ msgstr "Uses the whole frame"
 #: src/pages/RecipePage.tsx
 #: src/pages/SupportModelNewPage.tsx
 #: src/pages/SupportPage.tsx
-#: src/studio/game/ui/Lobby.tsx
+#: src/studio/game/ui/SearchingC.tsx
 #: src/studio/stage/StageOverlay.tsx
 #: src/studio/ui/NpcDialog.tsx
 msgid "取消"
@@ -12371,9 +12429,13 @@ msgstr "Unsharing failed: {err}"
 msgid "取消分享要先连上服务器：广场上那份在服务器上，离线改不动它。"
 msgstr "Unsharing needs a server connection: the Workshop copy lives on the server and can't be changed offline."
 
-#: src/studio/game/ui/Lobby.tsx
+#: src/studio/game/ui/SearchingC.tsx
 msgid "取消匹配"
 msgstr "Cancel matchmaking"
+
+#: src/studio/game/ui/SearchingC.tsx
+msgid "取消匹配并返回工坊"
+msgstr "Cancel matchmaking and return to the workshop"
 
 #: src/pages/TemplateDetailPage.tsx
 msgid "取消发布"
@@ -12394,6 +12456,10 @@ msgstr "Withdraw agreement"
 #: src/components/CommentSheet.tsx
 msgid "取消回复"
 msgstr "Cancel reply"
+
+#: src/studio/game/ui/DealingB.tsx
+msgid "取消开局"
+msgstr "Cancel start"
 
 #: src/pages/SupportModelsPage.tsx
 #: src/pages/SupportPersonasPage.tsx
@@ -14350,6 +14416,10 @@ msgstr "Install and use"
 msgid "完成"
 msgstr "Done"
 
+#: src/studio/game/ui/DealingB.tsx
+msgid "完成 ✓"
+msgstr "Done ✓"
+
 #: src/components/PortraitAuthPanel.tsx
 #~ msgid "完成一次活体认证并授权（有效期在火山那一页确认）。"
 #~ msgstr "Complete a liveness check and authorize (check the validity period on the Volcano Engine page)."
@@ -14923,6 +14993,7 @@ msgstr "Ticket #{short} submitted. A support agent will reply in Notifications."
 
 #: src/components/flow/FlowCanvas.tsx
 #: src/components/TabBar.tsx
+#: src/studio/game/ui/SearchingC.tsx
 msgid "工坊"
 msgstr "Workshop"
 
@@ -15482,9 +15553,17 @@ msgstr "Replaced with the subject-only image"
 msgid "已换成只留主体的这张，出片按它走（卡面封面不跟着换）"
 msgstr "Replaced with the subject-only image. Videos will use it (the card cover stays as it was)."
 
+#: src/studio/game/ui/SearchingC.tsx
+msgid "已排队"
+msgstr "Queued"
+
+#: src/studio/game/ui/SearchingC.tsx
+msgid "已排队 {clock}"
+msgstr "Queued {clock}"
+
 #: src/studio/game/ui/Lobby.tsx
-msgid "已排队 {waitedSec} 秒 · {etaText}"
-msgstr "Queued {waitedSec}s · {etaText}"
+#~ msgid "已排队 {waitedSec} 秒 · {etaText}"
+#~ msgstr "Queued {waitedSec}s · {etaText}"
 
 #. placeholder {0}: nodes.length
 #: src/pages/RecipePage.tsx
@@ -16068,7 +16147,15 @@ msgstr "Course setup needs a connection"
 msgid "开一条新的{pendingTitle}（丢弃上面那条）"
 msgstr "Start a new {pendingTitle} (discard the one above)"
 
+#: src/studio/game/ui/MatchLobbyB.tsx
+msgid "开一桌？"
+msgstr "Deal a table?"
+
 #: src/studio/game/ui/Lobby.tsx
+msgid "开一间房 · 落座"
+msgstr "Open a room · take a seat"
+
+#: src/studio/game/ui/MatchLobbyB.tsx
 msgid "开一间房，把房间码念给朋友"
 msgstr "Open a room and read the code out to friends"
 
@@ -16841,7 +16928,6 @@ msgid "成片预览（各段按时间线依次播放）"
 msgstr "Video preview (segments play in timeline order)"
 
 #: src/studio/game/labels.ts
-#: src/studio/game/ui/Lobby.tsx
 #: src/studio/game/ui/MatchHistory.tsx
 msgid "我"
 msgstr "Me"
@@ -17031,7 +17117,7 @@ msgstr "The host does not ready up: tapping Start match is the commitment"
 msgid "房主不能踢自己——想走就点「离开房间」"
 msgstr "The host cannot kick themselves — tap Leave room instead"
 
-#: src/studio/game/ui/Lobby.tsx
+#: src/studio/game/ui/MatchLobbyB.tsx
 msgid "房主开局"
 msgstr "Host starts"
 
@@ -17061,7 +17147,7 @@ msgstr "The room service returned an unknown error: {code}"
 msgid "房间状态还没同步上：点「开始对局」会先拉一次最新的，拉不到就先不开。"
 msgstr "The room state isn't synced yet: Start match fetches the latest first, and won't start if that fails."
 
-#: src/studio/game/ui/Lobby.tsx
+#: src/studio/game/ui/MatchLobbyB.tsx
 #: src/studio/game/ui/RoomScreen.tsx
 msgid "房间码"
 msgstr "Room code"
@@ -17074,6 +17160,10 @@ msgstr "Room code {0}"
 #: src/studio/game/ui/RoomScreen.tsx
 msgid "房间码已复制"
 msgstr "Room code copied"
+
+#: src/studio/game/ui/MatchLobbyB.tsx
+msgid "房间码念给朋友 · 6 位字母数字"
+msgstr "Share this code with a friend · 6 letters or digits"
 
 #: src/studio/game/lobbyReasons.ts
 msgid "房间码是 6 位字母或数字"
@@ -19378,6 +19468,10 @@ msgstr "Every video this game carries this style (technique + subject). Locked o
 msgid "整局都带这套风格，不能换。"
 msgstr "The whole game uses this style; it can't be changed."
 
+#: src/studio/game/ui/DealingB.tsx
+msgid "整局风格由你选一张风格卡"
+msgstr "You'll pick one style card for the whole game"
+
 #: src/components/guide/tours.tsx
 #~ msgid "整屏一支，上下滑换下一支——划到哪支哪支就自动播，<0>划走就停下、划回来从头播</0>。<1>单击暂停</1>，再点一下接着放；<2>双击点赞</2>，连点两下只会点亮、不会取消。顶上的「关注 / 推荐」切换看谁的作品。"
 #~ msgstr "One video fills the screen; swipe up or down for the next one. Whatever you land on plays automatically, and <0>it stops when you swipe away and restarts from the beginning when you swipe back</0>. <1>Tap once to pause</1>, tap again to resume; <2>double-tap to like</2> — double-tapping only turns the like on, never off. “Following / For you” at the top switches whose videos you see."
@@ -19798,6 +19892,10 @@ msgstr "The timeline has been reordered (or split, or trimmed down), so “segme
 #: src/pages/CutPage.tsx
 msgid "时间轴还没准备好，稍等一下再点「合成并去发布」"
 msgstr "The timeline isn't ready yet — wait a moment, then tap “Merge & go to publish”"
+
+#: src/studio/game/ui/MatchLobbyB.tsx
+msgid "明 月 窗"
+msgstr "MOON WINDOW"
 
 #: src/pages/SettingsProfilePage.tsx
 msgid "昵称"
@@ -20675,6 +20773,10 @@ msgstr "Untitled draft"
 #: src/components/blockout/RoleCastBoard.tsx
 msgid "未挂"
 msgstr "Empty"
+
+#: src/studio/game/ui/SearchingC.tsx
+msgid "未排队"
+msgstr "Not queued"
 
 #: src/ai/minimaxVideo.ts
 #: src/pages/LoginPage.tsx
@@ -22219,11 +22321,15 @@ msgstr "Checking your sign-in…"
 msgid "正在确认这条作品有没有留存工坊工程…"
 msgstr "Checking whether this video has a kept Studio project…"
 
+#: src/studio/game/ui/SearchingC.tsx
+msgid "正在等真人；没等到就先用 AI 开局。"
+msgstr "Waiting for real players; if none show up, we'll start with AI."
+
 #. placeholder {0}: queue.queued
 #. placeholder {1}: queue.need || size
 #: src/studio/game/ui/Lobby.tsx
-msgid "正在等真人：这一池 {0}/{1} 人。"
-msgstr "Waiting for real players: {0}/{1} in this pool."
+#~ msgid "正在等真人：这一池 {0}/{1} 人。"
+#~ msgstr "Waiting for real players: {0}/{1} in this pool."
 
 #: src/pages/SettingsStoragePage.tsx
 msgid "正在算可清理的空间…"
@@ -22302,8 +22408,8 @@ msgid "正在读图…"
 msgstr "Reading image…"
 
 #: src/studio/game/ui/Lobby.tsx
-msgid "正在进匹配队列…"
-msgstr "Joining the matchmaking queue…"
+#~ msgid "正在进匹配队列…"
+#~ msgstr "Joining the matchmaking queue…"
 
 #: src/studio/game/ui/SpectateScreen.tsx
 msgid "正在进观众席…"
@@ -22318,6 +22424,8 @@ msgid "正在连接…"
 msgstr "Connecting…"
 
 #: src/studio/game/ui/Lobby.tsx
+#: src/studio/game/ui/MatchLobbyB.tsx
+#: src/studio/game/ui/SearchingC.tsx
 msgid "正在连接房间服务…"
 msgstr "Connecting to the room service…"
 
@@ -22345,6 +22453,14 @@ msgstr "Reloading drafts…"
 #: src/pages/PublishPage.tsx
 msgid "正在重试…"
 msgstr "Retrying…"
+
+#: src/studio/game/ui/DealingB.tsx
+msgid "正在铺桌"
+msgstr "Setting the table"
+
+#: src/studio/game/ui/DealingB.tsx
+msgid "正在铺这一局"
+msgstr "Setting up this game"
 
 #: src/components/DownloadSheet.tsx
 msgid "正在问总大小…"
@@ -22628,7 +22744,7 @@ msgstr "Couldn't delete it. Please try again"
 msgid "没匹配到真人，先用 AI 开局"
 msgstr "No real players matched — starting with AI"
 
-#: src/studio/game/ui/Lobby.tsx
+#: src/studio/game/ui/SearchingC.tsx
 msgid "没匹配到真人，先用 AI 开局。"
 msgstr "No real players matched — starting with AI"
 
@@ -23301,6 +23417,10 @@ msgstr "Couldn’t reach the round service, so this game can’t be resumed righ
 msgid "没连上回放服务"
 msgstr "Couldn't reach the replay service"
 
+#: src/studio/game/ui/Lobby.tsx
+msgid "没连上房间服务"
+msgstr "Room service offline"
+
 #: src/studio/game/lobbyReasons.ts
 msgid "没连上房间服务，先用 AI 开局"
 msgstr "Couldn't reach the room service — starting with AI"
@@ -23314,7 +23434,7 @@ msgid "没连上房间服务：现在开局一律由 AI 陪玩补位。"
 msgstr "Couldn't reach the room service: every game will be filled with AI players."
 
 #. placeholder {0}: size - 1
-#: src/studio/game/ui/Lobby.tsx
+#: src/studio/game/ui/SearchingC.tsx
 msgid "没连上房间服务：这一局 {0} 个座位由 AI 陪玩补齐。"
 msgstr "Couldn't reach the room service: AI players will fill the other {0} seats this game."
 
@@ -23909,8 +24029,12 @@ msgid "点卡片加入 / 移出"
 msgstr "Tap cards to add / remove"
 
 #: src/studio/game/ui/Lobby.tsx
-msgid "点卡片只选中，不会直接开局；键盘上按 Enter 也能开始。"
-msgstr "Tapping a card only selects it. On a keyboard, press Enter to start."
+#~ msgid "点卡片只选中，不会直接开局；键盘上按 Enter 也能开始。"
+#~ msgstr "Tapping a card only selects it. On a keyboard, press Enter to start."
+
+#: src/studio/game/ui/MatchLobbyB.tsx
+msgid "点卡片只选中；这一下才真的发牌（键盘 Enter 也行）。"
+msgstr "Tapping a card only selects it; this button deals you in (Enter works too)."
 
 #: src/components/guide/tours.tsx
 msgid "点卡片底部那枚按钮进去：工坊先到<0>对局大厅</0>（4/8 人匹配或自定义房），开一局之后才是桌面；简约落到一步一屏的向导。出片之后都汇到<1>同一个剪辑页</1>，再从那里发布。"
@@ -24760,7 +24884,7 @@ msgstr "When rendering with {0}, the AI uses this voice as a reference for dialo
 msgid "用 {voiceNames} 出片、台词写在引号里时，AI 会参考这段声音的音色（尽力而为，不是复刻）。样本只存在这台设备上，分享卡片不带它。"
 msgstr "When rendering with {voiceNames}, the AI uses this clip as a voice reference for dialogue written in quotes (best effort, not a clone). The sample stays on this device and isn't included when you share the card."
 
-#: src/studio/game/ui/Lobby.tsx
+#: src/studio/game/ui/SearchingC.tsx
 msgid "用 AI 开局"
 msgstr "Play with AI"
 
@@ -25836,11 +25960,11 @@ msgstr "No visible change"
 msgid "看全部"
 msgstr "Show all"
 
-#: src/studio/game/ui/Lobby.tsx
+#: src/studio/game/ui/MatchLobbyB.tsx
 msgid "看列表 ›"
 msgstr "View list ›"
 
-#: src/studio/game/ui/Lobby.tsx
+#: src/studio/game/ui/MatchLobbyB.tsx
 msgid "看别人开的房，加入或观战"
 msgstr "Browse rooms others opened — join or spectate"
 
@@ -26611,6 +26735,10 @@ msgstr "Empty shot (no cards)"
 msgid "空间结构、地貌与建筑轮廓及整体色调"
 msgstr "spatial layout, terrain, building outlines and overall tone"
 
+#: src/studio/game/ui/MatchLobbyB.tsx
+msgid "窗下 · 一桌人"
+msgstr "By the window · one table"
+
 #. placeholder {0}: effect.delta
 #: src/studio/game/labels.ts
 msgid "立刻 +{0} 金"
@@ -26703,6 +26831,11 @@ msgstr "Step {0} / {1}"
 #: src/studio/ui/SceneRails.tsx
 #~ msgid "第 {0} / {1} 页 · 翻页用桌面两侧的箭头"
 #~ msgstr "Page {0} / {1} · turn pages with the arrows on either side of the table"
+
+#. placeholder {0}: stepNow + 1
+#: src/studio/game/ui/DealingB.tsx
+msgid "第 {0} / 3 步"
+msgstr "Step {0} / 3"
 
 #. placeholder {0}: i + 1
 #: src/data/promptSchemes.ts
@@ -27722,6 +27855,10 @@ msgstr "The server took too long to reply. It may have been created anyway — c
 msgid "等她画出来才能继续。"
 msgstr "Wait for her to render before continuing."
 
+#: src/studio/game/ui/DealingB.tsx
+msgid "等待"
+msgstr "Waiting"
+
 #: src/data/videoDownload.ts
 msgid "等待中"
 msgstr "Waiting"
@@ -27767,7 +27904,6 @@ msgid "等服务器更新后再来"
 msgstr "Come back after the server is updated"
 
 #: src/studio/game/lobbyReasons.ts
-#: src/studio/game/ui/Lobby.tsx
 msgid "等真人"
 msgstr "Waiting"
 
@@ -28523,6 +28659,10 @@ msgid "聊天记录、发过的文案、随手写的笔记都行"
 msgstr "Chat logs, posts you've written or quick notes all work"
 
 #: src/studio/game/ui/Lobby.tsx
+msgid "联机已接通"
+msgstr "Online"
+
+#: src/studio/game/ui/Lobby.tsx
 #~ msgid "联机已接通：匹配会等真人，空位开局时由 AI 补位。"
 #~ msgstr "Online is available: matchmaking waits for real players, and AI fills empty seats when the game starts."
 
@@ -28706,7 +28846,7 @@ msgid "自定义"
 msgstr "Custom"
 
 #: src/studio/game/lobbyReasons.ts
-#: src/studio/game/ui/Lobby.tsx
+#: src/studio/game/ui/MatchLobbyB.tsx
 msgid "自定义房间"
 msgstr "Custom room"
 
@@ -28957,6 +29097,14 @@ msgstr "The draft has no name yet — go back a step and add one before chatting
 #: src/pages/ProfilePage.tsx
 msgid "获赞"
 msgstr "Likes"
+
+#: src/studio/game/ui/Lobby.tsx
+msgid "落座 · 匹配 4 人"
+msgstr "Take a seat · 4-player match"
+
+#: src/studio/game/ui/Lobby.tsx
+msgid "落座 · 匹配 8 人"
+msgstr "Take a seat · 8-player match"
 
 #: src/studio/structuredSkills.ts
 msgid "落进分镜表逐格可改，点了才出片"
@@ -30369,7 +30517,7 @@ msgstr "Look around: drag on the table; with the shop open you can only swing ar
 msgid "载入成片…"
 msgstr "Loading video…"
 
-#: src/studio/game/ui/Lobby.tsx
+#: src/studio/game/ui/MatchLobbyB.tsx
 msgid "输入 6 位房间码"
 msgstr "Enter a 6-character room code"
 
@@ -32417,6 +32565,10 @@ msgstr "This segment has no chosen plan yet, so there's nowhere to put the stage
 msgid "这一段里有谁？"
 msgstr "Who's in it?"
 
+#: src/studio/game/ui/SearchingC.tsx
+msgid "这一池 {pool} 人"
+msgstr "Pool {pool}"
+
 #: src/studio/flowStore.ts
 #~ msgid "这一炉一个方案都没有，铸不成段"
 #~ msgstr "This run has no plans, so no segment can be forged"
@@ -34342,6 +34494,10 @@ msgstr "Image for the card"
 msgid "进行中"
 msgstr "Active"
 
+#: src/studio/game/ui/DealingB.tsx
+msgid "进行中 {pct}%"
+msgstr "In progress {pct}%"
+
 #: src/components/GenerationPill.tsx
 msgid "进行中…"
 msgstr "In progress…"
@@ -34715,6 +34871,7 @@ msgid "选集（{0}）"
 msgstr "Episodes ({0})"
 
 #: src/studio/game/labels.ts
+#: src/studio/game/ui/DealingB.tsx
 msgid "选风格"
 msgstr "Style pick"
 
@@ -35482,9 +35639,17 @@ msgstr "Lock subject"
 msgid "锁住{0}。"
 msgstr "Locks {0}."
 
+#: src/studio/game/ui/DealingB.tsx
+msgid "锁定"
+msgstr "Lock in"
+
 #: src/studio/game/ui/StylePick.tsx
 msgid "锁定之后整局都不能换"
 msgstr "Once locked, it can't change for the whole game"
+
+#: src/studio/game/ui/DealingB.tsx
+msgid "锁定后这一局不可更改"
+msgstr "Once locked, this game can't be changed"
 
 #: src/studio/game/ui/ShopPanel.tsx
 msgid "锁定是免费的：锁着的商店在下一回合不会自动刷新（手动刷新照样可以）"
@@ -35768,17 +35933,17 @@ msgstr "Preview link copied. Paste it to your friends"
 
 #. placeholder {0}: Math.floor(queue.etaSec / 60)
 #. placeholder {1}: String(queue.etaSec % 60).padStart(2, "0")
-#: src/studio/game/ui/Lobby.tsx
+#: src/studio/game/ui/SearchingC.tsx
 msgid "预计 {0} 分 {1} 秒"
 msgstr "About {0} min {1} sec"
 
 #. placeholder {0}: Math.max(1, Math.floor(queue.etaSec))
-#: src/studio/game/ui/Lobby.tsx
+#: src/studio/game/ui/SearchingC.tsx
 msgid "预计 {0} 秒"
 msgstr "About {0} sec"
 
 #. placeholder {0}: Math.floor(QUEUE_TIMEOUT_MS / 60_000)
-#: src/studio/game/ui/Lobby.tsx
+#: src/studio/game/ui/SearchingC.tsx
 msgid "预计最多 {0} 分 00 秒"
 msgstr "Up to {0} min 00 sec"
 

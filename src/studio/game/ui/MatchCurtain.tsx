@@ -23,7 +23,7 @@
 import { useEffect, useRef } from "react";
 import { useLobby } from "../lobbyStore";
 import { useGame } from "../store";
-import { coverDesign, leaveMatchPage, matchCamFrozen, useMatchCam } from "../../scene/matchCam";
+import { coverDesign, enterMatchPage, leaveMatchPage, matchCamFrozen, useMatchCam } from "../../scene/matchCam";
 import { useRoomPhase } from "../../scene/sceneSplit";
 import { useGsPhase } from "../../scene/gsStep0";
 
@@ -61,12 +61,27 @@ export default function MatchCurtain() {
     if (stage === "page" || stage === "fly" || stage === "outside") coverDesign();
   }, [lobbyOpen, inGame, roomSettled, gsOn, stage]);
 
-  // 从"匹配中"那一屏离开：取消（→首屏）/ 匹配成功（→房间屏）/ 公开房那一屏
+  // 匹配页 ⇄ 匹配中 ⇄ 首屏 的屏幕切换（2026-11-27，feat/ui-match-b-c）：
+  //   · 进「匹配中」：镜头回到窗正前方、黑幕淡出 —— C 案的呼吸光环要对齐月亮，
+  //     所以那一屏**必须看得见窗景**（不是一块黑幕）。穿窗时间线本身没动：黑幕是在穿窗
+  //     演完之后才淡出的，观感还是"穿出去 → 黑一下 → 回到窗下等一桌人"。
+  //   · 匹配中 → 首屏（取消）：同样回到窗正前方，B 首屏继续拿窗与月亮当背景。
+  //   · 匹配中 → 房间 / 公开房：按原路离开匹配页（镜头回设计机位）；房间屏照旧。
   const prevScreen = useRef(screen);
   useEffect(() => {
     const was = prevScreen.current;
     prevScreen.current = screen;
-    if (was === "matching" && screen !== "matching") leaveMatchPage();
+    if (was === screen) return;
+    if (screen === "matching") {
+      enterMatchPage();
+      return;
+    }
+    if (was === "matching" && screen === "home") {
+      // 取消匹配：不是"离开匹配页"，而是回大厅首屏 —— B 首屏的背景同样是窗景
+      enterMatchPage();
+      return;
+    }
+    if (was === "matching") leaveMatchPage();
   }, [screen]);
 
   // 队列超时（60 s 没等到真人）：镜头先复位，但这一屏还留着（用户可以选择用 AI 开局）——

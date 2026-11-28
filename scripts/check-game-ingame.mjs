@@ -745,10 +745,10 @@ console.log("8) 新手引导：大厅（lobby）+ 对局（ingame）");
 
   /** 800×363 实测的九个锚点（top / bottom；横向不参与摆放判据，只记宽度） */
   const MEASURED = [
-    // 大厅（2026-11-24 实测）
-    { name: "lobby-modes", top: 91.2, bottom: 195.3 },
-    { name: "lobby-start", top: 277.8, bottom: 313.8 },
-    { name: "lobby-join", top: 203.3, bottom: 235.3 },
+    // 大厅（2026-11-27 B 案重排后实测：三张厚卡 / 黄铜主键 / 右列票根）
+    { name: "lobby-modes", top: 134.6, bottom: 274.6 },
+    { name: "lobby-start", top: 280.6, bottom: 328.6 },
+    { name: "lobby-join", top: 176.6, bottom: 349 },
     // 对局：商店 / 背包 / 创作 / 展映控制条 / 投票卡排 / 结算面板
     { name: "game-shop", top: 14, bottom: 93.3 },
     { name: "game-bag", top: 275.3, bottom: 315.3 },
@@ -798,7 +798,11 @@ console.log("8) 新手引导：大厅（lobby）+ 对局（ingame）");
   eq("投票卡排（联机那一屏，同一个锚点名）", anchorIn("src/studio/game/ui/OnlineVotingPanel.tsx", "game-vote"), 1);
   // 结算屏有四个正式分支（联机结算 / 联机结束 / 本机结算 / 本机结束），每个根都挂：少挂一个那一支的圈就没了
   eq("结算屏的**四个**分支根都挂了锚点", anchorIn("src/studio/game/ui/RoundResultPanel.tsx", "game-result"), 4);
-  eq("大厅三处都在 Lobby.tsx", [anchorIn("src/studio/game/ui/Lobby.tsx", "lobby-modes"), anchorIn("src/studio/game/ui/Lobby.tsx", "lobby-start"), anchorIn("src/studio/game/ui/Lobby.tsx", "lobby-join")], [1, 1, 1]);
+  // ★ 2026-11-27（feat/ui-match-b-c）：大厅首屏拆成 B 案组件（MatchLobbyB.tsx），三处锚点跟着搬过去。
+  //   这里把两份文件都算上：既认「Lobby 自己摆」，也认「Lobby 交给 B 案摆」。
+  const lobbyAnchor = (name) =>
+    anchorIn("src/studio/game/ui/Lobby.tsx", name) + anchorIn("src/studio/game/ui/MatchLobbyB.tsx", name);
+  eq("大厅三处都在 Lobby.tsx / MatchLobbyB.tsx", [lobbyAnchor("lobby-modes"), lobbyAnchor("lobby-start"), lobbyAnchor("lobby-join")], [1, 1, 1]);
 
   // ── ⑩ 不写死坐标：锚点一律从 DOM 量（任务点名"用 ref / data-tour 锚点"）──
   ok("高亮圈的位置来自 getBoundingClientRect", overlay.includes("getBoundingClientRect("));

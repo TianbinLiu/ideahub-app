@@ -90,9 +90,12 @@ console.log("2) 能力位（gamePublicRooms / gameSpectators）：读不到就�
   );
 
   const lobby = read("src/studio/game/ui/Lobby.tsx");
+  // ★ 2026-11-27（feat/ui-match-b-c）：大厅首屏拆成 B 案组件（MatchLobbyB.tsx），
+  //   公开房入口与「公开这间房」开关都搬过去了；判据仍在这两份文件里各查一处。
+  const lobbyB = read("src/studio/game/ui/MatchLobbyB.tsx");
   ok("大厅用 usePublicRoomsCap 读能力位（探到会重画）", lobby.includes("usePublicRoomsCap()"));
-  ok("第四张卡按能力位摆（publicRoomsCap && <OpenRoomsCard）", /\{publicRoomsCap && <OpenRoomsCard/.test(lobby));
-  ok("「公开这间房」开关也按能力位摆（老服务端不摆）", /\{pick === "room" && publicRoomsCap && \(/.test(lobby));
+  ok("公开房入口按能力位摆（老服务端不摆）", lobby.includes("publicRoomsCap") && /\{publicRoomsCap && \(/.test(lobbyB));
+  ok("「公开这间房」开关也按能力位摆（老服务端不摆）", /showPublicToggle=\{pick === "room" && publicRoomsCap\}/.test(lobby) && /\{showPublicToggle && \(/.test(lobbyB));
 
   const lobbyStore = read("src/studio/game/lobbyStore.ts");
   ok(

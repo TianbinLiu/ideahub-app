@@ -564,3 +564,601 @@ body[data-immersive="1"] [data-tabbar] {
   outline-offset: 2px;
   border-radius: 0.375rem;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   对局大厅 B / C 两套皮（2026-11-27，feat/ui-match-b-c）
+
+   设计源 design/ui-mockups/match-ui-variants.html；截图在主人那台的 Downloads/match-ui/。
+   匹配页 = B「卡片桌游」（绒布 / 黄铜金 / 米白 / 衬线 + 手写体 / 三张厚卡 / 票根）；
+   匹配中 = C「沉浸全屏」（三圈呼吸光环对齐 3D 月亮，UI 收到屏幕边缘）；
+   加载页 = B（发牌顺序三张卡 + 黄铜进度环）。
+
+   ★ 为什么样式写在这里而不是全用 Tailwind 任意值：绒布纹理 / 黄铜渐变 / 换票缺口 /
+     conic-gradient 进度环 / 呼吸光环的 mask 都是"一组长相必须一致"的复合规则，
+     散进 JSX 会变成几十个任意值字符串，改一处要翻三处。
+   ★ 一层底色都没有铺满：.lobby-velvet / .lobby-c-scrim 的中心是透明的 ——
+     3D 里的窗与月亮是主体，UI 只在桌沿 / 屏幕边缘说话。
+   ★ 全部只动 transform / opacity / box-shadow；减少动态效果的登记在文件末尾。
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.lobby-serif {
+  font-family: "Palatino Linotype", "Iowan Old Style", Georgia, "Songti SC", "Noto Serif CJK SC", "SimSun", serif;
+}
+
+.lobby-hand {
+  font-family: "Segoe Script", "Bradley Hand", "Kaiti SC", "KaiTi", "STKaiti", cursive;
+  background: linear-gradient(180deg, #f8e7bb, #e2bd74 52%, #b98c3f);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.55));
+  letter-spacing: 0.01em;
+}
+.lobby-eyebrow {
+  font-size: 8.5px;
+  line-height: 1.3;
+  letter-spacing: 0.28em;
+  color: #a88d5c;
+}
+.lobby-note {
+  font-size: 8px;
+  line-height: 1.55;
+  letter-spacing: 0.03em;
+  color: #8e7c5d;
+}
+.lobby-plaque {
+  font-size: 8px;
+  letter-spacing: 0.42em;
+  color: #b3945f;
+  white-space: nowrap;
+  text-shadow: 0 1px 0 rgb(0 0 0 / 0.6);
+}
+.lobby-dot {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgb(148 163 184 / 0.8);
+}
+.lobby-dot.is-ok {
+  background: #a7c39c;
+  box-shadow: 0 0 6px rgb(167 195 156 / 0.8);
+}
+
+/* ── ① 绒布 / 暗角（B）：中心透明，把窗与月亮留出来 ── */
+.lobby-velvet {
+  background:
+    radial-gradient(58% 84% at 50% 52%, rgb(7 12 8 / 0) 0 40%, rgb(8 14 10 / 0.55) 78%, rgb(4 8 6 / 0.86) 100%),
+    linear-gradient(180deg, rgb(16 28 20 / 0.42), rgb(6 10 7 / 0.6));
+}
+.lobby-velvet::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.9;
+  background:
+    repeating-linear-gradient(45deg, rgb(255 255 255 / 0.028) 0 1px, rgb(0 0 0 / 0) 1px 3px),
+    repeating-linear-gradient(-45deg, rgb(0 0 0 / 0.16) 0 1px, rgb(0 0 0 / 0) 1px 3px);
+
+  -webkit-mask-image: radial-gradient(70% 94% at 50% 52%, transparent 0 42%, #000 80%);
+  mask-image: radial-gradient(70% 94% at 50% 52%, transparent 0 42%, #000 80%);
+}
+.lobby-velvet::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(62% 72% at 50% 44%, rgb(236 204 140 / 0.06), transparent 66%),
+    radial-gradient(120% 120% at 50% 122%, rgb(0 0 0 / 0.72), transparent 62%);
+}
+
+/* ── ② 冷色暗幕（C 匹配中）：屏幕边缘压暗 + 几颗星，中心仍然透明 ── */
+.lobby-c-scrim {
+  background:
+    radial-gradient(64% 86% at 50% 50%, rgb(3 5 10 / 0) 0 42%, rgb(4 8 15 / 0.52) 72%, rgb(3 5 10 / 0.9) 100%),
+    linear-gradient(180deg, rgb(4 9 16 / 0.5), transparent 30%, transparent 70%, rgb(3 6 12 / 0.62));
+}
+.lobby-c-scrim::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.8;
+  background:
+    radial-gradient(1.5px 1.5px at 12% 22%, rgb(226 240 255 / 0.55), transparent 100%),
+    radial-gradient(1px 1px at 22% 68%, rgb(226 240 255 / 0.4), transparent 100%),
+    radial-gradient(1.5px 1.5px at 82% 18%, rgb(226 240 255 / 0.45), transparent 100%),
+    radial-gradient(1px 1px at 88% 64%, rgb(226 240 255 / 0.35), transparent 100%),
+    radial-gradient(1px 1px at 34% 12%, rgb(226 240 255 / 0.3), transparent 100%),
+    radial-gradient(1px 1px at 66% 78%, rgb(226 240 255 / 0.28), transparent 100%);
+}
+
+/* ── ③ 厚卡 / 铜印 / 黄铜主键（B 首屏）── */
+.lobby-card-b {
+  position: relative;
+  border-radius: 10px;
+  border: 1px solid rgb(216 178 106 / 0.28);
+  background: linear-gradient(165deg, #241a10 0%, #19120b 55%, #120d08 100%);
+  box-shadow: 0 3px 9px rgb(0 0 0 / 0.42), inset 0 1px 0 rgb(255 235 190 / 0.06);
+  color: #f2e7d2;
+  transition: transform 150ms ease-out, box-shadow 150ms ease-out, border-color 150ms ease-out;
+}
+.lobby-card-b::before {
+  content: "";
+  position: absolute;
+  inset: 2px;
+  border-radius: 8px;
+  border: 1px solid rgb(216 178 106 / 0.11);
+  pointer-events: none;
+}
+.lobby-card-b.is-selected {
+  border-color: rgb(238 205 130 / 0.85);
+  background: linear-gradient(165deg, #2d2113 0%, #1e150c 55%, #16100a 100%);
+  box-shadow: 0 4px 15px rgb(0 0 0 / 0.5), 0 0 18px rgb(216 178 106 / 0.13), inset 0 1px 0 rgb(255 240 200 / 0.16);
+}
+.lobby-card-b b {
+  font-family: "Palatino Linotype", "Iowan Old Style", Georgia, "Songti SC", "Noto Serif CJK SC", "SimSun", serif;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: #f2e5ca;
+}
+.lobby-card-b em {
+  margin-top: 1px;
+  font-style: normal;
+  font-size: 8px;
+  letter-spacing: 0.02em;
+  color: #9c8967;
+}
+.lobby-card-badge {
+  flex: none;
+  padding: 1px 6px;
+  border-radius: 7px;
+  border: 1px solid rgb(216 178 106 / 0.24);
+  font-size: 7.5px;
+  line-height: 1.5;
+  letter-spacing: 0.08em;
+  color: #c1a678;
+  white-space: nowrap;
+}
+.lobby-card-check {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #fff1c8, #e0b86c);
+  color: #2b1d09;
+  font-size: 10px;
+  font-weight: 700;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.55), 0 1px 3px rgb(0 0 0 / 0.45);
+}
+.lobby-seal {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #f5dcab, #c9a15a);
+  color: #2b1d09;
+  font-family: "Palatino Linotype", "Iowan Old Style", Georgia, "Songti SC", "SimSun", serif;
+  font-size: 12px;
+  font-weight: 700;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.55), 0 1px 3px rgb(0 0 0 / 0.45);
+}
+.lobby-seal.is-small {
+  width: 24px;
+  height: 24px;
+  font-size: 11px;
+}
+.lobby-card-b.is-selected .lobby-seal {
+  background: linear-gradient(180deg, #fff1c8, #e0b86c);
+}
+.lobby-brass-cta {
+  border-radius: 11px;
+  border: 1px solid #f8e8bd;
+  background: linear-gradient(180deg, #f8e4b1, #ddb56c 44%, #b98b41);
+  color: #2b1d09;
+  font-family: "Palatino Linotype", "Iowan Old Style", Georgia, "Songti SC", "Noto Serif CJK SC", "SimSun", serif;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  box-shadow: 0 5px 13px rgb(0 0 0 / 0.5), inset 0 1px 0 rgb(255 255 255 / 0.65), inset 0 -2px 0 rgb(92 60 18 / 0.35);
+  transition: transform 80ms ease-out, filter 120ms ease-out;
+}
+.lobby-brass-cta:active {
+  transform: translateY(1px) scale(0.995);
+  filter: brightness(0.98);
+}
+.lobby-brass-go {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: rgb(43 29 9 / 0.16);
+  font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 11px;
+  font-weight: 400;
+}
+.lobby-ghost-btn {
+  border-radius: 9px;
+  border: 1px solid rgb(216 178 106 / 0.28);
+  background: linear-gradient(170deg, rgb(244 232 204 / 0.05), rgb(0 0 0 / 0.2));
+  color: #ecd9b3;
+  transition: background-color 120ms ease-out, border-color 120ms ease-out;
+}
+.lobby-ghost-btn:active {
+  background: rgb(216 178 106 / 0.14);
+  border-color: rgb(238 205 130 / 0.6);
+}
+.lobby-ghost-btn b {
+  font-family: "Palatino Linotype", "Iowan Old Style", Georgia, "Songti SC", "SimSun", serif;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: #f2e5ca;
+}
+.lobby-ghost-btn em {
+  margin-top: 1px;
+  font-style: normal;
+  font-size: 7.5px;
+  color: #9c8967;
+}
+
+/* ── ④ 票根（B 首屏右列）── */
+.lobby-ticket {
+  position: relative;
+  padding: 10px 12px;
+  border-radius: 13px;
+  border: 1px solid rgb(216 178 106 / 0.38);
+  background: linear-gradient(170deg, rgb(244 232 204 / 0.06), rgb(0 0 0 / 0.24));
+  box-shadow: inset 0 1px 0 rgb(255 240 200 / 0.09), 0 6px 18px rgb(0 0 0 / 0.38);
+}
+.lobby-ticket::before,
+.lobby-ticket::after {
+  content: "";
+  position: absolute;
+  top: 39px;
+  width: 11px;
+  height: 11px;
+  border-radius: 999px;
+  background: #0b110c;
+  border: 1px solid rgb(216 178 106 / 0.34);
+}
+.lobby-ticket::before {
+  left: -6px;
+}
+.lobby-ticket::after {
+  right: -6px;
+}
+.lobby-ticket-h {
+  font-family: "Palatino Linotype", "Iowan Old Style", Georgia, "Songti SC", "SimSun", serif;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: #ecd9b3;
+}
+.lobby-ticket-no {
+  font-size: 7px;
+  letter-spacing: 0.16em;
+  color: #8b7450;
+}
+.lobby-ticket-dash {
+  height: 1px;
+  margin: 8px -12px 9px;
+  background-image: linear-gradient(90deg, rgb(216 178 106 / 0.55) 0 4px, transparent 4px 8px);
+  background-size: 8px 1px;
+}
+.lobby-code-cell {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  border-radius: 6px;
+  border: 1px solid rgb(216 178 106 / 0.26);
+  background: rgb(0 0 0 / 0.3);
+  color: #f3e4c4;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 13px;
+}
+.lobby-code-cell.is-caret {
+  border-color: rgb(240 206 130 / 0.8);
+  box-shadow: 0 0 8px rgb(216 178 106 / 0.18);
+}
+.lobby-ticket-join {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 8px;
+  border: 1px solid rgb(216 178 106 / 0.5);
+  background: none;
+  font-family: "Palatino Linotype", "Iowan Old Style", Georgia, "Songti SC", "SimSun", serif;
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  color: #ecd9b3;
+  transition: background-color 120ms ease-out;
+}
+.lobby-ticket-join:active {
+  background: rgb(216 178 106 / 0.14);
+}
+
+/* ── ⑤ 顶栏小键（B 案）：视觉仍是小药丸，命中区 44 ── */
+.lobby-chip-hit {
+  flex: none;
+}
+.lobby-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 9px;
+  border-radius: 999px;
+  border: 1px solid rgb(216 178 106 / 0.32);
+  background: linear-gradient(180deg, rgb(244 232 204 / 0.07), rgb(0 0 0 / 0.28));
+  font-size: 10px;
+  color: #e9d8b4;
+  font-variant-numeric: tabular-nums;
+}
+.lobby-online {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 8.5px;
+  letter-spacing: 0.14em;
+  color: #adc39f;
+  white-space: nowrap;
+}
+.lobby-online i {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgb(148 163 184 / 0.8);
+}
+.lobby-online i.is-ok {
+  background: #b7cf9f;
+  box-shadow: 0 0 8px rgb(183 207 159 / 0.8);
+}
+.lobby-online i.is-off {
+  background: #b7a58f;
+}
+
+/* ── ⑥ 发牌顺序（B 加载页）── */
+.lobby-stage-card {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  align-items: center;
+  gap: 9px;
+  height: 52px;
+  padding: 0 10px 0 7px;
+  border-radius: 10px;
+  border: 1px solid rgb(216 178 106 / 0.26);
+  background: linear-gradient(165deg, rgb(36 26 16 / 0.92), rgb(14 10 7 / 0.92));
+  box-shadow: 0 3px 9px rgb(0 0 0 / 0.38);
+}
+.lobby-stage-card b {
+  font-family: "Palatino Linotype", "Iowan Old Style", Georgia, "Songti SC", "SimSun", serif;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #f0e1c3;
+}
+.lobby-stage-card em {
+  margin-top: 1px;
+  font-style: normal;
+  font-size: 7.5px;
+  color: #9a8867;
+}
+.lobby-stage-state {
+  font-style: normal;
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  color: #a88d5c;
+  white-space: nowrap;
+}
+.lobby-stage-card.is-done {
+  opacity: 0.72;
+}
+.lobby-stage-card.is-done .lobby-stage-state {
+  color: #a9c19a;
+}
+.lobby-stage-card.is-now {
+  border-color: rgb(238 205 130 / 0.8);
+  box-shadow: 0 5px 16px rgb(0 0 0 / 0.5), 0 0 16px rgb(216 178 106 / 0.12);
+}
+.lobby-stage-card.is-now .lobby-stage-state {
+  color: #f0d49a;
+}
+.lobby-stage-card.is-now .lobby-seal {
+  background: linear-gradient(180deg, #fff1c8, #e0b86c);
+}
+
+/* ── ⑦ 黄铜进度环（B 加载页，与 3D 月亮同心）── */
+.lobby-load-emblem {
+  position: absolute;
+  background: radial-gradient(circle, rgb(246 224 178 / 0.09) 0%, rgb(216 178 106 / 0.03) 42%, transparent 68%);
+}
+.lobby-brass-ring {
+  position: absolute;
+  border-radius: 999px;
+  background: conic-gradient(
+    from -90deg,
+    rgb(246 224 178 / 0.9) 0 var(--p, 0%),
+    rgb(216 178 106 / 0.12) var(--p, 0%) 100%
+  );
+  -webkit-mask: radial-gradient(circle closest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+  mask: radial-gradient(circle closest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+  filter: drop-shadow(0 0 4px rgb(216 178 106 / 0.4));
+}
+
+/* ── ⑧ 匹配中（C）：顶部 / 底部窄带、月外光环、座位点 ── */
+.lobby-c-top {
+  background: linear-gradient(180deg, rgb(3 5 10 / 0.94), rgb(3 5 10 / 0.5) 58%, transparent);
+  border-bottom: 1px solid rgb(200 225 255 / 0.07);
+}
+.lobby-c-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  background: none;
+  color: rgb(214 232 255 / 0.66);
+  font: inherit;
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  white-space: nowrap;
+}
+.lobby-c-back:active {
+  color: rgb(236 246 255 / 0.95);
+}
+.lobby-c-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: rgb(226 240 255 / 0.84);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+}
+.lobby-c-status i {
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: #a8e0c0;
+  box-shadow: 0 0 7px rgb(168 224 192 / 0.9);
+}
+.lobby-c-status i.is-off {
+  background: #b7a58f;
+  box-shadow: none;
+}
+.lobby-c-readout {
+  font-size: 10px;
+  line-height: 1.45;
+  letter-spacing: 0.06em;
+  color: rgb(214 232 255 / 0.72);
+}
+.lobby-c-sub {
+  font-size: 8.5px;
+  letter-spacing: 0.04em;
+  color: rgb(200 225 255 / 0.45);
+}
+.lobby-c-bottom {
+  background: linear-gradient(0deg, rgb(3 5 10 / 0.96), rgb(3 5 10 / 0.62) 58%, transparent);
+  border-top: 1px solid rgb(200 225 255 / 0.08);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 8px);
+}
+.lobby-c-clock b {
+  font-family: "Bahnschrift", "DIN Alternate", "Arial Narrow", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 38px;
+  font-weight: 200;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  color: #f2f8ff;
+}
+.lobby-c-clock span {
+  font-size: 8.5px;
+  letter-spacing: 0.1em;
+  color: rgb(200 225 255 / 0.55);
+}
+.lobby-c-clock em {
+  font-style: normal;
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  color: rgb(200 225 255 / 0.42);
+}
+.lobby-c-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 3px;
+  background: linear-gradient(180deg, #f4f9ff, #dde9f7 52%, #bcd0e7);
+  color: #071019;
+  font-family: "Bahnschrift", "DIN Alternate", "Arial Narrow", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  box-shadow: 0 0 28px rgb(190 220 255 / 0.3), inset 0 1px 0 #fff;
+  white-space: nowrap;
+}
+.lobby-c-cancel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgb(200 225 255 / 0.3);
+  border-radius: 3px;
+  background: rgb(4 8 14 / 0.45);
+  color: rgb(226 240 255 / 0.86);
+  font: inherit;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  white-space: nowrap;
+}
+.lobby-c-cancel:active {
+  background: rgb(200 225 255 / 0.12);
+}
+.lobby-c-halo {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  background: radial-gradient(circle, rgb(198 222 255 / 0.16) 0%, rgb(150 190 240 / 0.06) 30%, transparent 62%);
+  filter: blur(14px);
+}
+.lobby-moon-ring {
+  border: 1px solid rgb(190 220 255 / 0.22);
+  animation: lobby-moon-breathe 5s ease-in-out infinite;
+}
+@keyframes lobby-moon-breathe {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.998);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.012);
+  }
+}
+.lobby-c-seat {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  border: 1px solid rgb(214 232 255 / 0.45);
+  background: rgb(4 8 14 / 0.6);
+}
+.lobby-c-seat.is-me {
+  background: #e8f3ff;
+  border-color: #e8f3ff;
+  box-shadow: 0 0 10px rgb(220 240 255 / 0.7);
+}
+.lobby-c-seat.is-lit {
+  border-color: rgb(168 224 192 / 0.8);
+  background: rgb(168 224 192 / 0.5);
+}
+
+/* ── 减少动态 ── */
+@media (prefers-reduced-motion: reduce) {
+
+  .ingame-rise,
+  .ingame-spin { animation: none !important; }
+  .sticker-bubble { transition: none !important; }
+
+  .lobby-moon-ring {
+    animation: none !important;
+    transform: none;
+    opacity: 0.7;
+  }
+  .lobby-card-b,
+  .lobby-brass-cta,
+  .lobby-ghost-btn,
+  .lobby-ticket-join {
+    transition: none !important;
+  }
+}
