@@ -1,0 +1,2649 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>工人坊 · 对局内 UI 三案（主界面 / 商店栏 / 背包栏 / 结算小窗）</title>
+<!--
+  工人坊「对局内」的三套 UI 方案（2026-11-28，分支 design/game-hud-variants）。
+
+  ★ 为什么是一份自包含 HTML：这一轮只出方案、不动 App 源码。设计稿要能拿浏览器直接打开、
+    按地址栏切方案/切画面，主人才好一屏一屏比；截图脚本（同目录 capture-game-hud.mjs）只是把它钉进文件。
+    不引任何外部字体/图片/脚本 —— 卡面用 CSS 双色渐变、黄铜用渐变+内阴影、织物用斜纹，零素材。
+
+  用法：
+    file:///…/design/ui-mockups/game-hud-variants.html?v=a&s=table
+      v = a 克制极简 / b 黄铜仪表盘 / c 全息织物（缺省 a）
+      s = table 对局主界面 / shop 商店栏 / bag 背包栏 / result 结算小窗（缺省 table）
+
+  ★ 尺寸：设计基准 852×348 CSS（横屏真机口径），--u 是唯一缩放旋钮。
+    宽 ≥1000px 时 --u=1.5：同一套结构在 1280×720 上变成桌面预览（不是另一套布局，只把字与间距等比放大，
+    多出来的高度分给桌面 —— 上条与下条贴边、中间那张木桌长高）。
+
+  ★ 三案各自在回答什么（挑之前先看这三句）：
+    A 克制极简：把 UI 压到"只是一层刻线"。没有面板底色，只有字号、留白与 1px 铜线；
+      主操作带是屏幕最下面那一条横带，商店栏是顶部一条近乎透明的横带。信息分层最陡（大数字 vs 6.5px 标签）。
+    B 黄铜仪表盘：把这局当成一件**仪器**。生命是圆表、回合是刻线盘、金币是压印铜牌，
+      商店栏是一根带铆钉的铜导轨，卡陷在铜框里。材质最重，但每块只承担一个数。
+    C 全息织物：把这局当成一块**会发光的织物**。顶栏是一条织带、卡位是缝线虚线、商店栏是织机横梁，
+      金色缝线勾边、稀薄 holographic 微光。结构上比 A 多一点"布"的层次，比 B 少一堆金属件。
+
+  ★ 从《崩坏：星穹铁道》「货币战争」借的四件事（不借它的配色与金属皮肤）：
+    ① 信息分层：主数字 15~22px、次要标签 6.5~8px 且拉开字距，一层只放一件事；
+    ② 克制到近乎无背景：面板底色一律 ≤ 90% 不透明度，能只用一条铜线就不用一块牌子（A 案最彻底）；
+    ③ 一条横向主操作带：下沿那一条（背包 → 商店键 → 主键）永远在一行，商店栏同理；
+    ④ 圆角与描边统一节奏：4 / 5 / 8 / 12 四级圆角 + 1px 发丝线，稀有度只用**细描边 + 角标**，
+      不用大色块（大色块会把"金币/生命"这两个真该抢眼的东西盖掉）。
+-->
+<style>
+/* ═════════════════════════════ 基础 ═════════════════════════════ */
+*,
+*::before,
+*::after { box-sizing: border-box; }
+figure, figcaption { margin: 0; }
+
+:root {
+  /* ★ --u 必须带单位：它是"这一版所有尺寸的旋钮"，calc(26 * var(--u)) 里的 26 是无单位数，
+     若把 --u 写成裸数字，算出来是 26 这个"数"而不是 26px，整屏布局会全部退回默认样式。 */
+  --u: 1px;
+
+  /* —— 我们自己的那一套材质（暗室 / 暖木 / 黄铜 / 织物）—— */
+  --ink: #060606;          /* 暗室：最深处，不是纯黑，留一点雾 */
+  --wood: #2a1c10;         /* 暖木：桌板 */
+  --wood-hi: #3b2a18;      /* 暖木受光面 */
+  --felt: #16221b;         /* 织物：墨绿桌毡 */
+  --brass: #d8b26a;        /* 黄铜 */
+  --brass-hi: #f7e3ae;
+  --brass-lo: #8c6a2f;
+  --ivory: #f2e7d2;        /* 米白文字 */
+  --muted: #a08a66;
+  --dim: #6f5f49;
+  --rose: #c9837a;         /* 生命（唯一一处冷偏色，只给血条/血表） */
+  --hair: rgba(216, 178, 106, 0.2);
+  --hair-2: rgba(216, 178, 106, 0.42);
+
+  --sans: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", system-ui, sans-serif;
+  /* 衬线：标题 / 卡名 / 铭牌。Windows 上落到宋体，真机落到 Songti SC —— 与 App 的
+     --lobby-serif-stack 同一份回退顺序（少了那份子集字体，设计稿不搬 35KB 的 woff2 进来）。 */
+  --serif: "Palatino Linotype", "Iowan Old Style", Georgia, "Songti SC", "Noto Serif CJK SC", "SimSun", serif;
+  --hand: "Segoe Script", "Bradley Hand", "Kaiti SC", "KaiTi", "STKaiti", "SimSun", cursive;
+  /* 数字：等宽tabular + 窄字形，大字读得快、位数变了不跳（HSR 的 HUD 数字也是这个思路） */
+  --num: "Bahnschrift SemiCondensed", "Bahnschrift", "DIN Alternate", "Arial Narrow", var(--sans);
+}
+@media (min-width: 1000px) { :root { --u: 1.5px; } }
+
+html, body { height: 100%; margin: 0; overflow: hidden; background: #000; }
+body {
+  color: var(--ivory);
+  font-family: var(--sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.screen { position: fixed; inset: 0; display: none; }
+.screen.on { display: block; }
+
+/* 影片颗粒：一层很轻的噪点，让纯 CSS 的渐变不"塑料"。0.05 以下，看不出来、但拿掉会明显变平。 */
+.grain {
+  position: fixed; inset: 0; z-index: 30; pointer-events: none; opacity: 0.05;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* 房间：右上一道冷光（窗/月）、左下一点烛暖、四周暗角。三案共用同一间屋子，
+   差别只在桌面上摆的是什么 —— 否则三案的对比就变成"换了三张壁纸"。 */
+.room { position: absolute; inset: 0; background:
+    radial-gradient(62% 46% at 76% 4%, rgba(126, 158, 196, 0.13), transparent 74%),
+    radial-gradient(58% 52% at 22% 98%, rgba(206, 140, 62, 0.24), transparent 72%),
+    radial-gradient(120% 100% at 50% 44%, #15120e 0%, #0b0908 54%, #050505 100%);
+}
+.room::before {
+  /* 空气里的浮尘：几粒极淡的暖点，只在亮处附近 */
+  content: ""; position: absolute; inset: 0; opacity: 0.55;
+  background:
+    radial-gradient(1.4px 1.4px at 27% 34%, rgba(240, 210, 160, 0.5), transparent 100%),
+    radial-gradient(1.1px 1.1px at 34% 62%, rgba(240, 210, 160, 0.34), transparent 100%),
+    radial-gradient(1.6px 1.6px at 63% 22%, rgba(226, 214, 196, 0.34), transparent 100%),
+    radial-gradient(1.1px 1.1px at 71% 58%, rgba(240, 210, 160, 0.28), transparent 100%),
+    radial-gradient(1.2px 1.2px at 46% 16%, rgba(240, 210, 160, 0.22), transparent 100%);
+}
+.room::after {
+  content: ""; position: absolute; inset: 0;
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, 0.55), transparent 24%, transparent 70%, rgba(0, 0, 0, 0.66)),
+    radial-gradient(88% 80% at 50% 46%, transparent 40%, rgba(0, 0, 0, 0.55) 100%);
+}
+.room.is-dim { filter: brightness(0.52) saturate(0.9); }
+
+/* ═════════════════════════════ 通用零件 ═════════════════════════════ */
+
+/* 发丝线：全案的结构线只有这一种粗细。用 1px 的渐变而不是 border，
+   是为了在 0.2/0.42 两档之间还能再叠一条"受光的上半段"。 */
+.rule-x { height: 1px; background: var(--hair); }
+.k {
+  font-style: normal;
+  font-size: calc(6.5 * var(--u));
+  line-height: 1;
+  letter-spacing: 0.26em;
+  color: var(--dim);
+}
+.num { font-family: var(--num); font-variant-numeric: tabular-nums; letter-spacing: 0.01em; }
+.serif { font-family: var(--serif); }
+.hand { font-family: var(--hand); }
+
+/* ── 卡面（三案共用一份骨架，皮肤由各案各自的 .screen[data-v=…] 补） ──
+   一张卡 = 双色渐变画芯（--a1/--a2 逐张给）+ 类型字（角/景/具，与塔罗卡的类型徽记同一个意思）
+   + 稀有度细描边与角标。没有素材图，所以"画芯"必须靠两层径向（左上稀有度色晕 + 右下烛光）
+   叠一道斜向暗块来伪造"有主体、有明暗"的图，而不是一块纯色。 */
+.card {
+  --cw: calc(64 * var(--u));
+  --ch: calc(98 * var(--u));
+  --a1: #2c2418;
+  --a2: #120e09;
+  position: relative;
+  width: var(--cw);
+  height: var(--ch);
+  flex: none;
+  overflow: hidden;
+  border-radius: calc(4 * var(--u));
+  border: 1px solid rgb(var(--rc) / 0.5);
+  background: linear-gradient(168deg, #171310, #0d0a08);
+  box-shadow: 0 calc(4 * var(--u)) calc(10 * var(--u)) rgba(0, 0, 0, 0.5),
+              inset 0 1px 0 rgba(255, 238, 200, 0.1);
+}
+.card[data-r="1"] { --rc: 198 190 174; }
+.card[data-r="2"] { --rc: 143 191 148; }
+.card[data-r="3"] { --rc: 122 167 216; }
+.card[data-r="4"] { --rc: 176 139 214; }
+.card[data-r="5"] { --rc: 231 196 119; }
+
+.card .art {
+  position: absolute;
+  inset: calc(2 * var(--u)) calc(2 * var(--u)) calc(19 * var(--u));
+  border-radius: calc(2.5 * var(--u));
+  overflow: hidden;
+  background:
+    radial-gradient(72% 58% at 32% 20%, rgb(var(--rc) / 0.4), transparent 64%),
+    radial-gradient(90% 66% at 74% 98%, rgba(255, 190, 110, 0.2), transparent 70%),
+    linear-gradient(168deg, var(--a1), var(--a2) 64%, #0a0806);
+}
+.card .art::before {
+  /* 画面的"结构"：一道斜暗块（像人物/建筑挡了下半光）+ 很细的扫描纹，读起来像一张印刷出来的卡面 */
+  content: ""; position: absolute; inset: 0;
+  background:
+    linear-gradient(112deg, transparent 30%, rgba(0, 0, 0, 0.34) 48%, rgba(0, 0, 0, 0.34) 60%, transparent 76%),
+    repeating-linear-gradient(172deg, rgba(255, 255, 255, 0.05) 0 1px, transparent 1px calc(5 * var(--u)));
+  opacity: 0.9;
+}
+.card .glyph {
+  position: absolute; left: 50%; top: 43%; transform: translate(-50%, -50%);
+  font-family: var(--serif);
+  font-size: calc(18 * var(--u));
+  color: rgba(240, 228, 206, 0.86);
+  text-shadow: 0 0 calc(10 * var(--u)) rgba(216, 178, 106, 0.5);
+}
+.card .cap {
+  position: absolute; left: 0; right: 0; bottom: 0; height: calc(19 * var(--u));
+  display: flex; align-items: center; justify-content: center;
+  padding: 0 calc(3 * var(--u));
+  font-family: var(--serif);
+  font-size: calc(7.5 * var(--u));
+  letter-spacing: 0.03em;
+  color: #e9dcc2;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  background: linear-gradient(180deg, rgba(14, 10, 6, 0), rgba(11, 8, 5, 0.94) 42%);
+}
+/* 稀有度角标：4.5px 的小菱形（金/紫看得见、白/绿几乎只是一点）。不占卡面面积。 */
+.card .pip {
+  position: absolute; right: calc(4 * var(--u)); top: calc(4 * var(--u));
+  width: calc(4.5 * var(--u)); height: calc(4.5 * var(--u));
+  transform: rotate(45deg);
+  background: rgb(var(--rc) / 0.92);
+  box-shadow: 0 0 calc(6 * var(--u)) rgb(var(--rc) / 0.5);
+}
+.card::after {
+  /* 左上角一道 6px 的直角标：比描边再亮一档，让 5 费金卡在整排里"角先亮" */
+  content: ""; position: absolute; left: calc(3 * var(--u)); top: calc(3 * var(--u));
+  width: calc(6 * var(--u)); height: calc(6 * var(--u));
+  border-left: 1px solid rgb(var(--rc) / 0.75);
+  border-top: 1px solid rgb(var(--rc) / 0.75);
+}
+.card[data-r="5"] { box-shadow: 0 calc(4 * var(--u)) calc(12 * var(--u)) rgba(0, 0, 0, 0.55),
+                   0 0 calc(12 * var(--u)) rgba(231, 196, 119, 0.12),
+                   inset 0 1px 0 rgba(255, 238, 200, 0.16); }
+
+/* 空卡位：只有一条虚线 + 中间一枚菱形点 + 一行 6px 的字。三案各有各的缝法（见各案）。 */
+.slot {
+  position: relative;
+  width: calc(64 * var(--u));
+  height: calc(98 * var(--u));
+  flex: none;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px dashed rgba(216, 178, 106, 0.28);
+  border-radius: calc(4 * var(--u));
+  background: radial-gradient(80% 56% at 50% 0%, rgba(216, 178, 106, 0.06), transparent 72%), rgba(0, 0, 0, 0.16);
+}
+.slot .hint {
+  position: absolute; left: 50%; bottom: calc(7 * var(--u)); transform: translateX(-50%);
+  font-size: calc(6 * var(--u)); letter-spacing: 0.2em; color: rgba(216, 178, 106, 0.45);
+  white-space: nowrap;
+}
+.slot .dot {
+  width: calc(3.5 * var(--u)); height: calc(3.5 * var(--u));
+  transform: rotate(45deg);
+  background: rgba(216, 178, 106, 0.42);
+}
+
+/* 卡位 + 卡下面的名字（卡名不进卡面：7px 的卡面上放不下中文名，NP 实测会糊成三个点） */
+.pick { display: flex; flex-direction: column; align-items: center; gap: calc(4 * var(--u)); }
+
+/* ── 顶部状态条（三案结构不同，这里只钉"贴顶 + 左右两组"） ── */
+.top { position: absolute; left: calc(20 * var(--u)); right: calc(20 * var(--u)); top: calc(11 * var(--u)); }
+
+/* 通用小键：只有发丝描边 + 一排 8.5px 的字，按下时靠背景亮度变化 */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: calc(5 * var(--u));
+  height: calc(24 * var(--u)); padding: 0 calc(10 * var(--u));
+  border-radius: calc(4 * var(--u));
+  border: 1px solid var(--hair-2);
+  background: rgba(216, 178, 106, 0.05);
+  color: #eadcc0;
+  font-family: var(--sans);
+  font-size: calc(8.5 * var(--u)); letter-spacing: 0.1em;
+  cursor: pointer;
+}
+.btn em { font-style: normal; font-size: calc(7 * var(--u)); color: var(--muted); letter-spacing: 0.04em; }
+.btn.is-primary {
+  border-color: #f6e4ba;
+  background: linear-gradient(180deg, #f6e4b1, #ddb56c 46%, #b98b41);
+  color: #2b1d09; font-weight: 700;
+  box-shadow: 0 calc(4 * var(--u)) calc(11 * var(--u)) rgba(0, 0, 0, 0.5),
+              inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+.btn.is-primary em { color: rgba(43, 29, 9, 0.62); font-weight: 600; }
+
+/* ═════════════════════════════ A 案 · 克制极简 ═════════════════════════════
+   定位：UI 只是一层刻线。没有面板底色、没有投影、没有图标底，只有字号、留白与 1px 铜线。
+   信息分层最陡：主数字 16~21px，标签 6.5px 拉 0.26em 字距；两者之间不设第三档。
+   横向主操作带 = 屏幕最下面那一条；商店栏 = 顶部一条从"几乎全透明"渐到全透明的横带。 */
+
+/* 顶栏：左右两组，中间留空给桌面 */
+.a-top { display: flex; align-items: flex-start; justify-content: space-between; }
+.a-group { display: flex; align-items: flex-start; gap: calc(14 * var(--u)); }
+.a-group.a-right { gap: calc(16 * var(--u)); }
+
+.a-phase {
+  display: inline-flex; align-items: center; gap: calc(5 * var(--u));
+  font-family: var(--serif);
+  font-size: calc(11.5 * var(--u)); letter-spacing: 0.16em; color: #f0e2c6;
+  line-height: 1;
+  padding-bottom: calc(3 * var(--u));
+  border-bottom: 1px solid rgba(216, 178, 106, 0.36);
+}
+.a-phase i {
+  width: calc(4 * var(--u)); height: calc(4 * var(--u)); border-radius: 999px;
+  background: var(--brass-hi); box-shadow: 0 0 calc(7 * var(--u)) rgba(247, 227, 174, 0.85);
+}
+.a-stat { display: flex; flex-direction: column; align-items: flex-start; gap: calc(3 * var(--u)); line-height: 1; }
+.a-stat em {
+  font-style: normal; font-size: calc(6.5 * var(--u)); letter-spacing: 0.26em; color: var(--dim);
+}
+.a-stat .v { display: flex; align-items: center; gap: calc(6 * var(--u)); }
+.a-stat b { font-family: var(--num); font-size: calc(16 * var(--u)); font-weight: 600; color: #f7ecd8; }
+.a-stat b small { font-size: calc(8 * var(--u)); font-weight: 400; color: var(--dim); letter-spacing: 0.06em; }
+.a-stat.is-gold b { font-size: calc(21 * var(--u)); color: var(--brass-hi); }
+
+.a-stat .sub { font-size: calc(7 * var(--u)); letter-spacing: 0.1em; color: var(--muted); }
+.a-stat .sub i { font-style: normal; color: #e8cf9a; }
+
+.a-bar { width: calc(44 * var(--u)); height: calc(2.5 * var(--u)); background: rgba(255, 255, 255, 0.12); }
+.a-bar i { display: block; height: 100%; background: linear-gradient(90deg, #a96356, #d99a86); }
+
+/* 8 段回合进度：不是胶囊，是 8 根 9×2 的刻线。走过的亮、当前那根最亮、没到的几乎不见。 */
+.a-segs { display: flex; align-items: center; gap: calc(3 * var(--u)); margin-top: calc(9 * var(--u)); }
+.a-segs i { width: calc(9 * var(--u)); height: calc(2 * var(--u)); background: rgba(216, 178, 106, 0.16); }
+.a-segs i.on { background: rgba(216, 178, 106, 0.5); }
+.a-segs i.cur { background: var(--brass-hi); box-shadow: 0 0 calc(6 * var(--u)) rgba(247, 227, 174, 0.8); }
+
+/* 桌面：一块「圆角 < 12」的暖木台面。亮面在上沿、暗面在桌心，靠 inset 阴影做厚度。 */
+.a-board { position: absolute; left: calc(24 * var(--u)); right: calc(24 * var(--u)); top: calc(52 * var(--u)); bottom: calc(88 * var(--u)); }
+.a-table {
+  position: absolute; inset: 0;
+  border-radius: calc(12 * var(--u));
+  background: linear-gradient(168deg, #3c2b19 0%, #2a1c10 46%, #191007 100%);
+  box-shadow: 0 calc(12 * var(--u)) calc(26 * var(--u)) rgba(0, 0, 0, 0.6),
+              inset 0 1px 0 rgba(255, 231, 184, 0.16),
+              inset 0 calc(-3 * var(--u)) calc(10 * var(--u)) rgba(0, 0, 0, 0.55);
+}
+.a-table::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; opacity: 0.55;
+  background: repeating-linear-gradient(93deg, rgba(0, 0, 0, 0.3) 0 1px, transparent 1px calc(11 * var(--u)));
+  -webkit-mask-image: linear-gradient(180deg, #000, transparent 62%);
+  mask-image: linear-gradient(180deg, #000, transparent 62%);
+}
+.a-felt {
+  position: absolute; inset: calc(11 * var(--u));
+  border-radius: calc(8 * var(--u));
+  overflow: hidden;
+  background: radial-gradient(64% 76% at 50% 16%, rgba(40, 58, 46, 0.9), transparent 62%), radial-gradient(72% 90% at 50% 26%, #1c2b22, #111b15 58%, #0a120d 100%);
+  box-shadow: inset 0 calc(3 * var(--u)) calc(11 * var(--u)) rgba(0, 0, 0, 0.6),
+              inset 0 0 0 1px rgba(216, 178, 106, 0.14);
+}
+.a-felt::before {
+  /* 桌毡的织纹：两个方向的斜纹叠一层，只在中段显形（边上被暗角吃掉，不然像条纹布） */
+  content: ""; position: absolute; inset: 0; opacity: 0.8;
+  background:
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.035) 0 1px, transparent 1px calc(3 * var(--u))),
+    repeating-linear-gradient(-45deg, rgba(0, 0, 0, 0.18) 0 1px, transparent 1px calc(3 * var(--u)));
+  -webkit-mask-image: radial-gradient(74% 96% at 50% 46%, #000 0 44%, transparent 82%);
+  mask-image: radial-gradient(74% 96% at 50% 46%, #000 0 44%, transparent 82%);
+}
+.a-felt::after {
+  content: ""; position: absolute; inset: 0;
+  background: radial-gradient(64% 74% at 50% 40%, rgba(236, 204, 140, 0.07), transparent 68%),
+              radial-gradient(120% 120% at 50% 122%, rgba(0, 0, 0, 0.6), transparent 62%);
+}
+/* 桌面中央的法阵：24 道刻线 + 两圈虚线。与工坊 3D 桌毡上那个阵同构（只在绣纹上出现，
+   不发光 —— 亮的是纸上的字，不是桌子）。 */
+.a-sigil {
+  position: absolute; left: 50%; top: 52%; width: calc(196 * var(--u)); height: calc(196 * var(--u));
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  opacity: 0.55;
+  background: repeating-conic-gradient(from 0deg, rgba(216, 178, 106, 0.13) 0deg 0.5deg, transparent 0.5deg 15deg);
+  -webkit-mask-image: radial-gradient(circle, transparent 41%, #000 42.5% 65%, transparent 66.5%);
+  mask-image: radial-gradient(circle, transparent 41%, #000 42.5% 65%, transparent 66.5%);
+}
+.a-sigil::before,
+.a-sigil::after {
+  content: ""; position: absolute; inset: 0; border-radius: 999px;
+}
+.a-sigil::before { inset: 6%; border: 1px dashed rgba(216, 178, 106, 0.22); }
+.a-sigil::after { inset: 20%; border: 1px solid rgba(216, 178, 106, 0.16); }
+
+/* 卡位：四格横排居中偏下；场景位在左上方（施工单：角色位那一排的左上方、低于桌面中线） */
+.a-roles {
+  position: absolute; left: 0; right: 0; bottom: calc(18 * var(--u));
+  display: flex; justify-content: center; gap: calc(16 * var(--u));
+}
+.a-scene { position: absolute; left: calc(50% - 220 * var(--u)); bottom: calc(36 * var(--u)); display: flex; flex-direction: column; gap: calc(5 * var(--u)); }
+.a-scene .k { color: rgba(216, 178, 106, 0.42); }
+.a-scene .slot, .a-scene .card { width: calc(50 * var(--u)); height: calc(76 * var(--u)); }
+.a-scene .card .glyph, .a-scene .slot .dot { font-size: calc(14 * var(--u)); }
+
+/* 空位上的"可放下"提示只在引导态出现；这里保留一格写着「空位」的常态 */
+
+/* 右侧道具栏：三枚小卡 + 一把拆除钳。整栏没有底色 —— 道具本来就是"挂在角色身上的东西" */
+.a-rail { position: absolute; right: calc(-4 * var(--u)); top: 46%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: calc(7 * var(--u)); }
+.a-rail .k { color: rgba(216, 178, 106, 0.4); }
+.a-rail .card { --cw: calc(30 * var(--u)); --ch: calc(43 * var(--u)); }
+.a-rail .card .cap { height: calc(10 * var(--u)); font-size: calc(5 * var(--u)); }
+.a-rail .card .art { inset: 1px 1px calc(10 * var(--u)); }
+.a-rail .card .glyph { font-size: calc(10 * var(--u)); }
+.a-rail .card .pip { width: calc(3 * var(--u)); height: calc(3 * var(--u)); right: calc(2.5 * var(--u)); top: calc(2.5 * var(--u)); }
+.a-rail .card::after { display: none; }
+.a-rail .tool {
+  width: calc(30 * var(--u)); height: calc(22 * var(--u));
+  display: flex; align-items: center; justify-content: center;
+  border: 1px dashed rgba(216, 178, 106, 0.26); border-radius: calc(3 * var(--u));
+  font-size: calc(8 * var(--u)); color: rgba(216, 178, 106, 0.6);
+}
+
+/* 底部主操作带：一条横线 + 左背包 / 右（商店键 + 主键）。整条离线 22px，不铺底板。 */
+.a-band {
+  position: absolute; left: calc(20 * var(--u)); right: calc(20 * var(--u)); bottom: calc(12 * var(--u));
+  padding-top: calc(9 * var(--u));
+}
+.a-band::before {
+  /* 上沿那条线从中间往两边淡出：中间要压住桌沿，两端要"消失"，不然一条实线会像被裁过 */
+  content: ""; position: absolute; left: calc(-20 * var(--u)); right: calc(-20 * var(--u)); top: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(216, 178, 106, 0.3) 18%, rgba(216, 178, 106, 0.3) 82%, transparent);
+}
+.a-band-in { display: flex; align-items: flex-end; justify-content: space-between; gap: calc(10 * var(--u)); }
+.a-bag { display: flex; align-items: flex-end; gap: calc(7 * var(--u)); }
+.a-bag .bagcard { display: flex; flex-direction: column; align-items: center; gap: calc(2 * var(--u)); }
+.a-bag .bagcard .card { --cw: calc(38 * var(--u)); --ch: calc(58 * var(--u)); }
+.a-bag .bagcard .card .cap { height: calc(13 * var(--u)); font-size: calc(5.5 * var(--u)); }
+.a-bag .bagcard .card .art { inset: 1px 1px calc(13 * var(--u)); }
+.a-bag .bagcard .card .glyph { font-size: calc(11 * var(--u)); }
+.a-bag .bagcard .card .pip { width: calc(3.2 * var(--u)); height: calc(3.2 * var(--u)); right: calc(2.5 * var(--u)); top: calc(2.5 * var(--u)); }
+.a-bag .bagcard .card::after { display: none; }
+.a-bag .bagcard .sell { font-size: calc(5.5 * var(--u)); letter-spacing: 0.06em; color: rgba(216, 178, 106, 0.55); }
+.a-bag-head { display: flex; flex-direction: column; gap: calc(6 * var(--u)); align-self: center; padding-right: calc(4 * var(--u)); }
+.a-bag-head .t { font-family: var(--serif); font-size: calc(9 * var(--u)); letter-spacing: 0.14em; color: #e9dcc2; }
+.a-bag-head .t b { font-family: var(--num); font-size: calc(11 * var(--u)); color: var(--brass-hi); }
+.a-bag-head .hint { font-size: calc(6.5 * var(--u)); letter-spacing: 0.08em; color: var(--dim); white-space: nowrap; }
+
+.a-actions { display: flex; align-items: center; gap: calc(9 * var(--u)); }
+.a-hint { font-size: calc(6.5 * var(--u)); letter-spacing: 0.06em; color: var(--dim); white-space: nowrap; padding-right: calc(3 * var(--u)); }
+
+/* 商店键：**只显示利息图案 + 数字**（施工单点名），名字只在 title 里。
+   A 案把它做成"一枚立在带上的铜片"：无底色，只有一条竖线切出来。 */
+.a-shop {
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(2 * var(--u));
+  width: calc(46 * var(--u)); height: calc(44 * var(--u));
+  border: 1px solid var(--hair-2); border-radius: calc(5 * var(--u));
+  background: linear-gradient(180deg, rgba(216, 178, 106, 0.1), rgba(0, 0, 0, 0.26));
+  color: #f2e5ca; cursor: pointer;
+}
+.a-shop .ic { font-size: calc(12 * var(--u)); line-height: 1; opacity: 0.85; filter: grayscale(1) brightness(1.15); }
+.a-shop .n { font-family: var(--num); font-size: calc(9 * var(--u)); color: var(--brass-hi); letter-spacing: 0.04em; }
+.a-shop .n::before { content: "利息 "; font-family: var(--sans); font-size: calc(5.5 * var(--u)); letter-spacing: 0.18em; color: rgba(216, 178, 106, 0.5); }
+.a-shop .lbl { font-size: calc(5.5 * var(--u)); letter-spacing: 0.3em; color: rgba(216, 178, 106, 0.55); }
+
+/* ── A 案 · 商店栏（顶部一条几乎透明的横带）── */
+.a-strip { position: absolute; left: 0; right: 0; top: 0; padding: calc(10 * var(--u)) calc(20 * var(--u)) calc(12 * var(--u)); }
+.a-strip::before {
+  /* 只靠一道从上到下的压暗罩住桌面上沿：不铺底板，横带的边界就是那道 1px 铜线 */
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(4, 4, 4, 0.94) 0%, rgba(4, 4, 4, 0.82) 58%, rgba(4, 4, 4, 0) 100%);
+}
+.a-strip-in { position: relative; z-index: 1; display: flex; align-items: flex-start; gap: calc(16 * var(--u)); }
+.a-strip-head { display: flex; flex-direction: column; gap: calc(7 * var(--u)); width: calc(122 * var(--u)); padding-top: calc(4 * var(--u)); }
+.a-strip-head .ttl { font-family: var(--serif); font-size: calc(14 * var(--u)); letter-spacing: 0.22em; color: #f4e8d0; line-height: 1; }
+.a-strip-head .meta { display: flex; flex-direction: column; gap: calc(3 * var(--u)); font-size: calc(7 * var(--u)); letter-spacing: 0.1em; color: var(--muted); }
+.a-strip-head .meta i { font-style: normal; color: #e6cd99; }
+.a-strip-head .gold { display: flex; align-items: baseline; gap: calc(5 * var(--u)); }
+.a-strip-head .gold b { font-family: var(--num); font-size: calc(21 * var(--u)); color: var(--brass-hi); line-height: 1; }
+.a-strip-head .gold em { font-style: normal; font-size: calc(7 * var(--u)); letter-spacing: 0.1em; color: var(--muted); }
+.a-strip-head .tip { font-size: calc(6.5 * var(--u)); letter-spacing: 0.14em; color: rgba(216, 178, 106, 0.42); }
+
+.a-goods { position: relative; display: flex; align-items: flex-start; gap: calc(11 * var(--u)); padding-top: calc(2 * var(--u)); }
+/* 货架：一条横贯的金铜细线 —— 卡站在线上、价钱挂在线下。A 案里唯一一处"商店是件家具"的暗示 */
+.a-shelf {
+  position: absolute; left: calc(-13 * var(--u)); right: calc(-13 * var(--u)); top: calc(88 * var(--u)); height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(216, 178, 106, 0.38) 10%, rgba(216, 178, 106, 0.38) 90%, transparent);
+  box-shadow: 0 calc(3 * var(--u)) calc(9 * var(--u)) rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+.a-shop.is-open { border-color: rgba(247, 227, 174, 0.7); box-shadow: 0 0 calc(14 * var(--u)) rgba(216, 178, 106, 0.18); }
+.a-ops .op-tip {
+  margin-top: calc(3 * var(--u));
+  font-size: calc(6 * var(--u)); line-height: 1.5; letter-spacing: 0.04em; color: rgba(216, 178, 106, 0.34);
+}
+.a-good { display: flex; flex-direction: column; align-items: center; gap: calc(4 * var(--u)); }
+.a-good .card { --cw: calc(54 * var(--u)); --ch: calc(82 * var(--u)); cursor: pointer; }
+.a-good .card .glyph { font-size: calc(15 * var(--u)); }
+.a-good .price { margin-top: calc(6 * var(--u)); font-family: var(--num); font-size: calc(9 * var(--u)); color: var(--brass-hi); letter-spacing: 0.04em; }
+.a-good .price small { font-family: var(--sans); font-size: calc(6 * var(--u)); color: rgba(216, 178, 106, 0.55); letter-spacing: 0.16em; }
+.a-good.is-gone .gone {
+  width: calc(54 * var(--u)); height: calc(82 * var(--u));
+  display: flex; align-items: center; justify-content: center;
+  border: 1px dashed rgba(216, 178, 106, 0.16); border-radius: calc(4 * var(--u));
+  font-size: calc(6.5 * var(--u)); letter-spacing: 0.16em; color: rgba(216, 178, 106, 0.34);
+}
+
+.a-ops { margin-left: auto; display: flex; flex-direction: column; align-items: stretch; gap: calc(5 * var(--u)); width: calc(96 * var(--u)); }
+.a-ops .op {
+  display: flex; align-items: center; justify-content: space-between; gap: calc(6 * var(--u));
+  height: calc(24 * var(--u)); padding: 0 calc(2 * var(--u));
+  border: 0; border-bottom: 1px solid rgba(216, 178, 106, 0.2);
+  background: none; color: #eadcc0; cursor: pointer;
+  font-size: calc(8.5 * var(--u)); letter-spacing: 0.12em; text-align: left;
+}
+.a-ops .op em { font-style: normal; font-size: calc(7 * var(--u)); color: var(--muted); letter-spacing: 0.04em; }
+.a-ops .op.leave { color: #f2e5ca; border-bottom-color: rgba(216, 178, 106, 0.44); }
+.a-outside {
+  position: absolute; left: 0; right: 0; bottom: calc(14 * var(--u));
+  text-align: center; font-size: calc(6.5 * var(--u)); letter-spacing: 0.22em; color: rgba(216, 178, 106, 0.3);
+}
+
+/* ── A 案 · 背包栏（下沿那条带长成抽屉）── */
+.a-drawer {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  padding: calc(10 * var(--u)) calc(20 * var(--u)) calc(14 * var(--u));
+}
+.a-drawer::before {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(4, 4, 4, 0) 0%, rgba(4, 4, 4, 0.88) 34%, rgba(4, 4, 4, 0.96) 100%);
+  border-top: 1px solid rgba(216, 178, 106, 0.18);
+}
+.a-drawer-in { position: relative; z-index: 1; display: flex; flex-direction: column; gap: calc(8 * var(--u)); }
+.a-drawer-head { display: flex; align-items: baseline; gap: calc(12 * var(--u)); }
+.a-drawer-head .ttl { font-family: var(--serif); font-size: calc(12 * var(--u)); letter-spacing: 0.2em; color: #f4e8d0; }
+.a-drawer-head .tally { display: flex; gap: calc(10 * var(--u)); font-size: calc(7 * var(--u)); letter-spacing: 0.12em; color: var(--muted); }
+.a-drawer-head .tally i { font-style: normal; color: #e6cd99; font-family: var(--num); font-size: calc(8.5 * var(--u)); }
+.a-drawer-head .tip { margin-left: auto; font-size: calc(7 * var(--u)); letter-spacing: 0.1em; color: rgba(216, 178, 106, 0.5); }
+.a-hand { display: flex; align-items: flex-start; gap: calc(12 * var(--u)); }
+.a-hand .hcard { display: flex; flex-direction: column; align-items: center; gap: calc(3 * var(--u)); }
+.a-hand .hcard .card { --cw: calc(46 * var(--u)); --ch: calc(70 * var(--u)); }
+.a-hand .hcard .card .glyph { font-size: calc(13 * var(--u)); }
+.a-hand .hcard .sell { font-size: calc(6 * var(--u)); letter-spacing: 0.1em; color: rgba(216, 178, 106, 0.5); }
+.a-hand .hcard .sell b { font-family: var(--num); color: #e8cf9a; font-weight: 500; }
+.a-hand .more { align-self: center; font-size: calc(7 * var(--u)); letter-spacing: 0.1em; color: var(--dim); }
+
+/* 拖拽中：一张被拿起来的卡 + 一条虚线连到卡位 + 一句"松手"。这是整个背包屏的主角。 */
+.drag {
+  position: absolute; z-index: 12;
+  transform: rotate(-3.5deg) translateY(calc(-6 * var(--u)));
+  filter: drop-shadow(0 calc(12 * var(--u)) calc(18 * var(--u)) rgba(0, 0, 0, 0.7))
+          drop-shadow(0 0 calc(14 * var(--u)) rgba(216, 178, 106, 0.22));
+}
+.drag .card { --cw: calc(56 * var(--u)); --ch: calc(86 * var(--u)); }
+.drag .card .glyph { font-size: calc(16 * var(--u)); }
+
+/* ── A 案 · 结算小窗 ── */
+.a-veil { position: absolute; inset: 0; background: radial-gradient(58% 62% at 50% 48%, rgba(0, 0, 0, 0.38), rgba(0, 0, 0, 0.72)); }
+.a-window {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: calc(392 * var(--u));
+  padding: calc(16 * var(--u)) calc(20 * var(--u)) calc(14 * var(--u));
+  border: 1px solid rgba(216, 178, 106, 0.28);
+  border-radius: calc(8 * var(--u));
+  background: linear-gradient(178deg, rgba(22, 17, 12, 0.92), rgba(8, 7, 6, 0.95));
+  box-shadow: 0 calc(22 * var(--u)) calc(48 * var(--u)) rgba(0, 0, 0, 0.7);
+}
+.a-window::before {
+  /* 内层那一圈 1px 铜线：与工坊的「铜印」同一个做法（外层 0.28、内层 0.1） */
+  content: ""; position: absolute; inset: calc(3 * var(--u));
+  border-radius: calc(6 * var(--u)); border: 1px solid rgba(216, 178, 106, 0.1); pointer-events: none;
+}
+.a-res-head { display: flex; align-items: flex-end; gap: calc(12 * var(--u)); padding-bottom: calc(7 * var(--u)); border-bottom: 1px solid rgba(216, 178, 106, 0.18); }
+.res-title { display: flex; flex-direction: column; gap: calc(3 * var(--u)); }
+.a-res-head .eyebrow { font-size: calc(6.5 * var(--u)); letter-spacing: 0.3em; color: var(--muted); }
+.a-res-head h2 { margin: 0; font-family: var(--serif); font-size: calc(16 * var(--u)); letter-spacing: 0.24em; color: #f5e9d1; font-weight: 600; }
+.a-res-head .sum { margin-left: auto; display: flex; gap: calc(9 * var(--u)); font-size: calc(6.5 * var(--u)); letter-spacing: 0.1em; color: var(--muted); }
+.a-res-head .sum b { font-family: var(--num); font-size: calc(10 * var(--u)); color: var(--brass-hi); font-weight: 600; }
+.a-res { margin: calc(10 * var(--u)) 0 0; padding: 0; list-style: none; }
+.a-res-cols, .a-res li {
+  display: grid; grid-template-columns: calc(22 * var(--u)) 1fr calc(30 * var(--u)) calc(30 * var(--u)) calc(42 * var(--u)) calc(44 * var(--u));
+  align-items: center; gap: calc(6 * var(--u));
+}
+.a-res-cols { margin-top: calc(6 * var(--u)); padding: 0 calc(6 * var(--u)) calc(5 * var(--u)); font-size: calc(6 * var(--u)); letter-spacing: 0.2em; color: var(--dim); }
+.a-res-cols span:nth-child(n + 3) { text-align: right; }
+.a-res li { padding: calc(5 * var(--u)) calc(6 * var(--u)); border-top: 1px solid rgba(216, 178, 106, 0.12); }
+.a-res li .rk { font-family: var(--num); font-size: calc(11 * var(--u)); color: var(--muted); }
+.a-res li .who { font-family: var(--serif); font-size: calc(9 * var(--u)); letter-spacing: 0.08em; color: #e9dcc2; }
+.a-res li .who i { font-style: normal; margin-left: calc(5 * var(--u)); font-size: calc(6 * var(--u)); letter-spacing: 0.16em; color: rgba(216, 178, 106, 0.55); }
+.a-res li .v { font-family: var(--num); font-size: calc(10 * var(--u)); text-align: right; color: #d9cbaf; }
+.a-res li .v.dmg { color: #d79a8c; }
+.a-res li .v.hp { color: #cbbfa8; }
+.a-res li .v.hp::after { content: " 血"; font-family: var(--sans); font-size: calc(5.5 * var(--u)); letter-spacing: 0.1em; color: var(--dim); }
+.a-res li.me { background: linear-gradient(90deg, rgba(216, 178, 106, 0.1), transparent 70%); }
+.a-res li.me .who, .a-res li.me .v { color: #f7ecd8; }
+.a-res li.me .rk { color: var(--brass-hi); }
+.a-res li.me::before {
+  content: ""; position: absolute; left: 0; width: calc(2 * var(--u)); height: calc(18 * var(--u));
+  background: linear-gradient(180deg, #f4dfa8, #b98b41);
+}
+.a-res li { position: relative; }
+.a-res-foot { display: flex; align-items: center; gap: calc(9 * var(--u)); margin-top: calc(12 * var(--u)); }
+.a-res-foot .note { font-size: calc(6.5 * var(--u)); letter-spacing: 0.08em; color: var(--dim); }
+.a-res-foot .sp { margin-left: auto; }
+
+/* ═════════════════════════════ B 案 · 黄铜仪表盘 ═════════════════════════════
+   定位：这一局是一件仪器。生命是圆表、回合是刻线盘、金币是压印铜牌；
+   商店栏是一根带铆钉的铜导轨，卡陷在铜框里。材质最重，但每块铜牌只承担一个数。 */
+
+.b-top { display: flex; align-items: flex-start; justify-content: space-between; }
+
+/* 圆表：track + 弧 + 12 道刻度。弧用 conic-gradient + mask 画（比 SVG 少一层 DOM，
+   截图里也不会有矢量抗锯齿差），数值压在圆心。 */
+.b-dial { position: relative; width: calc(52 * var(--u)); height: calc(52 * var(--u)); flex: none; }
+.b-dial .ring {
+  position: absolute; inset: 0; border-radius: 999px;
+  background:
+    conic-gradient(from 180deg, rgba(203, 128, 116, 0.9) 0 var(--p), rgba(255, 255, 255, 0.09) 0 100%);
+  -webkit-mask-image: radial-gradient(circle, transparent 57%, #000 58% 74%, transparent 75%);
+  mask-image: radial-gradient(circle, transparent 57%, #000 58% 74%, transparent 75%);
+  filter: drop-shadow(0 0 calc(5 * var(--u)) rgba(203, 128, 116, 0.45));
+}
+.b-dial .ticks {
+  position: absolute; inset: calc(3 * var(--u)); border-radius: 999px;
+  background: repeating-conic-gradient(from 0deg, rgba(216, 178, 106, 0.42) 0deg 0.6deg, transparent 0.6deg 30deg);
+  -webkit-mask-image: radial-gradient(circle, transparent 62%, #000 63% 70%, transparent 71%);
+  mask-image: radial-gradient(circle, transparent 62%, #000 63% 70%, transparent 71%);
+}
+.b-dial .face {
+  position: absolute; inset: calc(7 * var(--u)); border-radius: 999px;
+  background: radial-gradient(70% 60% at 38% 26%, #2c2418, #16110b 62%, #0d0a07);
+  border: 1px solid rgba(216, 178, 106, 0.4);
+  box-shadow: inset 0 calc(2 * var(--u)) calc(6 * var(--u)) rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 226, 170, 0.16);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(1 * var(--u));
+}
+.b-dial .face b { font-family: var(--num); font-size: calc(15 * var(--u)); color: #f6ead5; line-height: 1; }
+.b-dial .face em { font-style: normal; font-size: calc(5.5 * var(--u)); letter-spacing: 0.24em; color: var(--dim); }
+
+/* 铜牌：一层亮面渐变 + 上沿高光 + 下沿暗边 + 左右两枚铆钉。 */
+.b-plate {
+  position: relative;
+  display: flex; align-items: center; gap: calc(8 * var(--u));
+  height: calc(34 * var(--u)); padding: 0 calc(11 * var(--u));
+  border-radius: calc(4 * var(--u));
+  background: linear-gradient(180deg, #3a2c1c, #1d150d 58%, #120d08);
+  border: 1px solid rgba(216, 178, 106, 0.42);
+  box-shadow: 0 calc(3 * var(--u)) calc(9 * var(--u)) rgba(0, 0, 0, 0.55),
+              inset 0 1px 0 rgba(255, 226, 170, 0.22),
+              inset 0 calc(-1 * var(--u)) 0 rgba(0, 0, 0, 0.5);
+}
+.b-plate::before,
+.b-plate::after {
+  content: ""; position: absolute; top: 50%; width: calc(3 * var(--u)); height: calc(3 * var(--u));
+  transform: translateY(-50%); border-radius: 999px;
+  background: radial-gradient(circle at 35% 30%, #f8e8c0, #8c6a2f 62%, #3a2a12);
+  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.6);
+}
+.b-plate::before { left: calc(4 * var(--u)); }
+.b-plate::after { right: calc(4 * var(--u)); }
+.b-plate .k2 { font-size: calc(6 * var(--u)); letter-spacing: 0.24em; color: #9c855f; writing-mode: horizontal-tb; }
+.b-plate .big { font-family: var(--num); font-size: calc(17 * var(--u)); line-height: 1; color: #f7ecd8; letter-spacing: 0.02em; }
+.b-plate .big small { font-size: calc(8 * var(--u)); color: #8e7b5c; letter-spacing: 0.06em; }
+.b-plate .sub { display: flex; flex-direction: column; gap: calc(1 * var(--u)); }
+.b-plate .sub em { font-style: normal; font-size: calc(5.5 * var(--u)); letter-spacing: 0.2em; color: #8e7b5c; }
+.b-plate .sub b { font-family: var(--num); font-size: calc(8.5 * var(--u)); color: #e8cf9a; font-weight: 500; }
+.b-plate.is-gold { padding-left: calc(12 * var(--u)); }
+.b-plate.is-gold .big { font-size: calc(21 * var(--u)); color: #f9e7b8; text-shadow: 0 0 calc(8 * var(--u)) rgba(247, 227, 174, 0.28); }
+.b-clock { display: flex; align-items: center; gap: calc(5 * var(--u)); font-family: var(--num); font-size: calc(12 * var(--u)); color: #d8c8a8; }
+.b-clock em { font-family: var(--sans); font-style: normal; font-size: calc(6 * var(--u)); letter-spacing: 0.22em; color: var(--dim); }
+
+/* 回合刻线盘：8 道刻线嵌在铜牌里，当前那道亮、走过的半亮 */
+.b-ticks { display: flex; align-items: flex-end; gap: calc(2.5 * var(--u)); height: calc(12 * var(--u)); }
+.b-ticks i { width: calc(3 * var(--u)); height: calc(6 * var(--u)); background: rgba(216, 178, 106, 0.18); }
+.b-ticks i.on { height: calc(9 * var(--u)); background: rgba(216, 178, 106, 0.5); }
+.b-ticks i.cur { height: calc(12 * var(--u)); background: var(--brass-hi); box-shadow: 0 0 calc(5 * var(--u)) rgba(247, 227, 174, 0.7); }
+
+/* 桌面：比 A 案更"厚"—— 桌沿用一根铜线包边，四角有铜角件 */
+.b-board { position: absolute; left: calc(24 * var(--u)); right: calc(24 * var(--u)); top: calc(66 * var(--u)); bottom: calc(92 * var(--u)); }
+.b-table {
+  position: absolute; inset: 0; border-radius: calc(10 * var(--u));
+  background: linear-gradient(168deg, #40301c 0%, #2b1d11 44%, #170f08 100%);
+  box-shadow: 0 calc(14 * var(--u)) calc(30 * var(--u)) rgba(0, 0, 0, 0.62),
+              inset 0 1px 0 rgba(255, 231, 184, 0.2),
+              inset 0 calc(-4 * var(--u)) calc(12 * var(--u)) rgba(0, 0, 0, 0.55);
+}
+.b-table::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; opacity: 0.65;
+  background: repeating-linear-gradient(91deg, rgba(0, 0, 0, 0.28) 0 1px, transparent 1px calc(9 * var(--u)));
+  -webkit-mask-image: linear-gradient(180deg, #000, transparent 70%);
+  mask-image: linear-gradient(180deg, #000, transparent 70%);
+}
+.b-table::after {
+  content: ""; position: absolute; inset: calc(6 * var(--u));
+  border-radius: calc(7 * var(--u));
+  border: 1px solid rgba(216, 178, 106, 0.26);
+  box-shadow: inset 0 0 calc(18 * var(--u)) rgba(0, 0, 0, 0.6);
+}
+.b-felt {
+  position: absolute; inset: calc(12 * var(--u)); border-radius: calc(6 * var(--u)); overflow: hidden;
+  background: radial-gradient(72% 92% at 50% 22%, #1d2c21, #111c15 58%, #0a120d 100%);
+  box-shadow: inset 0 calc(4 * var(--u)) calc(14 * var(--u)) rgba(0, 0, 0, 0.62), inset 0 0 0 1px rgba(216, 178, 106, 0.1);
+}
+.b-felt::before {
+  content: ""; position: absolute; inset: 0; opacity: 0.75;
+  background:
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.03) 0 1px, transparent 1px calc(3 * var(--u))),
+    repeating-linear-gradient(-45deg, rgba(0, 0, 0, 0.16) 0 1px, transparent 1px calc(3 * var(--u)));
+  -webkit-mask-image: radial-gradient(70% 92% at 50% 44%, #000 0 46%, transparent 84%);
+  mask-image: radial-gradient(70% 92% at 50% 44%, #000 0 46%, transparent 84%);
+}
+.b-felt::after {
+  content: ""; position: absolute; inset: 0;
+  background: radial-gradient(62% 72% at 50% 38%, rgba(236, 204, 140, 0.08), transparent 68%),
+              radial-gradient(120% 120% at 50% 128%, rgba(0, 0, 0, 0.6), transparent 60%);
+}
+.b-sigil {
+  position: absolute; left: 50%; top: 52%; width: calc(206 * var(--u)); height: calc(206 * var(--u));
+  transform: translate(-50%, -50%); border-radius: 999px; opacity: 0.5;
+  background: repeating-conic-gradient(from 0deg, rgba(216, 178, 106, 0.12) 0deg 0.6deg, transparent 0.6deg 15deg);
+  -webkit-mask-image: radial-gradient(circle, transparent 41%, #000 42.5% 66%, transparent 67.5%);
+  mask-image: radial-gradient(circle, transparent 41%, #000 42.5% 66%, transparent 67.5%);
+}
+.b-sigil::before, .b-sigil::after { content: ""; position: absolute; border-radius: 999px; }
+.b-sigil::before { inset: 7%; border: 1px dashed rgba(216, 178, 106, 0.2); }
+.b-sigil::after { inset: 22%; border: 1px solid rgba(216, 178, 106, 0.14); }
+
+/* 铜角件：四个角落各一枚 L 形，让桌面读作"一件家具"而不是一块色块 */
+.b-corner { position: absolute; width: calc(16 * var(--u)); height: calc(16 * var(--u)); border: 1px solid rgba(216, 178, 106, 0.5); }
+.b-corner.tl { left: calc(5 * var(--u)); top: calc(5 * var(--u)); border-right: 0; border-bottom: 0; border-top-left-radius: calc(4 * var(--u)); }
+.b-corner.tr { right: calc(5 * var(--u)); top: calc(5 * var(--u)); border-left: 0; border-bottom: 0; border-top-right-radius: calc(4 * var(--u)); }
+.b-corner.bl { left: calc(5 * var(--u)); bottom: calc(5 * var(--u)); border-right: 0; border-top: 0; border-bottom-left-radius: calc(4 * var(--u)); }
+.b-corner.br { right: calc(5 * var(--u)); bottom: calc(5 * var(--u)); border-left: 0; border-top: 0; border-bottom-right-radius: calc(4 * var(--u)); }
+
+.b-roles {
+  position: absolute; left: 0; right: 0; bottom: calc(18 * var(--u));
+  display: flex; justify-content: center; gap: calc(15 * var(--u));
+}
+.b-scene { position: absolute; left: calc(50% - 231 * var(--u)); bottom: calc(36 * var(--u)); display: flex; flex-direction: column; gap: calc(5 * var(--u)); }
+.b-scene .k { color: rgba(216, 178, 106, 0.45); }
+.b-scene .slot, .b-scene .card { --cw: calc(50 * var(--u)); --ch: calc(76 * var(--u)); }
+.b-scene .card .glyph { font-size: calc(14 * var(--u)); }
+
+/* 卡位：四角铜角件 + 内凹阴影。空位里那句「空位」是刻在铜底上的 */
+.b-slot {
+  position: relative; width: calc(68 * var(--u)); height: calc(102 * var(--u)); flex: none;
+  border-radius: calc(3 * var(--u));
+  background: radial-gradient(70% 54% at 50% 0%, rgba(216, 178, 106, 0.13), transparent 74%), rgba(10, 8, 5, 0.5);
+  border: 1px solid rgba(216, 178, 106, 0.22);
+  box-shadow: inset 0 calc(2 * var(--u)) calc(9 * var(--u)) rgba(0, 0, 0, 0.75);
+  display: flex; align-items: center; justify-content: center;
+}
+.b-slot .brk { position: absolute; width: calc(10 * var(--u)); height: calc(10 * var(--u)); border: 1px solid rgba(216, 178, 106, 0.6); }
+.b-slot .brk.tl { left: calc(-1 * var(--u)); top: calc(-1 * var(--u)); border-right: 0; border-bottom: 0; }
+.b-slot .brk.tr { right: calc(-1 * var(--u)); top: calc(-1 * var(--u)); border-left: 0; border-bottom: 0; }
+.b-slot .brk.bl { left: calc(-1 * var(--u)); bottom: calc(-1 * var(--u)); border-right: 0; border-top: 0; }
+.b-slot .brk.br { right: calc(-1 * var(--u)); bottom: calc(-1 * var(--u)); border-left: 0; border-top: 0; }
+.b-slot .hint {
+  position: absolute; left: 50%; bottom: calc(8 * var(--u)); transform: translateX(-50%);
+  font-size: calc(6 * var(--u)); letter-spacing: 0.22em; color: rgba(216, 178, 106, 0.46); white-space: nowrap;
+}
+.b-slot .dot { width: calc(4 * var(--u)); height: calc(4 * var(--u)); transform: rotate(45deg); background: rgba(216, 178, 106, 0.35); }
+
+/* B 案的卡：外面再套一圈铜框（贴纸感），稀有度角标仍然只在描边上 */
+.b-frame {
+  padding: calc(2 * var(--u)); border-radius: calc(5 * var(--u));
+  background: linear-gradient(180deg, rgba(216, 178, 106, 0.5), rgba(216, 178, 106, 0.14) 60%, rgba(140, 106, 47, 0.42));
+  box-shadow: 0 calc(4 * var(--u)) calc(10 * var(--u)) rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 226, 170, 0.3);
+}
+.b-frame > .card { border-radius: calc(3 * var(--u)); }
+
+/* 右侧道具栏：一条 34px 的铜条，道具嵌在槽里，最下面一把钳子 */
+.b-rail {
+  position: absolute; right: calc(-2 * var(--u)); top: 46%; transform: translateY(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: calc(6 * var(--u));
+  padding: calc(7 * var(--u)) calc(6 * var(--u));
+  border-radius: calc(5 * var(--u));
+  background: linear-gradient(180deg, rgba(58, 44, 28, 0.9), rgba(18, 13, 8, 0.92));
+  border: 1px solid rgba(216, 178, 106, 0.34);
+  box-shadow: 0 calc(4 * var(--u)) calc(12 * var(--u)) rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 226, 170, 0.16);
+}
+.b-rail .k { color: rgba(216, 178, 106, 0.45); }
+.b-rail .card { --cw: calc(28 * var(--u)); --ch: calc(40 * var(--u)); }
+.b-rail .card .cap { height: calc(9 * var(--u)); font-size: calc(4.5 * var(--u)); }
+.b-rail .card .art { inset: 1px 1px calc(9 * var(--u)); }
+.b-rail .card .glyph { font-size: calc(9 * var(--u)); }
+.b-rail .card .pip { width: calc(2.6 * var(--u)); height: calc(2.6 * var(--u)); right: calc(2 * var(--u)); top: calc(2 * var(--u)); }
+.b-rail .card::after { display: none; }
+.b-rail .tool {
+  width: calc(28 * var(--u)); height: calc(20 * var(--u));
+  display: flex; align-items: center; justify-content: center;
+  border-radius: calc(2 * var(--u));
+  border: 1px solid rgba(216, 178, 106, 0.28);
+  background: rgba(0, 0, 0, 0.3);
+  font-size: calc(8 * var(--u)); color: rgba(216, 178, 106, 0.62);
+}
+
+/* 底部：一条铜托盘。托盘有自己的上沿高光与下沿暗边，背包卡陷在凹槽里 */
+.b-tray {
+  position: absolute; left: calc(16 * var(--u)); right: calc(16 * var(--u)); bottom: calc(10 * var(--u));
+  padding: calc(7 * var(--u)) calc(12 * var(--u)) calc(8 * var(--u));
+  border-radius: calc(6 * var(--u));
+  border: 1px solid rgba(216, 178, 106, 0.4);
+  background: linear-gradient(180deg, rgba(58, 44, 28, 0.88), rgba(20, 14, 9, 0.94));
+  box-shadow: 0 calc(6 * var(--u)) calc(16 * var(--u)) rgba(0, 0, 0, 0.6),
+              inset 0 1px 0 rgba(255, 226, 170, 0.2),
+              inset 0 calc(-2 * var(--u)) 0 rgba(0, 0, 0, 0.45);
+}
+.b-tray::before,
+.b-tray::after {
+  content: ""; position: absolute; top: calc(5 * var(--u)); width: calc(3 * var(--u)); height: calc(3 * var(--u)); border-radius: 999px;
+  background: radial-gradient(circle at 35% 30%, #f8e8c0, #8c6a2f 62%, #3a2a12);
+}
+.b-tray::before { left: calc(6 * var(--u)); }
+.b-tray::after { right: calc(6 * var(--u)); }
+.b-tray-in { display: flex; align-items: center; justify-content: space-between; gap: calc(10 * var(--u)); }
+.b-bag { display: flex; align-items: center; gap: calc(9 * var(--u)); }
+.b-bag-head { display: flex; flex-direction: column; gap: calc(4 * var(--u)); }
+.b-bag-head .t { font-family: var(--serif); font-size: calc(9.5 * var(--u)); letter-spacing: 0.12em; color: #f0e3c6; }
+.b-bag-head .t b { font-family: var(--num); font-size: calc(11 * var(--u)); color: var(--brass-hi); }
+.b-bag-head .hint { font-size: calc(6 * var(--u)); letter-spacing: 0.06em; color: #8c7a5b; white-space: nowrap; }
+.b-bag .slotcard {
+  padding: calc(2 * var(--u)); border-radius: calc(4 * var(--u));
+  background: linear-gradient(180deg, rgba(216, 178, 106, 0.34), rgba(140, 106, 47, 0.18));
+  box-shadow: inset 0 calc(2 * var(--u)) calc(6 * var(--u)) rgba(0, 0, 0, 0.6);
+}
+.b-bag .slotcard .card { --cw: calc(34 * var(--u)); --ch: calc(52 * var(--u)); }
+.b-bag .slotcard .card .cap { height: calc(12 * var(--u)); font-size: calc(5 * var(--u)); }
+.b-bag .slotcard .card .art { inset: 1px 1px calc(12 * var(--u)); }
+.b-bag .slotcard .card .glyph { font-size: calc(10 * var(--u)); }
+.b-bag .slotcard .card .pip { width: calc(3 * var(--u)); height: calc(3 * var(--u)); right: calc(2 * var(--u)); top: calc(2 * var(--u)); }
+.b-bag .slotcard .card::after { display: none; }
+.b-bag .sell { display: block; text-align: center; font-size: calc(5 * var(--u)); letter-spacing: 0.12em; color: #b3945f; }
+
+.b-actions { display: flex; align-items: center; gap: calc(8 * var(--u)); }
+.b-hint { font-size: calc(6 * var(--u)); letter-spacing: 0.08em; color: #8c7a5b; white-space: nowrap; }
+.b-shop {
+  display: flex; align-items: center; gap: calc(7 * var(--u));
+  height: calc(42 * var(--u)); padding: 0 calc(10 * var(--u));
+  border-radius: calc(5 * var(--u));
+  border: 1px solid rgba(216, 178, 106, 0.55);
+  background: linear-gradient(180deg, #4a3722, #241a0f 60%, #171008);
+  box-shadow: inset 0 1px 0 rgba(255, 226, 170, 0.28), 0 calc(3 * var(--u)) calc(9 * var(--u)) rgba(0, 0, 0, 0.5);
+  color: #f2e5ca; cursor: pointer;
+}
+.b-shop .ic { font-size: calc(14 * var(--u)); filter: grayscale(1) brightness(1.2); }
+.b-shop .txt { display: flex; flex-direction: column; gap: calc(2 * var(--u)); align-items: flex-start; }
+.b-shop .txt b { font-family: var(--serif); font-size: calc(9 * var(--u)); letter-spacing: 0.16em; color: #f4e8d0; font-weight: 600; }
+.b-shop .txt em { font-style: normal; font-family: var(--num); font-size: calc(7.5 * var(--u)); color: #e8cf9a; letter-spacing: 0.04em; }
+.b-cta {
+  display: flex; align-items: center; gap: calc(7 * var(--u));
+  height: calc(42 * var(--u)); padding: 0 calc(16 * var(--u));
+  border-radius: calc(6 * var(--u)); border: 1px solid #f8e8bd;
+  background: linear-gradient(180deg, #f8e4b1, #ddb56c 46%, #b98b41);
+  color: #2b1d09; font-family: var(--serif); font-size: calc(11 * var(--u)); font-weight: 700; letter-spacing: 0.14em;
+  box-shadow: 0 calc(5 * var(--u)) calc(13 * var(--u)) rgba(0, 0, 0, 0.5),
+              inset 0 1px 0 rgba(255, 255, 255, 0.62), inset 0 calc(-2 * var(--u)) 0 rgba(92, 60, 18, 0.32);
+}
+.b-cta span { font-family: var(--sans); font-weight: 400; }
+
+/* ── B 案 · 商店栏：一根横贯的铜导轨 ── */
+.b-strip {
+  position: absolute; left: 0; right: 0; top: 0;
+  padding: calc(10 * var(--u)) calc(18 * var(--u)) calc(10 * var(--u));
+  background: linear-gradient(180deg, rgba(48, 36, 23, 0.96), rgba(16, 11, 7, 0.97));
+  border-bottom: 1px solid rgba(216, 178, 106, 0.5);
+  box-shadow: 0 calc(8 * var(--u)) calc(22 * var(--u)) rgba(0, 0, 0, 0.62), inset 0 1px 0 rgba(255, 226, 170, 0.2);
+}
+.b-strip::after {
+  /* 导轨下沿的一道铜光：让"顶栏"看起来是压在屏幕上方的一块金属，而不是一张卡 */
+  content: ""; position: absolute; left: 0; right: 0; bottom: calc(-2 * var(--u)); height: calc(2 * var(--u));
+  background: linear-gradient(90deg, transparent, rgba(216, 178, 106, 0.5) 12%, rgba(247, 227, 174, 0.7) 50%, rgba(216, 178, 106, 0.5) 88%, transparent);
+  opacity: 0.6;
+}
+.b-strip-in { display: flex; align-items: flex-start; gap: calc(14 * var(--u)); }
+.b-head { display: flex; flex-direction: column; gap: calc(5 * var(--u)); width: calc(118 * var(--u)); padding-top: calc(5 * var(--u)); }
+.b-head .ttl { font-family: var(--serif); font-size: calc(13 * var(--u)); letter-spacing: 0.22em; color: #f4e8d0; }
+.b-head .meta { font-size: calc(6.5 * var(--u)); letter-spacing: 0.12em; color: #a08a66; }
+.b-head .meta i { font-style: normal; font-family: var(--num); color: #e8cf9a; }
+.b-head .gold { display: flex; align-items: baseline; gap: calc(5 * var(--u)); }
+.b-head .gold b { font-family: var(--num); font-size: calc(20 * var(--u)); color: #f9e7b8; line-height: 1; }
+.b-head .gold em { font-style: normal; font-size: calc(6.5 * var(--u)); letter-spacing: 0.16em; color: #a08a66; }
+.b-head .int { font-size: calc(6.5 * var(--u)); letter-spacing: 0.1em; color: #b3945f; }
+.b-head .int i { font-style: normal; font-family: var(--num); color: #e8cf9a; }
+
+.b-goods { display: flex; align-items: flex-start; gap: calc(9 * var(--u)); }
+.b-good { display: flex; flex-direction: column; align-items: center; gap: calc(3 * var(--u)); }
+.b-good .card { --cw: calc(52 * var(--u)); --ch: calc(78 * var(--u)); cursor: pointer; }
+.b-good .card .glyph { font-size: calc(14 * var(--u)); }
+.b-good .price {
+  display: inline-flex; align-items: center; gap: calc(3 * var(--u));
+  padding: 0 calc(4 * var(--u)); height: calc(11 * var(--u)); border-radius: calc(2 * var(--u));
+  background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(216, 178, 106, 0.26);
+  font-family: var(--num); font-size: calc(7.5 * var(--u)); color: #f0d9a4;
+}
+.b-good .price small { font-family: var(--sans); font-size: calc(5.5 * var(--u)); letter-spacing: 0.14em; color: #9c855f; }
+.b-good.is-gone .gone {
+  width: calc(52 * var(--u)); height: calc(78 * var(--u));
+  display: flex; align-items: center; justify-content: center;
+  border-radius: calc(3 * var(--u)); border: 1px solid rgba(216, 178, 106, 0.2);
+  background: rgba(0, 0, 0, 0.4);
+  font-size: calc(6 * var(--u)); letter-spacing: 0.14em; color: #7d6a4c;
+}
+.b-ops { margin-left: auto; display: flex; flex-direction: column; gap: calc(5 * var(--u)); width: calc(104 * var(--u)); }
+.b-op {
+  display: flex; align-items: center; justify-content: space-between; gap: calc(6 * var(--u));
+  height: calc(26 * var(--u)); padding: 0 calc(8 * var(--u));
+  border-radius: calc(3 * var(--u));
+  border: 1px solid rgba(216, 178, 106, 0.34);
+  background: linear-gradient(180deg, rgba(74, 55, 34, 0.85), rgba(24, 18, 11, 0.9));
+  box-shadow: inset 0 1px 0 rgba(255, 226, 170, 0.18);
+  color: #ecdcbb; font-size: calc(8 * var(--u)); letter-spacing: 0.12em; text-align: left; cursor: pointer;
+}
+.b-op em { font-style: normal; font-family: var(--num); font-size: calc(7 * var(--u)); color: #b3945f; }
+.b-op.leave { border-color: rgba(216, 178, 106, 0.62); }
+
+/* ── B 案 · 背包栏：托盘长高，卡陷进凹槽 ── */
+.b-drawer {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  padding: calc(8 * var(--u)) calc(16 * var(--u)) calc(12 * var(--u));
+  background: linear-gradient(180deg, rgba(52, 39, 24, 0.96), rgba(14, 10, 6, 0.98));
+  border-top: 1px solid rgba(216, 178, 106, 0.5);
+  box-shadow: 0 calc(-8 * var(--u)) calc(24 * var(--u)) rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 226, 170, 0.2);
+}
+.b-drawer-in { display: flex; flex-direction: column; gap: calc(7 * var(--u)); }
+.b-drawer-head { display: flex; align-items: baseline; gap: calc(12 * var(--u)); }
+.b-drawer-head .ttl { font-family: var(--serif); font-size: calc(11.5 * var(--u)); letter-spacing: 0.18em; color: #f4e8d0; }
+.b-drawer-head .tally { display: flex; gap: calc(10 * var(--u)); font-size: calc(6.5 * var(--u)); letter-spacing: 0.1em; color: #a08a66; }
+.b-drawer-head .tally i { font-style: normal; font-family: var(--num); font-size: calc(8 * var(--u)); color: #e8cf9a; }
+.b-drawer-head .tip { margin-left: auto; font-size: calc(6.5 * var(--u)); letter-spacing: 0.08em; color: #b3945f; }
+.b-hand { display: flex; align-items: flex-start; gap: calc(9 * var(--u)); }
+.b-hand .hcard { display: flex; flex-direction: column; gap: calc(2 * var(--u)); }
+.b-hand .hcard .card { --cw: calc(44 * var(--u)); --ch: calc(66 * var(--u)); }
+.b-hand .hcard .card .glyph { font-size: calc(12 * var(--u)); }
+.b-hand .hcard .sell { text-align: center; font-size: calc(5.5 * var(--u)); letter-spacing: 0.1em; color: #b3945f; }
+.b-hand .hcard .sell b { font-family: var(--num); color: #e8cf9a; font-weight: 500; }
+.b-hand .more { align-self: center; font-size: calc(6.5 * var(--u)); letter-spacing: 0.1em; color: #8c7a5b; }
+.b-hand .slotcard {
+  padding: calc(2 * var(--u)); border-radius: calc(4 * var(--u));
+  background: linear-gradient(180deg, rgba(216, 178, 106, 0.3), rgba(140, 106, 47, 0.16));
+  box-shadow: inset 0 calc(2 * var(--u)) calc(6 * var(--u)) rgba(0, 0, 0, 0.6);
+}
+
+/* ── B 案 · 结算小窗：一枚带铆钉的铜窗口 ── */
+.b-veil { position: absolute; inset: 0; background: radial-gradient(56% 60% at 50% 48%, rgba(0, 0, 0, 0.36), rgba(0, 0, 0, 0.74)); }
+.b-window {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: calc(410 * var(--u));
+  padding: calc(5 * var(--u));
+  border-radius: calc(9 * var(--u));
+  background: linear-gradient(180deg, #5a4529, #2a1f12 34%, #161009 100%);
+  box-shadow: 0 calc(24 * var(--u)) calc(52 * var(--u)) rgba(0, 0, 0, 0.72),
+              inset 0 1px 0 rgba(255, 226, 170, 0.42);
+  border: 1px solid rgba(247, 227, 174, 0.5);
+}
+.b-window::before,
+.b-window::after {
+  content: ""; position: absolute; width: calc(4 * var(--u)); height: calc(4 * var(--u)); border-radius: 999px;
+  background: radial-gradient(circle at 35% 30%, #fdf1cd, #8c6a2f 64%, #3a2a12);
+}
+.b-window::before { left: calc(9 * var(--u)); top: calc(9 * var(--u)); }
+.b-window::after { right: calc(9 * var(--u)); top: calc(9 * var(--u)); }
+.b-window-in {
+  border-radius: calc(7 * var(--u));
+  padding: calc(14 * var(--u)) calc(16 * var(--u)) calc(12 * var(--u));
+  background: linear-gradient(178deg, rgba(20, 15, 10, 0.97), rgba(7, 6, 5, 0.98));
+  box-shadow: inset 0 0 0 1px rgba(216, 178, 106, 0.22), inset 0 calc(3 * var(--u)) calc(14 * var(--u)) rgba(0, 0, 0, 0.7);
+}
+.b-res-head { display: flex; align-items: flex-end; gap: calc(12 * var(--u)); padding-bottom: calc(7 * var(--u)); border-bottom: 1px solid rgba(216, 178, 106, 0.2); }
+.b-res-head .eyebrow { font-size: calc(6 * var(--u)); letter-spacing: 0.3em; color: #9c855f; }
+.b-res-head h2 { margin: 0; font-family: var(--serif); font-size: calc(15 * var(--u)); letter-spacing: 0.22em; color: #f6ead5; font-weight: 600; }
+.b-res-head .sum { margin-left: auto; display: flex; gap: calc(10 * var(--u)); font-size: calc(6 * var(--u)); letter-spacing: 0.08em; color: #9c855f; }
+.b-res-head .sum b { font-family: var(--num); font-size: calc(10 * var(--u)); color: #f0d9a4; }
+.b-res { margin: calc(9 * var(--u)) 0 0; padding: 0; list-style: none; }
+.b-res-cols, .b-res li {
+  display: grid; grid-template-columns: calc(22 * var(--u)) 1fr calc(28 * var(--u)) calc(28 * var(--u)) calc(44 * var(--u)) calc(48 * var(--u));
+  align-items: center; gap: calc(6 * var(--u));
+}
+.b-res-cols { margin-top: calc(6 * var(--u)); padding: 0 calc(7 * var(--u)) calc(5 * var(--u)); font-size: calc(5.5 * var(--u)); letter-spacing: 0.2em; color: #7d6a4c; }
+.b-res-cols span:nth-child(n + 3) { text-align: right; }
+.b-res li { position: relative; padding: calc(5 * var(--u)) calc(7 * var(--u)); border-top: 1px solid rgba(216, 178, 106, 0.16); }
+.b-res li .rk { font-family: var(--num); font-size: calc(11 * var(--u)); color: #a08a66; }
+.b-res li .who { font-family: var(--serif); font-size: calc(9 * var(--u)); letter-spacing: 0.08em; color: #e9dcc2; }
+.b-res li .who i { font-style: normal; margin-left: calc(5 * var(--u)); font-size: calc(5.5 * var(--u)); letter-spacing: 0.16em; color: #b3945f; }
+.b-res li .v { font-family: var(--num); font-size: calc(10 * var(--u)); text-align: right; color: #d9cbaf; }
+.b-res li .v.dmg { color: #d79a8c; }
+.b-res li .v.hp::after { content: " 血"; font-family: var(--sans); font-size: calc(5 * var(--u)); letter-spacing: 0.1em; color: #7d6a4c; }
+.b-res li.me { background: linear-gradient(90deg, rgba(216, 178, 106, 0.12), transparent 72%); }
+.b-res li.me .who, .b-res li.me .v { color: #f7ecd8; }
+.b-res li.me .rk { color: #f0d9a4; }
+.b-res-foot { display: flex; align-items: center; gap: calc(8 * var(--u)); margin-top: calc(11 * var(--u)); }
+.b-res-foot .note { font-size: calc(6 * var(--u)); letter-spacing: 0.08em; color: #7d6a4c; }
+.b-res-foot .sp { margin-left: auto; }
+.b-res-foot .btn { height: calc(26 * var(--u)); font-size: calc(8.5 * var(--u)); }
+
+/* ═════════════════════════════ C 案 · 全息织物 ═════════════════════════════
+   定位：这一局是一块会发光的织物。顶栏是织带、卡位是缝线框、商店栏是织机横梁，
+   金线勾边 + 极稀薄的冷光（holographic 只在"线"上，不在面料上）。
+   结构上比 A 多一层"布"的层次，比 B 少一堆金属件。 */
+
+/* 织带：两个方向的斜纹 + 上沿一道金线。分隔用"线"不用"块"。 */
+.c-weave {
+  display: flex; align-items: stretch; gap: calc(0 * var(--u));
+  height: calc(46 * var(--u));
+  border-radius: calc(4 * var(--u));
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 224, 170, 0.05) 0 1px, transparent 1px calc(3 * var(--u))),
+    repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.16) 0 1px, transparent 1px calc(3 * var(--u))),
+    linear-gradient(180deg, rgba(46, 34, 22, 0.92), rgba(14, 10, 7, 0.9));
+  border-top: 1px solid rgba(216, 178, 106, 0.34);
+  border-bottom: 1px solid rgba(216, 178, 106, 0.24);
+  box-shadow: 0 calc(5 * var(--u)) calc(16 * var(--u)) rgba(0, 0, 0, 0.5);
+}
+.c-cell { position: relative; display: flex; flex-direction: column; justify-content: center; gap: calc(3 * var(--u)); padding: 0 calc(12 * var(--u)); }
+.c-cell + .c-cell::before {
+  /* 分隔是"一道缝"：中间实、两端虚，像布料上的拼接线 */
+  content: ""; position: absolute; left: 0; top: 22%; bottom: 22%; width: 1px;
+  background: linear-gradient(180deg, transparent, rgba(216, 178, 106, 0.36) 30%, rgba(216, 178, 106, 0.36) 70%, transparent);
+}
+.c-cell .k { color: rgba(216, 178, 106, 0.5); }
+.c-cell b { font-family: var(--num); font-size: calc(15 * var(--u)); line-height: 1; color: #f6ead5; letter-spacing: 0.02em; }
+.c-cell b small { font-size: calc(7 * var(--u)); color: #8c7a5b; letter-spacing: 0.08em; }
+.c-cell .phase { font-family: var(--serif); font-size: calc(13 * var(--u)); letter-spacing: 0.2em; color: #f6ead5; line-height: 1; }
+.c-grow { flex: 1; }
+.c-cell.is-gold b { font-size: calc(19 * var(--u)); color: #f9e7b8; text-shadow: 0 0 calc(10 * var(--u)) rgba(247, 227, 174, 0.25); }
+.c-cell.is-gold .int { font-size: calc(6 * var(--u)); letter-spacing: 0.14em; color: #b3945f; }
+.c-cell.is-gold .line { display: flex; align-items: baseline; gap: calc(6 * var(--u)); }
+.c-cell.is-gold .int i { font-style: normal; font-family: var(--num); color: #e8cf9a; }
+.c-notches { display: flex; gap: calc(2.5 * var(--u)); margin-top: calc(2 * var(--u)); }
+.c-notches i { width: calc(8 * var(--u)); height: calc(2 * var(--u)); background: rgba(216, 178, 106, 0.18); }
+.c-notches i.on { background: rgba(216, 178, 106, 0.52); }
+.c-notches i.cur { background: #f2dfae; box-shadow: 0 0 calc(6 * var(--u)) rgba(247, 227, 174, 0.8); }
+/* 血：一根缝线，线上一枚结 */
+.c-thread { display: flex; align-items: center; gap: calc(5 * var(--u)); }
+.c-thread .rail { position: relative; width: calc(52 * var(--u)); height: 1px; background: rgba(255, 255, 255, 0.16); }
+.c-thread .rail i { display: block; height: 100%; background: linear-gradient(90deg, rgba(201, 131, 122, 0.5), #d99a86); box-shadow: 0 0 calc(5 * var(--u)) rgba(217, 154, 134, 0.4); }
+.c-thread .rail::after {
+  content: ""; position: absolute; right: 0; top: 50%; width: calc(3 * var(--u)); height: calc(3 * var(--u)); border-radius: 999px;
+  transform: translate(50%, -50%); background: #e8b7a8; box-shadow: 0 0 calc(6 * var(--u)) rgba(232, 183, 168, 0.7);
+}
+.c-clock { font-family: var(--num); font-size: calc(12 * var(--u)); color: #d8c8a8; }
+
+/* 桌面：一块铺开的织物（织纹更明显、颜色更冷一点，与木桌区分开） */
+.c-board { position: absolute; left: calc(24 * var(--u)); right: calc(24 * var(--u)); top: calc(62 * var(--u)); bottom: calc(90 * var(--u)); }
+.c-cloth {
+  position: absolute; inset: 0; border-radius: calc(10 * var(--u)); overflow: hidden;
+  background: radial-gradient(74% 96% at 50% 18%, #1e2d24, #121d16 56%, #0a110d 100%);
+  box-shadow: 0 calc(12 * var(--u)) calc(30 * var(--u)) rgba(0, 0, 0, 0.58),
+              inset 0 calc(3 * var(--u)) calc(14 * var(--u)) rgba(0, 0, 0, 0.55);
+}
+.c-cloth::before {
+  content: ""; position: absolute; inset: 0; opacity: 0.9;
+  background:
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.045) 0 1px, transparent 1px calc(4 * var(--u))),
+    repeating-linear-gradient(-45deg, rgba(0, 0, 0, 0.2) 0 1px, transparent 1px calc(4 * var(--u)));
+  -webkit-mask-image: radial-gradient(76% 100% at 50% 44%, #000 0 48%, transparent 86%);
+  mask-image: radial-gradient(76% 100% at 50% 44%, #000 0 48%, transparent 86%);
+}
+.c-cloth::after {
+  content: ""; position: absolute; inset: calc(7 * var(--u)); border-radius: calc(7 * var(--u));
+  border: 1px dashed rgba(216, 178, 106, 0.22);
+  box-shadow: inset 0 0 calc(20 * var(--u)) rgba(0, 0, 0, 0.5);
+}
+.c-sigil {
+  position: absolute; left: 50%; top: 52%; width: calc(206 * var(--u)); height: calc(206 * var(--u));
+  transform: translate(-50%, -50%); border-radius: 999px; opacity: 0.5;
+  background: repeating-conic-gradient(from 0deg, rgba(216, 178, 106, 0.12) 0deg 0.6deg, transparent 0.6deg 15deg);
+  -webkit-mask-image: radial-gradient(circle, transparent 42%, #000 43% 66%, transparent 67%);
+  mask-image: radial-gradient(circle, transparent 42%, #000 43% 66%, transparent 67%);
+}
+.c-sigil::before { content: ""; position: absolute; inset: 8%; border-radius: 999px; border: 1px dashed rgba(216, 178, 106, 0.24); }
+.c-sigil::after {
+  /* 那一圈"全息"：极淡的冷光晕，只沿环走一圈，不铺满 */
+  content: ""; position: absolute; inset: 18%; border-radius: 999px;
+  border: 1px solid rgba(159, 191, 180, 0.18);
+  box-shadow: 0 0 calc(16 * var(--u)) rgba(159, 191, 180, 0.12), inset 0 0 calc(16 * var(--u)) rgba(159, 191, 180, 0.1);
+}
+
+.c-roles {
+  position: absolute; left: 0; right: 0; bottom: calc(18 * var(--u));
+  display: flex; justify-content: center; gap: calc(16 * var(--u));
+}
+.c-scene { position: absolute; left: calc(50% - 238 * var(--u)); bottom: calc(36 * var(--u)); display: flex; flex-direction: column; gap: calc(5 * var(--u)); }
+.c-scene .k { color: rgba(216, 178, 106, 0.45); }
+.c-scene .slot, .c-scene .card { --cw: calc(50 * var(--u)); --ch: calc(76 * var(--u)); }
+.c-scene .card .glyph { font-size: calc(14 * var(--u)); }
+
+/* 卡位：缝线框（虚线）+ 四角十字绣 */
+.c-slot {
+  position: relative; width: calc(70 * var(--u)); height: calc(104 * var(--u)); flex: none;
+  border-radius: calc(4 * var(--u));
+  border: 1px dashed rgba(216, 178, 106, 0.34);
+  background: radial-gradient(80% 54% at 50% 0%, rgba(216, 178, 106, 0.07), transparent 72%), rgba(0, 0, 0, 0.16);
+  display: flex; align-items: center; justify-content: center;
+}
+.c-slot .x { position: absolute; width: calc(7 * var(--u)); height: calc(7 * var(--u)); opacity: 0.67; }
+.c-slot .x::before, .c-slot .x::after {
+  content: ""; position: absolute; left: 50%; top: 0; width: 1px; height: 100%;
+  background: rgba(216, 178, 106, 0.7);
+}
+.c-slot .x::after { transform: rotate(90deg); }
+.c-slot .x.tl { left: calc(-3.5 * var(--u)); top: calc(-3.5 * var(--u)); }
+.c-slot .x.tr { right: calc(-3.5 * var(--u)); top: calc(-3.5 * var(--u)); }
+.c-slot .x.bl { left: calc(-3.5 * var(--u)); bottom: calc(-3.5 * var(--u)); }
+.c-slot .x.br { right: calc(-3.5 * var(--u)); bottom: calc(-3.5 * var(--u)); }
+.c-slot .hint {
+  position: absolute; left: 50%; bottom: calc(8 * var(--u)); transform: translateX(-50%);
+  font-size: calc(6 * var(--u)); letter-spacing: 0.22em; color: rgba(216, 178, 106, 0.4); white-space: nowrap;
+}
+.c-slot .dot { width: calc(3.5 * var(--u)); height: calc(3.5 * var(--u)); transform: rotate(45deg); background: rgba(216, 178, 106, 0.42); }
+
+/* C 案的卡：卡面外有一圈缝线（不是铜框），卡与桌布之间只隔一道针脚 */
+.c-stitch-card { position: relative; padding: calc(3 * var(--u)); border-radius: calc(5 * var(--u)); }
+.c-stitch-card::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit;
+  border: 1px dashed rgba(216, 178, 106, 0.4);
+}
+.c-stitch-card > .card { border-radius: calc(3 * var(--u)); }
+
+/* 右栏：一窄条织带，道具像别在带子上 */
+.c-rail {
+  position: absolute; right: calc(-2 * var(--u)); top: 46%; transform: translateY(-50%);
+  display: flex; flex-direction: column; align-items: center; gap: calc(6 * var(--u));
+  padding: calc(7 * var(--u)) calc(5 * var(--u));
+  background: linear-gradient(180deg, rgba(40, 30, 20, 0.86), rgba(12, 9, 6, 0.9));
+  border-top: 1px solid rgba(216, 178, 106, 0.3);
+  border-bottom: 1px solid rgba(216, 178, 106, 0.3);
+}
+.c-rail .k { color: rgba(216, 178, 106, 0.45); }
+.c-rail .card { --cw: calc(28 * var(--u)); --ch: calc(40 * var(--u)); }
+.c-rail .card .cap { height: calc(9 * var(--u)); font-size: calc(4.5 * var(--u)); }
+.c-rail .card .art { inset: 1px 1px calc(9 * var(--u)); }
+.c-rail .card .glyph { font-size: calc(9 * var(--u)); }
+.c-rail .card .pip { width: calc(2.6 * var(--u)); height: calc(2.6 * var(--u)); right: calc(2 * var(--u)); top: calc(2 * var(--u)); }
+.c-rail .card::after { display: none; }
+.c-rail .tool {
+  width: calc(28 * var(--u)); height: calc(20 * var(--u));
+  display: flex; align-items: center; justify-content: center;
+  border: 1px dashed rgba(216, 178, 106, 0.3);
+  font-size: calc(8 * var(--u)); color: rgba(216, 178, 106, 0.6);
+}
+
+/* 底部：一条带流苏的织带。流苏用 repeating-linear-gradient 画在带子下沿 */
+.c-band {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  padding: calc(9 * var(--u)) calc(20 * var(--u)) calc(13 * var(--u));
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 224, 170, 0.05) 0 1px, transparent 1px calc(4 * var(--u))),
+    linear-gradient(180deg, rgba(10, 8, 6, 0), rgba(10, 8, 6, 0.9) 30%, rgba(8, 6, 5, 0.96));
+  border-top: 1px solid rgba(216, 178, 106, 0.28);
+}
+.c-band::after {
+  /* 流苏：只在带子下沿 5px，短、稀、不抢戏 */
+  content: ""; position: absolute; left: 0; right: 0; bottom: calc(-5 * var(--u)); height: calc(5 * var(--u));
+  background: repeating-linear-gradient(90deg, rgba(216, 178, 106, 0.28) 0 1px, transparent 1px calc(7 * var(--u)));
+  -webkit-mask-image: linear-gradient(180deg, #000, transparent);
+  mask-image: linear-gradient(180deg, #000, transparent);
+}
+.c-band-in { display: flex; align-items: flex-end; justify-content: space-between; gap: calc(10 * var(--u)); }
+.c-bag { display: flex; align-items: flex-end; gap: calc(8 * var(--u)); }
+.c-bag .bagcard { display: flex; flex-direction: column; align-items: center; gap: calc(2 * var(--u)); }
+.c-bag .bagcard .card { --cw: calc(38 * var(--u)); --ch: calc(58 * var(--u)); }
+.c-bag .bagcard .card .cap { height: calc(13 * var(--u)); font-size: calc(5.5 * var(--u)); }
+.c-bag .bagcard .card .art { inset: 1px 1px calc(13 * var(--u)); }
+.c-bag .bagcard .card .glyph { font-size: calc(11 * var(--u)); }
+.c-bag .bagcard .card .pip { width: calc(3.2 * var(--u)); height: calc(3.2 * var(--u)); right: calc(2.5 * var(--u)); top: calc(2.5 * var(--u)); }
+.c-bag .bagcard .card::after { display: none; }
+.c-bag .bagcard .sell { font-size: calc(5.5 * var(--u)); letter-spacing: 0.06em; color: rgba(216, 178, 106, 0.55); }
+.c-bag-head { display: flex; flex-direction: column; gap: calc(5 * var(--u)); align-self: center; padding-right: calc(4 * var(--u)); }
+.c-bag-head .t { font-family: var(--serif); font-size: calc(9 * var(--u)); letter-spacing: 0.14em; color: #e9dcc2; }
+.c-bag-head .t b { font-family: var(--num); font-size: calc(11 * var(--u)); color: var(--brass-hi); }
+.c-bag-head .hint { font-size: calc(6 * var(--u)); letter-spacing: 0.06em; color: #8c7a5b; white-space: nowrap; }
+.c-actions { display: flex; align-items: center; gap: calc(9 * var(--u)); }
+.c-hint { font-size: calc(6 * var(--u)); letter-spacing: 0.06em; color: #8c7a5b; white-space: nowrap; }
+/* 商店键：一只挂在织带上的小袋（上沿有一个"挂环"） */
+.c-shop {
+  position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(2 * var(--u));
+  width: calc(48 * var(--u)); height: calc(46 * var(--u));
+  border: 1px solid rgba(216, 178, 106, 0.4);
+  border-radius: calc(3 * var(--u)) calc(3 * var(--u)) calc(7 * var(--u)) calc(7 * var(--u));
+  background:
+    repeating-linear-gradient(45deg, rgba(255, 224, 170, 0.04) 0 1px, transparent 1px calc(3 * var(--u))),
+    linear-gradient(180deg, rgba(56, 41, 25, 0.9), rgba(18, 13, 9, 0.94));
+  color: #f2e5ca; cursor: pointer;
+}
+.c-shop::before {
+  /* 挂环 */
+  content: ""; position: absolute; left: 50%; top: calc(-4 * var(--u)); width: calc(9 * var(--u)); height: calc(5 * var(--u));
+  transform: translateX(-50%); border: 1px solid rgba(216, 178, 106, 0.5); border-bottom: 0; border-radius: calc(5 * var(--u)) calc(5 * var(--u)) 0 0;
+}
+.c-shop .ic { font-size: calc(12 * var(--u)); filter: grayscale(1) brightness(1.15); }
+.c-shop .n { font-family: var(--num); font-size: calc(9 * var(--u)); color: var(--brass-hi); }
+.c-shop .n::before { content: "利息 "; font-family: var(--sans); font-size: calc(5.5 * var(--u)); letter-spacing: 0.16em; color: rgba(216, 178, 106, 0.55); }
+.c-shop .lbl { font-size: calc(5.5 * var(--u)); letter-spacing: 0.3em; color: rgba(216, 178, 106, 0.6); }
+.c-cta {
+  display: flex; align-items: center; gap: calc(6 * var(--u));
+  height: calc(34 * var(--u)); padding: 0 calc(14 * var(--u));
+  border: 1px solid rgba(247, 227, 174, 0.6); border-radius: calc(4 * var(--u));
+  background: linear-gradient(180deg, rgba(74, 55, 34, 0.9), rgba(24, 18, 11, 0.94));
+  color: #f6e8cb; font-family: var(--serif); font-size: calc(10 * var(--u)); letter-spacing: 0.16em;
+  box-shadow: 0 0 calc(14 * var(--u)) rgba(216, 178, 106, 0.16), inset 0 1px 0 rgba(255, 226, 170, 0.2);
+}
+.c-cta span { font-family: var(--sans); font-size: calc(9 * var(--u)); color: var(--brass-hi); }
+
+/* ── C 案 · 商店栏：织机横梁（5 个格子，格与格之间是经线） ── */
+.c-loom { position: absolute; left: 0; right: 0; top: 0; padding: calc(9 * var(--u)) calc(18 * var(--u)) calc(11 * var(--u)); }
+.c-loom::before {
+  content: ""; position: absolute; inset: 0;
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 224, 170, 0.045) 0 1px, transparent 1px calc(4 * var(--u))),
+    linear-gradient(180deg, rgba(6, 5, 4, 0.96) 0%, rgba(6, 5, 4, 0.88) 64%, rgba(6, 5, 4, 0) 100%);
+  border-bottom: 1px solid rgba(216, 178, 106, 0.24);
+}
+.c-loom-in { position: relative; z-index: 1; display: flex; align-items: flex-start; gap: calc(14 * var(--u)); }
+.c-loom-head { display: flex; flex-direction: column; gap: calc(6 * var(--u)); width: calc(120 * var(--u)); padding-top: calc(4 * var(--u)); }
+.c-loom-head .ttl { font-family: var(--serif); font-size: calc(13 * var(--u)); letter-spacing: 0.2em; color: #f4e8d0; }
+.c-loom-head .meta { font-size: calc(6.5 * var(--u)); letter-spacing: 0.1em; color: #a08a66; }
+.c-loom-head .meta i { font-style: normal; font-family: var(--num); color: #e8cf9a; }
+.c-loom-head .gold { display: flex; align-items: baseline; gap: calc(5 * var(--u)); }
+.c-loom-head .gold b { font-family: var(--num); font-size: calc(20 * var(--u)); color: #f9e7b8; line-height: 1; }
+.c-loom-head .gold em { font-style: normal; font-size: calc(6.5 * var(--u)); letter-spacing: 0.14em; color: #a08a66; }
+.c-loom-head .tip { font-size: calc(6 * var(--u)); letter-spacing: 0.12em; color: rgba(216, 178, 106, 0.42); }
+.c-cells { display: flex; align-items: flex-start; gap: calc(10 * var(--u)); }
+.c-cellcard {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: calc(3 * var(--u));
+  padding: calc(5 * var(--u)) calc(5 * var(--u)) calc(4 * var(--u));
+  border-left: 1px solid rgba(216, 178, 106, 0.16);
+  border-right: 1px solid rgba(216, 178, 106, 0.16);
+}
+.c-cellcard .card { --cw: calc(52 * var(--u)); --ch: calc(78 * var(--u)); cursor: pointer; }
+.c-cellcard .card .glyph { font-size: calc(14 * var(--u)); }
+.c-cellcard .price {
+  display: inline-flex; align-items: center; gap: calc(3 * var(--u));
+  font-family: var(--num); font-size: calc(8 * var(--u)); color: #f0d9a4;
+}
+.c-cellcard .price small { font-family: var(--sans); font-size: calc(5.5 * var(--u)); letter-spacing: 0.12em; color: #9c855f; }
+.c-cellcard.is-gone .gone {
+  width: calc(52 * var(--u)); height: calc(78 * var(--u));
+  display: flex; align-items: center; justify-content: center;
+  border: 1px dashed rgba(216, 178, 106, 0.2);
+  font-size: calc(6 * var(--u)); letter-spacing: 0.14em; color: rgba(216, 178, 106, 0.34);
+}
+.c-loom-ops { margin-left: auto; display: flex; flex-direction: column; gap: calc(5 * var(--u)); width: calc(96 * var(--u)); }
+.c-op {
+  display: flex; align-items: center; justify-content: space-between; gap: calc(6 * var(--u));
+  height: calc(25 * var(--u)); padding: 0 calc(7 * var(--u));
+  border: 0; border-bottom: 1px dashed rgba(216, 178, 106, 0.24);
+  background: none; color: #eadcc0; font-size: calc(8 * var(--u)); letter-spacing: 0.1em; text-align: left; cursor: pointer;
+}
+.c-op em { font-style: normal; font-size: calc(6.5 * var(--u)); color: #9c855f; }
+.c-op.leave { border-bottom-style: solid; border-bottom-color: rgba(216, 178, 106, 0.46); }
+.c-outside {
+  position: absolute; left: 0; right: 0; bottom: calc(14 * var(--u));
+  text-align: center; font-size: calc(6.5 * var(--u)); letter-spacing: 0.2em; color: rgba(216, 178, 106, 0.3);
+}
+
+/* ── C 案 · 背包栏：一只掀开的布口袋（口袋唇压住卡的下沿）── */
+.c-drawer {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  padding: calc(9 * var(--u)) calc(20 * var(--u)) calc(15 * var(--u));
+  background:
+    repeating-linear-gradient(45deg, rgba(255, 224, 170, 0.035) 0 1px, transparent 1px calc(4 * var(--u))),
+    linear-gradient(180deg, rgba(8, 6, 5, 0) 0%, rgba(8, 6, 5, 0.9) 30%, rgba(7, 6, 5, 0.97) 100%);
+  border-top: 1px dashed rgba(216, 178, 106, 0.3);
+}
+.c-drawer-in { display: flex; flex-direction: column; gap: calc(8 * var(--u)); }
+.c-drawer-head { display: flex; align-items: baseline; gap: calc(12 * var(--u)); }
+.c-drawer-head .ttl { font-family: var(--serif); font-size: calc(12 * var(--u)); letter-spacing: 0.18em; color: #f4e8d0; }
+.c-drawer-head .tally { display: flex; gap: calc(10 * var(--u)); font-size: calc(6.5 * var(--u)); letter-spacing: 0.1em; color: #a08a66; }
+.c-drawer-head .tally i { font-style: normal; font-family: var(--num); font-size: calc(8 * var(--u)); color: #e8cf9a; }
+.c-drawer-head .tip { margin-left: auto; font-size: calc(6.5 * var(--u)); letter-spacing: 0.08em; color: #b3945f; }
+.c-hand { display: flex; align-items: flex-start; gap: calc(11 * var(--u)); }
+.c-hand .hcard { display: flex; flex-direction: column; align-items: center; gap: calc(2 * var(--u)); }
+.c-hand .hcard .card { --cw: calc(44 * var(--u)); --ch: calc(66 * var(--u)); }
+.c-hand .hcard .card .glyph { font-size: calc(12 * var(--u)); }
+.c-hand .hcard .sell { font-size: calc(5.5 * var(--u)); letter-spacing: 0.08em; color: rgba(216, 178, 106, 0.55); }
+.c-hand .hcard .sell b { font-family: var(--num); color: #e8cf9a; font-weight: 500; }
+.c-hand .more { align-self: center; font-size: calc(6.5 * var(--u)); letter-spacing: 0.1em; color: #8c7a5b; }
+
+/* ── C 案 · 结算小窗：一块透光的丝绢 ── */
+.c-veil { position: absolute; inset: 0; background: radial-gradient(56% 60% at 50% 48%, rgba(0, 0, 0, 0.34), rgba(0, 0, 0, 0.72)); }
+.c-silk {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: calc(400 * var(--u));
+  padding: calc(15 * var(--u)) calc(18 * var(--u)) calc(13 * var(--u));
+  border-radius: calc(7 * var(--u));
+  background:
+    repeating-linear-gradient(45deg, rgba(255, 224, 170, 0.035) 0 1px, transparent 1px calc(4 * var(--u))),
+    linear-gradient(178deg, rgba(28, 22, 16, 0.9), rgba(9, 8, 6, 0.96));
+  box-shadow: 0 calc(22 * var(--u)) calc(48 * var(--u)) rgba(0, 0, 0, 0.66),
+              inset 0 0 calc(30 * var(--u)) rgba(216, 178, 106, 0.06);
+}
+.c-silk::before {
+  /* 缝线：贴着内沿一圈虚线，四个角各打一枚十字结 */
+  content: ""; position: absolute; inset: calc(4 * var(--u)); border-radius: calc(5 * var(--u));
+  border: 1px dashed rgba(216, 178, 106, 0.42); pointer-events: none;
+}
+.c-silk-head { display: flex; align-items: flex-end; gap: calc(12 * var(--u)); padding-bottom: calc(7 * var(--u)); border-bottom: 1px dashed rgba(216, 178, 106, 0.22); }
+.c-silk-head .eyebrow { font-size: calc(6.5 * var(--u)); letter-spacing: 0.3em; color: #a08a66; }
+.c-silk-head h2 { margin: 0; font-family: var(--serif); font-size: calc(16 * var(--u)); letter-spacing: 0.22em; color: #f6ead5; font-weight: 600; }
+.c-silk-head .sum { margin-left: auto; display: flex; gap: calc(9 * var(--u)); font-size: calc(6.5 * var(--u)); letter-spacing: 0.08em; color: #9c855f; }
+.c-silk-head .sum b { font-family: var(--num); font-size: calc(10 * var(--u)); color: #f0d9a4; }
+.c-res { margin: calc(9 * var(--u)) 0 0; padding: 0; list-style: none; }
+.c-res-cols, .c-res li {
+  display: grid; grid-template-columns: calc(22 * var(--u)) 1fr calc(29 * var(--u)) calc(29 * var(--u)) calc(44 * var(--u)) calc(48 * var(--u));
+  align-items: center; gap: calc(6 * var(--u));
+}
+.c-res-cols { margin-top: calc(6 * var(--u)); padding: 0 calc(7 * var(--u)) calc(5 * var(--u)); font-size: calc(6 * var(--u)); letter-spacing: 0.18em; color: #7d6a4c; }
+.c-res-cols span:nth-child(n + 3) { text-align: right; }
+.c-res li { position: relative; padding: calc(5 * var(--u)) calc(7 * var(--u)); border-top: 1px dashed rgba(216, 178, 106, 0.16); }
+.c-res li .rk { font-family: var(--num); font-size: calc(11 * var(--u)); color: #a08a66; }
+.c-res li .who { font-family: var(--serif); font-size: calc(9 * var(--u)); letter-spacing: 0.08em; color: #e9dcc2; }
+.c-res li .who i { font-style: normal; margin-left: calc(5 * var(--u)); font-size: calc(5.5 * var(--u)); letter-spacing: 0.16em; color: #b3945f; }
+.c-res li .v { font-family: var(--num); font-size: calc(10 * var(--u)); text-align: right; color: #d9cbaf; }
+.c-res li .v.dmg { color: #d79a8c; }
+.c-res li .v.hp::after { content: " 血"; font-family: var(--sans); font-size: calc(5 * var(--u)); letter-spacing: 0.1em; color: #7d6a4c; }
+.c-res li.me { background: linear-gradient(90deg, rgba(216, 178, 106, 0.1), transparent 72%); }
+.c-res li.me .who, .c-res li.me .v { color: #f7ecd8; }
+.c-res li.me .rk { color: #f0d9a4; }
+.c-res-foot { display: flex; align-items: center; gap: calc(9 * var(--u)); margin-top: calc(11 * var(--u)); }
+.c-res-foot .note { font-size: calc(6 * var(--u)); letter-spacing: 0.08em; color: #7d6a4c; }
+.c-res-foot .sp { margin-left: auto; }
+
+/* ── 商店开着时的背景：桌面退下去（压暗 + 下沉），顶部横带成为唯一主角 ──
+   为什么不是把桌面藏掉：买的卡要落到桌面/背包，玩家得知道"东西摆在哪"；
+   为什么不是原样亮着：两套等亮的信息抢同一条视线，商店栏就白做了。 */
+.a-board.is-back { opacity: 0.5; filter: saturate(0.85); }
+.b-board.is-back { opacity: 0.46; filter: saturate(0.85); }
+.c-board.is-back { opacity: 0.46; filter: saturate(0.85); }
+.a-roles.is-low, .b-roles.is-low, .c-roles.is-low { bottom: calc(26 * var(--u)); }
+/* 背包抽屉打开时：卡位那一排与场景位整体上移，别被抽屉压掉下半截（抽屉高 ~130） */
+.screen[data-s="bag"] .a-roles, .screen[data-s="bag"] .b-roles, .screen[data-s="bag"] .c-roles { bottom: calc(62 * var(--u)); }
+.screen[data-s="bag"] .a-scene, .screen[data-s="bag"] .b-scene, .screen[data-s="bag"] .c-scene { bottom: calc(80 * var(--u)); }
+.is-hidden { display: none !important; }
+/* 商店屏与背包屏里右侧道具栏让位：那两种情况下它要么和商店栏右边那列键抢位置，
+   要么被抽屉压掉半张卡 —— 少一条栏，屏幕上也少一处"看着像坏了"。 */
+.screen[data-s="shop"] .a-rail, .screen[data-s="shop"] .b-rail, .screen[data-s="shop"] .c-rail,
+.screen[data-s="bag"] .a-rail, .screen[data-s="bag"] .b-rail, .screen[data-s="bag"] .c-rail { display: none; }
+
+/* 减少动态：这一版几乎全是静态稿，只有拖拽卡会浮动（截图脚本也统一 reduce） */
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body data-v="a" data-s="table">
+
+<!-- 颗粒层：整屏唯一一处"材质感"的兜底，铺在所有方案之上 -->
+<div class="grain"></div>
+
+<!-- ═════════════════════════════ A · 克制极简 ═════════════════════════════ -->
+
+<!-- A-1 对局主界面 -->
+<section class="screen on" data-v="a" data-s="table">
+  <div class="room"></div>
+  <div class="a-board">
+    <div class="a-table"></div>
+    <div class="a-felt"><div class="a-sigil"></div></div>
+
+    <div class="a-scene">
+      <span class="k">场景位</span>
+      <figure class="card" data-r="3" style="--a1:#1e3541;--a2:#0a1419">
+        <div class="art"><span class="glyph">景</span></div>
+        <span class="pip"></span>
+        <figcaption class="cap">霓虹街机厅</figcaption>
+      </figure>
+    </div>
+
+    <div class="a-roles">
+      <div class="pick">
+        <figure class="card" data-r="4" style="--a1:#3a2f4e;--a2:#150f1d">
+          <div class="art"><span class="glyph">角</span></div>
+          <span class="pip"></span>
+          <figcaption class="cap">女明星</figcaption>
+        </figure>
+      </div>
+      <div class="slot"><span class="dot"></span><span class="hint">空位</span></div>
+      <div class="pick">
+        <figure class="card" data-r="3" style="--a1:#22323f;--a2:#0c1318">
+          <div class="art"><span class="glyph">角</span></div>
+          <span class="pip"></span>
+          <figcaption class="cap">主演</figcaption>
+        </figure>
+      </div>
+      <div class="slot"><span class="dot"></span><span class="hint">空位</span></div>
+    </div>
+
+    <aside class="a-rail">
+      <span class="k">道具</span>
+      <figure class="card" data-r="1" style="--a1:#2b2a24;--a2:#100f0c">
+        <div class="art"><span class="glyph">具</span></div><figcaption class="cap">塑料王冠</figcaption>
+      </figure>
+      <figure class="card" data-r="1" style="--a1:#2b2a24;--a2:#100f0c">
+        <div class="art"><span class="glyph">具</span></div><figcaption class="cap">小风扇</figcaption>
+      </figure>
+      <figure class="card" data-r="2" style="--a1:#24301f;--a2:#0c110a">
+        <div class="art"><span class="glyph">具</span></div><figcaption class="cap">复古相机</figcaption>
+      </figure>
+      <div class="tool">钳</div>
+    </aside>
+  </div>
+
+  <header class="top a-top">
+    <div class="a-group">
+      <span class="a-phase"><i></i>商店</span>
+      <span class="a-stat">
+        <em>回合</em>
+        <span class="v">
+          <b>3<small>/ 8</small></b>
+          <span class="a-segs"><i class="on"></i><i class="on"></i><i class="cur"></i><i></i><i></i><i></i><i></i><i></i></span>
+        </span>
+      </span>
+      <span class="a-stat">
+        <em>计时</em>
+        <span class="v"><b style="font-size:calc(12*var(--u));color:#cbbfa8">0:42</b></span>
+      </span>
+    </div>
+    <div class="a-group a-right">
+      <span class="a-stat">
+        <em>生命</em>
+        <span class="v"><b>78</b><span class="a-bar"><i style="width:78%"></i></span></span>
+      </span>
+      <span class="a-stat is-gold">
+        <em>金币</em>
+        <span class="v"><b>12</b></span>
+        <span class="sub">利息 <i>+1</i> · 下回合 <i>+6</i></span>
+      </span>
+    </div>
+  </header>
+
+  <footer class="a-band">
+    <div class="a-band-in">
+      <div class="a-bag">
+        <div class="a-bag-head">
+          <span class="t">手牌 <b>3</b></span>
+          <span class="hint">拖卡到桌面空位</span>
+        </div>
+        <div class="bagcard">
+          <figure class="card" data-r="3" style="--a1:#23343a;--a2:#0b1316">
+            <div class="art"><span class="glyph">角</span></div><figcaption class="cap">勘景师</figcaption>
+          </figure>
+          <span class="sell">卖 +1</span>
+        </div>
+        <div class="bagcard">
+          <figure class="card" data-r="1" style="--a1:#2c2a23;--a2:#100f0c">
+            <div class="art"><span class="glyph">景</span></div><figcaption class="cap">黄昏天台</figcaption>
+          </figure>
+          <span class="sell">卖 +1</span>
+        </div>
+        <div class="bagcard">
+          <figure class="card" data-r="2" style="--a1:#24301f;--a2:#0c110a">
+            <div class="art"><span class="glyph">景</span></div><figcaption class="cap">雨巷</figcaption>
+          </figure>
+          <span class="sell">卖 +1</span>
+        </div>
+      </div>
+      <div class="a-actions">
+        <span class="a-hint">右栏道具拖到角色卡上 · 每角色最多 3 张</span>
+        <button class="a-shop" type="button" aria-label="商店">
+          <span class="ic">🛒</span>
+          <span class="n">+1</span>
+          <span class="lbl">商店</span>
+        </button>
+        <button class="btn is-primary" type="button">开始创作 <em>→</em></button>
+      </div>
+    </div>
+  </footer>
+</section>
+
+<!-- A-2 商店栏（顶部横带：5 张卡摆在一条与你视线齐平的架子上，价钱挂在架下） -->
+<section class="screen" data-v="a" data-s="shop">
+  <div class="room"></div>
+
+  <div class="a-board is-back">
+    <div class="a-table"></div>
+    <div class="a-felt"><div class="a-sigil"></div></div>
+
+    <div class="a-scene is-hidden">
+      <span class="k">场景位</span>
+      <figure class="card" data-r="3" style="--a1:#1e3541;--a2:#0a1419">
+        <div class="art"><span class="glyph">景</span></div>
+        <span class="pip"></span>
+        <figcaption class="cap">霓虹街机厅</figcaption>
+      </figure>
+    </div>
+
+    <div class="a-roles is-low">
+      <div class="pick">
+        <figure class="card" data-r="4" style="--a1:#3a2f4e;--a2:#150f1d">
+          <div class="art"><span class="glyph">角</span></div>
+          <span class="pip"></span>
+          <figcaption class="cap">女明星</figcaption>
+        </figure>
+      </div>
+      <div class="slot"><span class="dot"></span><span class="hint">空位</span></div>
+      <div class="pick">
+        <figure class="card" data-r="3" style="--a1:#22323f;--a2:#0c1318">
+          <div class="art"><span class="glyph">角</span></div>
+          <span class="pip"></span>
+          <figcaption class="cap">主演</figcaption>
+        </figure>
+      </div>
+      <div class="slot"><span class="dot"></span><span class="hint">空位</span></div>
+    </div>
+
+    <aside class="a-rail is-hidden">
+      <span class="k">道具</span>
+      <figure class="card" data-r="1" style="--a1:#2b2a24;--a2:#100f0c">
+        <div class="art"><span class="glyph">具</span></div><figcaption class="cap">塑料王冠</figcaption>
+      </figure>
+      <figure class="card" data-r="1" style="--a1:#2b2a24;--a2:#100f0c">
+        <div class="art"><span class="glyph">具</span></div><figcaption class="cap">小风扇</figcaption>
+      </figure>
+      <figure class="card" data-r="2" style="--a1:#24301f;--a2:#0c110a">
+        <div class="art"><span class="glyph">具</span></div><figcaption class="cap">复古相机</figcaption>
+      </figure>
+      <div class="tool">钳</div>
+    </aside>
+  </div>
+
+  <div class="a-strip">
+    <div class="a-strip-in">
+      <div class="a-strip-head">
+        <span class="ttl">商店</span>
+        <span class="meta">第 3 回合 · 计时 <i>0:42</i></span>
+        <span class="gold"><b>12</b><em>金币 · 利息 +1</em></span>
+        <span class="tip">点一张就买下</span>
+      </div>
+      <div class="a-goods">
+        <div class="a-good">
+          <figure class="card" data-r="2" style="--a1:#24301f;--a2:#0c110a">
+            <div class="art"><span class="glyph">角</span></div><span class="pip"></span>
+            <figcaption class="cap">灯光师</figcaption>
+          </figure>
+          <span class="price">2 <small>金</small></span>
+        </div>
+        <div class="a-good is-gone"><div class="gone">已买走</div></div>
+        <div class="a-good">
+          <figure class="card" data-r="4" style="--a1:#3a2f4e;--a2:#150f1d">
+            <div class="art"><span class="glyph">角</span></div><span class="pip"></span>
+            <figcaption class="cap">女明星</figcaption>
+          </figure>
+          <span class="price">4 <small>金</small></span>
+        </div>
+        <div class="a-good">
+          <figure class="card" data-r="3" style="--a1:#1e3541;--a2:#0a1419">
+            <div class="art"><span class="glyph">景</span></div><span class="pip"></span>
+            <figcaption class="cap">霓虹街机厅</figcaption>
+          </figure>
+          <span class="price">3 <small>金</small></span>
+        </div>
+        <div class="a-good">
+          <figure class="card" data-r="5" style="--a1:#4b3a1c;--a2:#191207">
+            <div class="art"><span class="glyph">具</span></div><span class="pip"></span>
+            <figcaption class="cap">金色麦克风</figcaption>
+          </figure>
+          <span class="price">5 <small>金</small></span>
+        </div>
+        <span class="a-shelf"></span>
+      </div>
+      <div class="a-ops">
+        <button class="op" type="button">刷新 <em>2 金</em></button>
+        <button class="op" type="button">锁定 <em>免费</em></button>
+        <button class="op leave" type="button">离开 <em>✕</em></button>
+        <span class="op-tip">点栏外也能收起</span>
+      </div>
+    </div>
+  </div>
+
+  <footer class="a-band">
+    <div class="a-band-in">
+      <div class="a-bag">
+        <div class="a-bag-head">
+          <span class="t">手牌 <b>3</b></span>
+          <span class="hint">拖卡到桌面空位</span>
+        </div>
+        <div class="bagcard">
+          <figure class="card" data-r="3" style="--a1:#23343a;--a2:#0b1316">
+            <div class="art"><span class="glyph">角</span></div><figcaption class="cap">勘景师</figcaption>
+          </figure>
+          <span class="sell">卖 +1</span>
+        </div>
+        <div class="bagcard">
+          <figure class="card" data-r="1" style="--a1:#2c2a23;--a2:#100f0c">
+            <div class="art"><span class="glyph">景</span></div><figcaption class="cap">黄昏天台</figcaption>
+          </figure>
+          <span class="sell">卖 +1</span>
+        </div>
+        <div class="bagcard">
+          <figure class="card" data-r="2" style="--a1:#24301f;--a2:#0c110a">
+            <div class="art"><span class="glyph">景</span></div><figcaption class="cap">雨巷</figcaption>
+          </figure>
+          <span class="sell">卖 +1</span>
+        </div>
+      </div>
+      <div class="a-actions">
+        <span class="a-hint">商店开着时只能绕正面半圈看铸卡师</span>
+        <button class="a-shop is-open" type="button" aria-label="商店（收起）">
+          <span class="ic">🛒</span>
+          <span class="n">+1</span>
+          <span class="lbl">收起</span>
+        </button>
+        <button class="btn is-primary" type="button">开始创作 <em>→</em></button>
+      </div>
+    </div>
+  </footer>
+</section>
+<!-- A-3 背包栏（手牌区，含拖拽中的卡） -->
+<section class="screen" data-v="a" data-s="bag">
+  <div class="room"></div>
+  <div class="a-board">
+    <div class="a-table"></div>
+    <div class="a-felt"><div class="a-sigil"></div></div>
+
+    <div class="a-scene">
+      <span class="k">场景位</span>
+      <figure class="card" data-r="3" style="--a1:#1e3541;--a2:#0a1419">
+        <div class="art"><span class="glyph">景</span></div>
+        <span class="pip"></span>
+        <figcaption class="cap">霓虹街机厅</figcaption>
+      </figure>
+    </div>
+
+    <div class="a-roles">
+      <div class="pick">
+        <figure class="card" data-r="4" style="--a1:#3a2f4e;--a2:#150f1d">
+          <div class="art"><span class="glyph">角</span></div><span class="pip"></span>
+          <figcaption class="cap">女明星</figcaption>
+        </figure>
+      </div>
+      <div class="slot" style="border-color:rgba(247,227,174,.8);box-shadow:0 0 calc(14*var(--u)) rgba(216,178,106,.16) inset">
+        <span class="dot" style="background:rgba(247,227,174,.9)"></span>
+        <span class="hint" style="color:rgba(247,227,174,.85)">松手放下</span>
+      </div>
+      <div class="pick">
+        <figure class="card" data-r="3" style="--a1:#22323f;--a2:#0c1318">
+          <div class="art"><span class="glyph">角</span></div><span class="pip"></span>
+          <figcaption class="cap">主演</figcaption>
+        </figure>
+      </div>
+      <div class="slot"><span class="dot"></span><span class="hint">空位</span></div>
+    </div>
+
+    <!-- 拖动中的那一张：占位与落点判定是同一个矩形，所以它现在正压在目标卡位上方 -->
+    <div class="drag" style="left:calc(350*var(--u));bottom:calc(78*var(--u))">
+      <figure class="card" data-r="3" style="--a1:#23343a;--a2:#0b1316">
+        <div class="art"><span class="glyph">角</span></div><span class="pip"></span>
+        <figcaption class="cap">勘景师</figcaption>
+      </figure>
+    </div>
+
+    <aside class="a-rail">
+      <span class="k">道具</span>
+      <figure class="card" data-r="1" style="--a1:#2b2a24;--a2:#100f0c">
+        <div class="art"><span class="glyph">具</span></div><figcaption class="cap">塑料王冠</figcaption>
+      </figure>
+      <figure class="card" data-r="1" style="--a1:#2b2a24;--a2:#100f0c">
+        <div class="art"><span class="glyph">具</span></div><figcaption class="cap">小风扇</figcaption>
+      </figure>
+      <figure class="card" data-r="2" style="--a1:#24301f;--a2:#0c110a">
+        <div class="art"><span class="glyph">具</span></div><figcaption class="cap">复古相机</figcaption>
+      </figure>
+      <div class="tool">钳</div>
+    </aside>
+  </div>
+
+  <header class="top a-top">
+    <div class="a-group">
+      <span class="a-phase"><i></i>商店</span>
+      <span class="a-stat">
+        <em>回合</em>
+        <span class="v">
+          <b>3<small>/ 8</small></b>
+          <span class="a-segs"><i class="on"></i><i class="on"></i><i class="cur"></i><i></i><i></i><i></i><i></i><i></i></span>
+        </span>
+      </span>
+      <span class="a-stat"><em>计时</em><span class="v"><b style="font-size:calc(12*var(--u));color:#cbbfa8">1:18</b></span></span>
+    </div>
+    <div class="a-group a-right">
+      <span class="a-stat"><em>生命</em><span class="v"><b>78</b><span class="a-bar"><i style="width:78%"></i></span></span></span>
+      <span class="a-stat is-gold">
+        <em>金币</em><span class="v"><b>8</b></span>
+        <span class="sub">利息 <i>+0</i> · 下回合 <i>+5</i></span>
+      </span>
+    </div>
+  </header>
+
+  <footer class="a-drawer">
+    <div class="a-drawer-in">
+      <div class="a-drawer-head">
+        <span class="ttl">背包</span>
+        <span class="tally">
+          <span>角色 <i>3</i></span><span>场景 <i>2</i></span><span>道具 <i>4</i></span>
+        </span>
+        <span class="tip">拖到桌面空位 · 道具拖到右侧栏</span>
+      </div>
+      <div class="a-hand">
+        <div class="hcard">
+          <figure class="card" data-r="3" style="--a1:#23343a;--a2:#0b1316">
+            <div class="art"><span class="glyph">角</span></div><span class="pip"></span>
+            <figcaption class="cap">勘景师</figcaption>
+          </figure>
+          <span class="sell">卖 <b>+1</b></span>
+        </div>
+        <div class="hcard">
+          <figure class="card" data-r="1" style="--a1:#2c2a23;--a2:#100f0c">
+            <div class="art"><span class="glyph">景</span></div><span class="pip"></span>
+            <figcaption class="cap">黄昏天台</figcaption>
+          </figure>
+          <span class="sell">卖 <b>+1</b></span>
+        </div>
+        <div class="hcard">
+          <figure class="card" data-r="2" style="--a1:#24301f;--a2:#0c110a">
+            <div class="art"><span class="glyph">景</span></div><span class="pip"></span>
+            <figcaption class="cap">雨巷</figcaption>
+          </figure>
+          <span class="sell">卖 <b>+1</b></span>
+        </div>
+        <div class="hcard">
+          <figure class="card" data-r="5" style="--a1:#4b3a1c;--a2:#191207">
+            <div class="art"><span class="glyph">景</span></div><span class="pip"></span>
+            <figcaption class="cap">浮空城</figcaption>
+          </figure>
+          <span class="sell">卖 <b>+1</b></span>
+        </div>
+        <div class="hcard">
+          <figure class="card" data-r="1" style="--a1:#2c2a23;--a2:#100f0c">
+            <div class="art"><span class="glyph">角</span></div><span class="pip"></span>
+            <figcaption class="cap">实习生导演</figcaption>
+          </figure>
+          <span class="sell">卖 <b>+1</b></span>
+        </div>
+        <span class="more">另有道具 4 张</span>
+      </div>
+    </div>
+  </footer>
+</section>
+
+<!-- A-4 结算小窗 -->
+<section class="screen" data-v="a" data-s="result">
+  <div class="room is-dim"></div>
+  <div class="a-veil"></div>
+  <div class="a-window">
+    <div class="a-res-head">
+        <div class="res-title">
+          <span class="eyebrow">第 3 回合 · 4 人局</span>
+          <h2>结算</h2>
+        </div>
+        <span class="sum"><span>总赞 <b>30</b></span><span>总票 <b>9</b></span></span>
+    </div>
+    <div class="a-res-cols"><span>名次</span><span>作品</span><span>赞</span><span>票</span><span>扣血</span><span>生命</span></div>
+    <ol class="a-res">
+      <li class="me"><span class="rk">1</span><span class="who">我 <i>本轮第一</i></span><span class="v">12</span><span class="v">4</span><span class="v dmg">−5</span><span class="v hp">78</span></li>
+      <li><span class="rk">2</span><span class="who">对手 A</span><span class="v">9</span><span class="v">3</span><span class="v dmg">−10</span><span class="v hp">66</span></li>
+      <li><span class="rk">3</span><span class="who">对手 B</span><span class="v">6</span><span class="v">1</span><span class="v dmg">−15</span><span class="v hp">51</span></li>
+      <li><span class="rk">4</span><span class="who">对手 C</span><span class="v">3</span><span class="v">1</span><span class="v dmg">−20</span><span class="v hp">37</span></li>
+    </ol>
+    <div class="a-res-foot">
+      <span class="note">4 人局 · 本回合无人淘汰</span>
+      <span class="sp"></span>
+      <button class="btn" type="button">看一下榜</button>
+      <button class="btn is-primary" type="button">下一回合 <em>→</em></button>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════════════════════════ B · 黄铜仪表盘 ═════════════════════════════ -->
+
+<!-- B-1 对局主界面 -->
+<section class="screen" data-v="b" data-s="table">
+  <div class="room"></div>
+  <div class="b-board">
+    <div class="b-table"><span class="b-corner tl"></span><span class="b-corner tr"></span><span class="b-corner bl"></span><span class="b-corner br"></span></div>
+    <div class="b-felt"><div class="b-sigil"></div></div>
+
+    <div class="b-scene">
+      <span class="k">场景位</span>
+      <div class="b-frame">
+        <figure class="card" data-r="3" style="--a1:#1e3541;--a2:#0a1419">
+          <div class="art"><span class="glyph">景</span></div>
+          <span class="pip"></span>
+          <figcaption class="cap">霓虹街机厅</figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="b-roles">
+      <div class="pick">
+        <div class="b-frame">
+          <figure class="card" data-r="4" style="--a1:#3a2f4e;--a2:#150f1d">
+            <div class="art"><span class="glyph">角</span></div><span class="pip"></span>
+            <figcaption class="cap">女明星</figcaption>
+          </figure>
+        </div>
+      </div>
+      <div class="b-slot"><span class="brk tl"></span><span class="brk tr"></span><span class="brk bl"></span><span class="brk br"></span>
+        <span class="dot"></span><span class="hint">空位</span></div>
+      <div class="pick">
+        <div class="b-frame">
+          <figure class="card" data-r="3" style="--a1:#22323f;--a2:#0c1318">
+            <div class="art"><span class="glyph">角</span></div><span class="pip"></span>
+            <figcaption class="cap">主演</figcaption>
+          </figure>
+        </div>
+      </div>
+      <div class="b-slot"><span class="brk tl"></span><span class="brk tr"></span><span class="brk bl"></span><span class="brk br"></span>
+        <span class="dot"></span><span class="hint">空位</span></div>
+    </div>
+
+    <aside class="b-rail">
+      <span class="k">道具</span>
+      <figure class="card" data-r="1" style="--a1:#2b2a24;--a2:#100f0c">
+        <div class="art"><span class="glyph">具</span></div><figcaption class="cap">王冠</figcaption>
+      </figure>
+      <figure class="card" data-r="1" style="--a1:#2b2a24;--a2:#100f0c">
+        <div class="art"><span class="glyph">具</span></div><figcaption class="cap">风扇</figcaption>
+      </figure>
+      <figure class="card" data-r="2" style="--a1:#24301f;--a2:#0c110a">
+        <div class="art"><span class="glyph">具</span></div><figcaption class="cap">相机</figcaption>
+      </figure>
+      <div class="tool">钳</div>
+    </aside>
+  </div>
+
+  <header class="top b-top">
+    <div style="display:flex;align-items:flex-start;gap:calc(9*var(--u))">
+      <div class="b-dial" style="--p:78%">
+        <span class="ring"></span>
+        <span class="ticks"></span>
+        <span class="face"><b>78</b><em>生命</em></span>
+      </div>
+      <div class="b-plate">
+        <span class="k2">回合</span>
+        <span class="big">3<small>/8</small></span>
+        <span class="b-ticks"><i class="on"></i><i class="on"></i><i class="cur"></i><i></i><i></i><i></i><i></i><i></i></span>
+      </div>
+      <div class="b-plate">
+        <span class="k2">计时</span>
+        <span class="big" style="font-size:calc(12*var(--u));color:#d8c8a8">0:42</span>
+      </div>
+    </div>
+    <div style="display:flex;align-items:flex-start;gap:calc(8*var(--u))">
+      <div class="b-plate is-gold">
+        <span class="k2">金币</span>
+        <span class="big">12</span>
+        <span class="sub"><em>利息</em><b>+1</b></span>
+      </div>
+      <div class="b-plate">
+        <span class="k2">下回合</span>
+        <span class="big" style="font-size:calc(14*var(--u))">+6</span>
+        <span class="sub"><em>基础 / 利息</em><b>5 + 1</b></span>
+      </div>
+    </div>
+  </header>
+
+  <footer class="b-tray">
+    <div class="b-tray-in">
+      <div class="b-bag">
+        <div class="b-bag-head">
+          <span class="t">背包 <b>3</b></span>
+          <span class="hint">拖到桌面空位</span>
+        </div>
+        <div class="slotcard">
+          <figure class="card" data-r="3" style="--a1:#23343a;--a2:#0b1316">
+            <div class="art"><span class="glyph">角</span></div><figcaption class="cap">勘景师</figcaption>
+          </figure>
+          <span class="sell">卖 +1</span>
+        </div>
+        <div class="slotcard">
+          <figure class="card" data-r="1" style="--a1:#2c2a23;--a2:#100f0c">
+            <div class="art"><span class="glyph">景</span></div><figcaption class="cap">黄昏天台</figcaption>
+          </figure>
+          <span class="sell">卖 +1</span>
+        </div>
+        <div class="slotcard">
+          <figure class="card" data-r="2" style="--a1:#24301f;--a2:#0c110a">
+            <div class="art"><span class="glyph">景</span></div><figcaption class="cap">雨巷</figcaption>
+          </figure>
+          <span class="sell">卖 +1</span>
+        </div>
+      </div>
+      <div class="b-actions">
+        <span class="b-hint">道具拖到角色卡 · 每角色 3 张</span>
+        <button class="b-shop" type="button" aria-label="商店">
+          <span class="ic">🛒</span>
+          <span class="txt"><b>商店</b><em>利息 +1</em></span>
+        </button>
+        <button class="b-cta" type="button">开始创作 <span>→</span></button>
+      </div>
+    </div>
+  </footer>
+</section>
+
+<!-- B-2 商店栏 -->
+<section class="screen" data-v="b" data-s="shop">
+  <div class="room"></div>
+  <div class="b-board is-back">
+    <div class="b-table"><span class="b-corner tl"></span><span class="b-corner tr"></span><span class="b-corner bl"></span><span class="b-corner br"></span></div>
+    <div class="b-felt"><div class="b-sigil"></div></div>
+
+    <div class="b-scene is-hidden">
+      <span class="k">场景位</span>
+      <div class="b-frame">
+        <figure class="card" data-r="3" style="--a1:#1e3541;--a2:#0a1419">
+          <div class="art"><span class="glyph">景</span></div>
+          <span class="pip"></span>
+          <figcaption class="cap">霓虹街机厅</figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="b-roles is-low">
+      <div class="pick">
+        <div class="b-frame">
+          <figure class="card" data-r="4" style="--a1:#3a2f4e;--a2:#150f1d">
+            <div class="art"><span class="glyph">角</span></div><span class="pip"></span>
+            <figcaption class="cap">女明星</figcaption>
+          </figure>
+        </div>
+      </div>
+      <div class="b-slot"><span class="brk tl"></span><span class="brk tr"></span><span class="brk bl"></span><span class="brk br"></span>
+        <span class="dot"></span><span class="hint">空位</span></div>
+      <div class="pick">
+        <div class="b-frame">
+          <figure class="card" data-r="3" style="--a1:#22323f;--a2:#0c1318">
+            <div class="art"><span class="glyph">角</span></div><span class="pip"></span>
+            <figcaption class="cap">主演</figcaption>
+          </figure>
+        </div>
+      </div>
+      <div class="b-slot"><span class="brk tl"></span><span class="brk tr"></span><span class="brk bl"></span><span class="brk br"></span>
+        <span class="dot"></span><span class="hint">空位</span></div>
+    </div>
+
+    <aside class="b-rail is-hidden">
+      <span class="k">道具</span>
+      <figure class="card" data-r="1" style="--a1:#2b2a24;--a2:#100f0c">
+        <div class="art"><span class="glyph">具</span></div><figcaption class="cap">王冠</figcaption>
+      </figure>
+      <figure class="card" data-r="1" style="--a1:#2b2a24;--a2:#100f0c">
+        <div class="art"><span class="glyph">具</span></div><figcaption class="cap">风扇</figcaption>
+      </figure>
+      <figure class="card" data-r="2" style="--a1:#24301f;--a2:#0c110a">
+        <div class="art"><span class="glyph">具</span></div><figcaption class="cap">相机</figcaption>
+      </figure>
+      <div class="tool">钳</div>
+    </aside>
+  </div>
+
+  <div class="b-strip">
+    <div class="b-strip-in">
+      <div class="b-head">
+        <span class="ttl">商店</span>
+        <span class="meta">第 <i>3</i> 回合 · 计时 <i>0:42</i></span>
+        <span class="gold"><b>12</b><em>金币</em></span>
+        <span class="int">利息 <i>+1</i> · 下回合 <i>+6</i></span>
+      </div>
+      <div class="b-goods">
+        <div class="b-good">
+          <div class="b-frame">
+            <figure class="card" data-r="2" style="--a1:#24301f;--a2:#0c110a">
+              <div class="art"><span class="glyph">角</span></div><span class="pip"></span>
+              <figcaption class="cap">灯光师</figcaption>
+            </figure>
+          </div>
+          <span class="price">2 <small>金</small></span>
+        </div>
+        <div class="b-good is-gone"><div class="gone">已买走</div></div>
+        <div class="b-good">
+          <div class="b-frame">
+            <figure class="card" data-r="4" style="--a1:#3a2f4e;--a2:#150f1d">
+              <div class="art"><span class="glyph">角</span></div><span class="pip"></span>
+              <figcaption class="cap">女明星</figcaption>
+            </figure>
+          </div>
+          <span class="price">4 <small>金</small></span>
+        </div>
+        <div class="b-good">
+          <div class="b-frame">
+            <figure class="card" data-r="3" style="--a1:#1e3541;--a2:#0a1419">
+              <div class="art"><span class="glyph">景</span></div><span class="pip"></span>
+              <figcaption class="cap">霓虹街机厅</figcaption>
+            </figure>
+          </div>
+          <span class="price">3 <small>金</small></span>
+        </div>
+        <div class="b-good">
+          <div class="b-frame">
+            <figure class="card" data-r="5" style="--a1:#4b3a1c;--a2:#191207">
+              <div class="art"><span class="glyph">具</span></div><span class="pip"></span>
+              <figcaption class="cap">金色麦克风</figcaption>
+            </figure>
+          </div>
+          <span class="price">5 <small>金</small></span>
+        </div>
+      </div>
+      <div class="b-ops">
+        <button class="b-op" type="button">刷新 <em>2 金</em></button>
+        <button class="b-op" type="button">锁定 <em>免费</em></button>
+        <button class="b-op leave" type="button">离开 <em>✕</em></button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="b-tray">
+    <div class="b-tray-in">
+      <div class="b-bag">
+        <div class="b-bag-head">
+          <span class="t">背包 <b>3</b></span>
+          <span class="hint">拖到桌面空位</span>
+        </div>
+        <div class="slotcard">
+          <figure class="card" data-r="3" style="--a1:#23343a;--a2:#0b1316">
+            <div class="art"><span class="glyph">角</span></div><figcaption class="cap">勘景师</figcaption>
+          </figure>
+          <span class="sell">卖 +1</span>
+        </div>
+        <div class="slotcard">
+          <figure class="card" data-r="1" style="--a1:#2c2a23;--a2:#100f0c">
+            <div class="art"><span class="glyph">景</span></div><figcaption class="cap">黄昏天台</figcaption>
+          </figure>
+          <span class="sell">卖 +1</span>
+        </div>
+        <div class="slotcard">
+          <figure class="card" data-r="2" style="--a1:#24301f;--a2:#0c110a">
+            <div class="art"><span class="glyph">景</span></div><figcaption class="cap">雨巷</figcaption>
+          </figure>
+          <span class="sell">卖 +1</span>
+        </div>
+      </div>
+      <div class="b-actions">
+        <span class="b-hint">道具拖到角色卡 · 每角色 3 张</span>
+        <button class="b-shop" type="button" aria-label="商店">
+          <span class="ic">🛒</span>
+          <span class="txt"><b>收起</b><em>利息 +1</em></span>
+        </button>
+        <button class="b-cta" type="button">开始创作 <span>→</span></button>
+      </div>
+    </div>
+  </footer>
+</section>
+
+<!-- B-3 背包栏 -->
+<section class="screen" data-v="b" data-s="bag">
+  <div class="room"></div>
+  <div class="b-board">
+    <div class="b-table"><span class="b-corner tl"></span><span class="b-corner tr"></span><span class="b-corner bl"></span><span class="b-corner br"></span></div>
+    <div class="b-felt"><div class="b-sigil"></div></div>
+
+    <div class="b-scene">
+      <span class="k">场景位</span>
+      <div class="b-frame">
+        <figure class="card" data-r="3" style="--a1:#1e3541;--a2:#0a1419">
+          <div class="art"><span class="glyph">景</span></div><span class="pip"></span>
+          <figcaption class="cap">霓虹街机厅</figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="b-roles">
+      <div class="pick">
+        <div class="b-frame">
+          <figure class="card" data-r="4" style="--a1:#3a2f4e;--a2:#150f1d">
+            <div class="art"><span class="glyph">角</span></div><span class="pip"></span>
+            <figcaption class="cap">女明星</figcaption>
+          </figure>
+        </div>
+      </div>
+      <div class="b-slot" style="border-color:rgba(247,227,174,.7);box-shadow:inset 0 0 calc(16*var(--u)) rgba(216,178,106,.14)">
+        <span class="brk tl" style="border-color:rgba(247,227,174,.85)"></span>
+        <span class="brk tr" style="border-color:rgba(247,227,174,.85)"></span>
+        <span class="brk bl" style="border-color:rgba(247,227,174,.85)"></span>
+        <span class="brk br" style="border-color:rgba(247,227,174,.85)"></span>
+        <span class="dot" style="background:rgba(247,227,174,.85)"></span>
+        <span class="hint" style="color:rgba(247,227,174,.8)">松手放下</span>
+      </div>
+      <div class="pick">
+        <div class="b-frame">
+          <figure class="card" data-r="3" style="--a1:#22323f;--a2:#0c1318">
+            <div class="art"><span class="glyph">角</span></div><span class="pip"></span>
+            <figcaption class="cap">主演</figcaption>
+          </figure>
+        </div>
+      </div>
+      <div class="b-slot"><span class="brk tl"></span><span class="brk tr"></span><span class="brk bl"></span><span class="brk br"></span>
+        <span class="dot"></span><span class="hint">空位</span></div>
+    </div>
+
+    <div class="drag" style="left:calc(350*var(--u));bottom:calc(78*var(--u))">
+      <div class="b-frame">
+        <figure class="card" data-r="3" style="--a1:#23343a;--a2:#0b1316">
+          <div class="art"><span class="glyph">角</span></div><span class="pip"></span>
+          <figcaption class="cap">勘景师</figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <aside class="b-rail">
+      <span class="k">道具</span>
+      <figure class="card" data-r="1" style="--a1:#2b2a24;--a2:#100f0c">
+        <div class="art"><span class="glyph">具</span></div><figcaption class="cap">王冠</figcaption>
+      </figure>
+      <figure class="card" data-r="1" style="--a1:#2b2a24;--a2:#100f0c">
+        <div class="art"><span class="glyph">具</span></div><figcaption class="cap">风扇</figcaption>
+      </figure>
+      <figure class="card" data-r="2" style="--a1:#24301f;--a2:#0c110a">
+        <div class="art"><span class="glyph">具</span></div><figcaption class="cap">相机</figcaption>
+      </figure>
+      <div class="tool">钳</div>
+    </aside>
+  </div>
+
+  <header class="top b-top">
+    <div style="display:flex;align-items:flex-start;gap:calc(9*var(--u))">
+      <div class="b-dial" style="--p:78%">
+        <span class="ring"></span><span class="ticks"></span>
+        <span class="face"><b>78</b><em>生命</em></span>
+      </div>
+      <div class="b-plate">
+        <span class="k2">回合</span><span class="big">3<small>/8</small></span>
+        <span class="b-ticks"><i class="on"></i><i class="on"></i><i class="cur"></i><i></i><i></i><i></i><i></i><i></i></span>
+      </div>
+      <div class="b-plate"><span class="k2">计时</span><span class="big" style="font-size:calc(12*var(--u));color:#d8c8a8">1:18</span></div>
+    </div>
+    <div style="display:flex;align-items:flex-start;gap:calc(8*var(--u))">
+      <div class="b-plate is-gold"><span class="k2">金币</span><span class="big">8</span>
+        <span class="sub"><em>利息</em><b>+0</b></span></div>
+      <div class="b-plate"><span class="k2">下回合</span><span class="big" style="font-size:calc(14*var(--u))">+5</span>
+        <span class="sub"><em>基础 / 利息</em><b>5 + 0</b></span></div>
+    </div>
+  </header>
+
+  <footer class="b-drawer">
+    <div class="b-drawer-in">
+      <div class="b-drawer-head">
+        <span class="ttl">背包</span>
+        <span class="tally"><span>角色 <i>3</i></span><span>场景 <i>2</i></span><span>道具 <i>4</i></span></span>
+        <span class="tip">拖到桌面空位 · 道具拖到右侧栏</span>
+      </div>
+      <div class="b-hand">
+        <div class="hcard">
+          <figure class="card" data-r="3" style="--a1:#23343a;--a2:#0b1316">
+            <div class="art"><span class="glyph">角</span></div><span class="pip"></span>
+            <figcaption class="cap">勘景师</figcaption>
+          </figure>
+          <span class="sell">卖 <b>+1</b></span>
+        </div>
+        <div class="hcard">
+          <figure class="card" data-r="1" style="--a1:#2c2a23;--a2:#100f0c">
+            <div class="art"><span class="glyph">景</span></div><span class="pip"></span>
+            <figcaption class="cap">黄昏天台</figcaption>
+          </figure>
+          <span class="sell">卖 <b>+1</b></span>
+        </div>
+        <div class="hcard">
+          <figure class="card" data-r="2" style="--a1:#24301f;--a2:#0c110a">
+            <div class="art"><span class="glyph">景</span></div><span class="pip"></span>
+            <figcaption class="cap">雨巷</figcaption>
+          </figure>
+          <span class="sell">卖 <b>+1</b></span>
+        </div>
+        <div class="hcard">
+          <figure class="card" data-r="5" style="--a1:#4b3a1c;--a2:#191207">
+            <div class="art"><span class="glyph">景</span></div><span class="pip"></span>
+            <figcaption class="cap">浮空城</figcaption>
+          </figure>
+          <span class="sell">卖 <b>+1</b></span>
+        </div>
+        <div class="hcard">
+          <figure class="card" data-r="1" style="--a1:#2c2a23;--a2:#100f0c">
+            <div class="art"><span class="glyph">角</span></div><span class="pip"></span>
+            <figcaption class="cap">实习生导演</figcaption>
+          </figure>
+          <span class="sell">卖 <b>+1</b></span>
+        </div>
+        <span class="more">另有道具 4 张</span>
+      </div>
+    </div>
+  </footer>
+</section>
+
+<!-- B-4 结算小窗 -->
+<section class="screen" data-v="b" data-s="result">
+  <div class="room is-dim"></div>
+  <div class="b-veil"></div>
+  <div class="b-window">
+    <div class="b-window-in">
+      <div class="b-res-head">
+        <div class="res-title">
+          <span class="eyebrow">第 3 回合 · 4 人局</span>
+          <h2>结算</h2>
+        </div>
+        <span class="sum"><span>总赞 <b>30</b></span><span>总票 <b>9</b></span></span>
+      </div>
+      <div class="b-res-cols"><span>名次</span><span>作品</span><span>赞</span><span>票</span><span>扣血</span><span>生命</span></div>
+      <ol class="b-res">
+        <li class="me"><span class="rk">1</span><span class="who">我 <i>本轮第一</i></span><span class="v">12</span><span class="v">4</span><span class="v dmg">−5</span><span class="v hp">78</span></li>
+        <li><span class="rk">2</span><span class="who">对手 A</span><span class="v">9</span><span class="v">3</span><span class="v dmg">−10</span><span class="v hp">66</span></li>
+        <li><span class="rk">3</span><span class="who">对手 B</span><span class="v">6</span><span class="v">1</span><span class="v dmg">−15</span><span class="v hp">51</span></li>
+        <li><span class="rk">4</span><span class="who">对手 C</span><span class="v">3</span><span class="v">1</span><span class="v dmg">−20</span><span class="v hp">37</span></li>
+      </ol>
+      <div class="b-res-foot">
+        <span class="note">4 人局 · 本回合无人淘汰</span>
+        <span class="sp"></span>
+        <button class="btn" type="button">看一下榜</button>
+        <button class="b-cta" type="button" style="height:calc(30*var(--u));font-size:calc(10*var(--u));padding:0 calc(13*var(--u))">下一回合 <span>→</span></button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═════════════════════════════ C · 全息织物 ═════════════════════════════ -->
+
+<!-- C-1 对局主界面 -->
+<section class="screen" data-v="c" data-s="table">
+  <div class="room"></div>
+  <div class="c-board">
+    <div class="c-cloth"><div class="c-sigil"></div></div>
+
+    <div class="c-scene">
+      <span class="k">场景位</span>
+      <div class="c-stitch-card">
+        <figure class="card" data-r="3" style="--a1:#1e3541;--a2:#0a1419">
+          <div class="art"><span class="glyph">景</span></div>
+          <span class="pip"></span>
+          <figcaption class="cap">霓虹街机厅</figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="c-roles">
+      <div class="pick">
+        <div class="c-stitch-card">
+          <figure class="card" data-r="4" style="--a1:#3a2f4e;--a2:#150f1d">
+            <div class="art"><span class="glyph">角</span></div><span class="pip"></span>
+            <figcaption class="cap">女明星</figcaption>
+          </figure>
+        </div>
+      </div>
+      <div class="c-slot">
+        <span class="x tl"></span><span class="x tr"></span><span class="x bl"></span><span class="x br"></span>
+        <span class="dot"></span><span class="hint">空位</span>
+      </div>
+      <div class="pick">
+        <div class="c-stitch-card">
+          <figure class="card" data-r="3" style="--a1:#22323f;--a2:#0c1318">
+            <div class="art"><span class="glyph">角</span></div><span class="pip"></span>
+            <figcaption class="cap">主演</figcaption>
+          </figure>
+        </div>
+      </div>
+      <div class="c-slot">
+        <span class="x tl"></span><span class="x tr"></span><span class="x bl"></span><span class="x br"></span>
+        <span class="dot"></span><span class="hint">空位</span>
+      </div>
+    </div>
+
+    <aside class="c-rail">
+      <span class="k">道具</span>
+      <figure class="card" data-r="1" style="--a1:#2b2a24;--a2:#100f0c">
+        <div class="art"><span class="glyph">具</span></div><figcaption class="cap">王冠</figcaption>
+      </figure>
+      <figure class="card" data-r="1" style="--a1:#2b2a24;--a2:#100f0c">
+        <div class="art"><span class="glyph">具</span></div><figcaption class="cap">风扇</figcaption>
+      </figure>
+      <figure class="card" data-r="2" style="--a1:#24301f;--a2:#0c110a">
+        <div class="art"><span class="glyph">具</span></div><figcaption class="cap">相机</figcaption>
+      </figure>
+      <div class="tool">钳</div>
+    </aside>
+  </div>
+
+  <header class="top c-weave">
+    <div class="c-cell">
+      <span class="k">阶段</span>
+      <span class="phase">商店</span>
+    </div>
+    <div class="c-cell">
+      <span class="k">回合</span>
+      <b>3<small> / 8</small></b>
+      <span class="c-notches"><i class="on"></i><i class="on"></i><i class="cur"></i><i></i><i></i><i></i><i></i><i></i></span>
+    </div>
+    <div class="c-cell">
+      <span class="k">计时</span>
+      <span class="c-clock">0:42</span>
+    </div>
+    <span class="c-grow"></span>
+    <div class="c-cell">
+      <span class="k">生命</span>
+      <div class="c-thread"><b>78</b><span class="rail"><i style="width:78%"></i></span></div>
+    </div>
+    <div class="c-cell is-gold">
+      <span class="k">金币</span>
+      <b>12</b>
+      <span class="int">利息 <i>+1</i> · 下回合 <i>+6</i></span>
+    </div>
+  </header>
+
+  <footer class="c-band">
+    <div class="c-band-in">
+      <div class="c-bag">
+        <div class="c-bag-head">
+          <span class="t">手牌 <b>3</b></span>
+          <span class="hint">拖卡到桌面空位</span>
+        </div>
+        <div class="bagcard">
+          <figure class="card" data-r="3" style="--a1:#23343a;--a2:#0b1316">
+            <div class="art"><span class="glyph">角</span></div><figcaption class="cap">勘景师</figcaption>
+          </figure>
+          <span class="sell">卖 +1</span>
+        </div>
+        <div class="bagcard">
+          <figure class="card" data-r="1" style="--a1:#2c2a23;--a2:#100f0c">
+            <div class="art"><span class="glyph">景</span></div><figcaption class="cap">黄昏天台</figcaption>
+          </figure>
+          <span class="sell">卖 +1</span>
+        </div>
+        <div class="bagcard">
+          <figure class="card" data-r="2" style="--a1:#24301f;--a2:#0c110a">
+            <div class="art"><span class="glyph">景</span></div><figcaption class="cap">雨巷</figcaption>
+          </figure>
+          <span class="sell">卖 +1</span>
+        </div>
+      </div>
+      <div class="c-actions">
+        <span class="c-hint">道具拖到角色卡 · 每角色 3 张</span>
+        <button class="c-shop" type="button" aria-label="商店">
+          <span class="ic">🛒</span>
+          <span class="n">+1</span>
+          <span class="lbl">商店</span>
+        </button>
+        <button class="c-cta" type="button">开始创作 <span>→</span></button>
+      </div>
+    </div>
+  </footer>
+</section>
+
+<!-- C-2 商店栏 -->
+<section class="screen" data-v="c" data-s="shop">
+  <div class="room"></div>
+  <div class="c-board is-back">
+    <div class="c-cloth"><div class="c-sigil"></div></div>
+
+    <div class="c-scene is-hidden">
+      <span class="k">场景位</span>
+      <div class="c-stitch-card">
+        <figure class="card" data-r="3" style="--a1:#1e3541;--a2:#0a1419">
+          <div class="art"><span class="glyph">景</span></div>
+          <span class="pip"></span>
+          <figcaption class="cap">霓虹街机厅</figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="c-roles is-low">
+      <div class="pick">
+        <div class="c-stitch-card">
+          <figure class="card" data-r="4" style="--a1:#3a2f4e;--a2:#150f1d">
+            <div class="art"><span class="glyph">角</span></div><span class="pip"></span>
+            <figcaption class="cap">女明星</figcaption>
+          </figure>
+        </div>
+      </div>
+      <div class="c-slot">
+        <span class="x tl"></span><span class="x tr"></span><span class="x bl"></span><span class="x br"></span>
+        <span class="dot"></span><span class="hint">空位</span>
+      </div>
+      <div class="pick">
+        <div class="c-stitch-card">
+          <figure class="card" data-r="3" style="--a1:#22323f;--a2:#0c1318">
+            <div class="art"><span class="glyph">角</span></div><span class="pip"></span>
+            <figcaption class="cap">主演</figcaption>
+          </figure>
+        </div>
+      </div>
+      <div class="c-slot">
+        <span class="x tl"></span><span class="x tr"></span><span class="x bl"></span><span class="x br"></span>
+        <span class="dot"></span><span class="hint">空位</span>
+      </div>
+    </div>
+
+    <aside class="c-rail is-hidden">
+      <span class="k">道具</span>
+      <figure class="card" data-r="1" style="--a1:#2b2a24;--a2:#100f0c">
+        <div class="art"><span class="glyph">具</span></div><figcaption class="cap">王冠</figcaption>
+      </figure>
+      <figure class="card" data-r="1" style="--a1:#2b2a24;--a2:#100f0c">
+        <div class="art"><span class="glyph">具</span></div><figcaption class="cap">风扇</figcaption>
+      </figure>
+      <figure class="card" data-r="2" style="--a1:#24301f;--a2:#0c110a">
+        <div class="art"><span class="glyph">具</span></div><figcaption class="cap">相机</figcaption>
+      </figure>
+      <div class="tool">钳</div>
+    </aside>
+  </div>
+
+  <div class="c-loom">
+    <div class="c-loom-in">
+      <div class="c-loom-head">
+        <span class="ttl">商店</span>
+        <span class="meta">第 <i>3</i> 回合 · 计时 <i>0:42</i></span>
+        <span class="gold"><b>12</b><em>金币</em></span>
+        <span class="tip">利息 +1 · 点一张就买下</span>
+      </div>
+      <div class="c-cells">
+        <div class="c-cellcard">
+          <div class="c-stitch-card">
+            <figure class="card" data-r="2" style="--a1:#24301f;--a2:#0c110a">
+              <div class="art"><span class="glyph">角</span></div><span class="pip"></span>
+              <figcaption class="cap">灯光师</figcaption>
+            </figure>
+          </div>
+          <span class="price">2 <small>金</small></span>
+        </div>
+        <div class="c-cellcard is-gone"><div class="gone">已买走</div></div>
+        <div class="c-cellcard">
+          <div class="c-stitch-card">
+            <figure class="card" data-r="4" style="--a1:#3a2f4e;--a2:#150f1d">
+              <div class="art"><span class="glyph">角</span></div><span class="pip"></span>
+              <figcaption class="cap">女明星</figcaption>
+            </figure>
+          </div>
+          <span class="price">4 <small>金</small></span>
+        </div>
+        <div class="c-cellcard">
+          <div class="c-stitch-card">
+            <figure class="card" data-r="3" style="--a1:#1e3541;--a2:#0a1419">
+              <div class="art"><span class="glyph">景</span></div><span class="pip"></span>
+              <figcaption class="cap">霓虹街机厅</figcaption>
+            </figure>
+          </div>
+          <span class="price">3 <small>金</small></span>
+        </div>
+        <div class="c-cellcard">
+          <div class="c-stitch-card">
+            <figure class="card" data-r="5" style="--a1:#4b3a1c;--a2:#191207">
+              <div class="art"><span class="glyph">具</span></div><span class="pip"></span>
+              <figcaption class="cap">金色麦克风</figcaption>
+            </figure>
+          </div>
+          <span class="price">5 <small>金</small></span>
+        </div>
+      </div>
+      <div class="c-loom-ops">
+        <button class="c-op" type="button">刷新 <em>2 金</em></button>
+        <button class="c-op" type="button">锁定 <em>免费</em></button>
+        <button class="c-op leave" type="button">离开 <em>✕</em></button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="c-band">
+    <div class="c-band-in">
+      <div class="c-bag">
+        <div class="c-bag-head">
+          <span class="t">手牌 <b>3</b></span>
+          <span class="hint">拖卡到桌面空位</span>
+        </div>
+        <div class="bagcard">
+          <figure class="card" data-r="3" style="--a1:#23343a;--a2:#0b1316">
+            <div class="art"><span class="glyph">角</span></div><figcaption class="cap">勘景师</figcaption>
+          </figure>
+          <span class="sell">卖 +1</span>
+        </div>
+        <div class="bagcard">
+          <figure class="card" data-r="1" style="--a1:#2c2a23;--a2:#100f0c">
+            <div class="art"><span class="glyph">景</span></div><figcaption class="cap">黄昏天台</figcaption>
+          </figure>
+          <span class="sell">卖 +1</span>
+        </div>
+        <div class="bagcard">
+          <figure class="card" data-r="2" style="--a1:#24301f;--a2:#0c110a">
+            <div class="art"><span class="glyph">景</span></div><figcaption class="cap">雨巷</figcaption>
+          </figure>
+          <span class="sell">卖 +1</span>
+        </div>
+      </div>
+      <div class="c-actions">
+        <span class="c-hint">道具拖到角色卡 · 每角色 3 张</span>
+        <button class="c-shop" type="button" aria-label="商店">
+          <span class="ic">🛒</span>
+          <span class="n">+1</span>
+          <span class="lbl">收起</span>
+        </button>
+        <button class="c-cta" type="button">开始创作 <span>→</span></button>
+      </div>
+    </div>
+  </footer>
+</section>
+
+<!-- C-3 背包栏 -->
+<section class="screen" data-v="c" data-s="bag">
+  <div class="room"></div>
+  <div class="c-board">
+    <div class="c-cloth"><div class="c-sigil"></div></div>
+
+    <div class="c-scene">
+      <span class="k">场景位</span>
+      <div class="c-stitch-card">
+        <figure class="card" data-r="3" style="--a1:#1e3541;--a2:#0a1419">
+          <div class="art"><span class="glyph">景</span></div><span class="pip"></span>
+          <figcaption class="cap">霓虹街机厅</figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <div class="c-roles">
+      <div class="pick">
+        <div class="c-stitch-card">
+          <figure class="card" data-r="4" style="--a1:#3a2f4e;--a2:#150f1d">
+            <div class="art"><span class="glyph">角</span></div><span class="pip"></span>
+            <figcaption class="cap">女明星</figcaption>
+          </figure>
+        </div>
+      </div>
+      <div class="c-slot" style="border-color:rgba(247,227,174,.85);box-shadow:inset 0 0 calc(16*var(--u)) rgba(216,178,106,.14)">
+        <span class="x tl" style="opacity:1"></span><span class="x tr" style="opacity:1"></span>
+        <span class="x bl" style="opacity:1"></span><span class="x br" style="opacity:1"></span>
+        <span class="dot" style="background:rgba(247,227,174,.9)"></span>
+        <span class="hint" style="color:rgba(247,227,174,.85)">松手放下</span>
+      </div>
+      <div class="pick">
+        <div class="c-stitch-card">
+          <figure class="card" data-r="3" style="--a1:#22323f;--a2:#0c1318">
+            <div class="art"><span class="glyph">角</span></div><span class="pip"></span>
+            <figcaption class="cap">主演</figcaption>
+          </figure>
+        </div>
+      </div>
+      <div class="c-slot">
+        <span class="x tl"></span><span class="x tr"></span><span class="x bl"></span><span class="x br"></span>
+        <span class="dot"></span><span class="hint">空位</span>
+      </div>
+    </div>
+
+    <div class="drag" style="left:calc(350*var(--u));bottom:calc(78*var(--u))">
+      <div class="c-stitch-card">
+        <figure class="card" data-r="3" style="--a1:#23343a;--a2:#0b1316">
+          <div class="art"><span class="glyph">角</span></div><span class="pip"></span>
+          <figcaption class="cap">勘景师</figcaption>
+        </figure>
+      </div>
+    </div>
+
+    <aside class="c-rail">
+      <span class="k">道具</span>
+      <figure class="card" data-r="1" style="--a1:#2b2a24;--a2:#100f0c">
+        <div class="art"><span class="glyph">具</span></div><figcaption class="cap">王冠</figcaption>
+      </figure>
+      <figure class="card" data-r="1" style="--a1:#2b2a24;--a2:#100f0c">
+        <div class="art"><span class="glyph">具</span></div><figcaption class="cap">风扇</figcaption>
+      </figure>
+      <figure class="card" data-r="2" style="--a1:#24301f;--a2:#0c110a">
+        <div class="art"><span class="glyph">具</span></div><figcaption class="cap">相机</figcaption>
+      </figure>
+      <div class="tool">钳</div>
+    </aside>
+  </div>
+
+  <header class="top c-weave">
+    <div class="c-cell"><span class="k">阶段</span><span class="phase">商店</span></div>
+    <div class="c-cell"><span class="k">回合</span><b>3<small> / 8</small></b>
+      <span class="c-notches"><i class="on"></i><i class="on"></i><i class="cur"></i><i></i><i></i><i></i><i></i><i></i></span>
+    </div>
+    <div class="c-cell"><span class="k">计时</span><span class="c-clock">1:18</span></div>
+    <span class="c-grow"></span>
+    <div class="c-cell"><span class="k">生命</span>
+      <div class="c-thread"><b>78</b><span class="rail"><i style="width:78%"></i></span></div>
+    </div>
+    <div class="c-cell is-gold"><span class="k">金币</span><b>8</b>
+      <span class="int">利息 <i>+0</i> · 下回合 <i>+5</i></span>
+    </div>
+  </header>
+
+  <footer class="c-drawer">
+    <div class="c-drawer-in">
+      <div class="c-drawer-head">
+        <span class="ttl">背包</span>
+        <span class="tally"><span>角色 <i>3</i></span><span>场景 <i>2</i></span><span>道具 <i>4</i></span></span>
+        <span class="tip">拖到桌面空位 · 道具拖到右侧栏</span>
+      </div>
+      <div class="c-hand">
+        <div class="hcard">
+          <div class="c-stitch-card">
+            <figure class="card" data-r="3" style="--a1:#23343a;--a2:#0b1316">
+              <div class="art"><span class="glyph">角</span></div><span class="pip"></span>
+              <figcaption class="cap">勘景师</figcaption>
+            </figure>
+          </div>
+          <span class="sell">卖 <b>+1</b></span>
+        </div>
+        <div class="hcard">
+          <div class="c-stitch-card">
+            <figure class="card" data-r="1" style="--a1:#2c2a23;--a2:#100f0c">
+              <div class="art"><span class="glyph">景</span></div><span class="pip"></span>
+              <figcaption class="cap">黄昏天台</figcaption>
+            </figure>
+          </div>
+          <span class="sell">卖 <b>+1</b></span>
+        </div>
+        <div class="hcard">
+          <div class="c-stitch-card">
+            <figure class="card" data-r="2" style="--a1:#24301f;--a2:#0c110a">
+              <div class="art"><span class="glyph">景</span></div><span class="pip"></span>
+              <figcaption class="cap">雨巷</figcaption>
+            </figure>
+          </div>
+          <span class="sell">卖 <b>+1</b></span>
+        </div>
+        <div class="hcard">
+          <div class="c-stitch-card">
+            <figure class="card" data-r="5" style="--a1:#4b3a1c;--a2:#191207">
+              <div class="art"><span class="glyph">景</span></div><span class="pip"></span>
+              <figcaption class="cap">浮空城</figcaption>
+            </figure>
+          </div>
+          <span class="sell">卖 <b>+1</b></span>
+        </div>
+        <div class="hcard">
+          <div class="c-stitch-card">
+            <figure class="card" data-r="1" style="--a1:#2c2a23;--a2:#100f0c">
+              <div class="art"><span class="glyph">角</span></div><span class="pip"></span>
+              <figcaption class="cap">实习生导演</figcaption>
+            </figure>
+          </div>
+          <span class="sell">卖 <b>+1</b></span>
+        </div>
+        <span class="more">另有道具 4 张</span>
+      </div>
+    </div>
+  </footer>
+</section>
+
+<!-- C-4 结算小窗 -->
+<section class="screen" data-v="c" data-s="result">
+  <div class="room is-dim"></div>
+  <div class="c-veil"></div>
+  <div class="c-silk">
+    <div class="c-silk-head">
+      <div class="res-title">
+        <span class="eyebrow">第 3 回合 · 4 人局</span>
+        <h2>结算</h2>
+      </div>
+      <span class="sum"><span>总赞 <b>30</b></span><span>总票 <b>9</b></span></span>
+    </div>
+    <div class="c-res-cols"><span>名次</span><span>作品</span><span>赞</span><span>票</span><span>扣血</span><span>生命</span></div>
+    <ol class="c-res">
+      <li class="me"><span class="rk">1</span><span class="who">我 <i>本轮第一</i></span><span class="v">12</span><span class="v">4</span><span class="v dmg">−5</span><span class="v hp">78</span></li>
+      <li><span class="rk">2</span><span class="who">对手 A</span><span class="v">9</span><span class="v">3</span><span class="v dmg">−10</span><span class="v hp">66</span></li>
+      <li><span class="rk">3</span><span class="who">对手 B</span><span class="v">6</span><span class="v">1</span><span class="v dmg">−15</span><span class="v hp">51</span></li>
+      <li><span class="rk">4</span><span class="who">对手 C</span><span class="v">3</span><span class="v">1</span><span class="v dmg">−20</span><span class="v hp">37</span></li>
+    </ol>
+    <div class="c-res-foot">
+      <span class="note">4 人局 · 本回合无人淘汰</span>
+      <span class="sp"></span>
+      <button class="btn" type="button">看一下榜</button>
+      <button class="btn is-primary" type="button">下一回合 <em>→</em></button>
+    </div>
+  </div>
+</section>
+
+<!-- @@C@@ -->
+
+<script>
+/* 地址栏切方案 / 切画面。写成脚本而不是 12 个 CSS 规则，是因为"哪一屏在显示"只该有一个判据。 */
+(function () {
+  var q = new URLSearchParams(location.search);
+  var v = (q.get("v") || "a").toLowerCase();
+  var s = (q.get("s") || "table").toLowerCase();
+  if ("abc".indexOf(v) < 0) v = "a";
+  if (["table", "shop", "bag", "result"].indexOf(s) < 0) s = "table";
+  document.body.dataset.v = v;
+  document.body.dataset.s = s;
+  var screens = document.querySelectorAll(".screen");
+  for (var i = 0; i < screens.length; i++) {
+    var el = screens[i];
+    el.classList.toggle("on", el.getAttribute("data-v") === v && el.getAttribute("data-s") === s);
+  }
+})();
+</script>
+</body>
+</html>
