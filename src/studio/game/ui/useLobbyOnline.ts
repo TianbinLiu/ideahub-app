@@ -104,7 +104,11 @@ export function useLobbyOnline(): { startFailed: boolean } {
 
   // ── 等匹配：2 秒一拍，60 秒到点主动停并退回本机 AI ──
   useEffect(() => {
-    if (!open || screen !== "matching" || !online || matchSize === null) return;
+    // ★★ 2026-11-28（真机验收竞态）：`matchStartedAt <= 0` = **队列还没建起来**
+    //   （fresh 能力位探测 / 第一发 findMatch 还在路上）。这期间不拍、更不能判 60 秒超时：
+    //   `Date.now() - 0` 恒大于 60 秒，一拍就会 matchTimedOut，把刚进匹配的玩家当场判成
+    //   「没匹配到真人」并退回 AI（真机上 3/5 次）。"已经在排队"的唯一判据是 matchStartedAt > 0。
+    if (!open || screen !== "matching" || !online || matchSize === null || matchStartedAt <= 0) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
     // ★ 两拍一换：POST（续队 + 撮合）/ GET（只读状态）。理由在 lobbyStore.pollQueue 的 ★ 里：

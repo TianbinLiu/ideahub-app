@@ -55,14 +55,23 @@ export default function SearchingC({
   // 已排队的读秒：秒级重渲（只在联机等匹配时走；本机那一屏没有"排队"这回事）
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    if (!online) return;
+    // ★ 连接中（matchStartedAt 还是 0）不点秒表：等队列回来再开始读秒
+    if (!online || matchStartedAt <= 0) return;
     const timer = setInterval(() => setNow(Date.now()), 1_000);
     return () => clearInterval(timer);
-  }, [online]);
+  }, [online, matchStartedAt]);
   const waitedSec = matchStartedAt > 0 ? Math.max(0, Math.floor((now - matchStartedAt) / 1_000)) : 0;
+  /**
+   * ★★ 2026-11-28（真机验收竞态）：`busy` 且还没有队列 / 失败原因 = **这一拍还没落地**
+   *   （正在真刷新能力位、或第一发 findMatch 在途）。这时绝不能画「AI 补位 · 未排队」——
+   *   大厅右上角刚说「联机已接通」，这边就自相矛盾；弱网 / 超时下这个窗口能有好几秒。
+   *   `linked` = 这一屏现在算"联机这一支"（连接中也不摆 AI 字样），`connecting` = 还没排上。
+   */
+  const connecting = busy && queue === null && note === null;
+  const linked = online || connecting;
   // ★ 离线（没连上房间服务 / 超时退回）没有"排队"这回事：时钟写成 --:--、标签写「未排队」，
   //   不拿一个 00:00 冒充"排了 0 秒"。队列字段（queued / need / etaSec）只在 online 时念。
-  const clock = online ? clockText(waitedSec) : "--:--";
+  const clock = online && !connecting ? clockText(waitedSec) : "--:--";
   /**
    * 预计等待：`etaSec` 有就念（≥60 秒写成「x 分 xx 秒」）；没有就照 60 秒上限说"最多"。
    * ★ 不把 etaSec 与 60 秒上限取 min：服务端只是估算，客户端那个上限是兜底，两件事。
@@ -150,17 +159,27 @@ export default function SearchingC({
             <Trans>工坊</Trans>
           </button>
           <span className="lobby-c-status truncate">
-            <i aria-hidden className={online ? "" : "is-off"} />
-            {online ? <Trans>匹配中 · {size} 人局</Trans> : <Trans>AI 补位 · {size} 人局</Trans>}
+            <i aria-hidden className={linked ? "" : "is-off"} />
+            {connecting ? (
+              <Trans>正在连接房间服务…</Trans>
+            ) : online ? (
+              <Trans>匹配中 · {size} 人局</Trans>
+            ) : (
+              <Trans>AI 补位 · {size} 人局</Trans>
+            )}
           </span>
         </div>
         <div className="lobby-c-readout flex-none text-right">
-          <div className="tabular-nums">{online ? <Trans>已排队 {clock}</Trans> : <Trans>未排队</Trans>}</div>
+          <div className="tabular-nums">
+            {connecting ? <Trans>正在排队</Trans> : online ? <Trans>已排队 {clock}</Trans> : <Trans>未排队</Trans>}
+          </div>
           <div className="lobby-c-sub tabular-nums">
             {online && queue ? (
               <Trans>
                 这一池 {pool} 人
               </Trans>
+            ) : linked ? (
+              <Trans>正在排队</Trans>
             ) : (
               <Trans>AI 补位</Trans>
             )}
@@ -172,7 +191,9 @@ export default function SearchingC({
       <div className="lobby-c-bottom absolute inset-x-0 bottom-0 z-[3] flex items-center gap-3 px-4 pb-2 pt-3">
         <div className="min-w-0 flex-1">
           <b className="block truncate text-[11px] font-semibold">
-            {online ? (
+            {connecting ? (
+              <Trans>正在连接房间服务…</Trans>
+            ) : online ? (
               <Trans>这一池 {pool} 人</Trans>
             ) : busy ? (
               <Trans>正在连接房间服务…</Trans>
@@ -183,10 +204,12 @@ export default function SearchingC({
             )}
           </b>
           <span className="lobby-c-sub block truncate">
-            {online ? (
+            {online && !connecting ? (
               <Trans>正在等真人；没等到就先用 AI 开局。</Trans>
             ) : note ? (
               lobbyNoteText(note)
+            ) : connecting ? (
+              <Trans>正在连接房间服务…</Trans>
             ) : (
               <span className="tabular-nums">
                 <Trans>{size - 1} 个 AI 座位</Trans>
@@ -196,11 +219,13 @@ export default function SearchingC({
         </div>
         <div className="lobby-c-clock flex flex-none items-baseline gap-2">
           <b className="tabular-nums">{clock}</b>
-          <span>{online ? <Trans>已排队</Trans> : <Trans>未排队</Trans>}</span>
-          <em className="tabular-nums">{online ? etaText : <Trans>AI 陪玩补位</Trans>}</em>
+          <span>{connecting ? <Trans>正在排队</Trans> : online ? <Trans>已排队</Trans> : <Trans>未排队</Trans>}</span>
+          <em className="tabular-nums">
+            {connecting ? <Trans>正在连接</Trans> : online ? etaText : <Trans>AI 陪玩补位</Trans>}
+          </em>
         </div>
         <div className="flex flex-none items-center gap-1.5">
-          {!online && (
+          {!online && !connecting && (
             <button
               type="button"
               onClick={onStart}

@@ -311,10 +311,10 @@ export default function Lobby() {
   /** 安卓返回键：匹配中 = 取消匹配回大厅首屏（与左下角那颗取消同一件事）。 */
   useBackLayer(!dealing && screen === "matching", () => useLobby.getState().backHome(), "lobby-matching");
   /** 高斯角标（fps / splat 数）是 z-9999 的开发者读数：大厅开着时藏起来，别压住"凭码加入"。
-   *  关掉大厅就放回来（读数照旧每秒刷新）。 */
+   *  关掉大厅就放回来（读数照旧每秒刷新）。★ key="lobby"：与 StylePick 那一格互不覆盖。 */
   useEffect(() => {
-    setGsHudHidden(open);
-    return () => setGsHudHidden(false);
+    setGsHudHidden(open, "lobby");
+    return () => setGsHudHidden(false, "lobby");
   }, [open]);
 
   /**
@@ -421,6 +421,11 @@ export default function Lobby() {
       return;
     }
     const size: MatchSize = pick === "match8" ? 8 : 4;
+    // ★★ 2026-11-28（真机验收竞态）：进匹配**之前**就把能力位现问一次 —— 这一发与下面的穿窗
+    //   动画（~2.4 s）并排跑；`chooseMatch` 里那一发 fresh 会复用在途请求（data/serverCaps 单飞），
+    //   所以不额外多一次请求、也不给点击加延迟。目的是：C 那一屏一开始拿到的就是"刚才问到的结论"，
+    //   而不是大厅那份整场会话缓存 / 或者被 chooseMatch 打回 false。
+    void useLobby.getState().refreshOnline({ fresh: true });
     if (!cinematic) {
       useLobby.getState().chooseMatch(size);
       return;

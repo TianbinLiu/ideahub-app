@@ -89,8 +89,10 @@
   左列 272 px、右列 236 px，中间净空 ≥ 240 px ⇒ **月亮主体一个像素都不被卡片压住**（截图为证）。
 - **文字对比**：所有压 UI 的地方都有暗角/绒布垫底；正文米白 `#f2e7d2`、小字金 `#a88d5c`/`#8e7c5d`，
   不使用本仓禁用的 `text-slate-600`；`<Trans>` 全部走 lingui。
-- **字体**：衬线 = `Palatino / Songti / Noto Serif CJK / SimSun`，手写 = `Segoe Script / Kaiti / KaiTi / cursive`。
-  仓库没有自带中文字体，安卓上可能落到系统无衬线 —— 烫金渐变 + 字号层级仍然成立（差异清单第 9 条）。
+- **字体**：2026-11-28 起**自带子集化字体**（`Lobby Serif SC` = Noto Serif SC 可变字重子集，
+  35.3KB；`Lobby Hand SC` = Ma Shan Zheng 子集，12.1KB），`@font-face` + `font-display:swap`
+  + `<link rel=preload>`；系统回退栈（Palatino / Songti / SimSun / Segoe Script / Kaiti …）一个都没删。
+  方案、体积与真机观感见 §10.3。
 
 ---
 
@@ -198,7 +200,7 @@
 | 6 | C 只有联机等匹配一支 | 多了离线/超时退回 AI 的一支：时钟 `--:--`、未排队、用 AI 开局 + 取消 | 原有状态字段全保留；离线时不能拿 `00:00` 冒充"排了 0 秒" |
 | 7 | B 加载页「选风格 62%，候选：暖金织物 · 胶片夜景」 | 62% = 这段过场自己的计时；不写具体候选 | 风格卡在游戏开局后才抽，预先写一个候选就是假数据 |
 | 8 | B 加载页窗景在背后 | 从匹配中进 → 有窗；从自定义房间开局 → 没有窗，铜环是居中徽记 | 房间屏的相机不在窗前（两场景切换没改）；不硬把镜头拽回窗 |
-| 9 | 手写体 / 宋体（Windows 字体） | 用系统字体栈；安卓可能落到系统无衬线 | 仓库没有自带中文字体；烫金渐变 + 字号层级保住主次 |
+| 9 | 手写体 / 宋体（Windows 字体） | **自带子集化字体**：衬线 Noto Serif SC（400~700 可变）+ 手写 Ma Shan Zheng；只收 B 案 UI 实际用字（衬线 137 字 / 手写 99 字），35.3 + 12.1KB | Android WebView 没有 Palatino / 宋体 / 华文楷体，靠系统栈会整片落到无衬线（真机验收 P0）。字体文件进仓库，系统回退栈保留，见 §10.3 |
 | 10 | 昼是明亮海天（厚涂） | 昼沿用现有 `window-sea` splat（本仓既有资源） | 窗景两档是上一轮已交付的资产，这轮不重做 |
 | 11 | 1280×720 桌面预览 | 只做 App 的横屏布局（852×348 / 800×363） | 这是手机 App；桌面预览只是稿子的对照尺寸 |
 
@@ -233,6 +235,158 @@
    （比如第四个模式 / 更长的说明）会重新压到标题。`MatchLobbyB` 里收间距的注释写明了这一点。
 6. **`lobby-radar` 等旧 CSS** 现在没有调用方（匹配中已换成 C 光环），留着是为了不制造无意义的 diff；
    下一轮可以连同旧 `MatchRadar` 的样式一起清掉。
+
+### 10.3 2026-11-28 真机四项修复（`feat/ui-fonts-hud-fixes`）
+
+> §10.1 的"登录墙"是上一轮的情况。这一轮真机上的**正式包保持登录态**（同一包名同一签名覆盖安装，
+> 安装前后都是主人的线上账号），所以下面全部是**真机 `3C15CJ00C8V00000` 的读数与截图**，不再用浏览器代替。
+> 落盘：`npm run build` 绿（含 `scripts/check-lobby-fonts.mjs` 新门禁）；截图不进仓库，
+> 目录见 §10.3.5。
+
+#### 1）字体：自带 Open Font License 子集（修"安卓没有宋体/手写体"）
+
+| | 衬线 | 手写 |
+|---|---|---|
+| 字体 | **Noto Serif SC** 可变字重 400~700（SIL OFL 1.1） | **Ma Shan Zheng 马善政毛笔楷书**（SIL OFL 1.1） |
+| `@font-face` 家族 | `Lobby Serif SC` | `Lobby Hand SC` |
+| 文件 | `public/fonts/lobby-serif-sc.woff2` | `public/fonts/lobby-hand-sc.woff2` |
+| 体积 | **36,156 B（35.3 KB）** | **12,344 B（12.1 KB）** |
+| 字符数 | 137（46 个中文 + 4 标点 + 可打印 ASCII） | 99（4 个中文 + 4 标点 + 可打印 ASCII） |
+| 用在哪 | `.lobby-serif`（对局大厅 / 正在铺桌）、`.lobby-card-b b`、`.lobby-brass-cta`、`.lobby-ghost-btn b`、`.lobby-ticket-h`、`.lobby-ticket-join`、`.lobby-stage-card b`、`.lobby-seal` | `.lobby-hand`：「开一桌？」与载入页大号百分比 |
+| 合计 | **47.4 KB**（验收上限每份 ≤120KB / 合计 ≤300KB，余量充足） | |
+
+- **子集化**：`scripts/gen-lobby-fonts.mjs` 用 Google Fonts 的 `text=` 参数只取清单里的字
+  （服务端切好，比先下 20MB 全字库再 `pyftsubset` 少一步）；字符清单只有一份
+  `scripts/lib/lobby-font-chars.mjs`（中文 + 标点 + 可打印 ASCII —— 英文界面下同一批元素整句是英文）。
+- **接线**：`index.html` 两条 `<link rel=preload as=font type=font/woff2 crossorigin>`；
+  `src/index.css` 两个 `@font-face`（`font-display: swap`、`font-weight: 400 700` 覆盖可变区间）；
+  `.lobby-serif` / `.lobby-hand` 与七处重复栈统一走 `--lobby-serif-stack` / `--lobby-hand-stack`。
+- **回退栈一个没删**：`"Lobby Serif SC", Palatino / Iowan Old Style / Georgia / Songti SC / Noto Serif CJK SC / SimSun, serif`；
+  手写同理（Segoe Script / Kaiti / KaiTi / STKaiti）。正文 `body` 仍是系统无衬线 —— 自带字体只给 B 案。
+- **构建门禁**：`scripts/check-lobby-fonts.mjs`（44 条）核对文件存在 / wOF2 / 每份与合计上限 /
+  **真实码点覆盖**（`scripts/lib/woff2-cmap.mjs` 直接解 woff2 的 cmap，不靠字库体积猜）/ 清单与生成物逐字一致 /
+  preload 三属性 / `@font-face` 的 swap 与可变区间 / 系统回退栈仍在 / `body` 没被换掉。
+  改 B 案文案要补 `lobby-font-chars.mjs` 并重跑 `node scripts/gen-lobby-fonts.mjs`（漏字只会让那个字回退，不崩）。
+- **真机读数**：`document.fonts` 里两份都是 `loaded`；`document.fonts.check('600 19px "Lobby Serif SC"','对局大厅')` 与
+  `check('52px "Lobby Hand SC"','开一桌？')` 都为 true；`getComputedStyle` 的首选家族分别是 `Lobby Serif SC` / `Lobby Hand SC`。
+  截图 ①（§10.3.5）：标题「对局大厅」是衬线、副标题「开一桌？」是毛笔手写且烫金渐变生效。
+
+#### 2）GS 读数角标：生产默认隐藏 + 永远在可点 UI 之下
+
+- **默认生产隐藏**：`gsHudWanted()` 是唯一判据 —— 只有 `?gs=1`、`localStorage.gsAcceptDebug=1`、
+  或设置 →「高斯场景（实验）」**被用户显式点开**（`gsStep0Experiment=1`）才挂。
+  **自动判定为开不算**（那正是"正式包在够格机器上常驻"的来源）。没有信号时 `mountGsHud()` 直接返回 `() => {}`，
+  连节点都不建 —— 真机默认包里 `document.querySelector("[data-gs-hud]") === null`。
+- **位置**：左上、安全区以下（`left:8px`，`top: calc(var(--safe-float-top))`），`pointer-events:none`，
+  背景半透明 `rgba(0,0,0,.55)`，`opacity:.78`，`max-width:46vw`。
+- **z-index 9999 → 25**：对局 UI z-30、大厅与 StylePick z-40、设置 z-50 —— 读数在**任何可点界面之下**，
+  永远压不到键。叠层满的屏（商店 / 事件）里它会被面板盖掉一部分，这是有意的取舍（调试读数不抢 UI）。
+- **两处整屏再藏一层**（`setGsHudHidden(next, key)`，按 key 计数，避免两个 effect 抢一个布尔）：
+  大厅开着时 `"lobby"`、风格选择屏开着时 `"stylepick"`。所以即使有调试信号，StylePick 那一屏也读不到角标（`display:none`）。
+- **真机验证**：默认包（`gsAcceptDebug` / `gsStep0Experiment` 均未写）在大厅与对局里 `[data-gs-hud]` **不存在**；
+  写 `gsAcceptDebug=1` 后，StylePick 里节点存在但 `display:none`；锁定风格进商店后可见，`rect = (8, 49, 368×90)`，
+  `pointer-events:none`。生产默认不会再挡住「锁定这张风格，开局」。
+
+#### 3）StylePick 的显式退出（修"整屏盖住了 ✕ 结束对局"）
+
+- 右上角新增 **「✕ 返回大厅」**：真机实测热区 **80×44 CSS px**（`rect = 702,55,80,44`，≥44），
+  位置在安全区以下、与标题不重叠。
+- 点击与安卓返回键走**同一条路**：`ui/quitGame.quitGameToLobby`
+  （`rounds.leaveNow()` 退房 → `game.endGame()` 收局 → `lobby.openLobby()` 开大厅），
+  与工坊顶栏的「✕ 结束对局」、设置页「退出游戏」、PhaseBar「🏁 返回大厅」是同一份实现。
+  `useBackLayer(true, quitGameToLobby, "game-style")` 让系统返回键先关这一屏。
+- **零消耗**：这一屏还在一局的最前面，一张片都没出；游戏券只在局内出片时扣（`data/gameTicketRules`）。
+  真机点退出前后顶栏都是 **🎟 6 / ⚡ 300k**（未变），且 `game.state === null`、大厅 `screen === "home"`。
+  联机局退出时 `leaveNow()` 会把服务端房间退掉，不把账号留在房里。
+- 边界那一支（「风格已经锁定」）也摆了同一颗出口，不会有"只能锁定"的整屏。
+
+#### 4）联机状态竞态：大厅"已接通" / 匹配中"AI 补位"
+
+**根因（三处叠加，不是一句"时序"）：**
+
+1. **缓存键**：`refreshOnline()` 调的是 `probeServerCaps(true)`，而这个函数的 `true` 只跳过
+   "dev 没配 API_BASE 当没有服务端"那一条；**`caps` 已存在时它直接回缓存**（`if (caps) return Promise.resolve(caps)`）。
+   于是大厅打开 / 进匹配前那些"强制刷新"从来没有发出过第二个请求，"已接通"可以是一整场会话之前的结论。
+2. **两个字段各说各的**：大厅右上角读 `serverOnline`（能力位探测结果），匹配中 C 屏读 `online`
+   （这一局是否真的在服务端队列里）。`chooseMatch()` 进屏时先把 `online` 写成 **false**，再等
+   `refreshOnline()` + 第一发 `findMatch`；C 屏把 `online === false` 直接读成"本机 AI 补位"，
+   于是这几百毫秒~10 秒里画的是「AI 补位 · 未排队」，底部同一时刻写着「正在连接房间服务…」——
+   与大厅的「联机已接通」自相矛盾。弱网 / 请求超时下这个窗口能有好几秒，看起来就是"卡住了"。
+3. **回归**：修法把 `online` 提前置为"已知联机"后，匹配轮询 effect 会提前开跑；它的超时判据是
+   `Date.now() - matchStartedAt >= 60_000`，而队列未落地时 `matchStartedAt === 0`，于是**第一拍就判超时**
+   （真机复现 3/5 次）。**唯一判据**是 `matchStartedAt > 0`，没建队就不该开拍、更不该判 60 秒。
+
+**修法（单一状态源 + 真刷新）：**
+
+- `data/serverCaps.refreshServerCaps()`：**绕过 `caps` 缓存**真打一发健康端点（与 `probeServerCaps` 共用同一段请求 / 收尾，
+  单飞复用同一个在途 promise）。失败只影响"这一刻通不通"，不清 `caps`（能力位是"会不会"，两件事）。
+- `lobbyStore.refreshOnline({ fresh: true })`：`openLobby()` 与进匹配前用它；其余动作仍用缓存结论。
+- `Lobby.startPicked()`：点主键就**先起火**一发 fresh 探测，与 2.4 s 穿窗并行；`chooseMatch()` 里那一发
+  fresh 单飞复用它，不额外延迟。
+- `chooseMatch()`：`online` 不再先写 false，而是 `get().serverOnline === true`（大厅那份最新结论）；
+  `busy` 表示"这一拍还没落地"。
+- `SearchingC`：`connecting = busy && queue === null && note === null`。连接中一屏**不写**「AI 补位 / 未排队」，
+  写「正在连接房间服务… / 正在排队 / 正在连接」；队列落地才切「匹配中 / 已排队」。
+- `useLobbyOnline`：匹配轮询只在 `matchStartedAt > 0` 时开拍（见根因 3）。
+
+**验证方法（真机 + CDP 注入 3 s 网络延迟，把窗口放大到能采样）：**
+
+- 前置：大厅右上角必须显示「联机已接通」；点主键 → 穿窗 2.4 s 结束 → 从 2.6 s 起每 0.4 s 采一次 C 屏文案，共 6 个采样点。
+- **改前**（main `b3d2ab05` 的同一份代码，临时开 debuggable 的 release 包）：**5/5 次**都命中，
+  30 个采样点里 **28 个**是「AI 补位 · 未排队」（多数同时也写着「正在连接房间服务…」）；
+  证据截图 `.tmp-fonts/device-before-race.png`。
+- **改后**：**5/5 次、30 个采样点里 0 个**出现「AI 补位 / 未排队」；28 个采样点是
+  「正在连接房间服务… / 正在排队」，其余是队列落地后的「匹配中 · 4 人局 / 已排队 00:00」。
+  即：大厅与匹配中现在读同一份"刚刚问到的"结论，不再有自相矛盾的那一窗。
+- 改后 5 次运行的明细：`.tmp-fonts/device-race-after.json`；改前：`.tmp-fonts/device-race-before.json`。
+
+#### 5）五张真机截图（不提交，路径供验收）
+
+目录：`C:\Users\tliu7\ideahub\_agent67_evidence\`
+
+| # | 文件 | 看什么 | 结论 |
+|---|---|---|---|
+| 1 | `01-lobby-800x363.png` | 大厅首屏（最终正式包） | 标题衬线、副标题毛笔手写、烫金渐变生效；GS 角标不存在 |
+| 2 | `02-stylepick-800x363.png` | 选风格屏（最终正式包） | 右上「✕ 返回大厅」可见；底部「锁定这张风格，开局」无任何遮挡；GS 角标不存在 |
+| 3 | `03-back-lobby-800x363.png` | 点「✕ 返回大厅」之后 | 回大厅首屏；顶栏 🎟 6 / ⚡ 300k 与退出前一致 |
+| 4 | `04-ingame-hud-800x363.png` | 调试信号打开后的对局（商店，临时 debuggable 包） | 角标在左上 `(8, 49) 368×90`、半透明、`pointer-events:none`、z-25；商店面板盖在它上面（它压不到键）；StylePick 里它是 `display:none` |
+| 5 | `05-matching-800x363.png` | 匹配中（最终正式包） | 顶部「匹配中 · 4 人局」、右侧「已排队 00:01 / 这一池 1/4 人」，与大厅「联机已接通」一致；无 GS 角标 |
+| — | `race-before.png` / `race-before.json` / `race-after.json` | 竞态对照 | 改前「AI 补位 · 未排队 / 正在连接房间服务…」；改后 30 个采样点 0 次 |
+
+> 最终正式包（非 debuggable、同一包名覆盖、登录态保留）上是第 1/2/3/5 张；第 4 张是临时 debuggable 包
+> （只为开 CDP 读位置），同一份 JS/UI。StylePick 里 `[data-gs-hud]` 节点：默认正式包**不存在**；
+> 写调试信号后节点存在但 `display:none`（上层 UI 也盖得住它）。
+
+#### 6）包体增量
+
+- 字体资产：`public/fonts/` 新增 47.4 KB woff2 + 8.7 KB OFL 许可全文 + 3.7 KB 清单（未压缩）≈ 59.8 KB。
+- **APK 增量**：以真机同一条 main（`b3d2ab05`）出的 `app-sideload-release.apk` 为基线
+  （**109,621,393 B**）→ 本次最终包（非 debuggable）**109,676,069 B**，差 **+54,676 B（+53.4 KB）**。
+  与"字体 47.4 KB + 代码/清单几 KB"对得上。
+  （中间用 debuggable 包做 CDP 验收时，APK 会因 dex 带调试信息 / 资产压缩级别不同而 +3.6 MB ——
+  那不是本改动的体积，最终包以非 debuggable 那份为准。）
+
+#### 7）分支 / PR / CI / main
+
+- 分支：`feat/ui-fonts-hud-fixes`（从 main `b3d2ab05` 开）
+- PR：**<FILL_PR>**
+- CI：**<FILL_CI>**
+- main：**<FILL_MAIN>**
+
+#### 8）剩余风险
+
+1. **字体只覆盖 B 案那几处文案**：若以后在 `.lobby-serif` / `.lobby-hand` 里写新字而没补
+   `scripts/lib/lobby-font-chars.mjs` 并重跑生成脚本，那个字会回退到系统衬线/手写（不空白、不崩；
+   构建门禁会核对"清单与字体一致"，但不会扫描 JSX 文案）。
+2. **调试角标在叠层密集的屏里会被面板盖住一部分**（z-25 是有意的）；它只在三种调试信号下存在，
+   生产默认玩家看不到。如果以后要"开发时也能看全"，应做成一个可展开的小胶囊，而不是把 z 抬回 UI 之上。
+3. **联网竞态只修了"状态自相矛盾"这一层**：`findMatch` 本身超时（10 s）仍会退回本机 AI 并把原因写在底栏
+   （这是既有的诚实兜底，不是这次要改的）。弱网下从点主键到进队列仍可能要几秒 —— 但屏幕上不再说反话。
+4. **字体 preload 是全局的**：即使用户从不进大厅，App 启动也会预取 48 KB（首屏 JS 的零头）。
+   如果以后要抠这 48 KB，可改成进大厅路由时注入 `<link rel=preload>`；当前选的是"进大厅不跳字"优先。
+5. 真机验收期间为了挂 CDP，临时把 release 变体开成 `debuggable true` 出过两个中间包；**最终装到手机上的是
+   非 debuggable 的正式包**（同一包名同一签名覆盖安装，登录态保留）。中间包没有提交。
+
 
 ---
 

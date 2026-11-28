@@ -278,20 +278,12 @@ export function subscribeServerCaps(fn: () => void): () => void {
 }
 
 /**
- * 探一次（整场会话记住结果：服务端不会在会话中途升级）。探测本身失败（断网）回 null 且不记，下次再问。
- * ★ 直连 / 离线时不发请求，直接回「全在」。
- * ★ `force`：跳过「dev / 没配 API_BASE 当没有服务端」这一条，照常去问。调用方是
- *   `serverGameRooms` / `serverGameEvents`（工坊对局的房间与回合间事件）：本轮联机验证的环境就是
- *   `npm run dev` + 本地 server，而 `noServerLayer()` 的「dev = 直连方舟」只在**没配** `VITE_API_BASE`
- *   时才成立 —— 配了地址的 dev 是一个真客户端，这两位不能因此永远读成「没有」。
- *   别的能力位不受影响（仍然走上面那条早退）。
+ * 真去问一次（**不看** `caps` / `failedAt`）。`probeServerCaps` 与 `refreshServerCaps` 共用同一段请求与收尾 ——
+ * 两处各抄一份的话，"成功写 caps、失败记 failedAt、listeners 广播"迟早会漏一处。
+ * ★ 单飞：调用方用 `probe ??= runProbe()` 把它挂到同一个槽上；它自己也在收尾时把槽清空。
  */
-export function probeServerCaps(force = false): Promise<ServerCaps | null> {
-  if (!API_ON) return Promise.resolve(ALL);
-  if (!force && noServerLayer()) return Promise.resolve(ALL);
-  if (caps) return Promise.resolve(caps);
-  if (!probe && Date.now() - failedAt < RETRY_MS) return Promise.resolve(null);
-  probe ??= fetch(`${API_BASE}/api/ark/health`, { headers: withAppVersion(`${API_BASE}/api/ark/health`), signal: AbortSignal.timeout(10_000) })
+function runProbe(): Promise<ServerCaps | null> {
+  return fetch(`${API_BASE}/api/ark/health`, { headers: withAppVersion(`${API_BASE}/api/ark/health`), signal: AbortSignal.timeout(10_000) })
     .then(async (r): Promise<ServerCaps | null> => {
       // ★ 5xx / 429（网关错误页、部署那几秒、限流）是「这一刻没答上来」，不是「这台服务端不会」：记成不知道、过一会儿再问。
       //   原来一律记成全 false 并记一整场会话 —— 一次 502 就把「草稿」档藏到 App 重启（11-24 之后那是免费用户唯一的档）
@@ -326,6 +318,43 @@ export function probeServerCaps(force = false): Promise<ServerCaps | null> {
       failedAt = Date.now();
       return null;
     });
+}
+
+/**
+ * 探一次（整场会话记住结果：服务端不会在会话中途升级）。探测本身失败（断网）回 null 且不记，下次再问。
+ * ★ 直连 / 离线时不发请求，直接回「全在」。
+ * ★ `force`：跳过「dev / 没配 API_BASE 当没有服务端」这一条，照常去问。调用方是
+ *   `serverGameRooms` / `serverGameEvents`（工坊对局的房间与回合间事件）：本轮联机验证的环境就是
+ *   `npm run dev` + 本地 server，而 `noServerLayer()` 的「dev = 直连方舟」只在**没配** `VITE_API_BASE`
+ *   时才成立 —— 配了地址的 dev 是一个真客户端，这两位不能因此永远读成「没有」。
+ *   别的能力位不受影响（仍然走上面那条早退）。
+ * ★★ 2026-11-28：`force` **不等于**「重新问一次」—— 有 `caps` 时它照样回缓存（名字里的 force 说的是
+ *   dev 那条早退）。要"现在到底通不通"（大厅右上那颗「联机已接通」）必须用 `refreshServerCaps`。
+ */
+export function probeServerCaps(force = false): Promise<ServerCaps | null> {
+  if (!API_ON) return Promise.resolve(ALL);
+  if (!force && noServerLayer()) return Promise.resolve(ALL);
+  if (caps) return Promise.resolve(caps);
+  if (!probe && Date.now() - failedAt < RETRY_MS) return Promise.resolve(null);
+  probe ??= runProbe();
+  return probe;
+}
+
+/**
+ * **真的再问一次**能力位（不看会话缓存）—— 2026-11-28 大厅联机状态竞态的唯一修法。
+ *
+ * ★★ 为什么需要它：`probeServerCaps(true)` 在 `caps` 已经存在时**直接回缓存**（见上一条），
+ *   所以大厅打开 / 进匹配前那些"强制刷新"从来没发出过第二个请求。缓存里的 `gameRooms` 是一整场会话
+ *   的事实，但"这台设备**此刻**连不连得上"会因为断网、切后台、VPN、服务端重启而变 —— 拿缓存说
+ *   「联机已接通」、进匹配后又拿 `online=false` 说「AI 补位」，就是真机验收里那次自相矛盾。
+ * ★ 单飞：同时有多个人问（openLobby 的刷新与点主键时的预刷新）只发一发。
+ * ★ 失败**不**把 `caps` 清掉：能力位是「这台服务端会不会」，与「这一刻通不通」是两件事；
+ *   `caps` 仍是老服务端判"有没有这个端点"的唯一依据，这里只把「现在通不通」交给调用方。
+ *   代价是：真·老服务端在会话中途上线时会多问几次（每次大厅打开 / 进匹配前各一发），可以接受。
+ */
+export function refreshServerCaps(): Promise<ServerCaps | null> {
+  if (!API_ON) return Promise.resolve(ALL);
+  probe ??= runProbe();
   return probe;
 }
 
