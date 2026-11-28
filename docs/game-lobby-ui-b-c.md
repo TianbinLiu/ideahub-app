@@ -369,8 +369,8 @@
 #### 7）分支 / PR / CI / main
 
 - 分支：`feat/ui-fonts-hud-fixes`（从 main `b3d2ab05` 开）
-- PR：**<FILL_PR>**
-- CI：**<FILL_CI>**
+- PR：**#564** <https://github.com/TianbinLiu/ideahub-app/pull/564>
+- CI（GitHub Actions，run `46136971715`）：build ✅ / android ✅（debug 变体编译，不设 required）
 - main：**<FILL_MAIN>**
 
 #### 8）剩余风险
