@@ -95,6 +95,32 @@ if (!(R.GS_GATE_MIN.cores >= 4 && R.GS_GATE_MIN.memory >= 2 && R.GS_GATE_MIN.sho
   problems.push(`门槛不在合理范围：${JSON.stringify(R.GS_GATE_MIN)}`);
 }
 
+// ── HUD 的"生产默认隐藏"（2026-11-28，`feat/ui-fonts-hud-fixes`）─────────────────────────
+// ★ 为什么钉在构建里：这一块的错是**看不出来**的 —— 自动判定在正式包里默认就是开，
+//   只要 HUD 还无条件挂，玩家的对局主键上就压着一块 z-9999 的读数（真机验收 P0）。
+//   三条：① 只有 ?gs=1 / gsAcceptDebug / 设置里**显式**开过 才挂；不认"自动判定为开"；
+//        ② mount 前判门禁（不是建好再藏）；③ 位置离开右下（底部主键那一带），且仍可点穿。
+{
+  const fs = await import("node:fs");
+  const hud = fs.readFileSync(path.join(root, "src/studio/scene/gsHud.ts"), "utf8");
+  const need = [
+    ['?gs=1 信号', /get\("gs"\)\s*===\s*"1"/],
+    ["gsAcceptDebug 信号", /localStorage\.getItem\("gsAcceptDebug"\)\s*===\s*"1"/],
+    ["设置里显式开过（不认自动判定）", /gsExperimentOverride\(\)\s*===\s*"on"/],
+    ["mount 前判门禁", /if\s*\(!gsHudWanted\(\)\)\s*return/],
+    ["读数可点穿", /"pointer-events:none"/],
+    ["位置离开右下（左上）", /"left:8px"/],
+    ["读数在任何可点 UI 之下（z-index:25，不是 9999）", /"z-index:25"/],
+  ];
+  for (const [label, re] of need) {
+    ran += 1;
+    if (!re.test(hud)) problems.push(`HUD 缺了「${label}」`);
+  }
+  // 反例：还在右下角 → 红（那个位置压着对局底部的键与提示）
+  ran += 1;
+  if (/"right:10px"/.test(hud) || /"bottom:12px"/.test(hud)) problems.push("HUD 又回到右下角（会压对局主键）");
+}
+
 if (problems.length) {
   console.error(`[check-gs-auto-gate] ${problems.length} 处不对（跑了 ${ran} 组）：`);
   for (const p of problems) console.error(`  ✗ ${p}`);

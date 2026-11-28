@@ -61,7 +61,7 @@ import {
 } from "../../api/game/rooms";
 import { PUBLIC_ROOMS_PAGE_SIZE, spectateNoteOf } from "./spectate";
 import { currentUser } from "../../data/account";
-import { probeServerCaps } from "../../data/serverCaps";
+import { probeServerCaps, refreshServerCaps } from "../../data/serverCaps";
 
 /** 自定义房间的默认人数：4（§5-1 的默认桌，也是 4 人匹配的桌）。 */
 export const DEFAULT_ROOM_SIZE = 4;
@@ -216,8 +216,13 @@ export interface LobbyStore {
    *   不加这一位的话，`release()` 会在开局那一刻把房间退掉 —— 症状是"服务端回合刚开，成员已经不在房里"。
    */
   closeLobby: (opts?: { keepRoom?: boolean }) => void;
-  /** 问一次服务端有没有房间服务（能力位）；返回能不能发房间请求 */
-  refreshOnline: () => Promise<boolean>;
+  /**
+   * 问一次服务端有没有房间服务（能力位）；返回能不能发房间请求。
+   * ★★ 2026-11-28：`fresh` = **真的再问一次**（不吃能力位的会话缓存）。大厅打开与进匹配前用它，
+   *   别让右上角的「联机已接通」是一整场会话之前那个结论（真机验收：大厅说已接通、进匹配却说 AI 补位）。
+   *   其余动作（建房 / 进房 / 凭码加入）用缺省的缓存结论 —— 那些请求本身就会立刻证明通不通。
+   */
+  refreshOnline: (opts?: { fresh?: boolean }) => Promise<boolean>;
   /** 4 人 / 8 人匹配：先进"等匹配"那一屏，联机可用就进队轮询；不可用就本机 AI 补位 */
   chooseMatch: (size: MatchSize) => void;
   /** 自定义房间：联机可用就开服务端房间；不可用就开本机房间（AI 补位） */
@@ -528,9 +533,12 @@ export const useLobby = create<LobbyStore>((set, get) => {
         ...PUBLIC_STATE_RESET,
         roomSyncedAt: 0,
         roomFailStreak: 0,
+        // ★ 2026-11-28：打开大厅时把「联机已接通」打回未知，等下面那一发**真刷新**回来再写。
+        //   不清的话，上一场会话的结论会一直挂在右上角；玩家看到的就是"大厅说已接通、进匹配说 AI 补位"。
+        serverOnline: null,
       });
-      // 底栏那句「联机通没通」要现问一次（能力位整场会话缓存，问的是同一个结论）
-      void get().refreshOnline();
+      // 底栏那句「联机通没通」要**现问一次**（不吃能力位缓存；见 refreshOnline 的 ★★）。
+      void get().refreshOnline({ fresh: true });
     },
 
     noteResumeGone: () => set({ note: { kind: "resume-gone" } }),
@@ -567,9 +575,10 @@ export const useLobby = create<LobbyStore>((set, get) => {
       });
     },
 
-    refreshOnline: async () => {
-      // force：dev 配了 VITE_API_BASE 时也要照问（见 data/serverCaps.probeServerCaps 的 ★）
-      const caps = await probeServerCaps(true);
+    refreshOnline: async (opts) => {
+      // ★★ 2026-11-28 竞态修法：fresh 走 refreshServerCaps（**绕过 caps 缓存**、单飞）。
+      //   原来一律 probeServerCaps(true)，而那个函数在 caps 已存在时直接回缓存 —— "强制刷新"从没刷新过。
+      const caps = opts?.fresh ? await refreshServerCaps() : await probeServerCaps(true);
       const online = !!caps && roomsAvailable();
       set({ serverOnline: online });
       return online;
@@ -577,13 +586,20 @@ export const useLobby = create<LobbyStore>((set, get) => {
 
     chooseMatch: (size) => {
       if (get().busy) return;
+      // ★★ 2026-11-28 竞态修法（另一半）：**不在这里把 online 打回 false**。
+      //   原来进匹配中先写 online:false / busy:true，C 那一屏把 online=false 直接读成"本机 AI 补位"，
+      //   于是在"刷新能力位 + 第一发 findMatch"这几百毫秒~10 秒里，屏幕上写着「AI 补位 · 未排队」，
+      //   而大厅右上角还写着「联机已接通」—— 同一件事两个字段各说各的。
+      //   现在：沿用大厅那份 serverOnline 当"已知联机"（null / false 就是未知 / 没连上，C 会画"正在连接"），
+      //   busy 表示"这一拍还没落地"，由下面的 fresh 探测给出结论；C 在 busy 时不写"未排队"。
+      const knownOnline = get().serverOnline === true;
       set({
         open: true,
         screen: "matching",
         mode: size === 8 ? "match8" : "match4",
         matchSize: size,
         room: null,
-        online: false,
+        online: knownOnline,
         remoteRoom: null,
         queue: null,
         matchStartedAt: 0,
@@ -593,14 +609,14 @@ export const useLobby = create<LobbyStore>((set, get) => {
         busy: true,
       });
       void (async () => {
-        const online = await get().refreshOnline();
+        const online = await get().refreshOnline({ fresh: true });
         if (!get().open || get().screen !== "matching") {
           set({ busy: false });
           return;
         }
         if (!online) {
           // 没接通：留在"等匹配"这一屏，座位照旧摆 AI（与接联机之前逐字节一样）
-          set({ busy: false, note: { kind: "offline" } });
+          set({ busy: false, online: false, note: { kind: "offline" } });
           return;
         }
         const res = await findMatch(size);

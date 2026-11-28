@@ -3988,6 +3988,10 @@ msgstr "✕ Cancel"
 msgid "✕ 结束对局"
 msgstr "✕ End game"
 
+#: src/studio/game/ui/StylePick.tsx
+msgid "✕ 返回大厅"
+msgstr "✕ Back to lobby"
+
 #: src/studio/game/ui/Lobby.tsx
 msgid "✕ 返回工坊"
 msgstr "✕ Back to Studio"
@@ -22223,6 +22227,10 @@ msgstr "Saving this video's deck to your Studio…"
 msgid "正在拆镜头…"
 msgstr "Splitting into shots…"
 
+#: src/studio/game/ui/SearchingC.tsx
+msgid "正在排队"
+msgstr "Joining the queue"
+
 #: src/data/templates.ts
 msgid "正在提交：AI 先看 {frames} 帧认出画面里有哪些人，再把这一段发去出片…"
 msgstr "Submitting: the AI first looks at {frames, plural, one {# frame} other {# frames}} to identify who's in the picture, then sends this part off to render…"
@@ -22418,6 +22426,10 @@ msgstr "Taking a spectator seat…"
 #: src/studio/game/ui/Lobby.tsx
 msgid "正在连房间服务…"
 msgstr "Connecting to the room service…"
+
+#: src/studio/game/ui/SearchingC.tsx
+msgid "正在连接"
+msgstr "Connecting"
 
 #: src/components/UpdateSheet.tsx
 msgid "正在连接…"
@@ -31605,8 +31617,12 @@ msgid "这一局没有回放（房间已结束或本机对局）"
 msgstr "No replay for this match (the room has ended, or this was a local match)"
 
 #: src/studio/game/ui/StylePick.tsx
-msgid "这一局没有抽到风格卡（数据不对）——去右栏结束对局再开一局。"
-msgstr "No style cards were drawn this game (bad data) — end the game in the right rail and start again."
+#~ msgid "这一局没有抽到风格卡（数据不对）——去右栏结束对局再开一局。"
+#~ msgstr "No style cards were drawn this game (bad data) — end the game in the right rail and start again."
+
+#: src/studio/game/ui/StylePick.tsx
+msgid "这一局没有抽到风格卡（数据不对）——点右上角「返回大厅」再开一局。"
+msgstr "No style cards were drawn this game (bad data) — tap “Back to lobby” at the top right and start again."
 
 #: src/studio/game/ui/WrapupSheet.tsx
 msgid "这一局没有能发出去的成片。"

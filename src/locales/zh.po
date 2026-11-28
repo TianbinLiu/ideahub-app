@@ -3988,6 +3988,10 @@ msgstr "✕ 取消"
 msgid "✕ 结束对局"
 msgstr "✕ 结束对局"
 
+#: src/studio/game/ui/StylePick.tsx
+msgid "✕ 返回大厅"
+msgstr "✕ 返回大厅"
+
 #: src/studio/game/ui/Lobby.tsx
 msgid "✕ 返回工坊"
 msgstr "✕ 返回工坊"
@@ -22231,6 +22235,10 @@ msgstr "正在把本片卡组存进你的工坊…"
 msgid "正在拆镜头…"
 msgstr "正在拆镜头…"
 
+#: src/studio/game/ui/SearchingC.tsx
+msgid "正在排队"
+msgstr "正在排队"
+
 #: src/data/templates.ts
 msgid "正在提交：AI 先看 {frames} 帧认出画面里有哪些人，再把这一段发去出片…"
 msgstr "正在提交：AI 先看 {frames} 帧认出画面里有哪些人，再把这一段发去出片…"
@@ -22426,6 +22434,10 @@ msgstr "正在进观众席…"
 #: src/studio/game/ui/Lobby.tsx
 msgid "正在连房间服务…"
 msgstr "正在连房间服务…"
+
+#: src/studio/game/ui/SearchingC.tsx
+msgid "正在连接"
+msgstr "正在连接"
 
 #: src/components/UpdateSheet.tsx
 msgid "正在连接…"
@@ -31613,8 +31625,12 @@ msgid "这一局没有回放（房间已结束或本机对局）"
 msgstr "这一局没有回放（房间已结束或本机对局）"
 
 #: src/studio/game/ui/StylePick.tsx
-msgid "这一局没有抽到风格卡（数据不对）——去右栏结束对局再开一局。"
-msgstr "这一局没有抽到风格卡（数据不对）——去右栏结束对局再开一局。"
+#~ msgid "这一局没有抽到风格卡（数据不对）——去右栏结束对局再开一局。"
+#~ msgstr "这一局没有抽到风格卡（数据不对）——去右栏结束对局再开一局。"
+
+#: src/studio/game/ui/StylePick.tsx
+msgid "这一局没有抽到风格卡（数据不对）——点右上角「返回大厅」再开一局。"
+msgstr "这一局没有抽到风格卡（数据不对）——点右上角「返回大厅」再开一局。"
 
 #: src/studio/game/ui/WrapupSheet.tsx
 msgid "这一局没有能发出去的成片。"

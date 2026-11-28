@@ -295,6 +295,16 @@ const room = (size = 4) => must(`开一间 ${size} 人房`, L.createRoom({ code:
   ok("房间屏的开局键语义读 hostStartLabelOf（唯一判据）", roomUi.includes("hostStartLabelOf("));
   const onlineUi = read("src/studio/game/ui/useLobbyOnline.ts");
   ok("大厅房间屏接上 SSE 推送（不是只有 2 秒轮询）", onlineUi.includes("subscribeRoomStream(") && onlineUi.includes("applyPushedRoom("));
+  // ── 2026-11-28 真机验收：联机状态竞态的两处接线（改回任意一处都会重现「大厅已接通 / 匹配中 AI 补位」）──
+  ok("进匹配前的能力位是真刷新（refreshOnline 走 refreshServerCaps，不吃会话缓存）", store.includes("refreshServerCaps("));
+  ok("chooseMatch 沿用大厅的 serverOnline，不先把 online 打回 false", store.includes("const knownOnline = get().serverOnline === true") && store.includes("online: knownOnline"));
+  ok("匹配轮询只在队列真的建起来后跑（matchStartedAt > 0，防 0 被算成 60 秒超时）", onlineUi.includes("matchStartedAt <= 0"));
+  ok("C 屏连接中不写「AI 补位 / 未排队」（busy 且无队列 → connecting）", read("src/studio/game/ui/SearchingC.tsx").includes("const connecting = busy && queue === null && note === null"));
+  // ── 2026-11-28：风格选择屏的显式退出（整屏 z-40 盖住了工坊顶栏的「✕ 结束对局」）──
+  const styleUi = read("src/studio/game/ui/StylePick.tsx");
+  ok("StylePick 有显式「✕ 返回大厅」并走 quitGameToLobby（退房 → 收局 → 开大厅）", styleUi.includes("quitGameToLobby") && styleUi.includes("✕ 返回大厅"));
+  ok("StylePick 接系统返回键（useBackLayer）", styleUi.includes("useBackLayer("));
+  ok("StylePick 开着时把 GS 读数藏掉（不压风格卡 / 主键）", styleUi.includes('setGsHudHidden(true, "stylepick")'));
 }
 
 // ────────────────────────────── 收尾 ──────────────────────────────

@@ -581,12 +581,46 @@ body[data-immersive="1"] [data-tabbar] {
    ★ 全部只动 transform / opacity / box-shadow；减少动态效果的登记在文件末尾。
    ═══════════════════════════════════════════════════════════════════════════ */
 
+/* ★★ 自带字体（2026-11-28，feat/ui-fonts-hud-fixes）：
+   Android WebView 没有 Palatino / 宋体 / 华文楷体，B 案的衬线标题与烫金手写副标题会整片落到
+   系统无衬线。这里自带两份**子集化**的开源字体（每份一份 woff2，只收 B 案 UI 里出现的字，
+   生成脚本 scripts/gen-lobby-fonts.mjs，字符清单 scripts/lib/lobby-font-chars.mjs）：
+
+     · "Lobby Serif SC" = Noto Serif SC 可变字重子集（400~700，35.3KB）—— 标题 / 厚卡标题 /
+       黄铜主键 / 票根 / 发牌顺序卡；
+     · "Lobby Hand SC"  = Ma Shan Zheng（马善政毛笔楷书）子集（12.1KB）——「开一桌？」与载入百分比。
+
+   ★ font-display: swap：字体没到先用下面那套系统回退栈画，到了再换（不空白、不闪掉整屏）。
+   ★ 两份都在 index.html 里 preload（CORS 字体，必须带 crossorigin），避免首屏先画系统字体再跳字。
+   ★ **系统回退栈一个都没有删**：老设备 / 文件加载失败 / 缺字，都按原样落在系统衬线 / 手写体上。 */
+:root {
+  --lobby-serif-stack: "Lobby Serif SC", "Palatino Linotype", "Iowan Old Style", Georgia, "Songti SC",
+    "Noto Serif CJK SC", "SimSun", serif;
+  --lobby-hand-stack: "Lobby Hand SC", "Segoe Script", "Bradley Hand", "Kaiti SC", "KaiTi", "STKaiti", cursive;
+}
+
+@font-face {
+  font-family: "Lobby Serif SC";
+  src: url("/fonts/lobby-serif-sc.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Lobby Hand SC";
+  src: url("/fonts/lobby-hand-sc.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+}
+
 .lobby-serif {
-  font-family: "Palatino Linotype", "Iowan Old Style", Georgia, "Songti SC", "Noto Serif CJK SC", "SimSun", serif;
+  font-family: var(--lobby-serif-stack);
 }
 
 .lobby-hand {
-  font-family: "Segoe Script", "Bradley Hand", "Kaiti SC", "KaiTi", "STKaiti", cursive;
+  font-family: var(--lobby-hand-stack);
   background: linear-gradient(180deg, #f8e7bb, #e2bd74 52%, #b98c3f);
   -webkit-background-clip: text;
   background-clip: text;
@@ -697,7 +731,7 @@ body[data-immersive="1"] [data-tabbar] {
   box-shadow: 0 4px 15px rgb(0 0 0 / 0.5), 0 0 18px rgb(216 178 106 / 0.13), inset 0 1px 0 rgb(255 240 200 / 0.16);
 }
 .lobby-card-b b {
-  font-family: "Palatino Linotype", "Iowan Old Style", Georgia, "Songti SC", "Noto Serif CJK SC", "SimSun", serif;
+  font-family: var(--lobby-serif-stack);
   font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.05em;
@@ -745,7 +779,7 @@ body[data-immersive="1"] [data-tabbar] {
   border-radius: 999px;
   background: linear-gradient(180deg, #f5dcab, #c9a15a);
   color: #2b1d09;
-  font-family: "Palatino Linotype", "Iowan Old Style", Georgia, "Songti SC", "SimSun", serif;
+  font-family: var(--lobby-serif-stack);
   font-size: 12px;
   font-weight: 700;
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.55), 0 1px 3px rgb(0 0 0 / 0.45);
@@ -763,7 +797,7 @@ body[data-immersive="1"] [data-tabbar] {
   border: 1px solid #f8e8bd;
   background: linear-gradient(180deg, #f8e4b1, #ddb56c 44%, #b98b41);
   color: #2b1d09;
-  font-family: "Palatino Linotype", "Iowan Old Style", Georgia, "Songti SC", "Noto Serif CJK SC", "SimSun", serif;
+  font-family: var(--lobby-serif-stack);
   font-size: 12.5px;
   font-weight: 700;
   letter-spacing: 0.1em;
@@ -799,7 +833,7 @@ body[data-immersive="1"] [data-tabbar] {
   border-color: rgb(238 205 130 / 0.6);
 }
 .lobby-ghost-btn b {
-  font-family: "Palatino Linotype", "Iowan Old Style", Georgia, "Songti SC", "SimSun", serif;
+  font-family: var(--lobby-serif-stack);
   font-size: 11.5px;
   font-weight: 600;
   letter-spacing: 0.05em;
@@ -839,7 +873,7 @@ body[data-immersive="1"] [data-tabbar] {
   right: -6px;
 }
 .lobby-ticket-h {
-  font-family: "Palatino Linotype", "Iowan Old Style", Georgia, "Songti SC", "SimSun", serif;
+  font-family: var(--lobby-serif-stack);
   font-size: 12px;
   letter-spacing: 0.1em;
   color: #ecd9b3;
@@ -880,7 +914,7 @@ body[data-immersive="1"] [data-tabbar] {
   border-radius: 8px;
   border: 1px solid rgb(216 178 106 / 0.5);
   background: none;
-  font-family: "Palatino Linotype", "Iowan Old Style", Georgia, "Songti SC", "SimSun", serif;
+  font-family: var(--lobby-serif-stack);
   font-size: 10.5px;
   letter-spacing: 0.12em;
   color: #ecd9b3;
@@ -944,7 +978,7 @@ body[data-immersive="1"] [data-tabbar] {
   box-shadow: 0 3px 9px rgb(0 0 0 / 0.38);
 }
 .lobby-stage-card b {
-  font-family: "Palatino Linotype", "Iowan Old Style", Georgia, "Songti SC", "SimSun", serif;
+  font-family: var(--lobby-serif-stack);
   font-size: 11.5px;
   font-weight: 600;
   color: #f0e1c3;

@@ -8,6 +8,11 @@
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
     />
     <meta name="theme-color" content="#05070f" />
+    <!-- 对局大厅 B 案自带的衬线 / 手写体（子集化，见 src/index.css 的 @font-face 与 docs/game-lobby-ui-b-c.md §10）。
+         用 preload + font-display:swap：不做这一步，首屏会先画系统无衬线、字体到了再跳字。
+         crossorigin 必须有 —— 字体请求是 CORS 请求，漏了它浏览器会再发一遍（preload 白做）。 -->
+    <link rel="preload" href="/fonts/lobby-serif-sc.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="preload" href="/fonts/lobby-hand-sc.woff2" as="font" type="font/woff2" crossorigin />
     <title>启梦 · 有想法，就是梦想启程的第一步</title>
   </head>
   <body>
