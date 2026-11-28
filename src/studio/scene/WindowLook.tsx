@@ -19,11 +19,16 @@
 //   不需要给贴图做 alpha 通道、也不需要在中间帧重建材质。
 //   splat 这一层用 `SplatMesh.opacity`（Spark 的全局 alpha 乘数）跟同一个权重。
 import { Suspense, lazy, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { WINDOW, moonDisc, skyDome } from "./moonGeometry";
 import { WINSKIN_GLOW, WINSKIN_LIGHT } from "./windowSkin";
+import { FLY_U } from "./flyTimeline";
+import { useMatchCam } from "./matchCam";
 
 const WindowSplat = lazy(() => import("./WindowSplat"));
+/** 点云廊（同一份窗景 splat 复制 6 层；见 flyCloud.ts）。也是懒加载：它 import spark。 */
+const FlyCloud = lazy(() => import("./FlyCloud"));
 
 /** 两套窗景的贴图（1024² webp，各 ~100 KB；源图窗洞只有 678²，再大没有信息） */
 export const WINDOW_TEX = {
@@ -38,9 +43,58 @@ export const WINDOW_TEX = {
  *  ★ 文件仍然可能不在（老包 / 被裁过）：`initialized` 的 reject 由 `onState("failed")` 接住，
  *    那一档自动回退到上面那两张平贴图，不抛错。 */
 export const WINDOW_SPZ = {
-  night: "/models/study/gs/window-moon.spz",
-  day: "/models/study/gs/window-sea.spz",
+  night: "/models/study/gs/window-moon-full.spz",
+  day: "/models/study/gs/window-sea-full.spz",
 } as const;
+
+/** 平贴图材质 + "化点"注入（2026-11-27，`feat/gs-flythrough-dissolve`）。
+ *
+ *  主人要的 0~0.6 s：**先看见那张平贴图，然后它渐进地散成高斯点** —— 贴图这一半的"退场"不是
+ *  整层淡出（那样只会叠成一团），而是**逐块消失**：每个像素按两级网点 hash 定一个随机阈值，
+ *  `uFlyDissolve` 推过去时先掉大块、再掉碎点。窗景 splat 的每点 stagger 用同一条进度
+ *  （WindowSplat 的 objectModifier），两边同一拍 ⇒ 读起来是"图像自己散成点"。
+ *
+ *  ★ 不飞的时候 `uFlyDissolve = 0`：`smoothstep(-0.04, 0.04, h)` 对任何 h ∈ [0,1) 都 ≥ 0.5……
+ *    不对，见下：阈值用 `step(uFlyDissolve, h)` 的软化版，uFlyDissolve=0 时 h≥0 恒真 ⇒ alpha 乘 1。
+ *  ★ 注入走 `onBeforeCompile`（而不是换成 ShaderMaterial）：MeshBasicMaterial 的颜色空间 /
+ *    toneMapped / sRGB 采样由 three 自己管，重写一个 ShaderMaterial 很容易把颜色搞偏。 */
+function makePaintMaterial(map: THREE.Texture): THREE.MeshBasicMaterial {
+  const mat = new THREE.MeshBasicMaterial({
+    map,
+    transparent: true,
+    opacity: 1,
+    depthWrite: false,
+    depthTest: true,
+    side: THREE.FrontSide,
+    toneMapped: false,
+  });
+  mat.onBeforeCompile = (shader) => {
+    shader.uniforms.uFlyDissolve = FLY_U.dissolve;
+    shader.fragmentShader = shader.fragmentShader
+      .replace("#include <common>", "#include <common>\nuniform float uFlyDissolve;")
+      .replace(
+        "#include <map_fragment>",
+        // 两级网点：大块先掉（120 格）、碎点后掉（260 格），混一半 —— 只一级会读成"规则网格"。
+        // uFlyDissolve=0 时 smoothstep 对任何 h∈[0,1) 都返回 ≥0.5…… 不对，是 ≥1 的下界：
+        // uFlyDissolve=0 ⇒ 阈值区间 [-0.06,0.02]，h≥0.02 时恒 1、h∈[0,0.02) 有一段软边
+        // （刻意留的：dissolve 刚起步时不要"啪"地掉一整片，第一帧几乎逐像素不变）。
+        `#include <map_fragment>
+        {
+          // Two octaves of cell hash: big cells go first, fine cells later.
+          // 2026-11-27 on-device: coarse cells (14/38 across the window) -- with fine cells the
+          // holes were filled by the same picture's splat and the dissolve read as invisible.
+          float hA = fract(sin(dot(floor(vMapUv * 14.0), vec2(12.9898, 78.233))) * 43758.5453);
+          float hB = fract(sin(dot(floor(vMapUv * 38.0), vec2(39.346, 11.135))) * 24634.6345);
+          float h = mix(hA, hB, 0.32);
+          // uFlyDissolve=0 keeps alpha at 1 (only a hair-thin edge at h<0.02); =1 removes everything.
+          diffuseColor.a *= smoothstep(uFlyDissolve - 0.06, uFlyDissolve + 0.02, h);
+        }`,
+      );
+  };
+  // 注入改了源码：给独立缓存键，避免与别的 MeshBasicMaterial 共享 program
+  mat.customProgramCacheKey = () => "gs-fly-paint-dissolve";
+  return mat;
+}
 
 /** 窗洞画面的 renderOrder。任务书说"同一个 renderOrder 19"，但**两张平面要定先后**才淡得出来，
  *  所以夜 18 / 昼 19：没有先后的话，同 renderOrder 的两块透明面按对象创建顺序画，
@@ -112,6 +166,7 @@ uniform vec3 uMoonC;
 uniform float uMoonR;
 uniform float uSkin;
 uniform float uPaintSplat;
+uniform float uFlyFade;
 ${PORTAL_GLSL}
 ${NOISE_GLSL}
 
@@ -155,7 +210,11 @@ void main() {
   dayCol += vec3(0.30, 0.22, 0.12) * pow(clamp(1.0 - abs(up), 0.0, 1.0), 4.0);
   col = mix(col, dayCol, clamp(uSkin, 0.0, 1.0));
 
-  gl_FragColor = vec4(col, 1.0);
+  // ★ 2026-11-27（feat/gs-flythrough-dissolve）：穿窗转场里"那张画"要跟着化点一起散掉 ——
+  //   夜空 / 月亮 / 墙上的晕都乘这一位（1 = 原样，0 = 全黑）。不飞时恒 1，逐像素不变。
+  //   ★ 这里用 **alpha**（不是把颜色乘成黑）：夜空球是盖在 splat 之后画的整屏面，颜色乘 0
+  //     会把点云廊**整块盖成黑屏**（第一版就是这样，截图里纯黑）。alpha 降下去才是"透过去"。
+  gl_FragColor = vec4(col, uFlyFade);
 }
 `;
 
@@ -181,6 +240,7 @@ varying vec3 vWorld;
 uniform float uHalo;
 uniform float uSkin;
 uniform float uPaint;
+uniform float uFlyFade;
 ${PORTAL_GLSL}
 ${NOISE_GLSL}
 
@@ -241,7 +301,8 @@ void main() {
   float edgeRim = exp(-pow((r - 1.006) / 0.010, 2.0)) * 0.55;
   float glow = r > 1.0 ? exp(-(r - 1.0) * 18.0) * 0.26 * (1.0 - smoothstep(1.02, 1.065, r)) : 0.0;
   vec3 col = moonCol * disc + vec3(0.88, 0.92, 1.0) * edgeRim + vec3(0.42, 0.55, 0.88) * glow;
-  gl_FragColor = vec4(col * (1.0 - clamp(uSkin, 0.0, 1.0)), 1.0);
+  // uFlyFade：化点那 0.6 s 里"那张画"整体退掉（不飞时恒 1）
+  gl_FragColor = vec4(col * (1.0 - clamp(uSkin, 0.0, 1.0)) * uFlyFade, 1.0);
 }
 `;
 
@@ -264,11 +325,12 @@ const GLOW_FRAG = /* glsl */ `
 varying vec2 vXy;
 uniform vec3 uColor;
 uniform float uIntensity;
+uniform float uFlyFade;
 void main() {
   float r = length(vXy);
   float a = smoothstep(0.56, 0.66, r) * (1.0 - smoothstep(0.66, 1.00, r));
   a *= a;
-  gl_FragColor = vec4(uColor * a * uIntensity, 1.0);
+  gl_FragColor = vec4(uColor * a * uIntensity * uFlyFade, 1.0);
 }
 `;
 
@@ -286,9 +348,10 @@ varying vec2 vXy;
 uniform float uInner;
 uniform float uOuter;
 uniform float uFade;
+uniform float uFlyFade;
 void main() {
   float r = length(vXy);
-  float a = (1.0 - smoothstep(uInner, uOuter, r)) * 0.82 * uFade;
+  float a = (1.0 - smoothstep(uInner, uOuter, r)) * 0.82 * uFade * uFlyFade;
   gl_FragColor = vec4(vec3(0.022, 0.028, 0.042), a);
 }
 `;
@@ -331,6 +394,7 @@ export default function WindowSkin({ weight, splat = true }: Props) {
           uMoonR: { value: moon.radius },
           uSkin: { value: 0 },
           uPaintSplat: { value: 0 },
+          uFlyFade: FLY_U.image,
         },
         vertexShader: SKY_VERT,
         fragmentShader: SKY_FRAG,
@@ -354,6 +418,7 @@ export default function WindowSkin({ weight, splat = true }: Props) {
           uHalo: { value: HALO },
           uSkin: { value: 0 },
           uPaint: { value: 0 },
+          uFlyFade: FLY_U.image,
         },
         vertexShader: MOON_VERT,
         fragmentShader: MOON_FRAG,
@@ -383,6 +448,7 @@ export default function WindowSkin({ weight, splat = true }: Props) {
         uniforms: {
           uColor: { value: new THREE.Color(WINSKIN_GLOW.day.color) },
           uIntensity: { value: 0 },
+          uFlyFade: FLY_U.image,
         },
         vertexShader: GLOW_VERT,
         fragmentShader: GLOW_FRAG,
@@ -403,6 +469,7 @@ export default function WindowSkin({ weight, splat = true }: Props) {
           uInner: { value: WINDOW.frameOuter - 0.01 },
           uOuter: { value: 0.98 },
           uFade: { value: 1 },
+          uFlyFade: FLY_U.image,
         },
         vertexShader: SURROUND_VERT,
         fragmentShader: SURROUND_FRAG,
@@ -417,6 +484,23 @@ export default function WindowSkin({ weight, splat = true }: Props) {
   useEffect(() => () => surroundMat.dispose(), [surroundMat]);
 
   const lightRef = useRef<THREE.PointLight>(null);
+
+  // ── 穿窗转场（2026-11-27，feat/gs-flythrough-dissolve）──────────────────────
+  /** 正在演转场：这一段里平贴图要**盖在窗景 splat 上面**（平时 splat 优先、贴图不挂） */
+  const flying = useMatchCam((s) => s.stage === "fly");
+  /** 两块平贴图材质（带"化点"注入；有图才建 —— 见下面第三个坑的注释）。
+   *  ★ 为什么不沿用 JSX 里的 <meshBasicMaterial>：化点要在片元里逐块退场，
+   *    而 three 的 MeshBasicMaterial 只能通过 onBeforeCompile 注入（换 ShaderMaterial 会丢 sRGB/toneMapped 处理）。 */
+  const nightPaintMat = useMemo(() => (texNight ? makePaintMaterial(texNight) : null), [texNight]);
+  const dayPaintMat = useMemo(() => (texDay ? makePaintMaterial(texDay) : null), [texDay]);
+  useEffect(() => () => { nightPaintMat?.dispose(); }, [nightPaintMat]);
+  useEffect(() => () => { dayPaintMat?.dispose(); }, [dayPaintMat]);
+  /** 预热帧：spz 成功时平贴图平时不挂，第一次挂是在转场开始那一拍 —— 会现编译 program。
+   *  这里在大厅里先以 opacity 0 画两帧（看不见，但 program 编译掉了），转场开始不再卡。 */
+  const [paintWarm, setPaintWarm] = useState(0);
+  useFrame(() => {
+    if (paintWarm > 0) setPaintWarm(paintWarm - 1);
+  });
 
   // ★ DEV 的读数口子（同 StudioPage 的 __r3fCapture 那条约定）：窗景每张截图要报
   //   "这一帧是哪一档、贴图到没到、splat 通没通"，控制台日志事后抓不到，挂 window 最省事。
@@ -453,6 +537,20 @@ export default function WindowSkin({ weight, splat = true }: Props) {
   //   ★ 房间那一档 `splat=false`：直接按 tex 走（`spzState` 一直是 "try"，永远等不到 ok）。
   const nightKind = splat && spzState.night === "ok" ? "splat" : "tex";
   const dayKind = splat && spzState.day === "ok" ? "splat" : "tex";
+  /** 平贴图什么时候挂：① 这一档本来就是贴图（splat 失败 / 房间）；② 转场在演（盖在 splat 上化点）；
+   *  ③ 预热帧（opacity 0 画两帧，编译 program）。其余时候不挂 —— 大厅的观感仍是 splat 优先。 */
+  const paintShow = flying || paintWarm > 0;
+  /** 预热帧要真的"看不见"：平时根本不该有这张图的档（splat 成功）画 0 不透明度 */
+  const paintHideOpacity = paintWarm > 0 && !flying && nightKind !== "tex" && dayKind !== "tex";
+  useLayoutEffect(() => {
+    if (nightPaintMat) nightPaintMat.opacity = paintHideOpacity ? 0 : 1;
+    if (dayPaintMat) dayPaintMat.opacity = paintHideOpacity ? 0 : weight;
+  }, [nightPaintMat, dayPaintMat, paintHideOpacity, weight]);
+  /** spz 成功（平时用不到平贴图）时预热一次；失败那一档本来就用贴图，不用预热 */
+  const splatKindOn = nightKind === "splat" || dayKind === "splat";
+  useEffect(() => {
+    if (splatKindOn) setPaintWarm(2);
+  }, [splatKindOn]);
 
   return (
     <>
@@ -464,32 +562,14 @@ export default function WindowSkin({ weight, splat = true }: Props) {
           让材质**带着 map 出生**就没有这一层：所以下面两张贴图都是"有图才挂"。
           圆面 + 圆形 UV：CircleGeometry 的 uv 是"外接方图 → 0..1"，所以圆内正好采样到
           那张 678² 裁图的**内切圆**（= 窗洞本体），四角（墙/窗框）不会被采到。 */}
-      {nightOn && texNight && nightKind === "tex" && (
-        <mesh position={[wx, wy, wz + 0.0015]} renderOrder={PAINT_ORDER.night}>
+      {nightOn && nightPaintMat && (nightKind === "tex" || paintShow) && (
+        <mesh position={[wx, wy, wz + 0.0015]} renderOrder={PAINT_ORDER.night} material={nightPaintMat}>
           <circleGeometry args={[WINDOW.radius, 96]} />
-          <meshBasicMaterial
-            map={texNight}
-            transparent
-            opacity={1}
-            depthWrite={false}
-            depthTest
-            side={THREE.FrontSide}
-            toneMapped={false}
-          />
         </mesh>
       )}
-      {dayOn && texDay && dayKind === "tex" && (
-        <mesh position={[wx, wy, wz + 0.0015]} renderOrder={PAINT_ORDER.day}>
+      {dayOn && dayPaintMat && (dayKind === "tex" || paintShow) && (
+        <mesh position={[wx, wy, wz + 0.0015]} renderOrder={PAINT_ORDER.day} material={dayPaintMat}>
           <circleGeometry args={[WINDOW.radius, 96]} />
-          <meshBasicMaterial
-            map={texDay}
-            transparent
-            opacity={weight}
-            depthWrite={false}
-            depthTest
-            side={THREE.FrontSide}
-            toneMapped={false}
-          />
         </mesh>
       )}
 
@@ -499,6 +579,7 @@ export default function WindowSkin({ weight, splat = true }: Props) {
       <Suspense fallback={null}>
         {splat && nightOn && spzState.night !== "failed" && (
           <WindowSplat
+            skin="night"
             url={WINDOW_SPZ.night}
             opacity={1 - weight}
             onState={(s) => setSpzState((p) => (p.night === s ? p : { ...p, night: s }))}
@@ -506,12 +587,20 @@ export default function WindowSkin({ weight, splat = true }: Props) {
         )}
         {splat && dayOn && spzState.day !== "failed" && (
           <WindowSplat
+            skin="day"
             url={WINDOW_SPZ.day}
             opacity={weight}
             onState={(s) => setSpzState((p) => (p.day === s ? p : { ...p, day: s }))}
           />
         )}
       </Suspense>
+
+      {/* ── 点云廊 + 光尘（2026-11-27，feat/gs-flythrough-dissolve）──
+          ★ 主人第 2 条："单张窗景 splat 深度盒只有 0.22 m，飞出去就空了" —— 所以把**同一份**
+            窗景 splat 的点复制 6 层沿 z 铺开（flyCloud.ts）。数据是窗口 splat 就绪后在大厅空闲时
+            烘一份 packed 数组，只多 **1 个 SplatMesh**（+1 draw call）；光尘是 1 个 Points（+1）。
+          ★ 房间那一档不挂（splat=false 时这一整块都不请求）。 */}
+      <Suspense fallback={null}>{splat && <FlyCloud />}</Suspense>
 
       {/* ── 夜空球 + 月亮盘：穿窗之后整屏都是天，这两样必须留着（穿窗转场靠它们） ──
           ★ 2026-11-27 第二个坑：夜空球的 renderOrder **从 19 降到 12**。
@@ -530,9 +619,14 @@ export default function WindowSkin({ weight, splat = true }: Props) {
       <mesh position={[wx, wy, wz + 0.0022]} renderOrder={GLOW_ORDER} material={glowMat}>
         <ringGeometry args={[0.54, 1.02, 96, 1]} />
       </mesh>
-      <mesh position={[wx, wy, wz + 0.002]} renderOrder={22} material={surroundMat}>
-        <ringGeometry args={[WINDOW.frameOuter - 0.01, 0.98, 96, 1]} />
-      </mesh>
+      {/* ★ 2026-11-27（整图底表上线后，agent-63 实测）：这圈"石框暗部"原来是压房间 splat 里那块
+          烘死的磨砂玻璃亮边的（0.57~0.98 m 环）。现在 splat 是**整张图（自带整面墙）**，这圈 0.82
+          alpha 的暗环把墙压成近黑（原图墙中蓝 lum≈76）—— splat 就绪时不挂它。白天那圈加色亮晕照留。 */}
+      {!(splat && (spzState.night === "ok" || spzState.day === "ok")) && (
+        <mesh position={[wx, wy, wz + 0.002]} renderOrder={22} material={surroundMat}>
+          <ringGeometry args={[WINDOW.frameOuter - 0.01, 0.98, 96, 1]} />
+        </mesh>
+      )}
 
       {/* ── 窗内那盏灯（只照 mesh）：夜里冷蓝月光、白天暖白强光，参数在 windowSkin.WINSKIN_LIGHT ──
           位置 = 窗心往室内 0.85 m（贴太近会把窗棂打出镜面高光，第一版踩过）。 */}

@@ -75,6 +75,11 @@ const PRUNE = [
   "protected/gratia-rapier-opt.glbx",
   "protected/rin-preview.webp",
   "protected/gratia-preview.webp",
+  // ★ 2026-11-27（feat/gs-flythrough-dissolve）：夜间 24 m 深空副本（6.3 万点 / 0.78 MB）**没接线**。
+  //   穿窗转场的"点云廊"用的是旧的 `window-moon.spz`（12 万点、只含窗洞）复制 6 层；
+  //   深空副本与走廊**二选一**（叠着会亮一倍），本版用走廊，所以它不该进包。
+  //   以后真要接线再删掉这一行（资产仍留在仓库里，只是不出包）。
+  "study/gs/window-moon-deep.spz",
 ];
 
 let saved = 0;

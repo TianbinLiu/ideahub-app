@@ -59,5 +59,11 @@ public/__e2e_*
 public/models/study/gs/*
 !public/models/study/gs/window-moon.spz
 !public/models/study/gs/window-sea.spz
+# ★ 2026-11-27（feat/gs-window-fullimage）：整图重跑（ml-sharp，喂整张 out-2/out-3）产出的两份
+#   26 万点 spz（各 ~3 MB，含墙/框/窗外画面）进仓库；**夜档的 24 m 深空副本**（6.3 万点 / 0.78 MB）
+#   也进，见 docs/gs-window-fullimage-log.md。旧的 12 万点两份**先留着**（给点云廊当"只含窗洞"的底表）。
+!public/models/study/gs/window-moon-full.spz
+!public/models/study/gs/window-sea-full.spz
+!public/models/study/gs/window-moon-deep.spz
 # 这一步的临时目录（下载的 spz / 截图 / 一次性分析脚本），用完即可删
 .tmp-gs-*/
