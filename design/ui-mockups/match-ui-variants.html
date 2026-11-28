@@ -1,0 +1,1254 @@
+<!doctype html>
+<html lang="zh-CN" data-v="1" data-s="match">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>工人坊 · 对局大厅 UI 三案（匹配 / 匹配中 / 加载）</title>
+<!--
+  工人坊对局大厅的三个画面 × 三套 UI 方案（2026-11-27，design/match-ui-variants）。
+
+  ★ 为什么是一份自包含 HTML：这一轮只出方案、不动 App 源码。设计稿要是能拿浏览器直接打开、
+    按地址栏切方案/切画面，主人才好一屏一屏比；截图脚本（同目录 capture.mjs）只是把它钉进文件。
+    不引任何外部字体/图片/脚本 —— 纯 CSS 画窗、月、织物、金边。
+
+  用法：
+    file:///…/design/ui-mockups/match-ui-variants.html?v=1&s=match
+      v = 1 极简剧场 / 2 卡片桌游 / 3 沉浸全屏（缺省 1）
+      s = match 匹配页 / searching 匹配中 / loading 加载页（缺省 match）
+      hud=1 显示右上角的"这是什么"角标（默认不显示，截图干净）
+
+  ★ 尺寸：设计基准 852×348 CSS（真机横屏·窗与月亮居中），--u 是唯一缩放旋钮。
+    宽 ≥1000px 时 --u=1.5，同一套结构在 1280×720 上变成桌面预览（不是另一套布局，
+    只把字号/间距等比放大，多出来的高度分给留白）。
+    月亮窗占位按真机几何：直径 209 CSS（= 348 的 60%，即画面高 20%~80%）、屏幕居中。
+
+  ★ 三案各自在回答什么问题（挑之前先看这一句）：
+    A 极简剧场：如果大厅只需要"把月亮让出来、让用户快点走"，就选 A —— 没有卡片盒子，
+      模式是三行排线，主键是整屏唯一实心面，其余全是小字与留白。
+    B 卡片桌游：如果要让"游戏"像这张桌子上的事（绒布 / 厚卡 / 烫金 / 手写体），
+      就选 B —— 模式是三张能"选中"的牌，凭码加入是一张票根，主键是一块黄铜牌。
+    C 沉浸全屏：如果想让大厅只当"穿窗转场"的一帧（UI 收到屏幕边缘、月亮被呼吸光环围住），
+      就选 C —— 顶部一条细带 + 左侧竖排模式 + 底部一颗键，匹配页与匹配中是同一套边缘语言。
+
+  ★ 三屏都有的东西（对照用）：模式（4/8/自定义）· 主键（实心）· 凭码加入（次键描边）·
+    已等待时长 · 队伍人数/座位 · 取消 · 对手情报（示例数据，可滚动）· 开局三步
+    （AI 补位 → 选风格 → 锁定）· 取消开局 · 一句提示。截图脚本见同目录 capture.mjs。
+-->
+<style>
+/* ───────────────────────── 基础 ───────────────────────── */
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
+html, body { height: 100%; margin: 0; overflow: hidden; background: #000; }
+body { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+
+:root {
+  /* ★ --u 必须带单位：它是"这一版所有尺寸的旋钮"，calc(26 * var(--u)) 里的 26 是不带单位的数，
+     若把 --u 写成裸数字，算出来是 26 这个"数"而不是 26px，整屏布局会全部退回默认样式。 */
+  --u: 1px;
+  --ivory: #ece4d2;
+  --gold: #d8b26a;
+  --font-sans: "PingFang SC", "HarmonyOS Sans SC", "Segoe UI", "Microsoft YaHei", sans-serif;
+  --font-serif: "Palatino Linotype", "Iowan Old Style", Georgia, "Songti SC", "SimSun", serif;
+  --font-hand: "Segoe Script", "Bradley Hand", "Kaiti SC", "KaiTi", "STKaiti", cursive;
+  --font-cond: "Bahnschrift", "DIN Alternate", "Arial Narrow", "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+/* 桌面预览：只放大，不换布局 */
+@media (min-width: 1000px) { :root { --u: 1.5px; } }
+
+.stage { position: fixed; inset: 0; overflow: hidden; }
+.view { position: absolute; inset: 0; display: none; overflow: hidden; }
+.view.on { display: block; }
+
+/* 模拟真机状态栏（横屏 safe-top = 41 CSS px；见 docs/gs-moon-window-log.md §7）
+   ★ 画它不是为了好看，是为了让"这一版在真机上会不会被状态栏压住"在稿子里看得见。 */
+.sysbar {
+  position: absolute; left: 0; right: 0; top: 0; z-index: 8;
+  height: calc(41 * var(--u));
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 calc(26 * var(--u));
+  font-size: calc(9.5 * var(--u));
+  letter-spacing: 0.04em;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+.sys-ic { display: inline-flex; align-items: flex-end; gap: calc(7 * var(--u)); height: calc(11 * var(--u)); }
+.sig { display: inline-flex; align-items: flex-end; gap: calc(2 * var(--u)); height: 100%; }
+.sig b { display: block; width: calc(2 * var(--u)); background: currentColor; border-radius: calc(1 * var(--u)); }
+.sig b:nth-child(1) { height: 32%; }
+.sig b:nth-child(2) { height: 55%; }
+.sig b:nth-child(3) { height: 78%; }
+.sig b:nth-child(4) { height: 100%; }
+.batt { position: relative; width: calc(17 * var(--u)); height: calc(9 * var(--u)); border: 1px solid currentColor; border-radius: calc(2 * var(--u)); display: inline-block; opacity: 0.85; }
+.batt::before { content: ""; position: absolute; left: 1px; top: 1px; bottom: 1px; width: 62%; background: currentColor; border-radius: 1px; }
+.batt::after { content: ""; position: absolute; right: calc(-3 * var(--u)); top: 25%; width: calc(2 * var(--u)); height: 50%; background: currentColor; border-radius: 0 1px 1px 0; }
+
+/* 彩色 emoji 在单色方案里降饱和，别让一颗 🎟 破掉整屏的色 */
+.emoji { filter: grayscale(1) contrast(0.9); opacity: 0.72; }
+
+/* ───────────────────────── A · 极简剧场 ─────────────────────────
+   定位：一整面黑墙、一道细描边、一轮月。没有卡片盒子，只有排线和小字；
+   UI 只在四角说话，中央留给月亮（唯一亮源）。主键是整屏唯一的实心面。 */
+.a {
+  background:
+    radial-gradient(92% 130% at 50% 48%, #101013 0%, #08080a 52%, #050506 100%);
+  color: var(--ivory);
+  font-family: var(--font-sans);
+}
+.a::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 2;
+  background:
+    radial-gradient(54% 74% at 50% 46%, rgba(236, 228, 210, 0.055), transparent 64%),
+    radial-gradient(120% 120% at 50% 130%, rgba(0, 0, 0, 0.7), transparent 58%);
+}
+.a-frame {
+  position: absolute; inset: calc(13 * var(--u)); z-index: 6; pointer-events: none;
+  border: 1px solid rgba(236, 228, 210, 0.085);
+}
+.a-frame::before,
+.a-frame::after {
+  content: ""; position: absolute; width: calc(8 * var(--u)); height: 1px; background: rgba(236, 228, 210, 0.35);
+}
+.a-frame::before { left: calc(-1 * var(--u)); top: calc(-1 * var(--u)); }
+.a-frame::after { right: calc(-1 * var(--u)); bottom: calc(-1 * var(--u)); }
+
+/* 窗 + 月（三案共用同一块几何：直径 209 CSS = 画面高 20%~80%） */
+.a-window {
+  position: absolute; left: 50%; top: 50%; z-index: 1;
+  width: calc(209 * var(--u)); height: calc(209 * var(--u));
+  transform: translate(-50%, -50%);
+  transition: opacity 0.4s ease, filter 0.4s ease;
+}
+.a-bloom {
+  position: absolute; left: 50%; top: 50%; width: calc(600 * var(--u)); height: calc(600 * var(--u));
+  transform: translate(-50%, -50%); border-radius: 50%;
+  background: radial-gradient(circle, rgba(236, 228, 210, 0.085), rgba(236, 228, 210, 0.028) 38%, transparent 66%);
+  filter: blur(calc(8 * var(--u)));
+}
+.a-glass {
+  position: absolute; inset: 0; border-radius: 50%; overflow: hidden;
+  background: #0a0a0c;
+  border: 1px solid rgba(236, 228, 210, 0.26);
+  box-shadow:
+    inset 0 0 calc(44 * var(--u)) rgba(0, 0, 0, 0.95),
+    0 0 calc(52 * var(--u)) rgba(236, 228, 210, 0.075);
+}
+.a-moon {
+  position: absolute; left: 6%; top: 6%; width: 88%; height: 88%; border-radius: 50%;
+  background: radial-gradient(circle at 37% 30%, #fbf4e1 0%, #f0e4c8 30%, #ddcba3 56%, #c3af86 78%, #9d8b69 100%);
+  box-shadow:
+    0 0 calc(46 * var(--u)) rgba(246, 238, 214, 0.26),
+    inset calc(-20 * var(--u)) calc(-16 * var(--u)) calc(38 * var(--u)) rgba(38, 30, 18, 0.55),
+    inset calc(6 * var(--u)) calc(8 * var(--u)) calc(18 * var(--u)) rgba(255, 250, 235, 0.35);
+}
+.a-moon::before {
+  content: ""; position: absolute; inset: 0; border-radius: 50%; opacity: 0.55;
+  background:
+    radial-gradient(circle at 64% 66%, rgba(116, 100, 70, 0.3) 0 8%, transparent 9%),
+    radial-gradient(circle at 72% 40%, rgba(116, 100, 70, 0.24) 0 5%, transparent 6%),
+    radial-gradient(circle at 40% 70%, rgba(116, 100, 70, 0.2) 0 4%, transparent 5%),
+    radial-gradient(circle at 52% 24%, rgba(255, 255, 255, 0.5) 0 15%, transparent 16%);
+}
+.a-muntin { position: absolute; background: rgba(236, 228, 210, 0.4); }
+.a-muntin.v { left: 50%; top: 0; bottom: 0; width: 1px; background: linear-gradient(rgba(236, 228, 210, 0.5), rgba(236, 228, 210, 0.18)); }
+.a-muntin.h { top: 50%; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, rgba(236, 228, 210, 0.5), rgba(236, 228, 210, 0.18)); }
+.a-ring { position: absolute; inset: calc(-12 * var(--u)); border-radius: 50%; border: 1px solid rgba(236, 228, 210, 0.1); }
+.a-ring::after { content: ""; position: absolute; inset: calc(-14 * var(--u)); border-radius: 50%; border: 1px solid rgba(236, 228, 210, 0.035); }
+
+/* 顶栏 */
+.a-top {
+  position: absolute; left: calc(26 * var(--u)); right: calc(26 * var(--u)); top: calc(46 * var(--u));
+  z-index: 5; display: flex; align-items: flex-start; justify-content: space-between; gap: calc(16 * var(--u));
+}
+.a-mark { font-size: calc(7.8 * var(--u)); letter-spacing: 0.32em; color: rgba(236, 228, 210, 0.48); }
+.a-mark b { font-weight: 500; color: rgba(236, 228, 210, 0.72); }
+.a-id h1 { margin: calc(6 * var(--u)) 0 0; font-size: calc(17 * var(--u)); font-weight: 600; letter-spacing: 0.14em; line-height: 1; }
+.a-id p { margin: calc(5 * var(--u)) 0 0; font-size: calc(8.6 * var(--u)); letter-spacing: 0.07em; color: rgba(236, 228, 210, 0.42); }
+.a-id.small h1 { font-size: calc(14.5 * var(--u)); letter-spacing: 0.12em; }
+.a-utils { display: flex; align-items: center; gap: calc(15 * var(--u)); font-size: calc(9.5 * var(--u)); letter-spacing: 0.08em; color: rgba(236, 228, 210, 0.58); white-space: nowrap; }
+.a-online { display: inline-flex; align-items: center; gap: calc(6 * var(--u)); }
+.a-online i { width: calc(5 * var(--u)); height: calc(5 * var(--u)); border-radius: 50%; background: #a7c39c; box-shadow: 0 0 calc(7 * var(--u)) rgba(167, 195, 156, 0.7); }
+.a-cur { font-variant-numeric: tabular-nums; }
+.a-ghost { padding: 0; border: 0; background: none; color: rgba(236, 228, 210, 0.62); font: inherit; letter-spacing: inherit; cursor: pointer; }
+
+/* 左列：模式（没有盒子，只有排线） */
+.a-left { position: absolute; left: calc(26 * var(--u)); bottom: calc(52 * var(--u)); width: calc(268 * var(--u)); z-index: 4; }
+.a-modes { display: flex; flex-direction: column; border-top: 1px solid rgba(236, 228, 210, 0.1); }
+.a-mode {
+  position: relative; display: grid; grid-template-columns: calc(19 * var(--u)) 1fr auto;
+  align-items: center; gap: calc(10 * var(--u));
+  padding: calc(4.6 * var(--u)) calc(9 * var(--u)) calc(4.2 * var(--u)) calc(3 * var(--u));
+  border: 0; border-bottom: 1px solid rgba(236, 228, 210, 0.1);
+  background: none; color: inherit; text-align: left; cursor: pointer;
+}
+.a-mode .a-no { font-size: calc(8 * var(--u)); letter-spacing: 0.12em; color: rgba(236, 228, 210, 0.3); font-variant-numeric: tabular-nums; }
+.a-mode .a-txt b { display: block; font-size: calc(11.5 * var(--u)); line-height: 1.2; font-weight: 500; letter-spacing: 0.08em; color: rgba(236, 228, 210, 0.76); }
+.a-mode .a-txt em { display: block; margin-top: calc(1.5 * var(--u)); font-style: normal; font-size: calc(7.7 * var(--u)); line-height: 1.3; letter-spacing: 0.03em; color: rgba(236, 228, 210, 0.34); }
+.a-mode .a-tag { padding: calc(1.5 * var(--u)) calc(5 * var(--u)); border: 1px solid rgba(236, 228, 210, 0.16); font-size: calc(7.5 * var(--u)); letter-spacing: 0.1em; color: rgba(236, 228, 210, 0.42); }
+.a-mode.sel { background: linear-gradient(90deg, rgba(236, 228, 210, 0.075), transparent 74%); }
+.a-mode.sel::before { content: ""; position: absolute; left: 0; top: calc(5 * var(--u)); bottom: calc(5 * var(--u)); width: 1px; background: var(--ivory); }
+.a-mode.sel .a-txt b { color: var(--ivory); font-weight: 700; }
+.a-mode.sel .a-no { color: rgba(236, 228, 210, 0.62); }
+
+.a-primary { margin-top: calc(12 * var(--u)); }
+.a-cta {
+  display: flex; align-items: center; justify-content: space-between; width: 100%;
+  height: calc(40 * var(--u)); padding: 0 calc(14 * var(--u));
+  border: 0; border-radius: calc(2 * var(--u));
+  background: #e9e0cc; color: #0a0a0b;
+  font-family: inherit; font-size: calc(12.5 * var(--u)); font-weight: 700; letter-spacing: 0.13em;
+  cursor: pointer;
+}
+.a-cta .a-arrow { font-size: calc(15 * var(--u)); font-weight: 400; letter-spacing: 0; }
+.a-note { margin: calc(7 * var(--u)) 0 0; font-size: calc(8.3 * var(--u)); letter-spacing: 0.04em; line-height: 1.5; color: rgba(236, 228, 210, 0.34); }
+
+/* 右列：凭码加入 */
+.a-right { position: absolute; right: calc(26 * var(--u)); bottom: calc(52 * var(--u)); width: calc(230 * var(--u)); z-index: 4; }
+.a-join-h { display: flex; align-items: baseline; justify-content: space-between; padding-bottom: calc(8 * var(--u)); border-bottom: 1px solid rgba(236, 228, 210, 0.16); font-size: calc(10 * var(--u)); letter-spacing: 0.16em; color: rgba(236, 228, 210, 0.76); }
+.a-en { font-size: calc(7 * var(--u)); letter-spacing: 0.22em; color: rgba(236, 228, 210, 0.28); }
+.a-code { display: flex; gap: calc(6 * var(--u)); margin: calc(12 * var(--u)) 0; }
+.a-code i {
+  flex: 1; height: calc(32 * var(--u)); display: flex; align-items: center; justify-content: center;
+  border: 1px solid rgba(236, 228, 210, 0.18);
+  font-style: normal; font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; font-size: calc(13 * var(--u));
+  color: var(--ivory);
+}
+.a-code i:empty::after { content: ""; width: 1px; height: 38%; background: rgba(236, 228, 210, 0.22); }
+.a-code i.caret { border-color: rgba(236, 228, 210, 0.55); box-shadow: inset 0 0 0 1px rgba(236, 228, 210, 0.12); }
+.a-join-btn {
+  display: flex; align-items: center; justify-content: center; gap: calc(8 * var(--u));
+  width: 100%; height: calc(30 * var(--u));
+  border: 1px solid rgba(236, 228, 210, 0.28); background: none;
+  color: rgba(236, 228, 210, 0.82); font: inherit; font-size: calc(10 * var(--u)); letter-spacing: 0.15em; cursor: pointer;
+}
+.a-join-btn span { color: rgba(236, 228, 210, 0.45); }
+
+.a-foot { position: absolute; left: calc(26 * var(--u)); right: calc(26 * var(--u)); bottom: calc(17 * var(--u)); z-index: 5; display: flex; align-items: center; justify-content: center; gap: calc(14 * var(--u)); }
+.a-hint { margin: 0; font-size: calc(8.3 * var(--u)); letter-spacing: 0.05em; color: rgba(236, 228, 210, 0.32); }
+
+/* 匹配中：月退成底噪，时间与人数占左列，情报占右列 */
+.a[data-s="searching"] .a-window { opacity: 0.5; filter: saturate(0.3) brightness(0.62) contrast(1.25); }
+/* 加载页：月亮退成剪影，只有外面那圈 62% 的进度弧亮着（全屏唯一的亮源就是"还剩多少"） */
+.a[data-s="loading"] .a-moon { opacity: 0.16; filter: grayscale(0.4) brightness(0.8); }
+.a[data-s="loading"] .a-glass { border-color: rgba(236, 228, 210, 0.12); box-shadow: inset 0 0 calc(50 * var(--u)) rgba(0, 0, 0, 0.95); background: #060607; }
+.a[data-s="loading"] .a-bloom { opacity: 0.4; }
+/* 等匹配：月亮外面一圈很淡的"呼吸"（reduce-motion 下是一圈静态细线，截图不糊） */
+.a[data-s="searching"] .a-ring { border-color: rgba(236, 228, 210, 0.16); animation: a-breathe 4.5s ease-in-out infinite; }
+@keyframes a-breathe { 0%, 100% { transform: scale(1); opacity: 0.75; } 50% { transform: scale(1.035); opacity: 1; } }
+/* 加载：月亮外沿就是进度弧（62%） */
+.a-ring-progress {
+  position: absolute; inset: calc(-16 * var(--u)); border-radius: 50%;
+  background: conic-gradient(from -90deg, rgba(236, 228, 210, 0.8) 0 62%, rgba(236, 228, 210, 0.08) 62% 100%);
+  /* ★ 必须 closest-side：radial-gradient 的 100% 默认是"到最远角"，对圆环来说 100%-1px 落在圆外，
+     整圈都被遮掉（第一版 62% 的弧就是这样没画出来）。closest-side 的 100% 才是半径。 */
+  mask: radial-gradient(circle closest-side, transparent calc(100% - 1.5px), #000 calc(100% - 1px));
+  -webkit-mask: radial-gradient(circle closest-side, transparent calc(100% - 1.5px), #000 calc(100% - 1px));
+  filter: drop-shadow(0 0 calc(3 * var(--u)) rgba(236, 228, 210, 0.35));
+}
+.a-wait { width: calc(300 * var(--u)); }
+.a-wait-block { position: absolute; left: calc(26 * var(--u)); bottom: calc(84 * var(--u)); z-index: 4; }
+.a-k { font-size: calc(8.5 * var(--u)); letter-spacing: 0.22em; color: rgba(236, 228, 210, 0.42); }
+.a-big { display: block; margin-top: calc(6 * var(--u)); font-size: calc(56 * var(--u)); font-weight: 200; line-height: 0.94; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+.a-eta { display: block; margin-top: calc(8 * var(--u)); font-size: calc(9.5 * var(--u)); letter-spacing: 0.1em; color: rgba(236, 228, 210, 0.5); }
+.a-seats { display: flex; gap: calc(8 * var(--u)); margin-top: calc(16 * var(--u)); }
+.a-seat {
+  width: calc(34 * var(--u)); height: calc(34 * var(--u)); border-radius: 50%;
+  border: 1px solid rgba(236, 228, 210, 0.18);
+  display: flex; align-items: center; justify-content: center;
+  font-size: calc(9 * var(--u)); letter-spacing: 0.08em; color: rgba(236, 228, 210, 0.34);
+  font-variant-numeric: tabular-nums;
+}
+.a-seat.me { background: var(--ivory); border-color: var(--ivory); color: #0a0a0b; font-weight: 700; }
+.a-seat.wait { border-style: dashed; }
+.a-intel { position: absolute; right: calc(26 * var(--u)); top: calc(106 * var(--u)); bottom: calc(80 * var(--u)); width: calc(244 * var(--u)); z-index: 4; display: flex; flex-direction: column; }
+.a-intel-h { display: flex; align-items: baseline; justify-content: space-between; padding-bottom: calc(7 * var(--u)); border-bottom: 1px solid rgba(236, 228, 210, 0.16); font-size: calc(10 * var(--u)); letter-spacing: 0.16em; color: rgba(236, 228, 210, 0.72); }
+.a-intel-scroll { position: relative; flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: none; mask-image: linear-gradient(to bottom, #000 78%, transparent 100%); -webkit-mask-image: linear-gradient(to bottom, #000 78%, transparent 100%); }
+.a-intel-scroll::-webkit-scrollbar { display: none; }
+.a-row { display: flex; align-items: center; gap: calc(9 * var(--u)); padding: calc(8 * var(--u)) 0; border-bottom: 1px solid rgba(236, 228, 210, 0.07); }
+.a-avatar { width: calc(24 * var(--u)); height: calc(24 * var(--u)); border-radius: 50%; border: 1px solid rgba(236, 228, 210, 0.22); display: flex; align-items: center; justify-content: center; font-size: calc(9 * var(--u)); color: rgba(236, 228, 210, 0.66); flex: none; }
+.a-row b { display: block; font-size: calc(10.5 * var(--u)); font-weight: 500; letter-spacing: 0.06em; color: rgba(236, 228, 210, 0.82); }
+.a-row em { display: block; margin-top: calc(2 * var(--u)); font-style: normal; font-size: calc(8 * var(--u)); letter-spacing: 0.03em; color: rgba(236, 228, 210, 0.36); }
+.a-rank { margin-left: auto; font-size: calc(8 * var(--u)); color: rgba(236, 228, 210, 0.3); font-variant-numeric: tabular-nums; }
+.a-wait-foot { gap: calc(16 * var(--u)); }
+.a-cancel {
+  height: calc(28 * var(--u)); padding: 0 calc(20 * var(--u));
+  border: 1px solid rgba(236, 228, 210, 0.32); background: none;
+  color: rgba(236, 228, 210, 0.86); font: inherit; font-size: calc(10 * var(--u)); letter-spacing: 0.18em; cursor: pointer;
+}
+
+/* 加载页：左列三步、右列百分比 */
+.a-load { position: absolute; left: calc(26 * var(--u)); bottom: calc(84 * var(--u)); width: calc(300 * var(--u)); z-index: 4; }
+.a-step { display: grid; grid-template-columns: calc(20 * var(--u)) 1fr auto; align-items: baseline; gap: calc(10 * var(--u)); padding: calc(6.5 * var(--u)) 0; border-bottom: 1px solid rgba(236, 228, 210, 0.09); }
+.a-step .n { font-size: calc(8 * var(--u)); letter-spacing: 0.12em; color: rgba(236, 228, 210, 0.3); }
+.a-step b { font-size: calc(12.5 * var(--u)); font-weight: 500; letter-spacing: 0.1em; color: rgba(236, 228, 210, 0.55); }
+.a-step em { display: block; margin-top: calc(3 * var(--u)); font-style: normal; font-size: calc(8 * var(--u)); letter-spacing: 0.03em; color: rgba(236, 228, 210, 0.3); }
+.a-step i { font-style: normal; font-size: calc(8.5 * var(--u)); letter-spacing: 0.08em; color: rgba(236, 228, 210, 0.35); }
+.a-step.done b { color: rgba(236, 228, 210, 0.78); }
+.a-step.done i { color: #a7c39c; }
+.a-step.now b { color: var(--ivory); font-weight: 700; }
+.a-step.now i { color: rgba(236, 228, 210, 0.8); }
+.a-progress { position: relative; height: 1px; margin-top: calc(14 * var(--u)); background: rgba(236, 228, 210, 0.16); }
+.a-progress span { position: absolute; left: 0; top: 0; bottom: 0; background: var(--ivory); }
+.a-pct { position: absolute; right: calc(26 * var(--u)); top: 50%; transform: translateY(-50%); z-index: 4; text-align: right; }
+.a-pct .a-big { font-size: calc(66 * var(--u)); }
+.a-pct .a-big small { font-size: 0.34em; font-weight: 300; margin-left: calc(2 * var(--u)); color: rgba(236, 228, 210, 0.6); }
+.a-pct .a-k { display: block; margin-top: calc(4 * var(--u)); }
+.a-load-foot { flex-direction: column; gap: calc(6 * var(--u)); text-align: center; }
+.a-load-foot .a-hint { max-width: 60%; line-height: 1.6; }
+
+/* ───────────────────────── B · 卡片桌游 ─────────────────────────
+   定位：这一屏是"绒布桌面"，开局方式是三张厚卡；金边、烫金、手写体标题。
+   UI 全部压在桌沿（左卡堆 / 中窗 / 右票根），中央仍留给窗与月亮。 */
+.b {
+  background:
+    radial-gradient(105% 80% at 50% 38%, rgba(226, 193, 122, 0.075), transparent 55%),
+    radial-gradient(120% 100% at 50% 0%, #1a2a20 0%, #101a13 48%, #070c08 100%);
+  color: #f2e7d2;
+  font-family: var(--font-serif);
+}
+.b::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+  background:
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.02) 0 1px, rgba(0, 0, 0, 0) 1px 3px),
+    repeating-linear-gradient(-45deg, rgba(0, 0, 0, 0.16) 0 1px, rgba(0, 0, 0, 0) 1px 3px);
+  opacity: 0.9;
+}
+.b::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(62% 70% at 50% 44%, rgba(236, 204, 140, 0.06), transparent 66%),
+    radial-gradient(120% 120% at 50% 122%, rgba(0, 0, 0, 0.72), transparent 62%);
+}
+.b-sys { color: rgba(244, 232, 204, 0.48); }
+
+/* 窗：黄铜圆窗 + 木头窗棂 */
+.b-port { position: absolute; left: 50%; top: 50%; width: calc(209 * var(--u)); height: calc(209 * var(--u)); transform: translate(-50%, -50%); z-index: 1; transition: opacity 0.4s ease, filter 0.4s ease; }
+.b-halo {
+  position: absolute; left: 50%; top: 50%; width: calc(620 * var(--u)); height: calc(620 * var(--u)); transform: translate(-50%, -50%); border-radius: 50%;
+  background: radial-gradient(circle, rgba(226, 193, 122, 0.16), rgba(226, 193, 122, 0.045) 40%, transparent 68%);
+  filter: blur(calc(10 * var(--u)));
+}
+.b-glass {
+  position: absolute; inset: 0; border-radius: 50%; overflow: hidden; background: #0a0f0b;
+  box-shadow: inset 0 0 calc(44 * var(--u)) rgba(0, 0, 0, 0.92), inset 0 0 0 calc(2 * var(--u)) rgba(64, 46, 26, 0.85);
+}
+.b-moon {
+  position: absolute; left: 7%; top: 7%; width: 86%; height: 86%; border-radius: 50%;
+  background: radial-gradient(circle at 36% 30%, #fff7e4 0%, #f5e6c4 30%, #e2c994 58%, #c4a671 82%, #a18458 100%);
+  box-shadow: 0 0 calc(40 * var(--u)) rgba(246, 224, 178, 0.35), inset calc(-18 * var(--u)) calc(-14 * var(--u)) calc(34 * var(--u)) rgba(58, 40, 20, 0.5);
+}
+.b-moon::before {
+  content: ""; position: absolute; inset: 0; border-radius: 50%; opacity: 0.5;
+  background:
+    radial-gradient(circle at 66% 68%, rgba(124, 96, 58, 0.32) 0 7%, transparent 8%),
+    radial-gradient(circle at 74% 42%, rgba(124, 96, 58, 0.24) 0 4.5%, transparent 5.5%),
+    radial-gradient(circle at 42% 72%, rgba(124, 96, 58, 0.2) 0 4%, transparent 5%),
+    radial-gradient(circle at 50% 24%, rgba(255, 253, 240, 0.55) 0 14%, transparent 15%);
+}
+.b-muntin { position: absolute; background: #000; }
+.b-muntin.v { left: calc(50% - 2.5 * var(--u)); top: 0; bottom: 0; width: calc(5 * var(--u)); background: linear-gradient(90deg, #241708, #5d4022 42%, #392615 68%, #1d1207); box-shadow: 0 0 calc(4 * var(--u)) rgba(0, 0, 0, 0.7); }
+.b-muntin.h { top: calc(50% - 2.5 * var(--u)); left: 0; right: 0; height: calc(5 * var(--u)); background: linear-gradient(180deg, #241708, #5d4022 42%, #392615 68%, #1d1207); box-shadow: 0 0 calc(4 * var(--u)) rgba(0, 0, 0, 0.7); }
+.b-ring {
+  position: absolute; inset: calc(-9 * var(--u)); border-radius: 50%;
+  border: calc(3 * var(--u)) solid transparent;
+  background: linear-gradient(150deg, #f7e3b2, #8a6228 30%, #ecd49c 52%, #7a5620 74%, #d1a860) border-box;
+  -webkit-mask: linear-gradient(#000 0 0) padding-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) padding-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  filter: drop-shadow(0 calc(2 * var(--u)) calc(3 * var(--u)) rgba(0, 0, 0, 0.55));
+}
+.b-rivet {
+  position: absolute; left: 50%; top: 50%; width: calc(6 * var(--u)); height: calc(6 * var(--u)); border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fbe9bd, #8a6428 70%);
+  box-shadow: 0 calc(1 * var(--u)) calc(2 * var(--u)) rgba(0, 0, 0, 0.65);
+  transform: translate(-50%, -50%) rotate(var(--a)) translateY(calc(-117 * var(--u))) rotate(calc(-1 * var(--a)));
+}
+.b-plaque {
+  position: absolute; left: 50%; bottom: calc(-27 * var(--u)); transform: translateX(-50%);
+  font-size: calc(8 * var(--u)); letter-spacing: 0.42em; color: #b3945f; white-space: nowrap;
+  text-shadow: 0 calc(1 * var(--u)) 0 rgba(0, 0, 0, 0.6);
+}
+
+/* 顶栏 */
+.b-top { position: absolute; left: calc(26 * var(--u)); right: calc(26 * var(--u)); top: calc(44 * var(--u)); z-index: 5; display: flex; align-items: flex-start; justify-content: space-between; gap: calc(14 * var(--u)); }
+.b-eyebrow { font-size: calc(8.5 * var(--u)); letter-spacing: 0.28em; color: #a88d5c; }
+.b-brand h1 { margin: calc(5 * var(--u)) 0 0; font-size: calc(19 * var(--u)); font-weight: 600; letter-spacing: 0.08em; color: #f8efdd; text-shadow: 0 calc(1 * var(--u)) 0 rgba(0, 0, 0, 0.55); }
+.b-utils { display: flex; align-items: center; gap: calc(9 * var(--u)); }
+.b-chip {
+  display: flex; align-items: center; gap: calc(5 * var(--u)); height: calc(26 * var(--u)); padding: 0 calc(9 * var(--u));
+  border-radius: calc(13 * var(--u)); border: 1px solid rgba(216, 178, 106, 0.32);
+  background: linear-gradient(180deg, rgba(244, 232, 204, 0.07), rgba(0, 0, 0, 0.28));
+  font-size: calc(10 * var(--u)); color: #e9d8b4; font-variant-numeric: tabular-nums;
+}
+.b-online { display: inline-flex; align-items: center; gap: calc(6 * var(--u)); font-size: calc(8.5 * var(--u)); letter-spacing: 0.14em; color: #adc39f; }
+.b-online i { width: calc(6 * var(--u)); height: calc(6 * var(--u)); border-radius: 50%; background: #b7cf9f; box-shadow: 0 0 calc(8 * var(--u)) rgba(183, 207, 159, 0.8); }
+.b-ghost { padding: 0 0 calc(2 * var(--u)); border: 0; border-bottom: 1px solid rgba(216, 178, 106, 0.3); background: none; font: inherit; font-size: calc(9.5 * var(--u)); letter-spacing: 0.1em; color: #cbb489; cursor: pointer; }
+
+/* 左列：手写标题 + 三张厚卡 + 烫金主键 */
+.b-left { position: absolute; left: calc(26 * var(--u)); bottom: calc(24 * var(--u)); width: calc(272 * var(--u)); z-index: 4; }
+.b-hand {
+  font-family: var(--font-hand); font-size: calc(24 * var(--u)); line-height: 1.05;
+  background: linear-gradient(180deg, #f8e7bb, #e2bd74 52%, #b98c3f);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 calc(1 * var(--u)) calc(1 * var(--u)) rgba(0, 0, 0, 0.55));
+}
+.b-left .b-eyebrow { display: block; margin-bottom: calc(4 * var(--u)); }
+.b-cards { display: flex; flex-direction: column; gap: calc(6 * var(--u)); margin-top: calc(7 * var(--u)); }
+.b-card {
+  position: relative; display: grid; grid-template-columns: calc(25 * var(--u)) 1fr auto; align-items: center; gap: calc(9 * var(--u));
+  height: calc(35 * var(--u)); padding: 0 calc(9 * var(--u)) 0 calc(6 * var(--u)); text-align: left;
+  border-radius: calc(10 * var(--u)); border: 1px solid rgba(216, 178, 106, 0.28);
+  background: linear-gradient(165deg, #241a10 0%, #19120b 55%, #120d08 100%);
+  box-shadow: 0 calc(3 * var(--u)) calc(9 * var(--u)) rgba(0, 0, 0, 0.42), inset 0 calc(1 * var(--u)) 0 rgba(255, 235, 190, 0.06);
+  color: inherit; cursor: pointer;
+}
+.b-card::before { content: ""; position: absolute; inset: calc(2 * var(--u)); border-radius: calc(8 * var(--u)); border: 1px solid rgba(216, 178, 106, 0.11); pointer-events: none; }
+.b-card.sel {
+  border-color: rgba(238, 205, 130, 0.85);
+  background: linear-gradient(165deg, #2d2113 0%, #1e150c 55%, #16100a 100%);
+  box-shadow: 0 calc(4 * var(--u)) calc(15 * var(--u)) rgba(0, 0, 0, 0.5), 0 0 calc(18 * var(--u)) rgba(216, 178, 106, 0.13), inset 0 calc(1 * var(--u)) 0 rgba(255, 240, 200, 0.16);
+}
+.b-seal {
+  display: flex; align-items: center; justify-content: center; width: calc(25 * var(--u)); height: calc(25 * var(--u)); border-radius: 50%;
+  font-family: var(--font-serif); font-size: calc(11 * var(--u)); font-weight: 700; color: #2b1d09;
+  background: linear-gradient(180deg, #f5dcab, #c9a15a); box-shadow: inset 0 calc(1 * var(--u)) 0 rgba(255, 255, 255, 0.55), 0 calc(1 * var(--u)) calc(3 * var(--u)) rgba(0, 0, 0, 0.45);
+}
+.b-card.sel .b-seal { background: linear-gradient(180deg, #fff1c8, #e0b86c); }
+.b-card-txt b { display: block; font-family: var(--font-serif); font-size: calc(11.5 * var(--u)); font-weight: 600; letter-spacing: 0.05em; color: #f2e5ca; }
+.b-card-txt em { display: block; margin-top: calc(2 * var(--u)); font-style: normal; font-size: calc(7.4 * var(--u)); letter-spacing: 0.02em; color: #9c8967; }
+.b-badge { padding: calc(1.5 * var(--u)) calc(6 * var(--u)); border-radius: calc(7 * var(--u)); border: 1px solid rgba(216, 178, 106, 0.24); font-size: calc(7.2 * var(--u)); letter-spacing: 0.08em; color: #c1a678; white-space: nowrap; }
+.b-cta-wrap { margin-top: calc(8 * var(--u)); }
+.b-cta {
+  display: flex; align-items: center; justify-content: space-between; width: 100%; height: calc(36 * var(--u)); padding: 0 calc(12 * var(--u));
+  border-radius: calc(11 * var(--u)); border: 1px solid #f8e8bd;
+  background: linear-gradient(180deg, #f8e4b1, #ddb56c 44%, #b98b41);
+  color: #2b1d09; font-family: var(--font-serif); font-size: calc(12.5 * var(--u)); font-weight: 700; letter-spacing: 0.1em;
+  box-shadow: 0 calc(5 * var(--u)) calc(13 * var(--u)) rgba(0, 0, 0, 0.5), inset 0 calc(1 * var(--u)) 0 rgba(255, 255, 255, 0.65), inset 0 calc(-2 * var(--u)) 0 rgba(92, 60, 18, 0.35);
+  cursor: pointer;
+}
+.b-cta .go { display: flex; align-items: center; justify-content: center; width: calc(21 * var(--u)); height: calc(21 * var(--u)); border-radius: 50%; background: rgba(43, 29, 9, 0.16); font-family: var(--font-sans); font-size: calc(11 * var(--u)); }
+.b-note { margin: calc(6 * var(--u)) 0 0; font-size: calc(7.8 * var(--u)); line-height: 1.55; letter-spacing: 0.03em; color: #8e7c5d; }
+
+/* 右列：凭码加入 — 一张票根 */
+.b-right { position: absolute; right: calc(26 * var(--u)); bottom: calc(26 * var(--u)); width: calc(236 * var(--u)); z-index: 4; }
+.b-ticket {
+  position: relative; padding: calc(10 * var(--u)) calc(12 * var(--u));
+  border-radius: calc(13 * var(--u)); border: 1px solid rgba(216, 178, 106, 0.38);
+  background: linear-gradient(170deg, rgba(244, 232, 204, 0.06), rgba(0, 0, 0, 0.24));
+  box-shadow: inset 0 calc(1 * var(--u)) 0 rgba(255, 240, 200, 0.09), 0 calc(6 * var(--u)) calc(18 * var(--u)) rgba(0, 0, 0, 0.38);
+}
+.b-ticket::before, .b-ticket::after {
+  content: ""; position: absolute; top: calc(39 * var(--u)); width: calc(11 * var(--u)); height: calc(11 * var(--u)); border-radius: 50%;
+  background: #0b110c; border: 1px solid rgba(216, 178, 106, 0.34);
+}
+.b-ticket::before { left: calc(-6 * var(--u)); }
+.b-ticket::after { right: calc(-6 * var(--u)); }
+.b-ticket-h { display: flex; align-items: baseline; justify-content: space-between; font-size: calc(11.5 * var(--u)); letter-spacing: 0.1em; color: #ecd9b3; }
+.b-ticket-no { font-size: calc(7 * var(--u)); letter-spacing: 0.16em; color: #8b7450; }
+.b-dash { height: 1px; margin: calc(8 * var(--u)) calc(-12 * var(--u)) calc(9 * var(--u)); background-image: linear-gradient(90deg, rgba(216, 178, 106, 0.55) 0 4px, transparent 4px 8px); background-size: 8px 1px; }
+.b-code { display: flex; gap: calc(5 * var(--u)); }
+.b-code i {
+  flex: 1; height: calc(28 * var(--u)); display: flex; align-items: center; justify-content: center;
+  border-radius: calc(6 * var(--u)); border: 1px solid rgba(216, 178, 106, 0.26);
+  background: rgba(0, 0, 0, 0.3); font-style: normal; font-family: ui-monospace, Consolas, monospace; font-size: calc(12 * var(--u)); color: #f3e4c4;
+}
+.b-code i:empty::after { content: ""; width: 1px; height: 38%; background: rgba(236, 217, 179, 0.28); }
+.b-code i.caret { border-color: rgba(240, 206, 130, 0.8); box-shadow: 0 0 calc(8 * var(--u)) rgba(216, 178, 106, 0.18); }
+.b-join {
+  display: flex; align-items: center; justify-content: center; gap: calc(6 * var(--u)); width: 100%; height: calc(30 * var(--u)); margin-top: calc(9 * var(--u));
+  border-radius: calc(8 * var(--u)); border: 1px solid rgba(216, 178, 106, 0.5); background: none;
+  font-family: var(--font-serif); font-size: calc(10.5 * var(--u)); letter-spacing: 0.12em; color: #ecd9b3; cursor: pointer;
+}
+.b-join span { color: #b3945f; }
+
+/* 匹配中：左"对手情报"卡堆 / 右"等桌"单据 */
+.b[data-s="searching"] .b-port { opacity: 0.7; filter: saturate(0.7) brightness(0.8); }
+.b[data-s="loading"] .b-port { opacity: 0.82; filter: saturate(0.7) brightness(0.82); }
+.b-intel { position: absolute; left: calc(26 * var(--u)); bottom: calc(26 * var(--u)); width: calc(238 * var(--u)); height: calc(206 * var(--u)); z-index: 4; display: flex; flex-direction: column; }
+.b-intel-h { display: flex; align-items: baseline; justify-content: space-between; padding-bottom: calc(6 * var(--u)); border-bottom: 1px solid rgba(216, 178, 106, 0.28); font-size: calc(10 * var(--u)); letter-spacing: 0.14em; color: #dcc69f; flex: none; }
+.b-intel-h .b-eyebrow { letter-spacing: 0.18em; }
+.b-intel-scroll { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: none; padding-top: calc(6 * var(--u)); mask-image: linear-gradient(to bottom, #000 76%, transparent 100%); -webkit-mask-image: linear-gradient(to bottom, #000 76%, transparent 100%); }
+.b-intel-scroll::-webkit-scrollbar { display: none; }
+.b-op {
+  display: flex; align-items: center; gap: calc(9 * var(--u)); margin-bottom: calc(6 * var(--u)); padding: calc(7 * var(--u)) calc(9 * var(--u));
+  border-radius: calc(9 * var(--u)); border: 1px solid rgba(216, 178, 106, 0.22);
+  background: linear-gradient(165deg, rgba(36, 26, 16, 0.9), rgba(15, 11, 7, 0.9));
+  box-shadow: 0 calc(2 * var(--u)) calc(6 * var(--u)) rgba(0, 0, 0, 0.35);
+}
+.b-op-seal { display: flex; align-items: center; justify-content: center; width: calc(23 * var(--u)); height: calc(23 * var(--u)); border-radius: 50%; border: 1px solid rgba(216, 178, 106, 0.45); font-family: var(--font-hand); font-size: calc(10 * var(--u)); color: #e6cd9c; flex: none; }
+.b-op b { display: block; font-family: var(--font-hand); font-size: calc(12 * var(--u)); font-weight: 400; color: #f2e3c2; }
+.b-op em { display: block; margin-top: calc(1 * var(--u)); font-style: normal; font-size: calc(7.2 * var(--u)); letter-spacing: 0.02em; color: #9a8867; }
+.b-op .b-rank { margin-left: auto; font-size: calc(8 * var(--u)); color: #a88d5c; font-variant-numeric: tabular-nums; }
+.b-slip {
+  position: absolute; right: calc(26 * var(--u)); bottom: calc(26 * var(--u)); width: calc(288 * var(--u)); z-index: 4;
+  padding: calc(12 * var(--u)) calc(14 * var(--u));
+  border-radius: calc(14 * var(--u)); border: 1px solid rgba(216, 178, 106, 0.4);
+  background: linear-gradient(170deg, rgba(40, 29, 17, 0.94), rgba(13, 10, 7, 0.94));
+  box-shadow: 0 calc(8 * var(--u)) calc(22 * var(--u)) rgba(0, 0, 0, 0.45), inset 0 calc(1 * var(--u)) 0 rgba(255, 240, 200, 0.1);
+}
+.b-slip-h { display: flex; align-items: baseline; justify-content: space-between; }
+.b-slip-h .b-hand { font-size: calc(20 * var(--u)); }
+.b-slip-no { font-size: calc(7 * var(--u)); letter-spacing: 0.18em; color: #8b7450; }
+.b-timer { display: flex; align-items: baseline; gap: calc(8 * var(--u)); margin-top: calc(4 * var(--u)); }
+.b-timer b { font-family: var(--font-serif); font-size: calc(38 * var(--u)); font-weight: 400; line-height: 1; letter-spacing: 0.01em; color: #f8efdb; font-variant-numeric: tabular-nums; }
+.b-timer span { font-size: calc(8 * var(--u)); letter-spacing: 0.1em; color: #a88d5c; }
+.b-slip-meta { margin: calc(3 * var(--u)) 0 0; font-size: calc(8 * var(--u)); letter-spacing: 0.04em; color: #a08c69; }
+.b-seats { display: flex; gap: calc(6 * var(--u)); margin-top: calc(10 * var(--u)); }
+.b-seat {
+  flex: 1; height: calc(40 * var(--u)); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(2 * var(--u));
+  border-radius: calc(8 * var(--u)); border: 1px solid rgba(216, 178, 106, 0.22);
+  background: linear-gradient(170deg, rgba(255, 240, 200, 0.04), rgba(0, 0, 0, 0.22));
+  font-size: calc(8 * var(--u)); color: #a08c69;
+}
+.b-seat b { font-family: var(--font-serif); font-size: calc(10 * var(--u)); font-weight: 600; color: #d9c49c; }
+.b-seat.me { border-color: rgba(238, 205, 130, 0.7); background: linear-gradient(170deg, rgba(226, 193, 122, 0.16), rgba(0, 0, 0, 0.25)); }
+.b-seat.me b { color: #f8e7bb; }
+.b-seat.wait { border-style: dashed; }
+.b-cancel {
+  width: 100%; height: calc(30 * var(--u)); margin-top: calc(11 * var(--u));
+  border-radius: calc(8 * var(--u)); border: 1px solid rgba(216, 178, 106, 0.42); background: none;
+  font-family: var(--font-serif); font-size: calc(10 * var(--u)); letter-spacing: 0.14em; color: #d9c49c; cursor: pointer;
+}
+.b-slip .b-note { margin-top: calc(6 * var(--u)); text-align: center; }
+
+/* 加载页：三步=三张铺开的卡；窗外一圈金边进度 */
+.b-stages { position: absolute; left: calc(26 * var(--u)); bottom: calc(26 * var(--u)); width: calc(292 * var(--u)); z-index: 4; }
+.b-stages .b-eyebrow { display: block; margin-bottom: calc(6 * var(--u)); }
+.b-stage {
+  position: relative; display: grid; grid-template-columns: calc(26 * var(--u)) 1fr auto; align-items: center; gap: calc(9 * var(--u));
+  height: calc(46 * var(--u)); margin-bottom: calc(7 * var(--u)); padding: 0 calc(10 * var(--u)) 0 calc(7 * var(--u));
+  border-radius: calc(10 * var(--u)); border: 1px solid rgba(216, 178, 106, 0.26);
+  background: linear-gradient(165deg, rgba(36, 26, 16, 0.92), rgba(14, 10, 7, 0.92));
+  box-shadow: 0 calc(3 * var(--u)) calc(9 * var(--u)) rgba(0, 0, 0, 0.38);
+}
+.b-stage.done { opacity: 0.72; }
+.b-stage.now { border-color: rgba(238, 205, 130, 0.8); box-shadow: 0 calc(5 * var(--u)) calc(16 * var(--u)) rgba(0, 0, 0, 0.5), 0 0 calc(16 * var(--u)) rgba(216, 178, 106, 0.12); }
+.b-stage b { display: block; font-family: var(--font-serif); font-size: calc(11.5 * var(--u)); font-weight: 600; color: #f0e1c3; }
+.b-stage em { display: block; margin-top: calc(2 * var(--u)); font-style: normal; font-size: calc(7.4 * var(--u)); color: #9a8867; }
+.b-stage i { font-style: normal; font-size: calc(8 * var(--u)); letter-spacing: 0.08em; color: #a88d5c; }
+.b-stage.done i { color: #a9c19a; }
+.b-stage.now i { color: #f0d49a; }
+.b-stage.now .b-seal { background: linear-gradient(180deg, #fff1c8, #e0b86c); }
+.b-aside {
+  position: absolute; right: calc(26 * var(--u)); bottom: calc(26 * var(--u)); width: calc(280 * var(--u)); z-index: 4;
+  display: flex; flex-direction: column; align-items: flex-end; gap: calc(6 * var(--u)); text-align: right;
+}
+.b-aside .b-hand { font-size: calc(52 * var(--u)); line-height: 1; }
+.b-aside .b-hand small { font-size: 0.4em; }
+.b-aside .b-note { margin: 0; max-width: calc(252 * var(--u)); }
+.b-aside .b-cancel.small { width: auto; margin-top: calc(3 * var(--u)); padding: 0 calc(16 * var(--u)); }
+
+/* 黄铜进度环（加载页） */
+.b-ring-progress {
+  position: absolute; inset: calc(-18 * var(--u)); border-radius: 50%;
+  background: conic-gradient(from -90deg, rgba(246, 224, 178, 0.9) 0 62%, rgba(216, 178, 106, 0.12) 62% 100%);
+  -webkit-mask: radial-gradient(circle closest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+  mask: radial-gradient(circle closest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+  filter: drop-shadow(0 0 calc(4 * var(--u)) rgba(216, 178, 106, 0.4));
+}
+
+/* ───────────────────────── C · 沉浸全屏 ─────────────────────────
+   定位：画面就是那扇窗。UI 全部回收成"屏幕边缘"：顶部一条细带、左侧一条竖排模式、
+   底部一条边栏（中间一颗实心主键 + 右边凭码加入）。匹配中让月亮被三圈呼吸光环围住。 */
+.c {
+  background:
+    radial-gradient(78% 60% at 50% 45%, #0d1a2b 0%, #070c16 46%, #03050a 100%);
+  color: #e9f0f7;
+  font-family: var(--font-cond);
+}
+.c::before {
+  content: ""; position: absolute; inset: 0; z-index: 0; pointer-events: none;
+  background:
+    radial-gradient(1.5px 1.5px at 14% 24%, rgba(226, 240, 255, 0.55), transparent 100%),
+    radial-gradient(1px 1px at 23% 66%, rgba(226, 240, 255, 0.4), transparent 100%),
+    radial-gradient(1.5px 1.5px at 79% 20%, rgba(226, 240, 255, 0.45), transparent 100%),
+    radial-gradient(1px 1px at 86% 62%, rgba(226, 240, 255, 0.35), transparent 100%),
+    radial-gradient(1px 1px at 34% 16%, rgba(226, 240, 255, 0.3), transparent 100%),
+    radial-gradient(1px 1px at 66% 76%, rgba(226, 240, 255, 0.28), transparent 100%),
+    radial-gradient(70% 90% at 50% 50%, rgba(140, 180, 235, 0.05), transparent 62%);
+}
+.c-sys { color: rgba(220, 235, 250, 0.5); }
+
+/* 窗与月：中间那块亮面就是整个画面 */
+.c-win { position: absolute; left: 50%; top: 50%; width: calc(209 * var(--u)); height: calc(209 * var(--u)); transform: translate(-50%, -50%); z-index: 1; transition: opacity 0.4s ease, filter 0.4s ease; }
+.c-halo {
+  position: absolute; left: 50%; top: 50%; width: calc(980 * var(--u)); height: calc(980 * var(--u)); transform: translate(-50%, -50%); border-radius: 50%;
+  background: radial-gradient(circle, rgba(198, 222, 255, 0.16) 0%, rgba(150, 190, 240, 0.06) 30%, transparent 62%);
+  filter: blur(calc(14 * var(--u)));
+}
+.c-glass {
+  position: absolute; inset: 0; border-radius: 50%; overflow: hidden; background: #060b14;
+  border: 1px solid rgba(214, 232, 255, 0.26);
+  box-shadow: 0 0 calc(70 * var(--u)) rgba(180, 210, 255, 0.16), inset 0 0 calc(56 * var(--u)) rgba(0, 0, 0, 0.75);
+}
+.c-moon {
+  position: absolute; left: 4%; top: 4%; width: 92%; height: 92%; border-radius: 50%;
+  background: radial-gradient(circle at 40% 33%, #ffffff 0%, #ecf5ff 28%, #d3e2f4 56%, #adc2da 80%, #8198b3 100%);
+  box-shadow: 0 0 calc(56 * var(--u)) rgba(220, 238, 255, 0.55), inset calc(-16 * var(--u)) calc(-12 * var(--u)) calc(34 * var(--u)) rgba(34, 52, 76, 0.5);
+}
+.c-moon::before {
+  content: ""; position: absolute; inset: 0; border-radius: 50%; opacity: 0.45;
+  background:
+    radial-gradient(circle at 63% 66%, rgba(74, 100, 132, 0.35) 0 8%, transparent 9%),
+    radial-gradient(circle at 72% 38%, rgba(74, 100, 132, 0.26) 0 5%, transparent 6%),
+    radial-gradient(circle at 38% 72%, rgba(74, 100, 132, 0.22) 0 4%, transparent 5%),
+    radial-gradient(circle at 52% 22%, rgba(255, 255, 255, 0.6) 0 16%, transparent 17%);
+}
+.c-muntin { position: absolute; background: rgba(16, 30, 48, 0.55); }
+.c-muntin.v { left: 50%; top: 0; bottom: 0; width: 1px; }
+.c-muntin.h { top: 50%; left: 0; right: 0; height: 1px; }
+
+/* 顶部细带（含状态栏那 41px，UI 直接压到屏幕最上沿） */
+.c-top {
+  position: absolute; left: 0; right: 0; top: 0; height: calc(78 * var(--u)); z-index: 6;
+  display: flex; align-items: flex-end; justify-content: space-between; gap: calc(12 * var(--u));
+  padding: 0 calc(24 * var(--u)) calc(8 * var(--u));
+  background: linear-gradient(180deg, rgba(3, 5, 10, 0.94), rgba(3, 5, 10, 0.5) 58%, transparent);
+  border-bottom: 1px solid rgba(200, 225, 255, 0.07);
+}
+.c-nav { display: flex; align-items: center; gap: calc(16 * var(--u)); font-size: calc(9 * var(--u)); letter-spacing: 0.14em; color: rgba(214, 232, 255, 0.6); }
+.c-back { padding: 0; border: 0; background: none; font: inherit; letter-spacing: inherit; color: rgba(214, 232, 255, 0.66); cursor: pointer; }
+.c-title { display: inline-flex; align-items: center; gap: calc(8 * var(--u)); color: rgba(226, 240, 255, 0.84); }
+.c-title i { width: calc(4 * var(--u)); height: calc(4 * var(--u)); border-radius: 50%; background: #a8e0c0; box-shadow: 0 0 calc(7 * var(--u)) rgba(168, 224, 192, 0.9); }
+.c-utils { display: flex; align-items: center; gap: calc(14 * var(--u)); font-size: calc(9.5 * var(--u)); letter-spacing: 0.06em; color: rgba(214, 232, 255, 0.6); font-variant-numeric: tabular-nums; }
+.c-chip { display: inline-flex; align-items: center; gap: calc(4 * var(--u)); }
+.c-close { padding: 0; border: 0; background: none; font: inherit; color: rgba(214, 232, 255, 0.55); cursor: pointer; }
+
+/* 左沿：竖向模式条 */
+.c-modes { position: absolute; left: calc(24 * var(--u)); top: 50%; transform: translateY(-50%); z-index: 4; display: flex; flex-direction: column; gap: calc(6 * var(--u)); width: calc(154 * var(--u)); }
+.c-tab {
+  display: flex; align-items: center; gap: calc(8 * var(--u)); height: calc(31 * var(--u)); padding: 0 calc(9 * var(--u));
+  border: 1px solid rgba(190, 215, 245, 0.14); border-radius: calc(2 * var(--u));
+  background: linear-gradient(90deg, rgba(190, 215, 245, 0.055), rgba(190, 215, 245, 0));
+  color: rgba(233, 240, 247, 0.62); font: inherit; font-size: calc(10 * var(--u)); letter-spacing: 0.05em; text-align: left; cursor: pointer;
+  backdrop-filter: blur(calc(2 * var(--u)));
+}
+.c-tab .n { font-size: calc(7.5 * var(--u)); letter-spacing: 0.1em; color: rgba(200, 225, 255, 0.42); font-variant-numeric: tabular-nums; }
+.c-tab .t { margin-left: auto; font-size: calc(7.2 * var(--u)); letter-spacing: 0.04em; color: rgba(200, 225, 255, 0.36); }
+.c-tab.sel { border-color: rgba(214, 232, 255, 0.55); color: #f4f8ff; background: linear-gradient(90deg, rgba(214, 232, 255, 0.17), rgba(214, 232, 255, 0.02)); box-shadow: inset 0 0 calc(12 * var(--u)) rgba(190, 220, 255, 0.1); }
+.c-tab.sel .n { color: rgba(214, 232, 255, 0.85); }
+
+/* 底部边栏：一句说明 + 唯一实心主键 + 凭码加入 */
+.c-bottom {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 5;
+  height: calc(78 * var(--u)); display: flex; align-items: center; gap: calc(12 * var(--u));
+  padding: 0 calc(24 * var(--u));
+  background: linear-gradient(0deg, rgba(3, 5, 10, 0.96), rgba(3, 5, 10, 0.62) 58%, transparent);
+  border-top: 1px solid rgba(200, 225, 255, 0.08);
+}
+.c-sub { flex: 1; min-width: 0; font-size: calc(8 * var(--u)); line-height: 1.6; letter-spacing: 0.06em; color: rgba(200, 225, 255, 0.48); }
+.c-sub b { display: block; font-size: calc(10 * var(--u)); font-weight: 600; letter-spacing: 0.08em; color: rgba(226, 240, 255, 0.82); }
+.c-cta {
+  display: flex; align-items: center; justify-content: space-between; flex: none;
+  width: calc(336 * var(--u)); height: calc(44 * var(--u)); padding: 0 calc(16 * var(--u));
+  border: 0; border-radius: calc(3 * var(--u));
+  background: linear-gradient(180deg, #f4f9ff, #dde9f7 52%, #bcd0e7);
+  color: #071019; font-family: var(--font-cond); font-size: calc(13 * var(--u)); font-weight: 700; letter-spacing: 0.1em;
+  box-shadow: 0 0 calc(28 * var(--u)) rgba(190, 220, 255, 0.3), inset 0 1px 0 #fff;
+  cursor: pointer;
+}
+.c-cta small { display: block; margin-top: calc(1 * var(--u)); font-size: calc(7.5 * var(--u)); font-weight: 500; letter-spacing: 0.06em; opacity: 0.55; }
+.c-cta .go { display: flex; align-items: center; justify-content: center; width: calc(22 * var(--u)); height: calc(22 * var(--u)); border-radius: 50%; background: rgba(7, 16, 25, 0.1); font-size: calc(11 * var(--u)); }
+.c-join {
+  flex: none; display: flex; align-items: center; gap: calc(7 * var(--u));
+  width: calc(232 * var(--u)); height: calc(40 * var(--u)); padding: 0 calc(7 * var(--u));
+  border: 1px solid rgba(200, 225, 255, 0.16); border-radius: calc(3 * var(--u));
+  background: rgba(4, 8, 14, 0.5);
+}
+.c-join .lab { font-size: calc(7 * var(--u)); letter-spacing: 0.1em; color: rgba(200, 225, 255, 0.5); white-space: nowrap; }
+.c-code { display: flex; gap: calc(3 * var(--u)); flex: 1; }
+.c-code i { flex: 1; height: calc(24 * var(--u)); display: flex; align-items: center; justify-content: center; border-bottom: 1px solid rgba(200, 225, 255, 0.3); font-style: normal; font-family: ui-monospace, Consolas, monospace; font-size: calc(10 * var(--u)); color: #e8f1fb; }
+.c-code i:empty::after { content: ""; width: 1px; height: 32%; background: rgba(220, 235, 250, 0.3); }
+.c-code i.caret { border-bottom-color: rgba(220, 235, 250, 0.8); }
+.c-enter { flex: none; width: calc(26 * var(--u)); height: calc(26 * var(--u)); border: 1px solid rgba(200, 225, 255, 0.28); background: rgba(200, 225, 255, 0.07); color: #dce9f7; font: inherit; font-size: calc(10 * var(--u)); cursor: pointer; }
+
+/* 匹配中：三圈呼吸光环围住月亮 */
+.c-rings { position: absolute; left: 50%; top: 50%; width: calc(209 * var(--u)); height: calc(209 * var(--u)); transform: translate(-50%, -50%); z-index: 2; pointer-events: none; }
+.c-rings i {
+  position: absolute; left: 50%; top: 50%; border-radius: 50%; border: 1px solid rgba(190, 220, 255, 0.22);
+  transform: translate(-50%, -50%);
+}
+.c-rings i:nth-child(1) { width: calc(256 * var(--u)); height: calc(256 * var(--u)); animation: c-breathe 5s ease-in-out infinite; }
+.c-rings i:nth-child(2) { width: calc(316 * var(--u)); height: calc(316 * var(--u)); border-color: rgba(190, 220, 255, 0.14); animation: c-breathe 5s ease-in-out 0.6s infinite; }
+.c-rings i:nth-child(3) { width: calc(386 * var(--u)); height: calc(386 * var(--u)); border-color: rgba(190, 220, 255, 0.08); animation: c-breathe 5s ease-in-out 1.2s infinite; }
+@keyframes c-breathe { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+.c[data-s="searching"] .c-win { opacity: 0.82; filter: saturate(0.85) brightness(0.92); }
+.c[data-s="loading"] .c-win { opacity: 0.7; filter: saturate(0.7) brightness(0.75); }
+.c-party { position: absolute; left: 50%; top: 50%; z-index: 3; width: 0; height: 0; }
+.c-party i {
+  position: absolute; left: 50%; top: 50%; width: calc(9 * var(--u)); height: calc(9 * var(--u)); border-radius: 50%;
+  border: 1px solid rgba(214, 232, 255, 0.45); background: rgba(4, 8, 14, 0.6);
+  transform: translate(-50%, -50%) rotate(var(--a)) translateY(calc(-128 * var(--u)));
+}
+.c-party i.me { background: #e8f3ff; border-color: #e8f3ff; box-shadow: 0 0 calc(10 * var(--u)) rgba(220, 240, 255, 0.7); }
+.c-party i.baked { border-color: rgba(168, 224, 192, 0.8); background: rgba(168, 224, 192, 0.5); }
+
+/* 匹配中：底部边栏只留大秒表 + 取消 */
+.c-wait-bar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; }
+.c-wait-bar .c-cancel { justify-self: end; }
+.c-clock { display: flex; align-items: baseline; gap: calc(10 * var(--u)); }
+.c-clock b { font-family: var(--font-cond); font-size: calc(38 * var(--u)); font-weight: 200; line-height: 1; letter-spacing: 0.01em; color: #f2f8ff; font-variant-numeric: tabular-nums; }
+.c-clock span { font-size: calc(8.5 * var(--u)); letter-spacing: 0.1em; color: rgba(200, 225, 255, 0.55); }
+.c-clock em { font-style: normal; font-size: calc(8 * var(--u)); letter-spacing: 0.08em; color: rgba(200, 225, 255, 0.42); }
+.c-cancel {
+  flex: none; height: calc(38 * var(--u)); padding: 0 calc(20 * var(--u));
+  border: 1px solid rgba(200, 225, 255, 0.3); border-radius: calc(3 * var(--u)); background: rgba(4, 8, 14, 0.45);
+  color: rgba(226, 240, 255, 0.86); font: inherit; font-size: calc(10 * var(--u)); letter-spacing: 0.14em; cursor: pointer;
+}
+.c-intel { position: absolute; right: 0; top: calc(82 * var(--u)); bottom: calc(82 * var(--u)); width: calc(224 * var(--u)); z-index: 4; padding: 0 calc(24 * var(--u)) 0 calc(14 * var(--u)); display: flex; flex-direction: column; mask-image: linear-gradient(to bottom, transparent 0, #000 9%, #000 88%, transparent 100%); -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 9%, #000 88%, transparent 100%); }
+.c-intel-h { display: flex; align-items: baseline; justify-content: space-between; padding-bottom: calc(6 * var(--u)); border-bottom: 1px solid rgba(200, 225, 255, 0.16); font-size: calc(9.5 * var(--u)); letter-spacing: 0.16em; color: rgba(214, 232, 255, 0.7); flex: none; }
+.c-intel-h span:last-child { font-size: calc(7 * var(--u)); letter-spacing: 0.1em; color: rgba(200, 225, 255, 0.34); }
+.c-intel-scroll { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: none; }
+.c-intel-scroll::-webkit-scrollbar { display: none; }
+.c-op { display: flex; align-items: center; gap: calc(8 * var(--u)); padding: calc(7 * var(--u)) 0; border-bottom: 1px solid rgba(200, 225, 255, 0.07); }
+.c-ava { display: flex; align-items: center; justify-content: center; width: calc(22 * var(--u)); height: calc(22 * var(--u)); border-radius: 50%; border: 1px solid rgba(200, 225, 255, 0.24); font-size: calc(8 * var(--u)); color: rgba(214, 232, 255, 0.7); flex: none; }
+.c-op b { display: block; font-size: calc(10 * var(--u)); font-weight: 500; letter-spacing: 0.04em; color: rgba(233, 240, 247, 0.84); }
+.c-op em { display: block; margin-top: calc(1 * var(--u)); font-style: normal; font-size: calc(7.2 * var(--u)); letter-spacing: 0.02em; color: rgba(200, 225, 255, 0.38); }
+.c-op .r { margin-left: auto; font-size: calc(7.5 * var(--u)); color: rgba(200, 225, 255, 0.3); font-variant-numeric: tabular-nums; }
+
+/* 加载页：底部三段进度 + 细线；顶部右取消 */
+.c-stagebar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 5; }
+.c-stagebar .track { position: relative; height: calc(2 * var(--u)); background: rgba(200, 225, 255, 0.1); }
+.c-stagebar .track span { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, rgba(214, 232, 255, 0.4), #eaf4ff); box-shadow: 0 0 calc(10 * var(--u)) rgba(220, 240, 255, 0.5); }
+.c-stagebar .stages { display: flex; align-items: center; padding: calc(8 * var(--u)) calc(24 * var(--u)) calc(12 * var(--u)); background: linear-gradient(0deg, rgba(3, 5, 10, 0.94), rgba(3, 5, 10, 0.5) 70%, transparent); }
+.c-stagebar .c-stage { flex: 1; display: flex; align-items: baseline; gap: calc(6 * var(--u)); font-size: calc(8.5 * var(--u)); letter-spacing: 0.1em; color: rgba(200, 225, 255, 0.4); }
+.c-stagebar .c-stage b { font-size: calc(10 * var(--u)); font-weight: 600; letter-spacing: 0.08em; color: rgba(200, 225, 255, 0.55); }
+.c-stagebar .c-stage.done { color: #a8e0c0; }
+.c-stagebar .c-stage.done b { color: #c9ecd8; }
+.c-stagebar .c-stage.now { color: #f2f8ff; }
+.c-stagebar .c-stage.now b { color: #fff; }
+.c-stagebar .c-stage em { font-style: normal; font-size: calc(7.5 * var(--u)); color: rgba(200, 225, 255, 0.36); }
+.c-load-hint { position: absolute; left: 50%; bottom: calc(66 * var(--u)); transform: translateX(-50%); z-index: 5; width: max-content; max-width: 62%; text-align: center; font-size: calc(8 * var(--u)); line-height: 1.7; letter-spacing: 0.05em; color: rgba(200, 225, 255, 0.42); }
+.c-load-pct { position: absolute; left: calc(24 * var(--u)); top: calc(96 * var(--u)); z-index: 5; display: flex; align-items: baseline; gap: calc(6 * var(--u)); }
+.c-load-pct b { font-family: var(--font-cond); font-size: calc(30 * var(--u)); font-weight: 200; line-height: 1; color: rgba(242, 248, 255, 0.92); font-variant-numeric: tabular-nums; }
+.c-load-pct span { font-size: calc(8 * var(--u)); letter-spacing: 0.14em; color: rgba(200, 225, 255, 0.45); }
+.c-ring-progress {
+  position: absolute; inset: calc(-16 * var(--u)); border-radius: 50%;
+  background: conic-gradient(from -90deg, rgba(232, 243, 255, 0.85) 0 62%, rgba(200, 225, 255, 0.1) 62% 100%);
+  -webkit-mask: radial-gradient(circle closest-side, transparent calc(100% - 2px), #000 calc(100% - 1px));
+  mask: radial-gradient(circle closest-side, transparent calc(100% - 2px), #000 calc(100% - 1px));
+  filter: drop-shadow(0 0 calc(5 * var(--u)) rgba(200, 230, 255, 0.45));
+}
+.c-load-utils { display: flex; align-items: center; gap: calc(16 * var(--u)); }
+
+/* HUD：只在 ?hud=1 时出现 */
+.hud { display: none; position: fixed; right: calc(8 * var(--u)); top: calc(8 * var(--u)); z-index: 99; font: calc(9 * var(--u))/1.4 ui-monospace, monospace; letter-spacing: 0.08em; color: #fff; background: rgba(0, 0, 0, 0.55); padding: calc(4 * var(--u)) calc(7 * var(--u)); border: 1px solid rgba(255, 255, 255, 0.18); border-radius: 3px; }
+html[data-hud="1"] .hud { display: block; }
+
+@media (prefers-reduced-motion: reduce) {
+  .view * { animation: none !important; transition: none !important; }
+}
+</style>
+</head>
+<body>
+<main class="stage">
+
+<!-- ═════════════════════ A · 极简剧场 ═════════════════════ -->
+
+<!-- A / 匹配页 -->
+<section class="view a" data-v="1" data-s="match">
+  <div class="a-frame"></div>
+  <div class="a-window">
+    <div class="a-bloom"></div>
+    <div class="a-glass">
+      <div class="a-moon"></div>
+      <div class="a-muntin v"></div>
+      <div class="a-muntin h"></div>
+    </div>
+    <div class="a-ring"></div>
+  </div>
+  <div class="sysbar a-sys" style="color: rgba(236,228,210,.5)">
+    <span>21:47</span>
+    <span class="sys-ic"><i class="sig"><b></b><b></b><b></b><b></b></i><i class="batt"></i></span>
+  </div>
+  <header class="a-top">
+    <div class="a-id">
+      <div class="a-mark"><b>工人坊</b> · WORKSHOP · LOBBY</div>
+      <h1>对局大厅</h1>
+      <p>月亮底下，先选一种开局方式。</p>
+    </div>
+    <div class="a-utils">
+      <span class="a-online"><i></i>联机已接通</span>
+      <span class="a-cur"><span class="emoji">🎟</span> 12</span>
+      <span class="a-cur"><span class="emoji">⚡</span> 8.4k</span>
+      <button class="a-ghost">✕ 返回工坊</button>
+    </div>
+  </header>
+
+  <div class="a-left">
+    <div class="a-modes" data-guide="lobby-modes">
+      <button class="a-mode sel" aria-pressed="true">
+        <span class="a-no">01</span>
+        <span class="a-txt"><b>4 人匹配</b><em>你和 3 个对手，一桌人打得快</em></span>
+        <span class="a-tag">AI 补位</span>
+      </button>
+      <button class="a-mode" aria-pressed="false">
+        <span class="a-no">02</span>
+        <span class="a-txt"><b>8 人匹配</b><em>你和 7 个对手，8 个座位的大桌</em></span>
+        <span class="a-tag">AI 补位</span>
+      </button>
+      <button class="a-mode" aria-pressed="false">
+        <span class="a-no">03</span>
+        <span class="a-txt"><b>自定义房间</b><em>开一间房，把房间码念给朋友</em></span>
+        <span class="a-tag">房主开局</span>
+      </button>
+    </div>
+    <div class="a-primary">
+      <button class="a-cta" data-guide="lobby-start"><span>匹配 4 人局</span><span class="a-arrow">→</span></button>
+      <p class="a-note">点卡片只选中；这一下才真的进队。</p>
+    </div>
+  </div>
+
+  <div class="a-right">
+    <div class="a-join" data-guide="lobby-join">
+      <div class="a-join-h"><span>凭码加入</span><span class="a-en">JOIN BY CODE</span></div>
+      <div class="a-code"><i>7</i><i>K</i><i>3</i><i class="caret">M</i><i></i><i></i></div>
+      <button class="a-join-btn">加入房间 <span>→</span></button>
+      <p class="a-note">房间码念给朋友 · 6 位字母数字</p>
+    </div>
+  </div>
+
+  <footer class="a-foot">
+    <p class="a-hint">联机已接通 · 匹配会等真人；自定义房间的空位不参加回合。</p>
+  </footer>
+</section>
+
+<!-- A / 匹配中 -->
+<section class="view a" data-v="1" data-s="searching">
+  <div class="a-frame"></div>
+  <div class="a-window">
+    <div class="a-bloom"></div>
+    <div class="a-glass">
+      <div class="a-moon"></div>
+      <div class="a-muntin v"></div>
+      <div class="a-muntin h"></div>
+    </div>
+    <div class="a-ring"></div>
+  </div>
+  <div class="sysbar a-sys" style="color: rgba(236,228,210,.5)">
+    <span>21:47</span>
+    <span class="sys-ic"><i class="sig"><b></b><b></b><b></b><b></b></i><i class="batt"></i></span>
+  </div>
+  <header class="a-top">
+    <div class="a-id small">
+      <div class="a-mark">MATCHING · 4 人局</div>
+      <h1>匹配中</h1>
+      <p>在月亮底下，等三个人。</p>
+    </div>
+    <div class="a-utils">
+      <span class="a-online"><i></i>已接通 · 队列 2/4</span>
+    </div>
+  </header>
+
+  <div class="a-wait a-wait-block">
+    <span class="a-k">已排队</span>
+    <span class="a-big">00:23</span>
+    <span class="a-eta">预计 00:48 · 最多等 60 秒</span>
+    <div class="a-seats">
+      <span class="a-seat me">我</span>
+      <span class="a-seat wait">02</span>
+      <span class="a-seat wait">03</span>
+      <span class="a-seat wait">04</span>
+    </div>
+    <p class="a-note">这一池 2/4 人 · 正在等真人；没等到就先用 AI 开局。</p>
+  </div>
+
+  <div class="a-intel">
+    <div class="a-intel-h"><span>对手情报</span><span class="a-en">SCOUTING · 示例</span></div>
+    <div class="a-intel-scroll">
+      <div class="a-row"><span class="a-avatar">青</span><div><b>青柠</b><em>近 3 局 2 胜 · 偏爱胶片夜景</em></div><span class="a-rank">#2</span></div>
+      <div class="a-row"><span class="a-avatar">岚</span><div><b>阿岚</b><em>近 3 局 1 胜 · 暖金织物 / 长镜头</em></div><span class="a-rank">#5</span></div>
+      <div class="a-row"><span class="a-avatar">N</span><div><b>Nori</b><em>新对手 · 还没有战绩</em></div><span class="a-rank">—</span></div>
+      <div class="a-row"><span class="a-avatar">白</span><div><b>白露</b><em>近 3 局 1 胜 · 黑白极简</em></div><span class="a-rank">#8</span></div>
+      <div class="a-row"><span class="a-avatar">七</span><div><b>七夜</b><em>近 3 局 3 胜 · 偏爱雨夜街景</em></div><span class="a-rank">#1</span></div>
+    </div>
+  </div>
+
+  <footer class="a-foot a-wait-foot">
+    <button class="a-cancel">取消匹配</button>
+  </footer>
+</section>
+
+<!-- A / 加载页 -->
+<section class="view a" data-v="1" data-s="loading">
+  <div class="a-frame"></div>
+  <div class="a-window">
+    <div class="a-bloom"></div>
+    <div class="a-glass">
+      <div class="a-moon"></div>
+      <div class="a-muntin v"></div>
+      <div class="a-muntin h"></div>
+    </div>
+    <div class="a-ring"></div>
+    <div class="a-ring-progress"></div>
+  </div>
+  <div class="sysbar a-sys" style="color: rgba(236,228,210,.5)">
+    <span>21:47</span>
+    <span class="sys-ic"><i class="sig"><b></b><b></b><b></b><b></b></i><i class="batt"></i></span>
+  </div>
+  <header class="a-top">
+    <div class="a-id small">
+      <div class="a-mark">LOADING · 第 1 回合 · 开局准备</div>
+      <h1>正在开局</h1>
+      <p>补位 → 选风格 → 锁定，三步铺好这一桌。</p>
+    </div>
+    <div class="a-utils"><span class="a-k">第 2 / 3 步</span></div>
+  </header>
+
+  <div class="a-load">
+    <div class="a-step done"><span class="n">01</span><span><b>AI 补位</b><em>3 个空座，用时 0.8 秒</em></span><i>完成 ✓</i></div>
+    <div class="a-step now"><span class="n">02</span><span><b>选风格</b><em>候选：暖金织物 · 胶片夜景</em></span><i>进行中 62%</i></div>
+    <div class="a-step"><span class="n">03</span><span><b>锁定</b><em>锁定后这一局不可更改</em></span><i>等待</i></div>
+    <div class="a-progress"><span style="width: 62%"></span></div>
+  </div>
+
+  <div class="a-pct">
+    <span class="a-big">62<small>%</small></span>
+    <span class="a-k">正在铺这一局</span>
+  </div>
+
+  <footer class="a-foot a-load-foot">
+    <p class="a-hint">AI 正在补满座位并统一这一局的视觉风格；锁定后本局不可更改。</p>
+    <button class="a-cancel">取消开局</button>
+  </footer>
+</section>
+
+<!-- ═════════════════════ B · 卡片桌游 ═════════════════════ -->
+
+<!-- B / 匹配页 -->
+<section class="view b" data-v="2" data-s="match">
+  <div class="b-port">
+    <div class="b-halo"></div>
+    <div class="b-glass">
+      <div class="b-moon"></div>
+      <div class="b-muntin v"></div>
+      <div class="b-muntin h"></div>
+    </div>
+    <div class="b-ring"></div>
+    <i class="b-rivet" style="--a: 45deg"></i>
+    <i class="b-rivet" style="--a: 135deg"></i>
+    <i class="b-rivet" style="--a: 225deg"></i>
+    <i class="b-rivet" style="--a: 315deg"></i>
+    <div class="b-plaque">明 月 窗</div>
+  </div>
+  <div class="sysbar b-sys">
+    <span>21:47</span>
+    <span class="sys-ic"><i class="sig"><b></b><b></b><b></b><b></b></i><i class="batt"></i></span>
+  </div>
+  <header class="b-top">
+    <div class="b-brand">
+      <div class="b-eyebrow">IDEAHUB WORKSHOP · 工人坊</div>
+      <h1>对局大厅</h1>
+    </div>
+    <div class="b-utils">
+      <span class="b-online"><i></i>联机已接通</span>
+      <span class="b-chip"><span class="emoji">🎟</span>12</span>
+      <span class="b-chip"><span class="emoji">⚡</span>8.4k</span>
+      <button class="b-ghost">返回工坊 ✕</button>
+    </div>
+  </header>
+
+  <div class="b-left">
+    <span class="b-eyebrow">今夜 · 第 3 桌 · 4 人局</span>
+    <div class="b-hand">开一桌？</div>
+    <div class="b-cards" data-guide="lobby-modes">
+      <button class="b-card sel" aria-pressed="true">
+        <span class="b-seal">4</span>
+        <span class="b-card-txt"><b>4 人匹配</b><em>你和 3 个对手 · 一桌人打得快</em></span>
+        <span class="b-badge">AI 补位</span>
+      </button>
+      <button class="b-card" aria-pressed="false">
+        <span class="b-seal">8</span>
+        <span class="b-card-txt"><b>8 人匹配</b><em>你和 7 个对手 · 8 个座位的大桌</em></span>
+        <span class="b-badge">AI 补位</span>
+      </button>
+      <button class="b-card" aria-pressed="false">
+        <span class="b-seal">#</span>
+        <span class="b-card-txt"><b>自定义房间</b><em>开一间房，把房间码念给朋友</em></span>
+        <span class="b-badge">房主开局</span>
+      </button>
+    </div>
+    <div class="b-cta-wrap">
+      <button class="b-cta" data-guide="lobby-start"><span>落座 · 匹配 4 人</span><span class="go">→</span></button>
+      <p class="b-note">点卡片只选中；这一下才真的发牌。</p>
+    </div>
+  </div>
+
+  <div class="b-right">
+    <div class="b-ticket" data-guide="lobby-join">
+      <div class="b-ticket-h"><span>凭码加入</span><span class="b-ticket-no">TICKET · 6 位</span></div>
+      <div class="b-dash"></div>
+      <div class="b-code"><i>7</i><i>K</i><i>3</i><i class="caret">M</i><i></i><i></i></div>
+      <button class="b-join">加入牌桌 <span>→</span></button>
+      <p class="b-note" style="text-align:center">房间码念给朋友 · 6 位字母数字</p>
+    </div>
+  </div>
+</section>
+
+<!-- B / 匹配中 -->
+<section class="view b" data-v="2" data-s="searching">
+  <div class="b-port">
+    <div class="b-halo"></div>
+    <div class="b-glass">
+      <div class="b-moon"></div>
+      <div class="b-muntin v"></div>
+      <div class="b-muntin h"></div>
+    </div>
+    <div class="b-ring"></div>
+    <i class="b-rivet" style="--a: 45deg"></i>
+    <i class="b-rivet" style="--a: 135deg"></i>
+    <i class="b-rivet" style="--a: 225deg"></i>
+    <i class="b-rivet" style="--a: 315deg"></i>
+    <div class="b-plaque">明 月 窗</div>
+  </div>
+  <div class="sysbar b-sys">
+    <span>21:47</span>
+    <span class="sys-ic"><i class="sig"><b></b><b></b><b></b><b></b></i><i class="batt"></i></span>
+  </div>
+  <header class="b-top">
+    <div class="b-brand">
+      <div class="b-eyebrow">MATCHING · 4 人局</div>
+      <h1>明月窗下</h1>
+    </div>
+    <div class="b-utils">
+      <span class="b-online"><i></i>联机已接通 · 队列 2/4</span>
+    </div>
+  </header>
+
+  <div class="b-intel">
+    <div class="b-intel-h"><span>对手情报</span><span class="b-eyebrow">SCOUTING · 示例</span></div>
+    <div class="b-intel-scroll">
+      <div class="b-op"><span class="b-op-seal">青</span><div><b>青柠</b><em>近 3 局 2 胜 · 偏爱胶片夜景</em></div><span class="b-rank">#2</span></div>
+      <div class="b-op"><span class="b-op-seal">岚</span><div><b>阿岚</b><em>近 3 局 1 胜 · 暖金织物 / 长镜头</em></div><span class="b-rank">#5</span></div>
+      <div class="b-op"><span class="b-op-seal">N</span><div><b>Nori</b><em>新对手 · 还没有战绩</em></div><span class="b-rank">—</span></div>
+      <div class="b-op"><span class="b-op-seal">白</span><div><b>白露</b><em>近 3 局 1 胜 · 黑白极简</em></div><span class="b-rank">#8</span></div>
+      <div class="b-op"><span class="b-op-seal">七</span><div><b>七夜</b><em>近 3 局 3 胜 · 偏爱雨夜街景</em></div><span class="b-rank">#1</span></div>
+    </div>
+  </div>
+
+  <div class="b-slip">
+    <div class="b-slip-h"><span class="b-hand">等一桌人</span><span class="b-slip-no">QUEUE NO. 0042</span></div>
+    <div class="b-timer"><b>0:23</b><span>已排队</span></div>
+    <p class="b-slip-meta">预计 00:48 · 最多等 60 秒</p>
+    <div class="b-seats">
+      <div class="b-seat me"><b>我</b><span>已就座</span></div>
+      <div class="b-seat wait"><b>02</b><span>等真人</span></div>
+      <div class="b-seat wait"><b>03</b><span>等真人</span></div>
+      <div class="b-seat wait"><b>04</b><span>等真人</span></div>
+    </div>
+    <button class="b-cancel">不坐了 · 取消匹配</button>
+    <p class="b-note">这一池 2/4 人；没等到真人就先用 AI 开局。</p>
+  </div>
+</section>
+
+<!-- B / 加载页 -->
+<section class="view b" data-v="2" data-s="loading">
+  <div class="b-port">
+    <div class="b-halo"></div>
+    <div class="b-glass">
+      <div class="b-moon"></div>
+      <div class="b-muntin v"></div>
+      <div class="b-muntin h"></div>
+    </div>
+    <div class="b-ring"></div>
+    <div class="b-ring-progress"></div>
+    <i class="b-rivet" style="--a: 45deg"></i>
+    <i class="b-rivet" style="--a: 135deg"></i>
+    <i class="b-rivet" style="--a: 225deg"></i>
+    <i class="b-rivet" style="--a: 315deg"></i>
+    <div class="b-plaque">明 月 窗</div>
+  </div>
+  <div class="sysbar b-sys">
+    <span>21:47</span>
+    <span class="sys-ic"><i class="sig"><b></b><b></b><b></b><b></b></i><i class="batt"></i></span>
+  </div>
+  <header class="b-top">
+    <div class="b-brand">
+      <div class="b-eyebrow">LOADING · 第 1 回合 · 开局准备</div>
+      <h1>正在铺桌</h1>
+    </div>
+    <div class="b-utils"><span class="b-online"><i></i>第 2 / 3 步</span></div>
+  </header>
+
+  <div class="b-stages">
+    <span class="b-eyebrow">发牌顺序</span>
+    <div class="b-stage done">
+      <span class="b-seal">01</span>
+      <span><b>AI 补位</b><em>3 个空座 · 用时 0.8 秒</em></span>
+      <i>完成 ✓</i>
+    </div>
+    <div class="b-stage now">
+      <span class="b-seal">02</span>
+      <span><b>选风格</b><em>候选：暖金织物 · 胶片夜景</em></span>
+      <i>进行中 62%</i>
+    </div>
+    <div class="b-stage">
+      <span class="b-seal">03</span>
+      <span><b>锁定</b><em>锁定后这一局不可更改</em></span>
+      <i>等待</i>
+    </div>
+  </div>
+
+  <div class="b-aside">
+    <span class="b-hand">62<small>%</small></span>
+    <p class="b-note">风格锁定中 · 暖金织物</p>
+    <button class="b-cancel small">取消开局</button>
+    <p class="b-note">AI 正在补满座位并统一这一局的视觉风格；锁定后本局不可更改。</p>
+  </div>
+</section>
+
+<!-- ═════════════════════ C · 沉浸全屏 ═════════════════════ -->
+
+<!-- C / 匹配页 -->
+<section class="view c" data-v="3" data-s="match">
+  <div class="c-win">
+    <div class="c-halo"></div>
+    <div class="c-glass">
+      <div class="c-moon"></div>
+      <div class="c-muntin v"></div>
+      <div class="c-muntin h"></div>
+    </div>
+  </div>
+  <div class="sysbar c-sys">
+    <span>21:47</span>
+    <span class="sys-ic"><i class="sig"><b></b><b></b><b></b><b></b></i><i class="batt"></i></span>
+  </div>
+  <div class="c-top">
+    <div class="c-nav">
+      <button class="c-back">‹ 工坊</button>
+      <span class="c-title"><i></i>明月窗 · 对局大厅</span>
+    </div>
+    <div class="c-utils">
+      <span class="c-chip"><span class="emoji">🎟</span>12</span>
+      <span class="c-chip"><span class="emoji">⚡</span>8.4k</span>
+      <button class="c-close">✕</button>
+    </div>
+  </div>
+
+  <div class="c-modes" role="group" aria-label="选择开局方式">
+    <button class="c-tab sel" aria-pressed="true"><span class="n">01</span>4 人匹配<span class="t">AI 补位</span></button>
+    <button class="c-tab" aria-pressed="false"><span class="n">02</span>8 人匹配<span class="t">AI 补位</span></button>
+    <button class="c-tab" aria-pressed="false"><span class="n">03</span>自定义房间<span class="t">房主开局</span></button>
+  </div>
+
+  <div class="c-bottom">
+    <div class="c-sub"><b>4 人 · AI 补位</b>点卡片只选中；这一下才真的进队。</div>
+    <button class="c-cta">
+      <span>匹配 4 人局<small>预计 ≤60 秒 · 2 人已在池</small></span>
+      <span class="go">→</span>
+    </button>
+    <div class="c-join">
+      <span class="lab">凭码</span>
+      <div class="c-code"><i>7</i><i>K</i><i>3</i><i class="caret">M</i><i></i><i></i></div>
+      <button class="c-enter">↵</button>
+    </div>
+  </div>
+</section>
+
+<!-- C / 匹配中 -->
+<section class="view c" data-v="3" data-s="searching">
+  <div class="c-win">
+    <div class="c-halo"></div>
+    <div class="c-glass">
+      <div class="c-moon"></div>
+      <div class="c-muntin v"></div>
+      <div class="c-muntin h"></div>
+    </div>
+  </div>
+  <div class="c-rings"><i></i><i></i><i></i></div>
+  <div class="c-party"><i class="me" style="--a: 45deg"></i><i style="--a: 135deg"></i><i style="--a: 225deg"></i><i style="--a: 315deg"></i></div>
+  <div class="sysbar c-sys">
+    <span>21:47</span>
+    <span class="sys-ic"><i class="sig"><b></b><b></b><b></b><b></b></i><i class="batt"></i></span>
+  </div>
+  <div class="c-top">
+    <div class="c-nav">
+      <button class="c-back">‹ 工坊</button>
+      <span class="c-title"><i></i>匹配中 · 4 人局</span>
+    </div>
+    <div class="c-utils"><span class="c-chip">2 人已在池</span></div>
+  </div>
+
+  <div class="c-intel">
+    <div class="c-intel-h"><span>对手情报</span><span>SCOUTING · 示例</span></div>
+    <div class="c-intel-scroll">
+      <div class="c-op"><span class="c-ava">青</span><div><b>青柠</b><em>近 3 局 2 胜 · 胶片夜景</em></div><span class="r">#2</span></div>
+      <div class="c-op"><span class="c-ava">岚</span><div><b>阿岚</b><em>近 3 局 1 胜 · 暖金织物</em></div><span class="r">#5</span></div>
+      <div class="c-op"><span class="c-ava">N</span><div><b>Nori</b><em>新对手 · 还没有战绩</em></div><span class="r">—</span></div>
+      <div class="c-op"><span class="c-ava">白</span><div><b>白露</b><em>近 3 局 1 胜 · 黑白极简</em></div><span class="r">#8</span></div>
+      <div class="c-op"><span class="c-ava">七</span><div><b>七夜</b><em>近 3 局 3 胜 · 雨夜街景</em></div><span class="r">#1</span></div>
+    </div>
+  </div>
+
+  <div class="c-bottom c-wait-bar">
+    <div class="c-sub"><b>这一池 2/4 人</b>正在等真人；没等到就先用 AI 开局。</div>
+    <div class="c-clock"><b>00:23</b><span>已排队</span><em>预计 00:48 · 最多等 60 秒</em></div>
+    <button class="c-cancel">取消匹配</button>
+  </div>
+</section>
+
+<!-- C / 加载页 -->
+<section class="view c" data-v="3" data-s="loading">
+  <div class="c-win">
+    <div class="c-halo"></div>
+    <div class="c-glass">
+      <div class="c-moon"></div>
+      <div class="c-muntin v"></div>
+      <div class="c-muntin h"></div>
+    </div>
+    <div class="c-ring-progress"></div>
+  </div>
+  <div class="sysbar c-sys">
+    <span>21:47</span>
+    <span class="sys-ic"><i class="sig"><b></b><b></b><b></b><b></b></i><i class="batt"></i></span>
+  </div>
+  <div class="c-top">
+    <div class="c-nav">
+      <button class="c-back">‹ 工坊</button>
+      <span class="c-title"><i></i>正在开局 · 第 1 回合</span>
+    </div>
+    <div class="c-utils c-load-utils">
+      <span class="c-chip">第 2 / 3 步</span>
+      <button class="c-close">取消开局</button>
+    </div>
+  </div>
+
+  <div class="c-load-pct"><b>62%</b><span>正在铺这一局</span></div>
+  <p class="c-load-hint">AI 正在补满座位并统一这一局的视觉风格；锁定后本局不可更改。</p>
+
+  <div class="c-stagebar">
+    <div class="stages">
+      <div class="c-stage done"><b>AI 补位</b><em>完成 · 3/3</em></div>
+      <div class="c-stage now"><b>选风格</b><em>进行中 · 62%</em></div>
+      <div class="c-stage"><b>锁定</b><em>等待</em></div>
+    </div>
+    <div class="track"><span style="width: 62%"></span></div>
+  </div>
+</section>
+
+</main>
+<div class="hud" id="hud"></div>
+<script>
+  // 地址栏切方案 / 画面；其余全部是静态 CSS（截图脚本直接开 file:// + 查询串）
+  (() => {
+    const q = new URLSearchParams(location.search);
+    const v = ["1", "2", "3"].includes(q.get("v")) ? q.get("v") : "1";
+    const s = ["match", "searching", "loading"].includes(q.get("s")) ? q.get("s") : "match";
+    const hud = q.get("hud") === "1";
+    document.documentElement.dataset.v = v;
+    document.documentElement.dataset.s = s;
+    document.documentElement.dataset.hud = hud ? "1" : "0";
+    const NAME = { 1: "A 极简剧场", 2: "B 卡片桌游", 3: "C 沉浸全屏" };
+    const SCREEN = { match: "匹配页", searching: "匹配中", loading: "加载页" };
+    document.querySelectorAll(".view").forEach((el) => {
+      el.classList.toggle("on", el.dataset.v === v && el.dataset.s === s);
+    });
+    document.getElementById("hud").textContent =
+      `${NAME[v]} · ${SCREEN[s]} · ${innerWidth}×${innerHeight} · dpr${devicePixelRatio}`;
+    document.title = `${NAME[v]} · ${SCREEN[s]} · 工人坊对局大厅`;
+  })();
+</script>
+</body>
+</html>
