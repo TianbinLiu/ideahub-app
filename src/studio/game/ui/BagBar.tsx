@@ -104,7 +104,9 @@ export default function BagBar({ view }: { view: GameView }) {
       {/* 商店键：**只显示利息图案 + 数字**（施工单点名），"商店"只在 title / aria-label 里。 */}
       <button
         type="button"
-        onClick={() => useGame.getState().toggleShop(!shopOpen)}
+        // 不传目标态：由流程机按当前 stage 取反（幂等；重复点 / StrictMode 双跑不会抖）。
+        // 仍在用 shopOpen 只是为了按钮的高亮外观与 phase 无关地跟着状态走。
+        onClick={() => useGame.getState().toggleShop()}
         aria-label={t`商店`}
         title={t`商店 · 本回合利息 +${view.hud.income.interest}`}
         className={`flex h-[clamp(4.1rem,8.4vw,5.9rem)] w-[clamp(2.7rem,5.6vw,3.9rem)] flex-none flex-col items-center justify-center gap-1 rounded-xl bg-panel/90 ring-1 backdrop-blur ${

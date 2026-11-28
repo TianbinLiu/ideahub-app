@@ -62,6 +62,19 @@ import {
 } from "./phases";
 import { aiPromptPool, gameCardName, playerName } from "./labels";
 import { effectiveModelLevel, modelUpgradeGate } from "./genTier";
+// 对局流程机（2026-11-28）：阶段 / 相机 / 第 1 轮不开商店的唯一真相在这一份纯模块里。
+// ★ 这一层只**跟着它写**（reconcileMatchFlow），不自己判 stage —— 组件也不许各自判 phase+shopOpen。
+import {
+  INITIAL_MATCH_FLOW,
+  finishGenerating,
+  markSubmitted,
+  phaseIndexOf,
+  reconcileMatchFlow,
+  setShopOpen,
+  shopAutoOpen,
+  startGenerating,
+  type MatchFlowState,
+} from "./matchFlow";
 // 座位 id 与人数换算在 lobby.ts（大厅和这一层认同一份：大厅给几个座位、这里就开几个人的局）
 import { LOCAL_SEAT_ID, seatIdsFor } from "./lobby";
 // 本机战绩（2026-11-24 晚）：每期结算那一刻收一条，对局结束落盘；读回来的是联机 history 同一份形状
@@ -175,8 +188,15 @@ export interface GameStore {
   meId: string;
   /** 这一局的种子（复盘：startGame(seed) 能重放同一局） */
   seed: number;
-  /** 商店面板收起来没有（收起后仍能从背包条那颗键打开） */
+  /** 商店面板收起来没有（收起后仍能从背包条那颗键打开）。★ 写入口只有 toggleShop；
+   *  读"现在是不是商店"问 `match.stage`，不要把这个布尔与 phase 自己拼（见 matchFlow 的文件头）。 */
   shopOpen: boolean;
+  /**
+   * 对局流程机（2026-11-28，matchFlow.ts）：**阶段 / 相机 / 第 1 轮不开商店**都读它。
+   * ★ 不散在组件里：GameLayer / StylePick 的浮层、scene/gameCam 的三机位、阶段起点的商店开关
+   *   全部从这里取。写入口只有这一层（每个动作写完 state 之后经 reconcileMatchFlow 同步）。
+   */
+  match: MatchFlowState;
   rejection: GameRejection | null;
   notice: GameNotice | null;
   /** 最近一次结算（§2.5）：结算屏 / 事件屏 / 结束屏读它 */
@@ -270,6 +290,13 @@ export interface GameStore {
   /** 本地玩家已选、但有人的选择没落完时补一刀（正常路径用不到，见 aiFinishStyle） */
   finishStyle: () => void;
   toggleShop: (open?: boolean) => void;
+  /**
+   * 生成这一段视频开始 / 结束（2026-11-28 流程机的 generating 格）。
+   * ★ 只有**真出片那一发**打这两下：画首帧不算（它是预览，玩家可能要重画几次）；
+   *   打点的是 ui/GenSheet 的 generate 前后，失败也走 end（回到 placing 才能改词重试）。
+   */
+  beginGenerating: () => void;
+  endGenerating: () => void;
   buy: (slot: number) => void;
   refresh: () => void;
   toggleLock: () => void;
@@ -356,7 +383,31 @@ function beginFirstRound(state: GameState): StateResult {
   return openRound(state, aiIdsOf(state), rng);
 }
 
-export const useGame = create<GameStore>((set, get) => {
+export const useGame = create<GameStore>((rawSet, get) => {
+  /**
+   * ★★ 流程机的**唯一同步点**（2026-11-28）：每个动作照旧只写自己那几个字段，
+   *   流程阶段在写回的同一拍由 `reconcileMatchFlow(旧阶段, 新 state, 新 shopOpen)` 校正。
+   *
+   *   为什么在 set 这一层而不是让 20 多个动作各写一次 match：漏一个的后果是那一屏 / 那台相机
+   *   停在上一格（界面上看不出来是"流程机漏了一步"）。这里收一次，任何改到 `state.phase` 的动作
+   *   自动把阶段带上；还想显式给阶段的动作（交片 → waiting）传 `match` 覆盖即可。
+   * ★ phaseIndex 永远从 round 现算（1 起始 → 0 起始）：它是"第几期"的事实，不该另存一份。
+   */
+  const set = (patch: Partial<GameStore>) => {
+    rawSet((prev) => {
+      const state = patch.state !== undefined ? patch.state : prev.state;
+      const shopOpen = patch.shopOpen !== undefined ? patch.shopOpen : prev.shopOpen;
+      const next =
+        patch.match ??
+        reconcileMatchFlow(prev.match, { phase: state?.phase ?? null, shopOpen });
+      return {
+        ...prev,
+        ...patch,
+        // 显式 match（交片 / 生成）不走 reconcile，但 phaseIndex 仍以 state 为准
+        match: { ...next, phaseIndex: state ? phaseIndexOf(state.round) : next.phaseIndex },
+      };
+    });
+  };
   /** 失败统一从这里落地：原因原样留着，界面说人话；轻提示让位给失败 */
   const fail = (failure: RuleFailure) => {
     set({ rejection: { failure, at: Date.now() }, notice: null });
@@ -438,6 +489,8 @@ export const useGame = create<GameStore>((set, get) => {
     meId: LOCAL_PLAYER_ID,
     seed: 0,
     shopOpen: false,
+    // 还没开一局 = matching（镜头归大厅那一套）；startGame 建局之后自动进 stylePick
+    match: INITIAL_MATCH_FLOW,
     rejection: null,
     notice: null,
     report: null,
@@ -542,7 +595,13 @@ export const useGame = create<GameStore>((set, get) => {
         return;
       }
       if (opened.state === state) return;
-      done({ state: opened.state, shopOpen: true, onlineSettlement: null, onlineWinners: null, drag: null });
+      done({
+        state: opened.state,
+        shopOpen: shopAutoOpen(phaseIndexOf(opened.state.round)),
+        onlineSettlement: null,
+        onlineWinners: null,
+        drag: null,
+      });
     },
 
     resumeOnlineRound: (serverRound) => {
@@ -554,7 +613,11 @@ export const useGame = create<GameStore>((set, get) => {
         return false;
       }
       if (jumped.state === state) return true;
-      done({ state: jumped.state, shopOpen: true, drag: null });
+      done({
+        state: jumped.state,
+        shopOpen: shopAutoOpen(phaseIndexOf(jumped.state.round)),
+        drag: null,
+      });
       return true;
     },
 
@@ -754,12 +817,33 @@ export const useGame = create<GameStore>((set, get) => {
         fail(advanced);
         return;
       }
-      // 第一回合的商店默认打开：这是"进对局先把这一套跑通"的第一眼
-      done({ state: advanced.state, shopOpen: true });
+      // ★★ 2026-11-28（主人点名）：**第 1 轮不自动开商店**。选完风格回桌面，玩家手上没有卡，
+      //   点「商店」才开（相机那时候才移到铸卡师正前方）。判据只有 matchFlow.shopAutoOpen：
+      //   phaseIndex === 0 → false；第 2 期起 nextRound 照旧自动开。
+      done({ state: advanced.state, shopOpen: shopAutoOpen(phaseIndexOf(advanced.state.round)) });
     },
 
     toggleShop: (open) => {
-      set((s) => ({ shopOpen: open ?? !s.shopOpen }));
+      const { match, state } = get();
+      if (!state) return;
+      // 目标态：显式传了就按它；没传就按**流程机**的当前阶段取反（不读另一个布尔，两个来源迟早漂）
+      const desired = open ?? match.stage !== "shop";
+      // ★ 幂等：同一目标态重复调用（连点 / StrictMode 双跑）什么都不写 —— setShopOpen 原样返回同一个对象
+      const next = setShopOpen(match, desired);
+      if (next === match) return;
+      set({ match: next, shopOpen: next.stage === "shop" });
+    },
+
+    beginGenerating: () => {
+      const next = startGenerating(get().match);
+      if (next === get().match) return;
+      set({ match: next });
+    },
+
+    endGenerating: () => {
+      const next = finishGenerating(get().match);
+      if (next === get().match) return;
+      set({ match: next });
     },
 
     buy: (slot) => {
@@ -955,6 +1039,8 @@ export const useGame = create<GameStore>((set, get) => {
       }
       done({
         state: saved.state,
+        // 交片 → 流程机进 waiting（等其他人 / 等开投票）；显式给，因为 rules.phase 仍是 create
+        match: markSubmitted(get().match),
         notice: { kind: patch?.videoUrl ? "generated" : "entry-saved", at: Date.now() },
       });
     },
@@ -1088,8 +1174,9 @@ export const useGame = create<GameStore>((set, get) => {
         fail(opened);
         return;
       }
-      // 新的回合商店默认打开（与第一回合一致）；上一期的报告留着也没人读（那一屏已经卸载了）
-      done({ state: opened.state, shopOpen: true });
+      // 新的回合：第 2 期起按状态机的 shopAutoOpen 自动开商店（第 1 期那条判据是 false）；
+      // 上一期的报告留着也没人读（那一屏已经卸载了）
+      done({ state: opened.state, shopOpen: shopAutoOpen(phaseIndexOf(opened.state.round)) });
     },
 
     restart: () => {
@@ -1119,8 +1206,14 @@ export function winnersOfState(state: GameState | null): string[] {
   return state ? winnersOf(state) : [];
 }
 
-// DEV 调试挂钩（与 __cut / __studio / __flow 同款）：自动化脚本要直接驱动对局，不必去点 2D 面板。
-// 正式包里 import.meta.env.DEV 为假，字面量写在原地才保证被剥掉。
-if (import.meta.env.DEV) {
+// 调试挂钩（与 __cut / __studio / __flow 同款）：自动化脚本要直接驱动对局，不必去点 2D 面板。
+// ★ 2026-11-28：验收机（模拟器 / 真机）装的是 `vite build` 出来的生产包，`import.meta.env.DEV` 为假 ——
+//   而本轮验收要读三机位 pos/look、要驱动"选风格 → 开商店 → 点 NPC 拉近"。所以与 `__gsAccept`
+//   同一条约定：写了 localStorage `gsAcceptDebug=1` 的包也挂这一份（刷新后生效）。
+//   生产里没人写这个键 = 完全不存在；键名与本仓既有验收钩子一致，不新增一套开关。
+const acceptHooksOn =
+  import.meta.env?.DEV === true ||
+  (typeof localStorage !== "undefined" && localStorage.getItem("gsAcceptDebug") === "1");
+if (acceptHooksOn) {
   (window as unknown as Record<string, unknown>).__game = useGame;
 }

@@ -94,12 +94,16 @@ export default function GenSheet({ view, onClose }: { view: GameView; onClose: (
     const id = prepare();
     if (!id) return;
     setDrawing(true);
+    // 流程机：真的开始出片那一发打上 generating（画首帧不打；见 game/store 的 beginGenerating）
+    useGame.getState().beginGenerating();
     try {
       // 带券出片：带不带由 flowStore 再核一次（见文件头）；四个拒绝码的人话在 reasons.gameRejectText
       await useFlow.getState().genNode(id, { payWithTicket: ticket.canPay, rejectText: gameRejectText });
     } catch (error) {
       console.error(error);
     } finally {
+      // 成功 / 失败都回摆卡格：失败要能改词重试，成功要能看到"用这一条交片"
+      useGame.getState().endGenerating();
       setDrawing(false);
       // 券在服务端扣 / 退：这一发之后立刻重读余额（flowStore 的 finally 也读一次，这里兜"根本没铺成段"的那条路）
       void refreshGameTickets(true);

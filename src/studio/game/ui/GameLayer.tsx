@@ -10,8 +10,12 @@
 //   事件 = EventPanel；结算 / 结束 = RoundResultPanel。每一屏下面都有 PhaseBar 那颗"进下一阶段"的键。
 // ★ 道具栏（右侧）与背包条（下方）**一直在**（只要对局开着）：商店阶段买完卡就地摆/装备，
 //   创作阶段出片前也可以改 —— 摆卡与装备这两件事两阶段都允许（rules.PLACE_PHASES）。
-// ★ 商店栏在**屏幕上方**（G4 §2 第 2 条）：商店一开相机就贴着铸卡师，桌面上那 5 个卡位全在镜头背后，
-//   商店栏占顶部那一条，两边不叠；商店开着时 HUD 与对手条让位（理由见第 2 步的 ★）。
+// ★ 商店栏在**屏幕上方**（G4 §2 第 2 条）：商店一开相机就移到铸卡师正前方（gameCam.npcFront），
+//   桌面上那 5 个卡位全在镜头背后，商店栏占顶部那一条，两边不叠；商店开着时 HUD 与对手条让位
+//   （理由见第 2 步的 ★）。
+// ★★ 2026-11-28（相机与流程机这一轮）：挂哪一屏 / 相机在哪**只看 store.match.stage**（matchFlow.ts），
+//   这一层不再自己拼 `phase === "shop" && shopOpen`。相机三段（俯视 / NPC 正前 / 自由环视）在
+//   scene/gameCam.ts，这一层只把阶段喂过去。
 // ★ 这里没有任何 import 自 rules 的规则函数：一个数都从 view 来（view.ts 去问 rules），
 //   一个动作都递回 store（store 去问 rules / phases）。3D 场景只按 drag / hover 高亮（scene/ 只读）。
 import { useEffect, useRef, useState } from "react";
@@ -22,9 +26,12 @@ import { roundsNoteText } from "../roundsReasons";
 import { useRounds } from "../roundsStore";
 import { useGame, type GameNotice } from "../store";
 import { gameViewOf } from "../view";
-// 相机归工坊（studioStore）管，对局这一层**只按商店开没开来敲它的门**（enterShopCam/exitShopCam）。
-// ★ 别把这两个动作塞进 game/store：那一层的纪律是"只转发规则"（文件头 ★★），而相机不是规则。
-import { useStudio } from "../../studioStore";
+// ★ 2026-11-28（相机与流程机这一轮）：对局相机不再借工坊的 orbit（studioStore.enterShopCam），
+//   改成 scene/gameCam 的三机位；这一层只做一件事 —— 把**流程阶段**喂给它。
+//   阶段本身来自 store.match（matchFlow.ts），这里不判 phase + shopOpen 的组合。
+import { resetGameCam, setGameCamStage } from "../../scene/gameCam";
+// 3D 命中探针（2026-11-28）：点商店栏外面时，要分得清"空白桌面 = 收起"与"NPC/卡 = 那个东西自己的动作"
+import { hitInteractiveAt } from "../../scene/interactivePick";
 import BagBar from "./BagBar";
 import ConnectionBanner from "./ConnectionBanner";
 import CreatePanel from "./CreatePanel";
@@ -52,7 +59,6 @@ import VotingPanel from "./VotingPanel";
 export default function GameLayer() {
   const state = useGame((s) => s.state);
   const meId = useGame((s) => s.meId);
-  const shopOpen = useGame((s) => s.shopOpen);
   const rejection = useGame((s) => s.rejection);
   const notice = useGame((s) => s.notice);
   const previewOpen = useGame((s) => s.previewOpen);
@@ -97,24 +103,38 @@ export default function GameLayer() {
     if (!state) setRosterOpen(false);
   }, [state]);
 
-  // 商店栏开着没有：挂不挂商店那一屏、要不要把相机交过去，都只看这一个值。
-  // ★ 算在早退之前：下面有 `if (!state) return null` 之类的早退，hook 不能排在它们后面。
-  const shopVisible = state?.phase === "shop" && shopOpen;
+  /**
+   * 流程阶段（matchFlow.ts 的唯一真相）：挂哪一屏、相机在哪、商店开没开全看它。
+   * ★ 算在早退之前：下面有 `if (!state) return null` 之类的早退，hook 不能排在它们后面。
+   * ★ 别再写成 `state.phase === "shop" && shopOpen` —— 那一对组合正是这一轮收进状态机的东西。
+   */
+  const stage = useGame((s) => s.match.stage);
+  /** 商店栏开着没有（= 流程机的 shop 格） */
+  const shopVisible = stage === "shop";
   /** 这一层的根（只有面板自己带 pointer-events-auto）。点外面收起商店时靠它判"点在不在对局 UI 上" */
   const rootRef = useRef<HTMLDivElement>(null);
   /**
-   * 商店机位 + 点外面收起（G4 施工单 §2 第 1/4 条）。
-   * ★ 进/出成对写在一个 effect 里：商店一开就 enterShopCam（相机走近铸卡师、绕行限正面 180°），
-   *   收起 / 换阶段 / 组件卸载（转竖屏、结束对局、离开工坊）一律 exitShopCam 把进店前那台放回去。
+   * 相机跟阶段走（2026-11-28，主人点名的三机位）。
+   * ★ 与商店 effect 分开：相机是**阶段**的函数，不是"商店栏挂没挂"的函数 —— 阶段进 shop 就移到
+   *   NPC 正前方，离开（点商店键 / 点外面 / 换阶段 / 组件卸载）立即复位到俯视桌面并禁用滑屏。
+   * ★ 同一阶段重复调是幂等的（gameCam.setGameCamStage 自己不重起过渡），所以连点商店键不抖。
+   * ★ 卸载（转竖屏 / 结束对局 / 离开工坊）必须 reset：相机是模块单例，留着会带进下一局。
+   */
+  useEffect(() => {
+    setGameCamStage(stage);
+  }, [stage]);
+  useEffect(() => () => resetGameCam(), []);
+  /**
+   * 点商店栏外面收起（G4 施工单 §2 第 1/4 条；相机那一半已挪到上面的阶段 effect）。
    * ★ 收起的两条路都通：再点商店键（BagBar 那颗 toggle）与**点商店栏外面** ——
-   *   后者是这里那对 window 监听，判据三条：位移小于 8px（拖动绕镜头不算点）、
-   *   落点不在这一层的 DOM 里（商店栏 / 背包条 / 状态栏 / 阶段条都算"里面"）。
+   *   后者是这里那对 window 监听，判据四条：位移小于 8px（拖动不算点）、
+   *   落点不在这一层的 DOM 里（商店栏 / 背包条 / 状态栏 / 阶段条都算"里面"）、
+   *   也不压在 3D 的 NPC / 卡上（那一下是它们自己的动作，见下面那条 ★）。
    *   ★ 拖动中（drag 非空）不算"点外面"：从背包条往桌面拖卡的那一下会穿过这一层，松手不该把商店收掉。
    *   捕获阶段监听：R3F 的 pointer 事件挂在 canvas 上，冒泡阶段可能已经被它处理过一轮。
    */
   useEffect(() => {
     if (!shopVisible) return;
-    useStudio.getState().enterShopCam();
     let down: { x: number; y: number } | null = null;
     const onDown = (e: PointerEvent) => {
       down = { x: e.clientX, y: e.clientY };
@@ -124,9 +144,17 @@ export default function GameLayer() {
       down = null;
       if (!start) return;
       if (useGame.getState().drag) return; // 正在拖卡：这一下是拖拽，不是点
-      if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > 8) return; // 拖 = 绕镜头，不是点
+      if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > 8) return; // 拖 = 手势，不是点
       const el = e.target as Node | null;
       if (el && rootRef.current?.contains(el)) return; // 点在商店栏/背包条上
+      /**
+       * ★ 2026-11-28（模拟器验收抓到的）：点在 **3D 的 NPC / 卡**上不算"栏外"。
+       *   这一层看到的目标永远是 `<canvas>`，分不清"空白桌面"与"她" —— 不区分的话，
+       *   点 NPC = 那一拍先把商店关掉，于是 `TripoNpc.onClick` 里的 gameCamClickNpc 变成空操作
+       *   （freeLookEnabled 已随阶段变回 false）。主人点名的"点 NPC 拉近到 0.8 m"就整个不成立。
+       *   判据走 scene/interactivePick（TableCatcher 注册的同一条射线）；3D 没起来时回 false = 旧行为。
+       */
+      if (hitInteractiveAt(e.clientX, e.clientY)) return;
       useGame.getState().toggleShop(false);
     };
     window.addEventListener("pointerdown", onDown, true);
@@ -134,15 +162,15 @@ export default function GameLayer() {
     return () => {
       window.removeEventListener("pointerdown", onDown, true);
       window.removeEventListener("pointerup", onUp, true);
-      useStudio.getState().exitShopCam();
     };
   }, [shopVisible]);
 
   if (!state) return null;
   const view = gameViewOf(state, meId);
   if (!view) return null;
-  // 还没选风格：整屏都是风格卡（选完 beginRound 才开第一回合商店）
-  if (state.phase === "style") return <StylePick view={view} />;
+  // 还没选风格：**全屏浮层**（3D 不卸载，只由 StudioPage 停帧）；选完回桌面 —— 第 1 轮不开商店。
+  // ★ 判据是流程机的 stylePick（含 rules.phase "ready"：我选完、AI 没选完时仍是这一屏）。
+  if (stage === "stylePick") return <StylePick view={view} />;
 
   /**
    * 底栏那条 note 还摆不摆。
@@ -152,7 +180,8 @@ export default function GameLayer() {
    */
   const showRoundNote = roundsNote !== null && !isRoomGone(roundsNote);
 
-  const inShop = state.phase === "shop";
+  // 商店栏那一屏（流程机的 shop 格）：顶部商店栏 + 相机在 NPC 正前方 + 允许小幅环视/拉近
+  const inShop = stage === "shop";
   /**
    * 事件屏（G4 施工单 §5）：这一屏是一次决策，不是"桌上再加一块面板"。
    * ★ 为什么 HUD / 对手条 / 道具栏 / 背包条要在这一个阶段让位：真机横屏只有 363 CSS px 高，
