@@ -35,6 +35,7 @@ import { SplatMesh, dyno } from "@sparkjsdev/spark";
 import { WINDOW_VIEW, windowViewOrigin } from "./moonGeometry";
 import { FLY_U } from "./flyTimeline";
 import { noteCorridorSkin, type CorridorSkin } from "./flyCorridor";
+import { applySplatLook, makeSplatLookUniforms, registerSplatLookMesh } from "./splatLook";
 import { markLobbyWindowReady, noteWindowSplatCreated, noteWindowSplatDisposed } from "./sceneSplit";
 
 interface Props {
@@ -57,8 +58,18 @@ function smoothstep(edge0: number, edge1: number, x: number): number {
 }
 
 /** 每点 stagger 的修饰器（dyno；构造一次，uniform 每帧由 `FLY_U` 喂）。
- *  ★ 输出必须"不飞时逐像素等于原值"：`active=0` 时 opacity 乘 1、scales 乘 1。 */
-function makeDissolveModifier(progress: ReturnType<typeof dyno.dynoFloat>, active: ReturnType<typeof dyno.dynoFloat>) {
+ *  ★ 输出必须"不飞时逐像素等于原值"：`active=0` 时 opacity 乘 1、scales 乘 1。
+ *  ★ 2026-11-27（`feat/gs-tunnel-depth`）两件事并进来：
+ *    ① **点变大/拉成椭圆**（`splatLook.applySplatLook`，amount = active ⇒ 大厅里原样）；
+ *    ② **昼档把近场密点剔掉**（第 2 条"昼用底表纵深"）：穿出窗面之后按**局部 z** 把近处那一层
+ *       淡掉、远处（z 到 120 m 的海天）留着 —— 底表自带真纵深，于是昼档不用再复制那么多层。 */
+function makeDissolveModifier(
+  progress: ReturnType<typeof dyno.dynoFloat>,
+  active: ReturnType<typeof dyno.dynoFloat>,
+  travel: ReturnType<typeof dyno.dynoFloat>,
+  look: ReturnType<typeof makeSplatLookUniforms>,
+  daySkin: boolean,
+) {
   return dyno.dynoBlock({ gsplat: dyno.Gsplat }, { gsplat: dyno.Gsplat }, ({ gsplat }) => {
     if (!gsplat) throw new Error("no gsplat input");
     const g = dyno.splitGsplat(gsplat).outputs;
@@ -84,12 +95,25 @@ function makeDissolveModifier(progress: ReturnType<typeof dyno.dynoFloat>, activ
     // 尺寸从 0.2 长到 1.0（主人给的数）
     const grow = dyno.add(dyno.dynoConst("float", 0.2), dyno.mul(eased, dyno.dynoConst("float", 0.8)));
     const scale = dyno.mix(dyno.dynoConst("float", 1), grow, localActive);
-    gsplat = dyno.combineGsplat({
+    let out = dyno.combineGsplat({
       gsplat,
       opacity: dyno.mul(g.opacity, appear),
       scales: dyno.mul(g.scales, scale),
     });
-    return { gsplat };
+    // ① 点变大 / 拉成椭圆：amount = active（大厅里恒 0 ⇒ 逐像素原样）
+    out = applySplatLook(out, active, look);
+    // ② 昼档穿窗后的近场剔除：zCut 从 1.9 m 长到 7.0 m，近处的密点淡掉、远处海天留着。
+    //   ★ 只在 travel 0.24（相机到窗面）之后开始 —— 化点段/穿窗前还要靠这些点画那扇窗。
+    if (daySkin) {
+      const open = dyno.smoothstep(dyno.dynoConst("float", 0.24), dyno.dynoConst("float", 0.34), travel);
+      const k = dyno.smoothstep(dyno.dynoConst("float", 0.3), dyno.dynoConst("float", 0.95), travel);
+      const zCut = dyno.mix(dyno.dynoConst("float", 1.9), dyno.dynoConst("float", 7.0), k);
+      const far = dyno.smoothstep(zCut, dyno.mul(zCut, dyno.dynoConst("float", 1.4)), c.z);
+      const keep = dyno.mix(dyno.dynoConst("float", 1), far, open);
+      const g2 = dyno.splitGsplat(out).outputs;
+      out = dyno.combineGsplat({ gsplat: out, opacity: dyno.mul(g2.opacity, keep) });
+    }
+    return { gsplat: out };
   });
 }
 
@@ -104,27 +128,30 @@ export default function WindowSplat({ url, skin, opacity, onState, renderOrder =
   // 每点 stagger 的两个 uniform（dyno 对象，shader 每帧取 .value；组件卸载由 GC 收）
   const progress = useMemo(() => dyno.dynoFloat(0), []);
   const active = useMemo(() => dyno.dynoFloat(0), []);
-  const modifier = useMemo(() => makeDissolveModifier(progress, active), [progress, active]);
+  const travel = useMemo(() => dyno.dynoFloat(0), []);
+  const look = useMemo(() => makeSplatLookUniforms(), []);
+  const modifier = useMemo(
+    () => makeDissolveModifier(progress, active, travel, look, skin === "day"),
+    [progress, active, travel, look, skin],
+  );
   useFrame(() => {
     progress.value = FLY_U.dissolve.value;
     active.value = FLY_U.active.value;
-    // 相机过了窗面（穿行 38% ≈ 窗外 0.7 m）之后，这一份就在身后了：摘掉，省 26 万点的 overdraw
-    //（从这一刻起点云廊接管画面。★ 不摘的话 Spark 每帧仍要 accumulate 它一次）
-    if (splat) {
-      // ★★ 2026-11-27 真机：整图底表的窗洞区域点很密 —— 相机一动，那份稠密点云在近处会重新
-      //   读成"一张图"（夜档是撞一屏白，昼档是远端海天糊满屏）。主人要的是 0.6~2.0 s
-      //   "四周全是高斯点"，所以两种皮肤都在穿行**开头**把底表淡掉、交给点云廊：
-      //     夜 0.04~0.18（0.66~0.85 s 淡完，整图深度只到 1.8 m，之后本来也没有点）
-      //     昼 0.04~0.22（0.66~0.91 s 淡完；昼档底表有真实纵深，但它的近场密点同样糊屏 ——
-      //        纵深的价值在化点阶段与穿行开头那 0.3 s，之后由 6 层点云廊接管）
-      const fadeK =
-        skin === "night"
-          ? 1 - smoothstep(0.04, 0.18, FLY_U.travel.value)
-          : 1 - smoothstep(0.04, 0.22, FLY_U.travel.value);
+    travel.value = FLY_U.travel.value;
+    if (!splat) return;
+    // ★★ 2026-11-27 真机：整图底表的窗洞区域点很密 —— 相机一动，那份稠密点云在近处会重新
+    //   读成"一张图"（夜档是撞一屏白，昼档是远端海天糊满屏）。
+    //   **夜档**：底表整份淡掉（深度只到 1.8 m，之后没有点，交给点云廊）。
+    //   **昼档**：不整份淡，修饰器里按局部 z 把近场那一层剔掉、远处的海天留着
+    //   （第 2 条"昼可用底表纵深 ⇒ 少复制层"）；这里只把交叉淡入那一份 baseOpacity 写进去。
+    if (skin === "night") {
+      const fadeK = 1 - smoothstep(0.04, 0.18, FLY_U.travel.value);
       const op = baseOpacity.current * fadeK;
       if (Math.abs(splat.opacity - op) > 0.001) splat.opacity = op;
       const behind = fadeK <= 0.001 || (FLY_U.travel.value > 0.38 && FLY_U.corridor.value > 0.2);
       if (splat.visible !== !behind) splat.visible = !behind;
+    } else if (Math.abs(splat.opacity - baseOpacity.current) > 0.001) {
+      splat.opacity = baseOpacity.current;
     }
   });
 
@@ -135,6 +162,7 @@ export default function WindowSplat({ url, skin, opacity, onState, renderOrder =
     // ★ 每点 stagger：在建好之后、挂进场景之前装上（第一次编译就带着它，转场开始那一下不用重编译）
     mesh.objectModifier = modifier;
     mesh.updateGenerator();
+    registerSplatLookMesh(mesh);
     noteWindowSplatCreated();
     let alive = true;
     mesh.initialized
@@ -148,8 +176,9 @@ export default function WindowSplat({ url, skin, opacity, onState, renderOrder =
         );
         setSplat(mesh);
         // 点云廊要"只含窗洞内容"的那份点（整图版含墙，复制出来是墙的隧道）：
-        // 告诉 flyCorridor 这一轮哪一档，由它自己加载旧 spz 复制层（见那儿的 ★★）
-        noteCorridorSkin(skin);
+        // 告诉 flyCorridor 这一轮哪一档 + 底表点数（点数预算读数要它），
+        // 由它自己加载旧 spz 复制层（见那儿的 ★★）
+        noteCorridorSkin(skin, mesh.packedSplats?.numSplats ?? 0);
         // 大厅那一档的"可交互"读数：窗景真的就绪了（`sceneSplit` 里只在 lobby 档记）
         markLobbyWindowReady();
         onState?.("ok");
