@@ -153,7 +153,15 @@ ml-sharp 是"单图 + 一个假定的相机"，而这两张图是我们自己从
 | `acc-full-day-front.png` | 昼：奶油云 + 青绿海 + 侧帘，窗外一圈暖白光晕落在墙上 |
 | `acc-full-day-fwd05.png` | 昼 +0.5 m：海天涨满窗洞，能看出内容与窗框的视差 |
 | `acc-full-day-fwd15.png` | 昼 +1.5 m：贴到窗面（与夜同一拍） |
-| `acc-full-day-fwd25.png` | 昼 +2.5 m：**有一大片远处海天的点**（z p50 57 m），但被程序化天青盖在上面（§8.3） |
+| `acc-full-day-fwd25.png` | 昼 +2.5 m：**有一大片远处海天的点**（z p50 57 m），但正常渲染下被程序化天青盖在上面（§8.3） |
+| `acc-full-night-fwd25-bare.png` | 夜 +2.5 m、`bare`（只画 splat）＝**只有背景色、一个点都没有** —— 单图深度上限的直接证据 |
+| `acc-full-day-fwd25-bare.png` | 昼 +2.5 m、`bare` ＝**整屏海天、能看见点阵纹理**（59,494 点里 42,136 个在 20–100 m） |
+
+> `bare` 是我在本地给 `design/gs-window-shot.tsx` 临时加的一个开关（`?bare=1` 把程序化夜空/月盘/亮晕/暗环
+> 藏掉，只画 splat），**没有提交**；它回答的是"穿出窗面之后 splat 自己还剩多少点"，
+> 与正常渲染（夜空整屏后画、把 splat 盖住）是两件事。要复现就在 design 页的 `Scene()` 里
+> 把 `uPaintSplat / uPaint / uIntensity / uInner` 那几块 mesh 的 `visible` 置 false。
+
 
 ## 8. 与旧版对比、以及三个必须知道的坑
 
@@ -175,8 +183,10 @@ ml-sharp 是"单图 + 一个假定的相机"，而这两张图是我们自己从
 
 Spark 把所有 SplatMesh 收进同一个 accumulate pass（renderOrder 0），夜空球是 mesh（12）后画 ⇒
 **相机在窗外时夜空整屏盖在上面**，底表 splat / 点云廊一个像素都看不见。静态探针的 +2.5 m 截图就是
-这个现象（夜=程序化月盘、昼=程序化天青）。`feat/gs-flythrough-dissolve` 加的 `uFlyFade`（夜空 alpha）
-正是解这个的：穿行段把它推到 0，点云廊/深空副本就露出来了。
+这个现象（夜=程序化月盘、昼=程序化天青）；把夜空那一层藏掉之后（`bare`）差别立刻出来：
+夜 +2.5 m **纯背景色（0 点）**、昼 +2.5 m **整屏海天带点阵（59,494 点）**。
+`feat/gs-flythrough-dissolve` 加的 `uFlyFade`（夜空 alpha）正是解这个的：穿行段把它推到 0，
+点云廊/深空副本就露出来了。
 
 ## 9. 体积与 APK 影响
 
