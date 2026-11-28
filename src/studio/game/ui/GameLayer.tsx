@@ -255,12 +255,18 @@ export default function GameLayer() {
       {!shopVisible && !inEvent && <PlayerPanel open={rosterOpen} onToggle={() => setRosterOpen((v) => !v)} />}
 
       {/* ★ 商店开着时 HUD 与对手条让位（理由见文件头那段 ★）；事件阶段也一起让位（见 inEvent）
-          ★ 玩家面板开着时对手条让位（同一份名单，见 rosterOpen 的 ★） */}
-      {!shopVisible && !inEvent && <GameHud hud={view.hud} />}
-      {!shopVisible && !inEvent && !rosterOpen && <OpponentStrip />}
-      {/* ── 商店栏：**屏幕上方**（施工单 §2 第 2 条） ── */}
+          ★ 玩家面板开着时对手条让位（同一份名单，见 rosterOpen 的 ★）
+          ★ 2026-11-28（feat/ui-game-hud-a）：HUD 换成 A 案的顶栏 + B 案的黄铜圆表（生命那一个数），
+            金币 / 利息预告跟着进了顶栏；玩家面板与对手条让开它的位置（各自组件里改）。 */}
+      {!shopVisible && !inEvent && (
+        <GameHud view={view} center={!rosterOpen ? <OpponentStrip /> : null} />
+      )}
+      {/* ── 商店栏：**屏幕上方**那一条（施工单 §2 第 2 条）──
+          ★ 2026-11-28：从"居中的圆角面板"改成 A 案的满宽横带（顶部 94% 黑 → 全透明的渐变 +
+            一条铜架线），所以这里不再居中、也不再让安全区：渐变从屏幕最上沿开始，
+            内容自己的留白（px-4 pt-2）由 ShopPanel 给。 */}
       {shopVisible && (
-        <div className="absolute inset-x-0 top-[calc(env(safe-area-inset-top,0px)+0.5rem)] flex justify-center px-1.5">
+        <div className="absolute inset-x-0 top-0 z-10">
           <ShopPanel view={view} />
         </div>
       )}
@@ -343,24 +349,22 @@ export default function GameLayer() {
           (online && !onlineLocalEvents ? <OnlineEventPanel /> : <EventPanel view={view} />)}
         {!inShop && (state.phase === "round-end" || state.phase === "over") && <RoundResultPanel />}
 
-        {/* 背包条 + 商店键：商店阶段 = 买完就地摆；创作阶段出片前还能改摆法（见 rules.PLACE_PHASES）。
-            ★ 事件阶段让位（见 inEvent）：那一条在这一阶段没有一个能用的动作，却要占掉 67px。
-            ★ 贴纸键（2026-11-24，P1「贴卡 / 表情」）挂在背包条右侧、**但绝对定位、不进流**：
-              它是底部那一排里唯一"后加"的键，一旦进流，整条（背包条 + 商店键）会被它推着往左移
-              ~25px —— 而左下角的气泡栈是按"背包条左沿 148.5"量着摆的（800×363 实测），
-              一移过去气泡就压在背包条上了。绝对定位之后：背包条一个像素都不动，
-              贴纸键落在商店键右边那 90px 空档里（真机量过：商店键右沿 651.4、道具栏下沿 y 243，
-              中间什么都没有）。 */}
-        {!inEvent && (
-          <div className="pointer-events-auto relative flex items-end gap-1.5">
-            <BagBar view={view} />
-            <div className="absolute bottom-0 left-full ml-1.5">
-              <StickerPanel view={view} />
-            </div>
-          </div>
-        )}
-
-        <PhaseBar view={view} />
+        {/* ── 底带（A 案）：**一条横带** —— 左手牌、右手主操作。设计稿 `?v=a&s=table` 的
+            `.a-band`：上沿一条从中间淡出的 1px 铜线，整条不铺底板。
+            ★ 2026-11-28（feat/ui-game-hud-a）：原来这是两层（背包条 / 阶段条各一行、各自一块药丸），
+              现在并成一行：手牌（含每张「卖 +1」）｜提示｜贴纸｜利息商店键｜实心主键。
+              并成一行是为了把屏幕下沿那 100px 还给桌面 —— 两层加起来原来占 ~170px（真机量过）。
+            ★ 事件阶段让位（见 inEvent）：那一条在这一阶段没有一个能用的动作；阶段提示照样在
+              PhaseBar 里（它由下面那条统一挂）。
+            ★ 容器本身 `pointer-events-none`：底带中间那段空白不吃点击，否则"点商店栏外面收起"
+              会把底带当成"栏内"（判据是 GameLayer 根节点的 contains）。 */}
+        <div
+          data-game-band
+          className="game-band pointer-events-none flex w-full items-end justify-between gap-2"
+        >
+          {!inEvent ? <BagBar view={view} /> : <span aria-hidden />}
+          <PhaseBar view={view} extra={inEvent ? null : <StickerPanel view={view} />} />
+        </div>
       </div>
 
       {/* 贴纸气泡（左下角那一摞）：常驻读数，`pointer-events-none`，让开卡位 / 背包条 / 阶段条。

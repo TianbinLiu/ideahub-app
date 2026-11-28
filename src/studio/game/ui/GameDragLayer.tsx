@@ -18,12 +18,15 @@ import { slotAtScreen } from "../../scene/slotScreen";
 import { gameCardName } from "../labels";
 import type { GameCard } from "../types";
 
-/** 拖动中的那张卡长什么样（只画一张小卡：卡名 + 品质，够看出拖的是什么） */
+/** 拖动中的那张卡长什么样（只画一张小卡：卡名 + 品质，够看出拖的是什么）
+ *  ★ 2026-11-28（feat/ui-game-hud-a）：整张小卡**抬到手指上方 ~1.8rem** —— 卡位里的
+ *    「松手放下」就画在卡位正中（与手指同一点），卡跟着手指正中心压着的话，那句提示永远被
+ *    这张幽灵卡盖住（截图验收当场发现）。抬起之后手指压着的是卡位正中那行字。 */
 function GhostCard({ card, x, y }: { card: GameCard | null; x: number; y: number }) {
   return (
     <div
-      className="pointer-events-none fixed z-50 -translate-x-1/2 -translate-y-1/2"
-      style={{ left: x, top: y }}
+      className="pointer-events-none fixed z-50"
+      style={{ left: x, top: y, transform: "translate(-50%, calc(-50% - 1.8rem))" }}
     >
       <div className="rounded-lg bg-panel/95 px-1.5 py-1 ring-1 ring-gold/60 shadow-lg">
         <div className="text-[9px] font-semibold leading-tight text-slate-100">{card ? gameCardName(card) : "✕"}</div>
@@ -94,7 +97,9 @@ export default function GameDragLayer() {
       {drag && (
         // 拖动时给一句"现在会怎样"（悬停在卡位上 / 没悬停时落点是"自动找空位"），
         // 拖错类型的**原因**不在这里编：规则拒了由 GameLayer 的状态栏原样说。
-        <div className="pointer-events-none absolute inset-x-0 top-[calc(env(safe-area-inset-top,0px)+3.2rem)] flex justify-center px-2">
+        // ★ 2026-11-28（feat/ui-game-hud-a）：顶栏变高（圆表 46）之后这句原来会压在「计时 / 对手条」上，
+        //   挪到顶栏下面一行（--game-hud-top + 56 = 顶栏那 46 + 10 间隙）。
+        <div className="pointer-events-none absolute inset-x-0 top-[calc(var(--game-hud-top)+56px)] flex justify-center px-2">
           <span className="rounded-full bg-black/70 px-2 py-0.5 text-[10px] text-slate-200">
             {drag.kind === "remove"
               ? t`拖到一张角色卡上：卸下它身上的所有道具`

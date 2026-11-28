@@ -386,6 +386,70 @@ export function ringTexture(color: string): THREE.CanvasTexture {
   });
 }
 
+/**
+ * 桌面卡位的**缝线框**（C 案，2026-11-28 `feat/ui-game-hud-a`）：针脚虚线 + 四角十字结。
+ *
+ * ★ 为什么画在纹理里而不是 DOM：桌面上那 5 个卡位是 3D 里的平面（scene/TableScene 的 SlotPlate），
+ *   没有 DOM 可以挂 CSS 边框。与 `ringTexture` 同一个尺寸（512×768，铺在约 70×100 CSS 的卡位上），
+ *   按 2:3 卡形算针脚 —— 一针约 34 个纹理像素长，在 dpr 2.6（模拟器）/ 3.5（真机）下都还看得出
+ *   是一段一段的线，不会糊成实线。
+ *
+ * @param color 线的颜色（空位 = 黄铜；已放卡 = 角色青 / 场景金，按状态给）
+ * @param alpha 整条框的透明度（空位常态 0.55、正拖到它上面 1、已经放了卡 0.45）
+ */
+export function stitchedSlotTexture(color: string, alpha: number): THREE.CanvasTexture {
+  const key = `stitch:${color}:${alpha}`;
+  return texFromDraw(key, W, H, [], (ctx) => {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+    ctx.strokeStyle = color;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    // 针脚：段长 34 / 间隔 24 / 线宽 9（纹理像素）—— 与 index.css 的 .game-stitch 同一套视觉参数
+    const inset = 26;
+    ctx.lineWidth = 9;
+    ctx.setLineDash([34, 24]);
+    roundedPath(ctx, inset, inset, W - inset * 2, H - inset * 2, 34);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // 四角十字结：比针脚粗一档的两笔斜线（C 案 `.c-slot .x`）
+    ctx.lineWidth = 11;
+    const knot = 28;
+    for (const [x, y] of [
+      [inset, inset],
+      [W - inset, inset],
+      [inset, H - inset],
+      [W - inset, H - inset],
+    ]) {
+      ctx.beginPath();
+      ctx.moveTo(x - knot, y - knot);
+      ctx.lineTo(x + knot, y + knot);
+      ctx.moveTo(x - knot, y + knot);
+      ctx.lineTo(x + knot, y - knot);
+      ctx.stroke();
+    }
+    ctx.restore();
+  });
+}
+
+/** 空位 / 悬停那一行字。尺寸是 512×256（2:1），铺在 SlotPlate 那条 2.1:1 的扁条上字不会被拉高。
+ *  字 84px（「松手放下」四个字在 ~65 CSS 宽的卡位上 ≈ 40px 宽、每字 10px）：再小真机读不清，
+ *  再大「场景位」三个字会顶出扁条。 */
+export function slotHintTexture(text: string, color: string): THREE.CanvasTexture {
+  return texFromDraw(`slotHint:${text}:${color}`, 512, 256, [], (ctx) => {
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = "600 84px 'PingFang SC','Microsoft YaHei',sans-serif";
+    ctx.shadowColor = "#000000cc";
+    ctx.shadowBlur = 12;
+    ctx.fillStyle = color;
+    ctx.fillText(text, 256, 128);
+    ctx.shadowBlur = 0;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "alphabetic";
+  });
+}
+
 // ── 合成圆台（"生成成片"法阵）────────────────────────────────
 // 与桌毡同一套语汇：金 rgba(214,178,106) + 同心环 + 等分射线。
 // 旧版是一块 #7c5c12 的土棕圆柱 + 白字平板，跟这个场景毫无关系——桌毡、塔罗卡框、

@@ -1177,8 +1177,263 @@ body[data-immersive="1"] [data-tabbar] {
   background: rgb(168 224 192 / 0.5);
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   对局内 HUD（2026-11-28，feat/ui-game-hud-a）
+
+   主人拍板：**A 案「克制极简」做骨架 + B 案的黄铜圆表（一个数一枚表）+ C 案的缝线卡位**。
+   设计稿 design/ui-mockups/game-hud-variants.html（?v=a|b|c&s=table|shop|bag|result），
+   截图在主人那台的 Downloads/game-hud/。
+
+   ★ 为什么这一套几乎不铺底色：对局界面下面已经是两层（3D 桌面 + 相机动来动去），
+     UI 再糊一块不透明板子，桌子就被盖住了。A 案的纪律是"只有字号、留白与 1px 铜线"，
+     这里只加**材质与刻度**的复合规则（conic 弧 / 压印牌面 / 缝线针脚 / 铜线渐变），
+     散进 JSX 会变成几十个任意值字符串，改一处要翻三处。
+   ★ 三个模块各只承担一个数（B 案那句"每块铜牌只承担一个数"）：
+     · 顶栏（A）：阶段 / 回合 / 计时 与 **金币**（21px 主数字 + 利息预告小字）；
+     · 黄铜圆表（B）：**生命值**一个数（conic 弧 + 12 道刻线 + 压印牌面）；
+     · 缝线卡位（C）：3D 桌面那 5 个卡位的框（针脚虚线 + 四角十字结）—— 那一层没有
+       DOM，针脚画在 canvas 纹理里（cardTexture.stitchSlotTexture）；DOM 那一侧
+       （右侧道具栏）用下面的 .game-stitch / .game-stitch-x，两处视觉参数对着写。
+   ★ 尺寸口径：852×348 画布（模拟器 emulator-5554：864×360 视口 / dpr 2.625 实测），
+     真机 800×363（dpr 3.5）同一条 clamp 公式；安全区一律读 --safe-float-top。
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root {
+  /* 顶栏那一排圆键（44×44）占掉安全区下沿约 44px：HUD 让到它下面一行（+52 = 44 键 + 8 间隙）。
+     ★ 模拟器实测（864×360，env 顶=0）：圆键 22~66，HUD 62~108 —— +48 时金币那一格与 ⚙ 底部压 4px，
+       补到 +52 之后 66~112，留 4px。
+     ★ 真机读数（800×363，env 顶=41）：--safe-float-top = 49，顶栏圆键 57~101 → HUD 落在
+       107~153（比模拟器整体低 41px，因为安全区更大）。 */
+  --game-hud-top: calc(var(--safe-float-top) + 52px);
+  /* HUD 的起点 = 左上角玩家面板的右沿（面板 clamp(7.5rem,17.5vw,12rem) + 左 6 + 间隙 8）。
+     面板展开时也在这一列里，所以这不是"可选的留白"：HUD 让位，否则展开就压在圆表上。 */
+  --game-hud-left: clamp(8.6rem, 19.6vw, 13.4rem);
+  --game-brass: #d8b26a;
+  --game-brass-hi: #f7e3ae;
+  --game-ivory: #f2e7d2;
+  --game-muted: #a08a66;
+  --game-dim: #6f5f49;
+  --game-hair: rgb(216 178 106 / 0.2);
+  --game-hair-2: rgb(216 178 106 / 0.42);
+  /* 数字：窄字 + 等宽（位宽变化不跳字，跟 B 案票根 / 大厅主键同一套回退栈） */
+  --game-num: "Bahnschrift SemiCondensed", "Bahnschrift", "DIN Alternate", "Arial Narrow",
+    "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+.game-num {
+  font-family: var(--game-num);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+/* 黄铜圆表（B）：conic 弧 + 12 道刻线 + 压印牌面。
+   --p 是弧的占比（0~100%），由组件按 hp/START_HP 写进 style。
+   ★ 弧用 conic-gradient + 径向 mask 画（比 SVG 少一层 DOM，截图里也没有矢量抗锯齿差）。 */
+.game-dial {
+  position: relative;
+  width: 46px;
+  height: 46px;
+  flex: none;
+}
+.game-dial-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: conic-gradient(from 180deg, rgb(203 128 116 / 0.95) 0 var(--p), rgb(255 255 255 / 0.1) 0 100%);
+  -webkit-mask-image: radial-gradient(circle, transparent 57%, #000 58% 74%, transparent 75%);
+  mask-image: radial-gradient(circle, transparent 57%, #000 58% 74%, transparent 75%);
+  filter: drop-shadow(0 0 3px rgb(203 128 116 / 0.4));
+}
+.game-dial-ticks {
+  position: absolute;
+  inset: 3px;
+  border-radius: 999px;
+  background: repeating-conic-gradient(from 0deg, rgb(216 178 106 / 0.42) 0deg 0.6deg, transparent 0.6deg 30deg);
+  -webkit-mask-image: radial-gradient(circle, transparent 62%, #000 63% 70%, transparent 71%);
+  mask-image: radial-gradient(circle, transparent 62%, #000 63% 70%, transparent 71%);
+}
+.game-dial-face {
+  position: absolute;
+  inset: 7px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  border-radius: 999px;
+  border: 1px solid rgb(216 178 106 / 0.4);
+  background: radial-gradient(70% 60% at 38% 26%, #2c2418, #16110b 62%, #0d0a07);
+  box-shadow: inset 0 2px 6px rgb(0 0 0 / 0.7), inset 0 1px 0 rgb(255 226 170 / 0.16);
+}
+.game-dial-face b {
+  font-family: var(--game-num);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1;
+  color: #f6ead5;
+}
+.game-dial-face em {
+  font-style: normal;
+  font-size: 5.5px;
+  line-height: 1;
+  letter-spacing: 0.22em;
+  color: #a08a66;
+}
+
+/* 1px 铜线：两端淡出。顶栏底沿 / 底带上沿都用它 —— 全案的结构线只有这一种。 */
+.game-hairline {
+  position: relative;
+}
+.game-hairline::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgb(216 178 106 / 0.3) 14%, rgb(216 178 106 / 0.3) 86%, transparent);
+}
+
+/* 实心主键（A 案唯一一处实心键）：黄铜渐变 + 深字 + 上沿高光。44px 高（手指命中区）。 */
+.game-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 44px;
+  padding: 0 14px;
+  border-radius: 5px;
+  border: 1px solid #f6e4ba;
+  background: linear-gradient(180deg, #f6e4b1, #ddb56c 46%, #b98b41);
+  color: #2b1d09;
+  font-family: var(--lobby-serif-stack);
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  box-shadow: 0 4px 11px rgb(0 0 0 / 0.5), inset 0 1px 0 rgb(255 255 255 / 0.6);
+  white-space: nowrap;
+  transition: transform 80ms ease-out, filter 120ms ease-out;
+}
+.game-primary:active {
+  transform: translateY(1px) scale(0.995);
+  filter: brightness(0.98);
+}
+
+/* 小铜片键（商店 / 贴纸 / 顶栏圆键）：无底色，只有一条竖切出来的铜线。44×44 起。 */
+.game-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--game-hair-2);
+  border-radius: 5px;
+  background: linear-gradient(180deg, rgb(216 178 106 / 0.1), rgb(0 0 0 / 0.26));
+  color: #f2e5ca;
+}
+.game-chip:active {
+  background: rgb(216 178 106 / 0.2);
+}
+
+/* 缝线框（C）：虚线针脚 + 四角十字结（DOM 那一侧的副本）。3D 桌面卡位画在纹理里，
+   参数对着 cardTexture.stitchSlotTexture 写：段长 34 / 间隔 24 / 线宽 9（纹理像素）。 */
+.game-stitch {
+  position: relative;
+  border-radius: 4px;
+  border: 1px dashed rgb(216 178 106 / 0.34);
+  background: radial-gradient(80% 54% at 50% 0%, rgb(216 178 106 / 0.07), transparent 72%), rgb(0 0 0 / 0.16);
+}
+.game-stitch-x {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  opacity: 0.67;
+  pointer-events: none;
+}
+.game-stitch-x::before,
+.game-stitch-x::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 1px;
+  height: 100%;
+  background: rgb(216 178 106 / 0.7);
+}
+.game-stitch-x::after {
+  transform: rotate(90deg);
+}
+.game-stitch-x.tl {
+  left: -3.5px;
+  top: -3.5px;
+}
+.game-stitch-x.tr {
+  right: -3.5px;
+  top: -3.5px;
+}
+.game-stitch-x.bl {
+  left: -3.5px;
+  bottom: -3.5px;
+}
+.game-stitch-x.br {
+  right: -3.5px;
+  bottom: -3.5px;
+}
+
+/* 商店栏（A）：顶部一条从 94% 压到全透明的横带。边界只有那条 1px 铜线，不铺底板。 */
+.game-shop-band {
+  background: linear-gradient(180deg, rgb(4 4 4 / 0.94) 0%, rgb(4 4 4 / 0.82) 58%, rgb(4 4 4 / 0) 100%);
+}
+/* 货架：一条横贯的金铜细线 —— 卡站在线上、价钱挂在线下 */
+.game-shop-shelf {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgb(216 178 106 / 0.38) 10%, rgb(216 178 106 / 0.38) 90%, transparent);
+  box-shadow: 0 3px 9px rgb(0 0 0 / 0.55);
+  pointer-events: none;
+}
+/* 商店里那三行操作（刷新 / 锁定 / 离开）：只有一条下划线，没有键的底 */
+.game-op-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  height: 26px;
+  padding: 0 2px;
+  border: 0;
+  border-bottom: 1px solid rgb(216 178 106 / 0.2);
+  background: none;
+  color: #eadcc0;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-align: left;
+  white-space: nowrap;
+}
+.game-op-row em {
+  font-style: normal;
+  font-size: 8px;
+  letter-spacing: 0.04em;
+  color: var(--game-muted);
+}
+.game-op-row.is-leave {
+  border-bottom-color: rgb(216 178 106 / 0.44);
+}
+
+/* 底带（A）：手牌在左、主操作在右；上沿一条从中间淡出的铜线，不铺底板。 */
+.game-band {
+  position: relative;
+  padding-top: 9px;
+}
+.game-band::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgb(216 178 106 / 0.3) 16%, rgb(216 178 106 / 0.3) 84%, transparent);
+}
+
 /* ── 减少动态 ── */
 @media (prefers-reduced-motion: reduce) {
+  .game-primary {
+    transition: none !important;
+  }
 
   .ingame-rise,
   .ingame-spin { animation: none !important; }

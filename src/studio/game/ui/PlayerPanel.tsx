@@ -52,7 +52,7 @@ const PLAYER_PANEL_TOP =
   "calc(env(safe-area-inset-top, 0px) + 0.25rem + clamp(1.1rem, 4.6vh, 1.6rem) + 0.35rem)";
 
 const PLAYER_PANEL_CLASS =
-  "pointer-events-auto flex max-h-[clamp(4rem,24vh,12rem)] w-[clamp(7.5rem,17.5vw,12rem)] flex-col overflow-hidden rounded-xl bg-panel/92 ring-1 ring-white/10 backdrop-blur";
+  "pointer-events-auto flex max-h-[clamp(4rem,24vh,12rem)] w-[clamp(7.5rem,17.5vw,12rem)] flex-col overflow-hidden rounded-xl bg-panel/92 ring-1 ring-[#d8b26a]/25 backdrop-blur";
 
 /** 一行上的一枚小徽记（只有"拿得到且为真"的状态才出现，见 roster.ts 文件头那张表）。 */
 function Badge({ children, title, tone = "muted" }: { children: React.ReactNode; title: string; tone?: "muted" | "ok" | "host" | "warn" }) {
@@ -137,8 +137,12 @@ export default function PlayerPanel({ open, onToggle }: { open: boolean; onToggl
               ? t`本桌玩家：名字 / 血量 / 交片与投票状态`
               : t`本桌玩家：名字 / 血量 / 交片与投票状态（本机局：其余座位由 AI 补位）`
         }
-        className={`pointer-events-auto flex w-full items-center gap-1 rounded-lg px-2 py-0.5 text-[10px] font-semibold backdrop-blur ring-1 ${
-          open ? "bg-brand/25 text-brand-100 ring-brand/50" : "bg-panel/85 text-slate-200 ring-white/10"
+        // ★ 2026-11-28（feat/ui-game-hud-a）：A 案里"没有面板底色"这条也管到这一颗 ——
+        //   从圆角药丸换成铜线小键，并撑到 44 高（原来 19 高，拇指按不准；它是左上角唯一入口）。
+        className={`pointer-events-auto flex h-11 w-full items-center gap-1 rounded-[4px] border px-2 text-[10px] font-semibold backdrop-blur ${
+          open
+            ? "border-[#f7e3ae]/70 bg-[#0b0906]/70 text-[#f7e3ae]"
+            : "border-[#d8b26a]/40 bg-[#0b0906]/50 text-[#e9dcc2]"
         }`}
       >
         <span aria-hidden>👥</span>

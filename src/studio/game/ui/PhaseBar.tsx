@@ -18,13 +18,19 @@ import { phaseKeyOf } from "../onlineHost";
 import { roundViewOf } from "../view";
 import type { GameView } from "../view";
 import { quitGameToLobby } from "./quitGame";
-import GameBtn from "./GameBtn";
-import PhaseClock from "./PhaseClock";
 
-export default function PhaseBar({ view }: { view: GameView }) {
+export default function PhaseBar({
+  view,
+  extra,
+}: {
+  view: GameView;
+  /** 主键前面那几颗（贴纸）—— 底带右组 = 提示，「这里的键」，利息商店键，实心主键 */
+  extra?: React.ReactNode;
+}) {
   const { t } = useLingui();
   const state = useGame((s) => s.state);
   const meId = useGame((s) => s.meId);
+  const shopOpen = useGame((s) => s.shopOpen);
   const eliminatedAtRound = useGame((s) => s.eliminatedAtRound);
   const online = useGame((s) => s.online);
   const onlineLocalEvents = useGame((s) => s.onlineLocalEvents);
@@ -208,21 +214,61 @@ export default function PhaseBar({ view }: { view: GameView }) {
   }
 
   return (
-    <div className="pointer-events-auto flex max-w-[44rem] items-center gap-2 rounded-xl bg-panel/90 px-2 py-1 text-[10px] leading-snug ring-1 ring-white/10 backdrop-blur">
-      {/* 本回合已进行多久（本地计时；服务端没有截止时间字段，见 ui/PhaseClock 的 ★★）。
-          ★ 摆在最左边：它是这一段唯一的"时间"读数，位置固定了才不会被文案的长短挤来挤去。 */}
-      <PhaseClock round={state.round} phase={state.phase} />
-      <span className="truncate text-slate-300">{hint}</span>
-      {waitingForHost && <span className="flex-none font-semibold text-gold-200">{waitingForHost}</span>}
-      {action && (
-        <GameBtn onClick={action.onClick} tone={action.tone ?? "normal"} className="ml-auto flex-none text-[11px]" disabled={action.disabled}>
-          {action.label}
-        </GameBtn>
+    // 2026-11-28（feat/ui-game-hud-a）：阶段条从"底部一整块药丸"改成**底带右组** ——
+    // 与手牌（BagBar）同一条横带：提示 → 贴纸 → 利息商店键 → 实心主键（设计稿 A 案 `.a-actions`）。
+    // 计时搬到顶栏（PhaseClock 只在 GameHud / 商店栏抬头里出现，一屏一处时钟）。
+    // ★ 容器 pointer-events-none、只有键自己接事件：底带中间那段空白要是吃点击，
+    //   "点商店栏外面收起"就会把底带当成"栏内"，点了没反应（见 GameLayer 的收起判据）。
+    <div data-game-phasebar className="pointer-events-none flex min-w-0 items-end justify-end gap-2">
+      {hint && (
+        <span className="max-w-[15rem] pb-1 text-right text-[8.5px] leading-[1.45] tracking-[0.04em] text-[#a08a66]">
+          {hint}
+        </span>
+      )}
+      {waitingForHost && (
+        <span className="flex-none pb-1 text-[9px] font-semibold leading-none text-[#f7e3ae]">{waitingForHost}</span>
       )}
       {state.phase === "event" && !online && (
-        <span className="ml-auto flex-none text-[10px] text-slate-500">
+        <span className="flex-none pb-1 text-[9px] leading-none text-[#a08a66]">
           <Trans>AI 已经选好了</Trans>
         </span>
+      )}
+      {extra}
+      {/* 商店键：只显示利息图案 + 数字（施工单点名），"商店"只在 title / aria-label 里。
+          44×44 起（与主键同一档命中区），开着的商店描边变亮 —— 键面就是状态。 */}
+      <button
+        type="button"
+        data-game-shopkey
+        onClick={() => useGame.getState().toggleShop()}
+        aria-label={t`商店`}
+        title={t`商店 · 本回合利息 +${view.hud.income.interest}`}
+        className={`pointer-events-auto game-chip h-11 w-[3.15rem] flex-none flex-col gap-[2px] ${
+          shopOpen ? "border-[#f7e3ae]/70" : ""
+        }`}
+      >
+        <span aria-hidden className="text-[13px] leading-none opacity-85">
+          🛒
+        </span>
+        <span className="game-num text-[8px] font-semibold leading-none text-[#f7e3ae]">
+          <Trans>利息 +{view.hud.income.interest}</Trans>
+        </span>
+        <span className="text-[5.5px] leading-none tracking-[0.3em] text-[#d8b26a]/75">
+          <Trans>商店</Trans>
+        </span>
+      </button>
+      {action && (
+        // 主键：全案唯一一处实心键（黄铜渐变、深字、44px 高）
+        <button
+          type="button"
+          onClick={action.onClick}
+          disabled={action.disabled}
+          className="game-primary pointer-events-auto flex-none disabled:opacity-40"
+        >
+          {action.label}
+          <span aria-hidden className="text-[11px] opacity-70">
+            →
+          </span>
+        </button>
       )}
     </div>
   );

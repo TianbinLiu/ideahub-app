@@ -82,7 +82,13 @@ export default function CreatePanel({ view }: { view: GameView }) {
                     </div>
                   </div>
                 ) : (
-                  <div className="flex aspect-[2/3] w-full items-center justify-center rounded-lg border border-dashed border-white/20 text-[8px] text-slate-500">
+                  // C 案的缝线卡位（2026-11-28，feat/ui-game-hud-a）：这一屏画的是桌面那 5 个位子的
+                  // 同一份状态，空位与 3D 桌面上那 5 个框用同一种针脚（虚线 + 四角十字结）。
+                  <div className="game-stitch flex aspect-[2/3] w-full items-center justify-center text-[8px] text-[#a08a66]">
+                    <span aria-hidden className="game-stitch-x tl" />
+                    <span aria-hidden className="game-stitch-x tr" />
+                    <span aria-hidden className="game-stitch-x bl" />
+                    <span aria-hidden className="game-stitch-x br" />
                     <Trans>空位</Trans>
                   </div>
                 )}
@@ -94,7 +100,11 @@ export default function CreatePanel({ view }: { view: GameView }) {
                   <GameCardTile card={view.table.scene} />
                 </div>
               ) : (
-                <div className="flex aspect-[2/3] w-full items-center justify-center rounded-lg border border-dashed border-white/20 text-center text-[8px] leading-tight text-slate-500">
+                <div className="game-stitch flex aspect-[2/3] w-full items-center justify-center text-center text-[8px] leading-tight text-[#a08a66]">
+                  <span aria-hidden className="game-stitch-x tl" />
+                  <span aria-hidden className="game-stitch-x tr" />
+                  <span aria-hidden className="game-stitch-x bl" />
+                  <span aria-hidden className="game-stitch-x br" />
                   <Trans>场景位</Trans>
                 </div>
               )}
