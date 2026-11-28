@@ -370,9 +370,10 @@
 
 - 分支：`feat/ui-fonts-hud-fixes`（从 main `b3d2ab05` 开）
 - PR：**#564** <https://github.com/TianbinLiu/ideahub-app/pull/564>
-- CI（GitHub Actions，run `46136992659`）：build ✅ / android ✅（debug 变体编译，不设 required）
+- CI（GitHub Actions，run `46137215130`，head `56292103`）：build ✅ / android ✅（debug 变体编译，不设 required）
 - main：**`dd8c4df3`**（`Merge pull request #564 from TianbinLiu/feat/ui-fonts-hud-fixes`）
   - 代码 + 字体：`f5813c30`；文档补记：`10ff562a` / `56292103`
+  - 文档补记 PR #565 合并后当前主干：`2fb22861`
 
 #### 8）剩余风险
 
